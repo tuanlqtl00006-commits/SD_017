@@ -1,131 +1,333 @@
 <template>
-
-  <div class="d-flex vh-100" style="background-color: #f4f7f6;">
-
-
-    <div class="d-flex flex-column flex-shrink-0 p-3 text-white" style="width: 260px; background-color: #0d1b2a;">
-      <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
-        <span class="fs-4 fw-bold fst-italic text-primary bg-white px-2 py-1 rounded">FootStyle</span>
-      </a>
-      <hr>
-      <ul class="nav nav-pills flex-column mb-auto gap-2">
-        <li class="nav-item">
-          <a href="#" class="nav-link text-white">Thống Kê</a>
-        </li>
-        <li>
-
-          <a href="#" class="nav-link active bg-primary text-white fw-bold">Quản Lý Hoá Đơn</a>
-        </li>
-        <li><a href="#" class="nav-link text-white">Quản Lý Nhân Viên</a></li>
-        <li><a href="#" class="nav-link text-white">Quản Lý Khách Hàng</a></li>
-        <li><a href="#" class="nav-link text-white">Quản Lý Phiếu Giảm Giá</a></li>
+  <div class="d-flex" style="min-height: 100vh; background-color: #f4f6f9;">
+    <div class="d-flex flex-column flex-shrink-0 text-white" style="width: 260px; background-color: #1a202c;">
+      <div class="bg-white rounded p-2 mx-3">
+        <img src="/logo.png" alt="FootStyle" class="img-fluid w-100" style="object-fit: contain;">
+      </div>
+      <ul class="nav nav-pills flex-column mb-auto p-3 gap-2">
+        <li class="nav-item"><a href="#" class="nav-link text-white text-opacity-75"><i class="bi bi-bar-chart me-2"></i> Thống Kê</a></li>
+        <li><a href="#" class="nav-link text-white text-opacity-75"><i class="bi bi-box me-2"></i> Quản Lý Sản Phẩm</a></li>
+        <li><a href="#" class="nav-link text-white text-opacity-75"><i class="bi bi-person me-2"></i> Quản Lý Nhân Viên</a></li>
+        <li><a href="#" class="nav-link text-white text-opacity-75"><i class="bi bi-people me-2"></i> Quản Lý Khách Hàng</a></li>
+        <li><a href="#" class="nav-link active fw-bold shadow-sm" style="background-color: #0d6efd;"><i class="bi bi-receipt me-2"></i> Quản Lý Hóa Đơn</a></li>
       </ul>
-      <hr>
-      <div class="d-flex align-items-center">
-        <img src="https://github.com/mdo.png" alt="" width="32" height="32" class="rounded-circle me-2">
-        <strong>Admin</strong>
+      <div class="p-3 border-top border-secondary border-opacity-25 d-flex align-items-center">
+        <img src="https://github.com/mdo.png" width="40" height="40" class="rounded-circle me-3">
+        <div>
+          <div class="fw-bold fs-6">Admin</div>
+          <div class="text-muted small">Quản trị viên</div>
+        </div>
       </div>
     </div>
 
+    <div class="flex-grow-1 d-flex flex-column">
 
-    <div class="flex-grow-1 p-4 overflow-auto">
-
-
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold m-0">Quản Lý Hoá Đơn</h3>
+      <header class="d-flex justify-content-between align-items-center p-3 bg-white border-bottom">
+        <h5 class="m-0 fw-bold d-flex align-items-center">
+          <i class="bi bi-list fs-4 me-2 text-muted"></i> Chi Tiết Hóa Đơn
+        </h5>
         <div class="d-flex align-items-center gap-3">
-          <button class="btn btn-primary">+ Thêm hoá đơn</button>
-          <div class="d-flex align-items-center">
-            <span class="me-2 fw-bold">Hải Long</span>
-            <img src="https://github.com/mdo.png" alt="" width="35" height="35" class="rounded-circle">
+          <button class="btn btn-light border btn-sm text-muted rounded-pill px-3"><i class="bi bi-clock"></i> Ca làm việc <i class="bi bi-chevron-down ms-1"></i></button>
+          <button class="btn btn-light border btn-sm text-muted rounded-circle"><i class="bi bi-gear"></i></button>
+          <button class="btn btn-light border btn-sm text-muted rounded-circle"><i class="bi bi-bell"></i></button>
+          <div class="d-flex align-items-center border-start ps-3">
+            <span class="me-2 text-muted">Admin</span>
+            <img src="https://github.com/mdo.png" width="32" class="rounded-circle">
           </div>
         </div>
-      </div>
+      </header>
 
+      <main class="p-4 overflow-auto">
 
-      <div class="card border-0 shadow-sm rounded-3 mb-4">
-        <div class="card-body">
-          <h6 class="fw-bold mb-3 text-secondary">Bộ lọc</h6>
-          <div class="d-flex gap-3">
-            <input type="text" class="form-control w-50" placeholder="Tìm theo mã hoá đơn, tên khách hàng...">
-            <select class="form-select w-25">
-              <option>Tất cả trạng thái</option>
-              <option>Đã thanh toán</option>
-              <option>Chưa thanh toán</option>
-            </select>
-            <button class="btn btn-outline-secondary">Đặt lại bộ lọc</button>
-            <button class="btn btn-outline-success">Xuất Excel</button>
-            <button class="btn btn-danger">+ Thêm hoá đơn</button>
+        <div class="d-flex justify-content-between align-items-end mb-4">
+          <div>
+            <nav aria-label="breadcrumb">
+              <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-primary">Quản lý hóa đơn</a></li>
+                <li class="breadcrumb-item active text-muted" aria-current="page">HD20260118027</li>
+              </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-3 mt-2">
+              <h4 class="fw-bold m-0">Hóa đơn #HD20260118027</h4>
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-2">ĐANG GIAO HÀNG</span>
+              <span class="text-muted small">Tạo lúc 09:42 - 18/01/2026</span>
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-white border shadow-sm text-muted"><i class="bi bi-printer me-1"></i> In hóa đơn</button>
+            <button class="btn btn-white border shadow-sm text-muted"><i class="bi bi-download me-1"></i> Xuất PDF</button>
+            <button class="btn btn-primary shadow-sm"><i class="bi bi-arrow-repeat me-1"></i> Cập nhật trạng thái</button>
           </div>
         </div>
-      </div>
 
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-body p-4">
+            <div class="d-flex justify-content-between mb-4">
+              <h6 class="fw-bold m-0">Trạng thái hóa đơn</h6>
+              <small class="text-muted">Cập nhật gần nhất: 14:20 - 19/01/2026</small>
+            </div>
 
-      <div class="card border-0 shadow-sm rounded-3">
-        <div class="card-body">
-          <h6 class="fw-bold mb-3 text-secondary">Danh sách hoá đơn</h6>
-          <table class="table table-hover align-middle">
-            <thead class="table-light text-muted">
-            <tr>
-              <th>STT</th>
-              <th>Mã HĐ</th>
-              <th>Tên khách hàng</th>
-              <th>Ngày tạo</th>
-              <th>Tổng tiền</th>
-              <th>Trạng thái</th>
-              <th class="text-center">Hành động</th>
-            </tr>
-            </thead>
-            <tbody>
+            <div class="position-relative m-4">
+              <div class="progress position-absolute top-50 start-0 w-100 translate-middle-y" style="height: 3px; z-index: 1;">
+                <div class="progress-bar bg-success" style="width: 66%"></div>
+              </div>
 
-            <tr v-for="i in 5" :key="i">
-              <td>{{ i }}</td>
-              <td class="fw-bold">HD00{{ i }}</td>
-              <td>Nguyễn Văn A</td>
-              <td>28/09/2026</td>
-              <td class="fw-bold text-danger">2.500.000đ</td>
-              <td>
-                  <span class="badge bg-success-subtle text-success border border-success rounded-pill px-3">
-                    Đã thanh toán
-                  </span>
-              </td>
-              <td class="text-center">
-
-                <button class="btn btn-sm btn-light border me-1 text-success">O</button>
-                <button class="btn btn-sm btn-light border me-1 text-primary">✎</button>
-                <button class="btn btn-sm btn-light border text-danger">🗑</button>
-              </td>
-            </tr>
-            </tbody>
-          </table>
-
-          <div class="d-flex justify-content-between align-items-center mt-3">
-            <span class="text-muted small">Đang hiển thị 1-5 trong tổng số 25 hoá đơn</span>
-            <ul class="pagination pagination-sm m-0">
-              <li class="page-item disabled"><a class="page-link" href="#">Trước</a></li>
-              <li class="page-item active"><a class="page-link" href="#">1</a></li>
-              <li class="page-item"><a class="page-link" href="#">2</a></li>
-              <li class="page-item"><a class="page-link" href="#">3</a></li>
-              <li class="page-item"><a class="page-link" href="#">Sau</a></li>
-            </ul>
+              <div class="d-flex justify-content-between position-relative" style="z-index: 2;">
+                <div class="text-center bg-white px-2">
+                  <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center mx-auto mb-2 shadow-sm" style="width:40px; height:40px;"><i class="bi bi-check-lg fs-5"></i></div>
+                  <div class="fw-bold small text-dark">Đã xác nhận</div>
+                  <div class="text-muted" style="font-size: 0.75rem;">18/01 - 09:45</div>
+                </div>
+                <div class="text-center bg-white px-2">
+                  <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center mx-auto mb-2 shadow-sm" style="width:40px; height:40px;"><i class="bi bi-box-seam fs-5"></i></div>
+                  <div class="fw-bold small text-dark">Đã đóng gói</div>
+                  <div class="text-muted" style="font-size: 0.75rem;">18/01 - 16:30</div>
+                </div>
+                <div class="text-center bg-white px-2">
+                  <div class="rounded-circle bg-white border border-2 border-primary text-primary d-flex align-items-center justify-content-center mx-auto mb-2 shadow-sm" style="width:40px; height:40px;"><i class="bi bi-truck fs-5"></i></div>
+                  <div class="fw-bold small text-primary">Đang giao hàng</div>
+                  <div class="text-muted" style="font-size: 0.75rem;">19/01 - 14:20</div>
+                </div>
+                <div class="text-center bg-white px-2">
+                  <div class="rounded-circle bg-light border text-muted d-flex align-items-center justify-content-center mx-auto mb-2" style="width:40px; height:40px;"><i class="bi bi-check2-circle fs-5"></i></div>
+                  <div class="fw-bold small text-muted">Hoàn thành</div>
+                  <div class="text-muted" style="font-size: 0.75rem;">Dự kiến 20/01</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
+        <div class="row g-4">
+          <div class="col-xl-8 col-lg-7 d-flex flex-column gap-4">
+
+            <div class="card border-0 shadow-sm rounded-4">
+              <div class="card-body p-0">
+                <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
+                  <h6 class="fw-bold m-0"><i class="bi bi-bag text-primary me-2"></i> Sản phẩm trong hóa đơn</h6>
+                  <span class="text-muted small">3 sản phẩm</span>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-borderless align-middle m-0">
+                    <thead class="bg-light text-muted small border-bottom">
+                    <tr>
+                      <th class="ps-4 py-3 fw-normal">SẢN PHẨM</th>
+                      <th class="py-3 fw-normal text-end">ĐƠN GIÁ</th>
+                      <th class="py-3 fw-normal text-center">SL</th>
+                      <th class="pe-4 py-3 fw-normal text-end">THÀNH TIỀN</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr class="border-bottom">
+                      <td class="ps-4 py-3">
+                        <div class="d-flex align-items-center gap-3">
+                          <div class="bg-light rounded p-2" style="width: 50px; height: 50px;"><img src="https://via.placeholder.com/50" class="img-fluid mix-blend-multiply"></div>
+                          <div>
+                            <div class="fw-bold text-dark">Vợt cầu lông Yonex Astrox 100 ZZ</div>
+                            <div class="text-muted small">Trắng / Navy • YX-AST-100ZZ</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="py-3 text-end fw-medium text-dark">6.490.000đ</td>
+                      <td class="py-3 text-center">1</td>
+                      <td class="pe-4 py-3 text-end fw-bold text-dark">6.490.000đ</td>
+                    </tr>
+                    <tr class="border-bottom">
+                      <td class="ps-4 py-3">
+                        <div class="d-flex align-items-center gap-3">
+                          <div class="bg-light rounded p-2" style="width: 50px; height: 50px;"><img src="https://via.placeholder.com/50" class="img-fluid mix-blend-multiply"></div>
+                          <div>
+                            <div class="fw-bold text-dark">Vợt cầu lông Li-Ning Axforce 90 Dragon</div>
+                            <div class="text-muted small">Đen đỏ / 4U • LN-AXF-90D</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="py-3 text-end fw-medium text-dark">4.290.000đ</td>
+                      <td class="py-3 text-center">1</td>
+                      <td class="pe-4 py-3 text-end fw-bold text-dark">4.290.000đ</td>
+                    </tr>
+                    <tr>
+                      <td class="ps-4 py-3">
+                        <div class="d-flex align-items-center gap-3">
+                          <div class="bg-light rounded p-2" style="width: 50px; height: 50px;"><img src="https://via.placeholder.com/50" class="img-fluid mix-blend-multiply"></div>
+                          <div>
+                            <div class="fw-bold text-dark">Vợt cầu lông Victor Thruster F Falcon</div>
+                            <div class="text-muted small">Đen cam / 4U • VC-TFF-4U</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="py-3 text-end fw-medium text-dark">3.980.000đ</td>
+                      <td class="py-3 text-center">1</td>
+                      <td class="pe-4 py-3 text-end fw-bold text-dark">3.980.000đ</td>
+                    </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4">
+              <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                  <h6 class="fw-bold m-0"><i class="bi bi-clock-history text-primary me-2"></i> Lịch sử thanh toán</h6>
+                  <span class="text-muted small">Đã thanh toán</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="fw-bold text-dark">18/01/2026 - 09:43<br><span class="text-muted fw-normal small">MOMO-98241570</span></div>
+                    <div class="d-flex align-items-center bg-light rounded px-3 py-2 border">
+                      <span class="text-danger fw-bold me-2">M</span> <span class="fw-medium">Ví MoMo</span>
+                    </div>
+                  </div>
+                  <div class="d-flex align-items-center gap-3">
+                    <span class="fw-bold text-dark fs-6">7.570.000đ</span>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2">THÀNH CÔNG</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4">
+              <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+                  <h6 class="fw-bold m-0"><i class="bi bi-list-ul text-primary me-2"></i> Nhật ký xử lý</h6>
+                  <span class="text-muted small">Theo thời gian thực</span>
+                </div>
+
+                <div class="position-relative ms-3 border-start border-2 border-primary border-opacity-25 pb-3">
+                  <div class="position-relative mb-4 ms-4">
+                    <div class="position-absolute bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow" style="width: 30px; height: 30px; left: -40px; top: 0;"><i class="bi bi-truck small"></i></div>
+                    <div class="d-flex justify-content-between">
+                      <div>
+                        <div class="fw-bold text-dark">Bàn giao cho đơn vị vận chuyển</div>
+                        <div class="text-muted small">Nhân viên Nguyễn Quốc Huy - Kho Cầu Giấy</div>
+                      </div>
+                      <div class="text-muted small">19/01 - 14:20</div>
+                    </div>
+                  </div>
+                  <div class="position-relative mb-4 ms-4">
+                    <div class="position-absolute bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center" style="width: 30px; height: 30px; left: -40px; top: 0;"><i class="bi bi-check-lg small"></i></div>
+                    <div class="d-flex justify-content-between">
+                      <div>
+                        <div class="fw-bold text-dark">Đã đóng gói và kiểm tra sản phẩm</div>
+                        <div class="text-muted small">Kiện hàng 3 sản phẩm - 2,4 kg</div>
+                      </div>
+                      <div class="text-muted small">18/01 - 16:30</div>
+                    </div>
+                  </div>
+                  <div class="position-relative ms-4">
+                    <div class="position-absolute bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center" style="width: 30px; height: 30px; left: -40px; top: 0;"><i class="bi bi-check-lg small"></i></div>
+                    <div class="d-flex justify-content-between">
+                      <div>
+                        <div class="fw-bold text-dark">Xác nhận đơn hàng</div>
+                        <div class="text-muted small">Tự động xác nhận sau khi thanh toán</div>
+                      </div>
+                      <div class="text-muted small">18/01 - 09:45</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="col-xl-4 col-lg-5 d-flex flex-column gap-4">
+
+            <div class="card border-0 shadow-sm rounded-4">
+              <div class="card-body p-4">
+                <h6 class="fw-bold mb-4"><i class="bi bi-person text-primary me-2"></i> Khách hàng & giao hàng</h6>
+
+                <div class="d-flex align-items-center mb-4">
+                  <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 fs-5" style="width: 50px; height: 50px;">MA</div>
+                  <div>
+                    <div class="fw-bold text-dark d-flex align-items-center">
+                      Nguyễn Minh Anh <span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-2 rounded-pill" style="font-size: 0.65rem;">GOLD</span>
+                    </div>
+                    <div class="text-muted small">0983 354 455 • minhanh@gmail.com</div>
+                  </div>
+                </div>
+
+                <div class="d-flex mb-3">
+                  <div class="text-muted me-2" style="width: 20px;"><i class="bi bi-geo-alt"></i></div>
+                  <div>
+                    <div class="text-muted small mb-1">Địa chỉ nhận</div>
+                    <div class="text-dark small fw-medium">24 Trần Thái Tông, Cầu Giấy,<br>Hà Nội</div>
+                  </div>
+                </div>
+
+                <div class="d-flex mb-3">
+                  <div class="text-muted me-2" style="width: 20px;"><i class="bi bi-truck"></i></div>
+                  <div class="w-100 d-flex justify-content-between">
+                    <span class="text-muted small">Đơn vị vận chuyển</span>
+                    <span class="text-dark small fw-medium">Giao Hàng Tiết Kiệm</span>
+                  </div>
+                </div>
+
+                <div class="d-flex mb-3">
+                  <div class="text-muted me-2" style="width: 20px;"><i class="bi bi-upc-scan"></i></div>
+                  <div class="w-100 d-flex justify-content-between">
+                    <span class="text-muted small">Mã vận đơn</span>
+                    <span class="text-dark small fw-medium">GHTK.HN.186450392</span>
+                  </div>
+                </div>
+
+                <div class="d-flex">
+                  <div class="text-muted me-2" style="width: 20px;"><i class="bi bi-chat-left-text"></i></div>
+                  <div class="w-100 d-flex justify-content-between">
+                    <span class="text-muted small">Ghi chú</span>
+                    <span class="text-dark small fw-medium">Gọi trước khi giao hàng</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4">
+              <div class="card-body p-4">
+                <h6 class="fw-bold mb-4"><i class="bi bi-receipt text-primary me-2"></i> Tổng thanh toán</h6>
+
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted small">Tạm tính</span>
+                  <span class="text-dark fw-medium small">14.760.000đ</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted small">Giảm giá • <span class="text-dark">RACKET500</span></span>
+                  <span class="text-success fw-medium small">-500.000đ</span>
+                </div>
+                <div class="d-flex justify-content-between mb-4">
+                  <span class="text-muted small">Phí vận chuyển</span>
+                  <span class="text-dark fw-medium small">30.000đ</span>
+                </div>
+
+                <hr class="text-muted border-opacity-50">
+
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                  <span class="fw-bold text-dark">Khách đã thanh toán</span>
+                  <span class="fs-4 fw-bold text-primary">14.290.000đ</span>
+                </div>
+
+                <div class="alert alert-success bg-success-subtle border-success-subtle text-success py-2 text-center small fw-bold mb-4 rounded-3">
+                  <i class="bi bi-check-circle me-1"></i> ĐÃ THANH TOÁN QUA MOMO
+                </div>
+
+                <div class="d-flex gap-2">
+                  <button class="btn btn-danger bg-danger-subtle text-danger border-danger-subtle w-100 fw-medium"><i class="bi bi-x-circle me-1"></i> Hủy hóa đơn</button>
+                  <button class="btn btn-light border text-muted px-3"><i class="bi bi-telephone"></i></button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </main>
     </div>
   </div>
 </template>
 
 <style scoped>
-
-.nav-link {
-  border-radius: 8px;
+.btn-white {
+  background-color: #fff;
 }
-.card {
-  background-color: #ffffff;
-}
-.table-light th {
-  font-weight: 600;
-  border-bottom: 2px solid #eaeaea;
+.mix-blend-multiply {
+  mix-blend-mode: multiply;
 }
 </style>
