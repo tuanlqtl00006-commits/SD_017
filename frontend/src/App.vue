@@ -1,7 +1,8 @@
-<script setup>
-import HelloWorld from './components/HelloWorld.vue'
-</script>
-
 <template>
-  <HelloWorld />
+  <HoaDonManager />
 </template>
+
+<script setup>
+import HoaDonManager from './components/HoaDonManager.vue';
+
+</script>
