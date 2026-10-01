@@ -14,25 +14,25 @@ feature/quan-ly-hoa-don
 
 <!-- Menu List -->
 <ul class="nav flex-column fw-medium px-2 sidebar-menu" style="font-size: 0.95rem; gap: 0.2rem;">
-        
+
         <li class="nav-item">
           <a href="#" class="nav-link sidebar-link">
             <i class="bi bi-grid icon"></i> Thống kê
           </a>
         </li>
-        
+
         <li class="nav-item">
           <a href="#" class="nav-link sidebar-link">
             <i class="bi bi-shop icon"></i> Bán hàng tại quầy
           </a>
         </li>
-        
+
         <li class="nav-item">
           <a href="#" class="nav-link sidebar-link active">
             <i class="bi bi-receipt icon"></i> Quản lý hóa đơn
           </a>
         </li>
-        
+
         <!-- Quản lý sản phẩm (Đang mở) -->
         <li class="nav-item">
           <a href="#menuSanPham" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center" aria-expanded="true">
@@ -83,25 +83,25 @@ feature/quan-ly-hoa-don
             <i class="bi bi-people icon"></i> Quản lý khách hàng
           </a>
         </li>
-        
+
         <li class="nav-item">
           <a href="#" class="nav-link sidebar-link">
             <i class="bi bi-chat-dots icon"></i> Hỗ trợ trực tuyến
           </a>
         </li>
-        
+
         <li class="nav-item">
           <a href="#" class="nav-link sidebar-link">
             <i class="bi bi-star icon"></i> Quản lý đánh giá
           </a>
         </li>
-        
+
         <li class="nav-item">
           <a href="#" class="nav-link sidebar-link">
             <i class="bi bi-person icon"></i> Quản lý nhân viên
           </a>
         </li>
-        
+
         <!-- Quản lý lịch làm (Đang đóng) -->
         <li class="nav-item mb-4">
           <a href="#menuLichLam" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center collapsed" aria-expanded="false">
@@ -110,12 +110,13 @@ feature/quan-ly-hoa-don
           </a>
           <div class="collapse" id="menuLichLam"></div>
         </li>
-        
+
       </ul>
     </div>
 
 
     <div class="flex-grow-1 d-flex flex-column">
+      <Header />
 
 
       <header class="bg-white border-bottom p-3 d-flex justify-content-end align-items-center gap-3">
@@ -305,7 +306,7 @@ padding: 0.7rem 1rem;
 .sidebar-menu .sidebar-link .icon {
   font-size: 1.15rem;
   margin-right: 0.8rem;
-  color: #6c757d; 
+  color: #6c757d;
   width: 24px;
   text-align: center;
 }
@@ -313,7 +314,7 @@ padding: 0.7rem 1rem;
 /* Hover: Đổi sang màu xanh dương */
 .sidebar-menu .sidebar-link:hover:not(.active) {
   background-color: #f8f9fa;
-  color: #0d6efd; 
+  color: #0d6efd;
 }
 
 .sidebar-menu .sidebar-link:hover:not(.active) .icon,
@@ -323,10 +324,10 @@ padding: 0.7rem 1rem;
 
 /* Trạng thái Active (Nền xanh dương, chữ trắng) */
 .sidebar-menu .sidebar-link.active {
-  background-color: #0d6efd !important; 
-  color: white !important; 
+  background-color: #0d6efd !important;
+  color: white !important;
   font-weight: 600;
-  box-shadow: 0 0.125rem 0.25rem rgba(13, 110, 253, 0.2); 
+  box-shadow: 0 0.125rem 0.25rem rgba(13, 110, 253, 0.2);
 }
 
 .sidebar-menu .sidebar-link.active .icon {
@@ -356,7 +357,7 @@ padding: 0.7rem 1rem;
 /* Khi dropdown mở: Xoay mũi tên & đổi màu xanh dương */
 .sidebar-menu .sidebar-link:not(.collapsed) .chevron {
 transform: rotate(180deg);
-  color: #0d6efd; 
+  color: #0d6efd;
 }
 /* Form Input */
 .form-control::placeholder {

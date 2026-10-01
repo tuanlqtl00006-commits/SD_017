@@ -1,4 +1,5 @@
 <template>
+  <router-view></router-view>
 feature/quan-ly-hoa-don
 <!--  <HoaDOnCHiTiet />-->
   <HoaDonManager />
