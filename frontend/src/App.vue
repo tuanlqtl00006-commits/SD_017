@@ -1,8 +1,6 @@
 <template>
-  <HoaDonManager />
+  <router-view></router-view>
 </template>
 
 <script setup>
-import HoaDonManager from './components/HoaDonManager.vue';
-
 </script>

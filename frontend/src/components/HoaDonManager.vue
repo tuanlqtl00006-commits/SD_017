@@ -1,72 +1,9 @@
-﻿<template>
+<template>
   <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
+    <Sidebar />
 
-    
-    <div class="bg-white border-end d-flex flex-column" style="width: 320px;">
-      
-      
-      <div class="p-3 text-center mb-3 d-flex align-items-center justify-content-center" style="height: 130px;">
-        <img src="/logo.png" alt="FootStyle" class="img-fluid" style="width: 95%; object-fit: contain; transform: scale(1.1);">
-      </div>
-
-      
-      <ul class="nav flex-column fw-medium px-3" style="font-size: 1.05rem; gap: 0.5rem;">
-        
-        <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-bar-chart-line me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Thống Kê
-          </a>
-        </li>
-        
-        <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-bag me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Sản Phẩm
-          </a>
-        </li>
-        
-        <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-person me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Nhân Viên
-          </a>
-        </li>
-        
-        <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-people me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Khách Hàng
-          </a>
-        </li>
-        
-        <li class="nav-item">
-          <a href="#" class="nav-link active text-white px-3 py-3 rounded-3 d-flex align-items-center fw-semibold shadow-sm text-nowrap" style="background-color: #0d6efd;">
-            <i class="bi bi-receipt me-3 fs-5 text-white" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Hóa Đơn
-          </a>
-        </li>
-        
-        <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-tag me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Phiếu Giảm Giá
-          </a>
-        </li>
-        
-        <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-percent me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Đợt Giảm Giá
-          </a>
-        </li>
-        
-      </ul>
-    </div>
-
-    
     <div class="flex-grow-1 d-flex flex-column">
-
-      
-      <header class="bg-white border-bottom p-3 d-flex justify-content-end align-items-center gap-3">
-        <button class="btn btn-light border rounded-circle p-2 lh-1 text-muted"><i class="bi bi-moon"></i></button>
-        <button class="btn btn-light border rounded-circle p-2 lh-1 text-muted dropdown-toggle text-decoration-none" data-bs-toggle="dropdown">
-          <i class="bi bi-person"></i>
-        </button>
-      </header>
+      <Header />
 
       <main class="p-4">
         
@@ -225,6 +162,11 @@
     </div>
   </div>
 </template>
+
+<script setup>
+import Sidebar from './Sidebar.vue'
+import Header from './Header.vue'
+</script>
 
 <style scoped>
 /* Form Input */
