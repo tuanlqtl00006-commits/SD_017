@@ -1,66 +1,121 @@
-﻿<template>
+<template>
   <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
 
-    
+
     <div class="bg-white border-end d-flex flex-column" style="width: 320px;">
-      
-      
+
+
       <div class="p-3 text-center mb-3 d-flex align-items-center justify-content-center" style="height: 130px;">
         <img src="/logo.png" alt="FootStyle" class="img-fluid" style="width: 95%; object-fit: contain; transform: scale(1.1);">
       </div>
 
-      
-      <ul class="nav flex-column fw-medium px-3" style="font-size: 1.05rem; gap: 0.5rem;">
+
+<!-- Menu List -->
+<ul class="nav flex-column fw-medium px-2 sidebar-menu" style="font-size: 0.95rem; gap: 0.2rem;">
         
         <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-bar-chart-line me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Thống Kê
+          <a href="#" class="nav-link sidebar-link">
+            <i class="bi bi-grid icon"></i> Thống kê
           </a>
         </li>
         
         <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-bag me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Sản Phẩm
+          <a href="#" class="nav-link sidebar-link">
+            <i class="bi bi-shop icon"></i> Bán hàng tại quầy
           </a>
         </li>
         
         <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-person me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Nhân Viên
+          <a href="#" class="nav-link sidebar-link active">
+            <i class="bi bi-receipt icon"></i> Quản lý hóa đơn
+          </a>
+        </li>
+        
+        <!-- Quản lý sản phẩm (Đang mở) -->
+        <li class="nav-item">
+          <a href="#menuSanPham" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center" aria-expanded="true">
+            <div><i class="bi bi-box-seam icon"></i> Quản lý sản phẩm</div>
+            <i class="bi bi-chevron-down chevron"></i>
+          </a>
+          <div class="collapse show" id="menuSanPham">
+            <ul class="nav flex-column mt-1 submenu">
+              <li class="nav-item">
+                <a href="#" class="nav-link sidebar-link"><i class="bi bi-box icon"></i> Sản phẩm</a>
+              </li>
+              <li class="nav-item">
+                <a href="#" class="nav-link sidebar-link"><i class="bi bi-layers icon"></i> Biến thể sản phẩm</a>
+              </li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Danh sách thuộc tính (Đang đóng) -->
+        <li class="nav-item">
+          <a href="#menuThuocTinh" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center collapsed" aria-expanded="false">
+            <div><i class="bi bi-hexagon icon"></i> Danh sách thuộc tính</div>
+            <i class="bi bi-chevron-down chevron"></i>
+          </a>
+          <div class="collapse" id="menuThuocTinh"></div>
+        </li>
+
+        <!-- Quản lý giảm giá (Đang mở) -->
+        <li class="nav-item">
+          <a href="#menuGiamGia" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center" aria-expanded="true">
+            <div><i class="bi bi-percent icon"></i> Quản lý giảm giá</div>
+            <i class="bi bi-chevron-down chevron"></i>
+          </a>
+          <div class="collapse show" id="menuGiamGia">
+            <ul class="nav flex-column mt-1 submenu">
+              <li class="nav-item">
+                <a href="#" class="nav-link sidebar-link"><i class="bi bi-ticket-detailed icon"></i> Phiếu giảm giá</a>
+              </li>
+              <li class="nav-item">
+                <a href="#" class="nav-link sidebar-link"><i class="bi bi-tag icon"></i> Đợt giảm giá</a>
+              </li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="nav-item">
+          <a href="#" class="nav-link sidebar-link">
+            <i class="bi bi-people icon"></i> Quản lý khách hàng
           </a>
         </li>
         
         <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-people me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Khách Hàng
+          <a href="#" class="nav-link sidebar-link">
+            <i class="bi bi-chat-dots icon"></i> Hỗ trợ trực tuyến
           </a>
         </li>
         
         <li class="nav-item">
-          <a href="#" class="nav-link active text-white px-3 py-3 rounded-3 d-flex align-items-center fw-semibold shadow-sm text-nowrap" style="background-color: #0d6efd;">
-            <i class="bi bi-receipt me-3 fs-5 text-white" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Hóa Đơn
+          <a href="#" class="nav-link sidebar-link">
+            <i class="bi bi-star icon"></i> Quản lý đánh giá
           </a>
         </li>
         
         <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-tag me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Phiếu Giảm Giá
+          <a href="#" class="nav-link sidebar-link">
+            <i class="bi bi-person icon"></i> Quản lý nhân viên
           </a>
         </li>
         
-        <li class="nav-item">
-          <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">
-            <i class="bi bi-percent me-3 fs-5 text-secondary" style="-webkit-text-stroke: 0.8px;"></i> Quản Lý Đợt Giảm Giá
+        <!-- Quản lý lịch làm (Đang đóng) -->
+        <li class="nav-item mb-4">
+          <a href="#menuLichLam" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center collapsed" aria-expanded="false">
+            <div><i class="bi bi-calendar3 icon"></i> Quản lý lịch làm</div>
+            <i class="bi bi-chevron-down chevron"></i>
           </a>
+          <div class="collapse" id="menuLichLam"></div>
         </li>
         
       </ul>
     </div>
 
-    
+
     <div class="flex-grow-1 d-flex flex-column">
 
-      
+
       <header class="bg-white border-bottom p-3 d-flex justify-content-end align-items-center gap-3">
         <button class="btn btn-light border rounded-circle p-2 lh-1 text-muted"><i class="bi bi-moon"></i></button>
         <button class="btn btn-light border rounded-circle p-2 lh-1 text-muted dropdown-toggle text-decoration-none" data-bs-toggle="dropdown">
@@ -69,12 +124,12 @@
       </header>
 
       <main class="p-4">
-        
+
         <div class="bg-white border rounded-3 shadow-sm py-3 px-4 mb-4">
           <h5 class="fw-bold text-primary m-0">Quản lý hóa đơn</h5>
         </div>
 
-        
+
         <div class="card border-0 shadow-sm rounded-4 mb-4">
           <div class="card-body p-4">
             <h6 class="fw-bold mb-3 d-flex align-items-center"><i class="bi bi-funnel text-muted me-2 fs-5"></i> Bộ Lọc</h6>
@@ -108,11 +163,11 @@
           </div>
         </div>
 
-        
+
         <div class="card rounded-3 shadow-sm bg-white" style="border: 2px solid #5b8deb;">
           <div class="card-body p-0">
-            
-            
+
+
             <div class="d-flex align-items-center px-4 pt-4 pb-3">
                <div class="bg-secondary bg-opacity-25 text-primary rounded-3 d-flex align-items-center justify-content-center me-3" style="width: 45px; height: 45px;">
                  <i class="bi bi-file-earmark-text fs-4 text-secondary"></i>
@@ -120,7 +175,7 @@
                <h4 class="fw-bold m-0 text-dark" style="font-size: 1.25rem;">Danh Sách Hóa Đơn</h4>
             </div>
 
-            
+
             <ul class="nav custom-tabs d-flex justify-content-between flex-nowrap overflow-auto px-4 w-100" style="border-bottom: 1px solid #e9ecef;">
               <li class="nav-item">
                 <a class="nav-link active text-center px-2" href="#">Tất Cả</a>
@@ -145,7 +200,7 @@
               </li>
             </ul>
 
-            
+
             <div class="table-responsive">
               <table class="table align-middle m-0 text-start">
                 <thead style="background-color: #f4f6f9;">
@@ -201,7 +256,7 @@
               </table>
             </div>
 
-            
+
             <div class="d-flex justify-content-end px-4 py-4 mt-2">
               <nav>
                 <ul class="pagination custom-pagination m-0 gap-2">
@@ -227,6 +282,73 @@
 </template>
 
 <style scoped>
+/* Tùy chỉnh Menu Sidebar chung */
+.sidebar-menu .sidebar-link {
+color: #495057;
+padding: 0.7rem 1rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+}
+
+.sidebar-menu .sidebar-link .icon {
+  font-size: 1.15rem;
+  margin-right: 0.8rem;
+  color: #6c757d; 
+  width: 24px;
+  text-align: center;
+}
+
+/* Hover: Đổi sang màu xanh dương */
+.sidebar-menu .sidebar-link:hover:not(.active) {
+  background-color: #f8f9fa;
+  color: #0d6efd; 
+}
+
+.sidebar-menu .sidebar-link:hover:not(.active) .icon,
+.sidebar-menu .sidebar-link:hover:not(.active) .chevron {
+  color: #0d6efd;
+}
+
+/* Trạng thái Active (Nền xanh dương, chữ trắng) */
+.sidebar-menu .sidebar-link.active {
+  background-color: #0d6efd !important; 
+  color: white !important; 
+  font-weight: 600;
+  box-shadow: 0 0.125rem 0.25rem rgba(13, 110, 253, 0.2); 
+}
+
+.sidebar-menu .sidebar-link.active .icon {
+  color: white !important;
+}
+
+/* Submenu (Menu con) */
+.submenu .sidebar-link {
+  padding: 0.6rem 1rem 0.6rem 2.8rem; /* Thụt lề vào */
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.submenu .sidebar-link .icon {
+  font-size: 1rem;
+  margin-right: 0.6rem;
+  color: #adb5bd;
+}
+
+/* Mũi tên Dropdown */
+.sidebar-menu .sidebar-link .chevron {
+  transition: transform 0.3s ease;
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+/* Khi dropdown mở: Xoay mũi tên & đổi màu xanh dương */
+.sidebar-menu .sidebar-link:not(.collapsed) .chevron {
+transform: rotate(180deg);
+  color: #0d6efd; 
+}
 /* Form Input */
 .form-control::placeholder {
   color: #ced4da;
