@@ -39,7 +39,8 @@
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small text-muted fw-semibold">Số điện thoại</label>
-                    <input type="text" class="form-control bg-light border-0" :class="{'is-invalid': phoneError}" v-model="formData.sdt" placeholder="Nhập số điện thoại">
+                    <input type="text" class="form-control bg-light border-0" :class="{'is-invalid': phoneErrorMsg}" v-model="formData.sdt" placeholder="Nhập số điện thoại" @input="phoneErrorMsg = ''">
+                    <small v-if="phoneErrorMsg" class="text-danger mt-1 d-block">{{ phoneErrorMsg }}</small>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small text-muted fw-semibold">Giới tính</label>
@@ -150,7 +151,7 @@ onMounted(async () => {
 })
 
 const errorMessage = ref('')
-const phoneError = ref(false)
+const phoneErrorMsg = ref('')
 
 const formData = ref({
   maKH: '',
@@ -214,7 +215,7 @@ watch(() => formData.value.sdt, (newVal) => {
 
 const createCustomer = async () => {
   errorMessage.value = ''
-  phoneError.value = false
+  phoneErrorMsg.value = ''
 
   // Validate cơ bản
   if (!formData.value.ten || !formData.value.email) {
@@ -223,8 +224,12 @@ const createCustomer = async () => {
   }
   
   if (!formData.value.sdt) {
-    errorMessage.value = 'Không thể tạo khách hàng: Vui lòng nhập Số điện thoại.'
-    phoneError.value = true
+    phoneErrorMsg.value = 'Vui lòng nhập Số điện thoại.'
+    return
+  }
+
+  if (!/^[0-9]{10,11}$/.test(formData.value.sdt)) {
+    phoneErrorMsg.value = 'Số điện thoại không hợp lệ (chỉ gồm 10-11 chữ số).'
     return
   }
 
@@ -262,7 +267,7 @@ const createCustomer = async () => {
       errorMessage.value = 'Dữ liệu không hợp lệ. Vui lòng kiểm tra lại Ngày sinh, Email hoặc Số điện thoại.'
     } else {
       errorMessage.value = 'Không thể tạo khách hàng: Số điện thoại hoặc Email có thể đã được sử dụng.'
-      phoneError.value = true
+      phoneErrorMsg.value = 'Vui lòng kiểm tra lại số điện thoại.'
     }
   }
 }

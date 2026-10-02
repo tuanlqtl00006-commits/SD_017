@@ -148,7 +148,7 @@
         <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-4 shadow-lg" style="width: 750px; max-width: 95vw; pointer-events: auto; animation: slideDown 0.3s ease-out;">
             <div class="modal-header d-flex justify-content-between align-items-center px-4 pt-4 pb-2 border-bottom-0">
-              <h4 class="modal-title fw-bold text-dark m-0">Cập Nhật Khách Hàng</h4>
+              <h4 class="modal-title fw-bold text-dark m-0">{{ isView ? 'Chi Tiết Khách Hàng' : 'Cập Nhật Khách Hàng' }}</h4>
               <button type="button" class="btn btn-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;" @click="closeModal"><i class="bi bi-x-lg"></i></button>
             </div>
             <div class="modal-body px-4 pb-4 pt-2">
@@ -168,7 +168,8 @@
                   </div>
                   <div class="col-md-6">
                     <label class="form-label text-dark fw-medium mb-1">Số Điện Thoại <span class="text-danger" v-if="!isView">*</span></label>
-                    <input type="text" class="form-control bg-light border-0" v-model="formData.sdt" required placeholder="0936..." :disabled="isView">
+                    <input type="text" class="form-control bg-light border-0" :class="{'is-invalid': phoneErrorMsg}" v-model="formData.sdt" required placeholder="0936..." :disabled="isView" @input="phoneErrorMsg = ''">
+                    <small v-if="phoneErrorMsg" class="text-danger mt-1 d-block">{{ phoneErrorMsg }}</small>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label text-dark fw-medium mb-1">Email</label>
@@ -354,6 +355,7 @@ const openAddModal = () => {
 const openEditModal = (kh) => {
   isEdit.value = true
   isView.value = false
+  phoneErrorMsg.value = ''
   
   let tinhThanh = ''
   let quanHuyen = ''
@@ -387,8 +389,16 @@ const closeModal = () => {
   showModal.value = false
 }
 
+const phoneErrorMsg = ref('')
+
 const saveCustomer = async () => {
+  phoneErrorMsg.value = ''
   try {
+    if (formData.value.sdt && !/^[0-9]{10,11}$/.test(formData.value.sdt)) {
+      phoneErrorMsg.value = 'Số điện thoại không hợp lệ (chỉ gồm 10-11 chữ số).'
+      return
+    }
+
     const payload = { ...formData.value }
     if (!payload.ngaySinh) {
       payload.ngaySinh = null

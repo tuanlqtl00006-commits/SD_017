@@ -131,7 +131,7 @@
         <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-3 shadow" style="width: 500px; max-width: 90vw; pointer-events: auto;">
             <div class="modal-header d-flex justify-content-between align-items-center p-3 border-bottom">
-              <h5 class="modal-title fw-bold text-primary m-0">{{ isView ? 'Chi Tiết Đợt Giảm Giá' : (isEdit ? 'Cập Nhật Đợt Giảm Giá' : 'Thêm Mới Đợt Giảm Giá') }}</h5>
+              <h5 class="modal-title fw-bold text-dark m-0">{{ isView ? 'Chi Tiết Đợt Giảm Giá' : (isEdit ? 'Cập Nhật Đợt Giảm Giá' : 'Thêm Mới Đợt Giảm Giá') }}</h5>
               <button type="button" class="btn-close" @click="closeModal"></button>
             </div>
             <div class="modal-body p-4">
@@ -146,7 +146,8 @@
                 </div>
                 <div class="mb-3">
                   <label class="form-label small text-dark fw-medium">Phần Trăm Giảm</label>
-                  <input type="text" class="form-control" v-model="formData.phanTramGiamDot" :disabled="isView" required placeholder="vd: 20%">
+                  <input type="text" class="form-control" v-model="formData.phanTramGiamDot" :disabled="isView" @input="percentError = ''" required placeholder="vd: 20%">
+                  <small v-if="percentError" class="text-danger mt-1 d-block">{{ percentError }}</small>
                 </div>
                 <div class="row">
                   <div class="col-6 mb-3">
@@ -219,9 +220,12 @@ onMounted(() => {
   fetchDGG()
 })
 
+const percentError = ref('')
+
 const openAddModal = () => {
   isEdit.value = false
   isView.value = false
+  percentError.value = ''
   formData.value = {
     maDot: '',
     tenDot: '',
@@ -236,6 +240,7 @@ const openAddModal = () => {
 const openEditModal = (dgg) => {
   isEdit.value = true
   isView.value = false
+  percentError.value = ''
   formData.value = { ...dgg }
   if (formData.value.phanTramGiamDot) formData.value.phanTramGiamDot = formData.value.phanTramGiamDot + '%';
   if (formData.value.ngayBatDau && formData.value.ngayBatDau.length > 10) formData.value.ngayBatDau = formData.value.ngayBatDau.substring(0, 10);
@@ -246,6 +251,7 @@ const openEditModal = (dgg) => {
 const openViewModal = (dgg) => {
   isEdit.value = false
   isView.value = true
+  percentError.value = ''
   formData.value = { ...dgg }
   if (formData.value.phanTramGiamDot) formData.value.phanTramGiamDot = formData.value.phanTramGiamDot + '%';
   if (formData.value.ngayBatDau && formData.value.ngayBatDau.length > 10) formData.value.ngayBatDau = formData.value.ngayBatDau.substring(0, 10);
@@ -259,13 +265,14 @@ const closeModal = () => {
 
 const saveDGG = async () => {
   try {
+    percentError.value = ''
     const payload = { ...formData.value }
 
     // Parse the string into an integer (e.g. "20%" -> 20)
     let parsedPercent = parseInt(String(payload.phanTramGiamDot).replace(/\D/g, ''), 10);
     
     if (isNaN(parsedPercent) || parsedPercent < 1 || parsedPercent > 100) {
-      alert("Phần trăm giảm giá phải nằm trong khoảng từ 1% đến 100%!");
+      percentError.value = "Phần trăm giảm giá phải nằm trong khoảng từ 1% đến 100%!"
       return;
     }
     payload.phanTramGiamDot = parsedPercent;
@@ -292,14 +299,12 @@ const saveDGG = async () => {
 }
 
 const deleteDGG = async (dgg) => {
-  if (confirm('Bạn có chắc chắn muốn xóa đợt giảm giá này?')) {
-    try {
-      await api.delete(`/dot-giam-gia/${dgg.id}`)
-      fetchDGG()
-    } catch (error) {
-      console.error("Lỗi khi xóa đợt giảm giá:", error)
-      alert("Có lỗi xảy ra khi xóa đợt giảm giá!")
-    }
+  try {
+    await api.delete(`/dot-giam-gia/${dgg.id}`)
+    fetchDGG()
+  } catch (error) {
+    console.error("Lỗi khi xóa đợt giảm giá:", error)
+    alert("Có lỗi xảy ra khi xóa đợt giảm giá!")
   }
 }
 
