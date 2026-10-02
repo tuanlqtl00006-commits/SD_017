@@ -1,6 +1,8 @@
 <template>
   <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
+    <Sidebar />
 
+feature/quan-ly-hoa-don
 
     <div class="bg-white border-end d-flex flex-column" style="width: 320px;">
 
@@ -122,6 +124,8 @@
           <i class="bi bi-person"></i>
         </button>
       </header>
+    <div class="flex-grow-1 d-flex flex-column">
+      <Header />
 
       <main class="p-4">
 
@@ -280,6 +284,11 @@
     </div>
   </div>
 </template>
+
+<script setup>
+import Sidebar from './Sidebar.vue'
+import Header from './Header.vue'
+</script>
 
 <style scoped>
 /* Tùy chỉnh Menu Sidebar chung */
