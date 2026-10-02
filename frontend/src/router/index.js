@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HoaDonManager from '../components/HoaDonManager.vue'
 import KhachHangManager from '../components/KhachHangManager.vue'
+import KhachHangAdd from '../components/KhachHangAdd.vue'
 import DotGiamGiaManager from '../components/DotGiamGiaManager.vue'
 
 const routes = [
@@ -17,6 +18,11 @@ const routes = [
     path: '/khach-hang',
     name: 'KhachHang',
     component: KhachHangManager
+  },
+  {
+    path: '/khach-hang/them',
+    name: 'KhachHangAdd',
+    component: KhachHangAdd
   },
   {
     path: '/dot-giam-gia',
