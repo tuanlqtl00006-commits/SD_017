@@ -24,7 +24,7 @@ public class NhanVienService {
     private final VaiTroRepository vaiTroRepo;
     private final BCryptPasswordEncoder passwordEncoder;
 
-    /* ===================== Đọc ===================== */
+    
 
     @Transactional(readOnly = true)
     public List<NhanVienResponse> getAll() {
@@ -40,7 +40,7 @@ public class NhanVienService {
         return toResponse(timNhanVien(id));
     }
 
-    // Danh sách vai trò đang dùng, đổ vào ô chọn trên form
+    
     @Transactional(readOnly = true)
     public List<VaiTroResponse> getVaiTro() {
         List<VaiTroResponse> ketQua = new ArrayList<>();
@@ -50,7 +50,7 @@ public class NhanVienService {
         return ketQua;
     }
 
-    /* ===================== Thêm / sửa / đổi trạng thái ===================== */
+    
 
     @Transactional
     public NhanVienResponse them(NhanVienRequest req) {
@@ -66,14 +66,14 @@ public class NhanVienService {
         NhanVien nv = timNhanVien(id);
         VaiTro vaiTroCu = nv.getVaiTro();
         napDuLieu(nv, req, false);
-        // Quản lý đang hoạt động cuối cùng thì không được đổi sang vai trò khác
+        
         if (dangHoatDong(nv) && laQuanLy(vaiTroCu) && !laQuanLy(nv.getVaiTro())) {
             kiemTraConQuanLyKhac(vaiTroCu, "Không thể đổi vai trò của quản lý đang hoạt động cuối cùng.");
         }
         return toResponse(nhanVienRepo.save(nv));
     }
 
-    // Không xóa nhân viên, chỉ ẩn / hiện bằng cột trạng thái
+    
     @Transactional
     public NhanVienResponse doiTrangThai(Integer id) {
         NhanVien nv = timNhanVien(id);
@@ -88,7 +88,7 @@ public class NhanVienService {
         return toResponse(nhanVienRepo.save(nv));
     }
 
-    /* ===================== Hàm phụ ===================== */
+    
 
     private NhanVien timNhanVien(Integer id) {
         return nhanVienRepo.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhân viên."));
@@ -102,7 +102,7 @@ public class NhanVienService {
         return v != null && VaiTro.TEN_QUAN_LY.equalsIgnoreCase(v.getTenVaiTro());
     }
 
-    // Phải còn ít nhất 1 quản lý khác đang hoạt động thì mới được ẩn / đổi vai trò quản lý này
+    
     private void kiemTraConQuanLyKhac(VaiTro vaiTroQuanLy, String thongBao) {
         long soQuanLy = nhanVienRepo.countByVaiTroIdAndTrangThai(vaiTroQuanLy.getId(), NhanVien.HOAT_DONG);
         if (soQuanLy <= 1) {
@@ -110,11 +110,11 @@ public class NhanVienService {
         }
     }
 
-    // Mã nhân viên kế tiếp: NV0001, NV0002, ...
+    
     private String taoMaMoi() {
         int max = 0;
         for (String ma : nhanVienRepo.findAllMaNhanVien()) {
-            String so = ma == null ? "" : ma.replaceAll("\\D", ""); // chỉ giữ chữ số
+            String so = ma == null ? "" : ma.replaceAll("\\D", ""); 
             if (!so.isEmpty() && so.length() <= 9) {
                 max = Math.max(max, Integer.parseInt(so));
             }
@@ -122,30 +122,30 @@ public class NhanVienService {
         return String.format("NV%04d", max + 1);
     }
 
-    // Nếu điều kiện đúng thì báo lỗi 400 kèm câu thông báo (để mỗi lần kiểm tra chỉ cần 1 dòng)
+    
     private void loi(boolean dieuKien, String thongBao) {
         if (dieuKien) {
             throw ApiException.badRequest(thongBao);
         }
     }
 
-    // Kiểm tra dữ liệu người dùng gửi lên, hợp lệ thì ghi vào nv (chưa lưu xuống DB)
+    
     private void napDuLieu(NhanVien nv, NhanVienRequest req, boolean taoMoi) {
-        // Họ tên
+        
         String hoTen = req.hoTen() == null ? "" : req.hoTen().trim().replaceAll("\\s+", " ");
         loi(hoTen.isEmpty(), "Nhập họ tên.");
         loi(hoTen.length() < 2 || hoTen.length() > 60, "Họ tên từ 2 đến 60 ký tự.");
 
-        // Email: đúng định dạng và không trùng người khác
+        
         String email = req.email() == null ? "" : req.email().trim().toLowerCase();
         loi(email.isEmpty(), "Nhập email.");
         loi(email.length() > 255 || !email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$"), "Email chưa đúng định dạng, ví dụ: ten@footstyle.vn.");
-        Integer idHienTai = nv.getId() == null ? -1 : nv.getId(); // thêm mới chưa có id nên dùng -1
+        Integer idHienTai = nv.getId() == null ? -1 : nv.getId(); 
         if (nhanVienRepo.existsByEmailIgnoreCaseAndIdNot(email, idHienTai)) {
             throw ApiException.conflict("Email đã được sử dụng.");
         }
 
-        // Số điện thoại: 10 số, đầu số 03/05/07/08/09, không trùng người khác
+        
         String sdt = req.soDienThoai() == null ? "" : req.soDienThoai().trim();
         loi(sdt.isEmpty(), "Nhập số điện thoại.");
         loi(!sdt.matches("^0[35789]\\d{8}$"), "Số điện thoại gồm 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.");
@@ -153,23 +153,23 @@ public class NhanVienService {
             throw ApiException.conflict("Số điện thoại đã được sử dụng.");
         }
 
-        // Giới tính (không bắt buộc): chữ -> số lưu trong DB
+        
         Integer gioiTinh = null;
         if (req.gioiTinh() != null && !req.gioiTinh().isBlank()) {
             loi(!req.gioiTinh().equals("Nam") && !req.gioiTinh().equals("Nữ"), "Giới tính không hợp lệ.");
             gioiTinh = req.gioiTinh().equals("Nam") ? NhanVien.GIOI_TINH_NAM : NhanVien.GIOI_TINH_NU;
         }
 
-        // Ngày sinh: phải đủ 18 tuổi
+        
         LocalDate ngaySinh = req.ngaySinh();
         loi(ngaySinh != null && ngaySinh.isAfter(LocalDate.now().minusYears(18)), "Nhân viên phải từ đủ 18 tuổi.");
 
-        // Địa chỉ
+        
         String diaChi = req.diaChi() == null ? "" : req.diaChi().trim();
         loi(diaChi.isEmpty(), "Nhập địa chỉ.");
         loi(diaChi.length() > 255, "Địa chỉ tối đa 255 ký tự.");
 
-        // Ngày vào làm: không nhập thì thêm mới lấy hôm nay, sửa thì giữ ngày cũ
+        
         LocalDate ngayVaoLam = req.ngayVaoLam();
         if (ngayVaoLam == null) {
             ngayVaoLam = taoMoi ? LocalDate.now() : nv.getNgayVaoLam();
@@ -177,21 +177,21 @@ public class NhanVienService {
         loi(ngayVaoLam != null && ngaySinh != null && ngayVaoLam.isBefore(ngaySinh.plusYears(18)),
                 "Ngày vào làm không hợp lệ so với ngày sinh (phải từ đủ 18 tuổi).");
 
-        // Vai trò: phải tồn tại và đang được sử dụng
+        
         loi(req.idVaiTro() == null, "Chọn vai trò.");
         VaiTro vaiTro = vaiTroRepo.findById(req.idVaiTro())
                 .orElseThrow(() -> ApiException.badRequest("Vai trò không tồn tại."));
         loi(vaiTro.getTrangThai() == null || vaiTro.getTrangThai() != 1, "Vai trò này đang ngưng sử dụng.");
 
-        // Mật khẩu: thêm mới bắt buộc; khi sửa để trống nghĩa là giữ mật khẩu cũ
+        
         String matKhau = req.matKhau() == null ? "" : req.matKhau();
         loi(taoMoi && matKhau.isEmpty(), "Nhập mật khẩu cho nhân viên mới.");
         if (!matKhau.isEmpty()) {
             loi(matKhau.length() < 8 || matKhau.length() > 50, "Mật khẩu từ 8 đến 50 ký tự.");
-            nv.setMatKhau(passwordEncoder.encode(matKhau)); // lưu dạng băm BCrypt, không lưu mật khẩu gốc
+            nv.setMatKhau(passwordEncoder.encode(matKhau)); 
         }
 
-        // Dữ liệu hợp lệ hết -> ghi vào entity
+        
         nv.setHoTen(hoTen);
         nv.setEmail(email);
         nv.setSdt(sdt);
@@ -202,7 +202,7 @@ public class NhanVienService {
         nv.setVaiTro(vaiTro);
     }
 
-    // Đổi entity thành dữ liệu trả về cho frontend (không trả mật khẩu)
+    
     private NhanVienResponse toResponse(NhanVien nv) {
         String gioiTinh = null;
         if (nv.getGioiTinh() != null) {

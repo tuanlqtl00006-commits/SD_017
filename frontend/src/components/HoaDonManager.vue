@@ -1,15 +1,74 @@
+<script setup>
+import { ref, onMounted } from 'vue';
+import axios from 'axios';
+
+import Sidebar from './Sidebar.vue';
+import Header from './Header.vue';
+
+
+const danhSachHoaDon = ref([]);
+const currentPage = ref(0); 
+const totalPages = ref(1);  
+
+const currentTab = ref(null);
+
+const formatCurrency = (value) => {
+  if (!value) return '0 ₫';
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleString('vi-VN');
+};
+
+
+const fetchHoaDon = async (page = 0) => {
+  try {
+    const response = await axios.get('http://localhost:8080/api/hoa-don', {
+      params: {
+        page: page,
+        size: 5 
+      }
+    });
+    
+    danhSachHoaDon.value = response.data.content;
+    totalPages.value = response.data.totalPages;
+    currentPage.value = response.data.number;
+  } catch (error) {
+    console.error("Lỗi khi load dữ liệu:", error);
+  }
+};
+
+
+const changePage = (page) => {
+  if (page >= 0 && page < totalPages.value) {
+    fetchHoaDon(page);
+  }
+};
+
+onMounted(() => {
+  fetchHoaDon(0); 
+});
+</script>
 <template>
   <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
+
+    
     <Sidebar />
+
     <div class="flex-grow-1 d-flex flex-column">
+
+      
       <Header />
 
+      
       <main class="p-4">
 
         <div class="bg-white border rounded-3 shadow-sm py-3 px-4 mb-4">
           <h5 class="fw-bold text-primary m-0">Quản lý hóa đơn</h5>
         </div>
-
 
         <div class="card border-0 shadow-sm rounded-4 mb-4">
           <div class="card-body p-4">
@@ -44,18 +103,15 @@
           </div>
         </div>
 
-
         <div class="card rounded-3 shadow-sm bg-white" style="border: 2px solid #5b8deb;">
           <div class="card-body p-0">
 
-
             <div class="d-flex align-items-center px-4 pt-4 pb-3">
-               <div class="bg-secondary bg-opacity-25 text-primary rounded-3 d-flex align-items-center justify-content-center me-3" style="width: 45px; height: 45px;">
-                 <i class="bi bi-file-earmark-text fs-4 text-secondary"></i>
-               </div>
-               <h4 class="fw-bold m-0 text-dark" style="font-size: 1.25rem;">Danh Sách Hóa Đơn</h4>
+              <div class="bg-secondary bg-opacity-25 text-primary rounded-3 d-flex align-items-center justify-content-center me-3" style="width: 45px; height: 45px;">
+                <i class="bi bi-file-earmark-text fs-4 text-secondary"></i>
+              </div>
+              <h4 class="fw-bold m-0 text-dark" style="font-size: 1.25rem;">Danh Sách Hóa Đơn</h4>
             </div>
-
 
             <ul class="nav custom-tabs d-flex justify-content-between flex-nowrap overflow-auto px-4 w-100" style="border-bottom: 1px solid #e9ecef;">
               <li class="nav-item">
@@ -81,75 +137,81 @@
               </li>
             </ul>
 
-
             <div class="table-responsive">
               <table class="table align-middle m-0 text-start">
                 <thead style="background-color: #f4f6f9;">
-                  <tr>
-                    <th class="py-3 text-center fw-bold text-dark border-0" style="width: 80px;">STT</th>
-                    <th class="py-3 fw-bold text-dark border-0">Mã Hóa Đơn</th>
-                    <th class="py-3 fw-bold text-dark border-0">Tên Khách Hàng</th>
-                    <th class="py-3 fw-bold text-dark border-0">Tên Nhân Viên</th>
-                    <th class="py-3 fw-bold text-dark border-0">Tổng Tiền</th>
-                    <th class="py-3 fw-bold text-dark border-0">Ngày Tạo</th>
-                    <th class="py-3 fw-bold text-dark border-0">Loại Đơn</th>
-                    <th class="py-3 text-center fw-bold text-dark border-0" style="width: 120px;">Hành Động</th>
-                  </tr>
+                <tr>
+                  <th class="py-3 text-center fw-bold text-dark border-0" style="width: 80px;">STT</th>
+                  <th class="py-3 fw-bold text-dark border-0">Mã Hóa Đơn</th>
+                  <th class="py-3 fw-bold text-dark border-0">Tên Khách Hàng</th>
+                  <th class="py-3 fw-bold text-dark border-0">Tên Nhân Viên</th>
+                  <th class="py-3 fw-bold text-dark border-0">Tổng Tiền</th>
+                  <th class="py-3 fw-bold text-dark border-0">Ngày Tạo</th>
+                  <th class="py-3 fw-bold text-dark border-0">Loại Đơn</th>
+                  <th class="py-3 text-center fw-bold text-dark border-0" style="width: 120px;">Hành Động</th>
+                </tr>
                 </thead>
                 <tbody class="text-dark">
-                  <tr>
-                    <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">1</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">HD0037</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">No name</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">Admin 1</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">2432424</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">06/03/2025<br>08:00:00</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">Tại cửa hàng</td>
-                    <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">
-                      <a href="#" class="text-secondary"><i class="bi bi-eye fs-5"></i></a>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">2</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">HD328</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">No name</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">Admin 2</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">32423</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">08/03/2025<br>20:45:00</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">Online</td>
-                    <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">
-                      <a href="#" class="text-secondary"><i class="bi bi-eye fs-5"></i></a>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">3</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">HD0028</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">No name</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">Admin 3</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">222222</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">20/03/2025<br>19:00:00</td>
-                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">Online</td>
-                    <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">
-                      <a href="#" class="text-secondary"><i class="bi bi-eye fs-5"></i></a>
-                    </td>
-                  </tr>
+                
+                <tr v-if="danhSachHoaDon.length === 0">
+                  <td colspan="8" class="text-center py-4 text-muted">Đang tải dữ liệu hóa đơn...</td>
+                </tr>
+
+                
+                <tr v-for="(hd, index) in danhSachHoaDon" :key="hd.id">
+                  <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">{{ index + 1 }}</td>
+
+                  <td class="py-4 fw-medium" style="border-bottom: 1px solid #f0f0f0;">{{ hd.maHoaDon }}</td>
+
+                  
+                  <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ hd.tenKhachHang }}</td>
+
+                  
+                  <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ hd.tenNhanVien }}</td>
+
+                  
+                  <td class="py-4 fw-medium text-danger" style="border-bottom: 1px solid #f0f0f0;">{{ formatCurrency(hd.tongTien) }}</td>
+
+                  
+                  <td class="py-4" style="border-bottom: 1px solid #f0f0f0;" v-html="formatDate(hd.ngayTao).replace(' ', '<br>')"></td>
+
+                  <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ hd.loaiDon }}</td>
+
+                  <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">
+                    <a href="#" class="text-secondary"><i class="bi bi-eye fs-5"></i></a>
+                  </td>
+                </tr>
                 </tbody>
               </table>
             </div>
 
-
+            
             <div class="d-flex justify-content-end px-4 py-4 mt-2">
-              <nav>
-                <ul class="pagination custom-pagination m-0 gap-2">
-                  <li class="page-item disabled">
-                    <a class="page-link rounded-2 bg-white" href="#"><i class="bi bi-chevron-left"></i></a>
+              <nav v-if="totalPages > 0">
+                <ul class="pagination custom-pagination m-0 gap-2 align-items-center">
+                  
+                  
+                  <li class="page-item" :class="{ disabled: currentPage === 0 }">
+                    <a class="page-link rounded-2 bg-white text-dark" href="#" @click.prevent="changePage(currentPage - 1)">
+                      <i class="bi bi-chevron-left"></i>
+                    </a>
                   </li>
-                  <li class="page-item active">
-                    <a class="page-link rounded-2 bg-white text-dark shadow-sm" style="border: 1px solid #dee2e6;" href="#">1</a>
-                  </li>
+
+                  
                   <li class="page-item">
-                    <a class="page-link rounded-2 bg-white" href="#"><i class="bi bi-chevron-right"></i></a>
+                    <div class="page-link rounded-2 bg-white text-dark fw-bold d-flex align-items-center justify-content-center shadow-sm" 
+                         style="border: 2px solid #a3c5ff; min-width: 40px; height: 40px; cursor: default; user-select: none;">
+                      {{ currentPage + 1 }}
+                    </div>
                   </li>
+
+                  
+                  <li class="page-item" :class="{ disabled: currentPage === totalPages - 1 }">
+                    <a class="page-link rounded-2 bg-white text-dark" href="#" @click.prevent="changePage(currentPage + 1)">
+                      <i class="bi bi-chevron-right"></i>
+                    </a>
+                  </li>
+                  
                 </ul>
               </nav>
             </div>
@@ -162,16 +224,11 @@
   </div>
 </template>
 
-<script setup>
-import Sidebar from './Sidebar.vue'
-import Header from './Header.vue'
-</script>
-
 <style scoped>
-/* Tùy chỉnh Menu Sidebar chung */
+
 .sidebar-menu .sidebar-link {
-color: #495057;
-padding: 0.7rem 1rem;
+  color: #495057;
+  padding: 0.7rem 1rem;
   border-radius: 0.5rem;
   display: flex;
   align-items: center;
@@ -187,7 +244,7 @@ padding: 0.7rem 1rem;
   text-align: center;
 }
 
-/* Hover: Đổi sang màu xanh dương */
+
 .sidebar-menu .sidebar-link:hover:not(.active) {
   background-color: #f8f9fa;
   color: #0d6efd;
@@ -198,7 +255,7 @@ padding: 0.7rem 1rem;
   color: #0d6efd;
 }
 
-/* Trạng thái Active (Nền xanh dương, chữ trắng) */
+
 .sidebar-menu .sidebar-link.active {
   background-color: #0d6efd !important;
   color: white !important;
@@ -210,9 +267,9 @@ padding: 0.7rem 1rem;
   color: white !important;
 }
 
-/* Submenu (Menu con) */
+
 .submenu .sidebar-link {
-  padding: 0.6rem 1rem 0.6rem 2.8rem; /* Thụt lề vào */
+  padding: 0.6rem 1rem 0.6rem 2.8rem; 
   font-size: 0.9rem;
   color: #6c757d;
 }
@@ -223,24 +280,25 @@ padding: 0.7rem 1rem;
   color: #adb5bd;
 }
 
-/* Mũi tên Dropdown */
+
 .sidebar-menu .sidebar-link .chevron {
   transition: transform 0.3s ease;
   font-size: 0.75rem;
   color: #6c757d;
 }
 
-/* Khi dropdown mở: Xoay mũi tên & đổi màu xanh dương */
+
 .sidebar-menu .sidebar-link:not(.collapsed) .chevron {
-transform: rotate(180deg);
+  transform: rotate(180deg);
   color: #0d6efd;
 }
-/* Form Input */
+
+
 .form-control::placeholder {
   color: #ced4da;
 }
 
-/* Tùy chỉnh Tabs giống hình */
+
 .custom-tabs .nav-link {
   color: #858796;
   border: none;
@@ -258,7 +316,7 @@ transform: rotate(180deg);
   color: #0d6efd;
 }
 
-/* Tùy chỉnh Pagination giống hình */
+
 .custom-pagination .page-link {
   color: #495057;
   border: 1px solid #e9ecef;

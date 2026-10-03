@@ -16,11 +16,11 @@ import { exportExcel } from '../utils/exportExcel'
 const toast = useToast()
 
 const list = ref([])
-const vaiTroList = ref([]) // [{ id, ten }] từ bảng vai_tro
+const vaiTroList = ref([]) 
 const loading = ref(false)
 const saving = ref(false)
 
-/* ----- Bộ lọc (lọc ngay khi thay đổi) ----- */
+
 const defaultFilters = () => ({ keyword: '', idVaiTro: '', trangThai: '' })
 const filters = reactive(defaultFilters())
 
@@ -43,7 +43,7 @@ watch(filters, () => {
   page.value = 1
 })
 
-/* ----- Tải dữ liệu ----- */
+
 async function load(showLoading = true) {
   if (showLoading) loading.value = true
   try {
@@ -58,8 +58,8 @@ async function load(showLoading = true) {
 }
 onMounted(load)
 
-/* ----- Thêm / sửa / xem chi tiết ----- */
-const formState = ref(null) // null: đóng | { item: null }: thêm mới | { item }: chỉnh sửa
+
+const formState = ref(null) 
 const detailItem = ref(null)
 
 function openCreate() {
@@ -93,7 +93,7 @@ async function save(payload) {
   }
 }
 
-/* ----- Xuất Excel (đúng theo danh sách đang lọc) ----- */
+
 function exportFile() {
   if (!filtered.value.length) {
     toast.error('Không có nhân viên nào để xuất.')
@@ -132,7 +132,7 @@ function exportFile() {
   toast.success(`Đã xuất ${filtered.value.length} nhân viên ra file Excel.`)
 }
 
-/* ----- Bật / tắt hoạt động ----- */
+
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
 
@@ -154,7 +154,7 @@ const confirmContent = computed(() => {
       }
 })
 
-// Backend chặn việc ẩn / đổi vai trò quản lý đang hoạt động cuối cùng và báo lỗi bằng toast.
+
 function toggleTitle(e) {
   return e.hoatDong ? 'Ẩn nhân viên' : 'Hiện lại nhân viên'
 }

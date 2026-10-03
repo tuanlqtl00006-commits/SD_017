@@ -127,7 +127,7 @@
         </div>
 
       
-        <!-- Modal Thêm/Sửa Đợt Giảm Giá -->
+        
         <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-3 shadow" style="width: 500px; max-width: 90vw; pointer-events: auto;">
             <div class="modal-header d-flex justify-content-between align-items-center p-3 border-bottom">
@@ -204,9 +204,9 @@ const dsDotGiamGia = ref([])
 const searchQuery = ref('')
 const searchStartDate = ref('')
 const searchEndDate = ref('')
-const searchStatus = ref('') // 'Tất Cả' by default? Wait, I will use empty string
+const searchStatus = ref('') 
 
-// Fetch list from API
+
 const fetchDGG = async () => {
   try {
     const res = await api.get('/dot-giam-gia')
@@ -268,7 +268,7 @@ const saveDGG = async () => {
     percentError.value = ''
     const payload = { ...formData.value }
 
-    // Parse the string into an integer (e.g. "20%" -> 20)
+    
     let parsedPercent = parseInt(String(payload.phanTramGiamDot).replace(/\D/g, ''), 10);
     
     if (isNaN(parsedPercent) || parsedPercent < 1 || parsedPercent > 100) {
@@ -277,7 +277,7 @@ const saveDGG = async () => {
     }
     payload.phanTramGiamDot = parsedPercent;
 
-    // Ensure the backend receives LocalDateTime format by appending time if missing
+    
     if (payload.ngayBatDau && payload.ngayBatDau.length === 10) {
       payload.ngayBatDau = payload.ngayBatDau + 'T00:00:00';
     }
@@ -341,13 +341,13 @@ const displayStatus = (statusValue) => {
 const statusBadgeClass = (statusValue) => {
   if (statusValue === 1) return 'bg-success bg-opacity-10 text-success';
   if (statusValue === 0) return 'bg-warning bg-opacity-10 text-warning';
-  return 'bg-warning bg-opacity-10 text-warning'; // "Hết hạn" in design is also orange/yellow
+  return 'bg-warning bg-opacity-10 text-warning'; 
 }
 
-// Local Search logic (can be replaced with API search later)
+
 const search = () => {
-  // Let's just rely on computed filteredList or fetchDGG? 
-  // The user asked for "reset", let's do a basic reset
+  
+  
 }
 
 const reset = () => {
@@ -364,7 +364,7 @@ const filteredList = computed(() => {
     if (searchQuery.value && !dgg.tenDot?.toLowerCase().includes(searchQuery.value.toLowerCase()) && !dgg.maDot?.toLowerCase().includes(searchQuery.value.toLowerCase())) match = false;
     if (searchStatus.value !== '' && String(dgg.trangThai) !== searchStatus.value) match = false;
     
-    // basic date logic
+    
     if (searchStartDate.value && dgg.ngayBatDau) {
       if (dgg.ngayBatDau.substring(0, 10) < searchStartDate.value) match = false;
     }
@@ -379,12 +379,12 @@ const filteredList = computed(() => {
 </script>
 
 <style scoped>
-/* Form Input */
+
 .form-control::placeholder {
   color: #ced4da;
 }
 
-/* Pagination */
+
 .custom-pagination .page-link {
   color: #495057;
   border: none !important;

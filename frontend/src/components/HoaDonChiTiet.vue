@@ -1,14 +1,14 @@
 <template>
   <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
 
-    <!-- ================= SIDEBAR MENU ================= -->
+    
     <div class="bg-white border-end d-flex flex-column" style="width: 280px; flex-shrink: 0;">
-      <!-- Logo -->
+      
       <div class="p-3 text-center mb-1 d-flex align-items-center justify-content-center" style="height: 100px;">
         <img src="/logo.png" alt="FootStyle" class="img-fluid" style="width: 80%; object-fit: contain;">
       </div>
 
-<!-- Menu List -->
+
       <ul class="nav flex-column fw-medium px-2 sidebar-menu" style="font-size: 0.95rem; gap: 0.2rem;">
         
         <li class="nav-item">
@@ -29,7 +29,7 @@
           </a>
         </li>
         
-        <!-- Quản lý sản phẩm (Đang mở) -->
+        
         <li class="nav-item">
           <a href="#menuSanPham" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center" aria-expanded="true">
             <div><i class="bi bi-box-seam icon"></i> Quản lý sản phẩm</div>
@@ -47,7 +47,7 @@
           </div>
         </li>
 
-        <!-- Danh sách thuộc tính (Đang đóng) -->
+        
         <li class="nav-item">
           <a href="#menuThuocTinh" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center collapsed" aria-expanded="false">
             <div><i class="bi bi-hexagon icon"></i> Danh sách thuộc tính</div>
@@ -56,7 +56,7 @@
           <div class="collapse" id="menuThuocTinh"></div>
         </li>
 
-        <!-- Quản lý giảm giá (Đang mở) -->
+        
         <li class="nav-item">
           <a href="#menuGiamGia" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center" aria-expanded="true">
             <div><i class="bi bi-percent icon"></i> Quản lý giảm giá</div>
@@ -98,7 +98,7 @@
           </a>
         </li>
         
-        <!-- Quản lý lịch làm (Đang đóng) -->
+        
         <li class="nav-item mb-4">
           <a href="#menuLichLam" data-bs-toggle="collapse" class="nav-link sidebar-link d-flex justify-content-between align-items-center collapsed" aria-expanded="false">
             <div><i class="bi bi-calendar3 icon"></i> Quản lý lịch làm</div>
@@ -111,10 +111,10 @@
     </div>
 
 
-    <!-- ================= MAIN CONTENT ================= -->
+    
     <div class="flex-grow-1 d-flex flex-column overflow-hidden">
 
-      <!-- Header -->
+      
       <header class="bg-white border-bottom px-4 py-3 d-flex justify-content-between align-items-center z-1">
         <div class="d-flex align-items-center gap-3">
           <button class="btn btn-light border-0 d-lg-none"><i class="bi bi-list fs-4"></i></button>
@@ -137,12 +137,12 @@
         </div>
       </header>
 
-      <!-- Main Body -->
+      
       <main class="p-4 overflow-auto">
 
-        <!-- ROW 1: Tiến trình & Tổng kết -->
+        
         <div class="row g-4 mb-4">
-          <!-- Trạng thái đơn hàng -->
+          
           <div class="col-xl-8">
             <div class="card border-0 shadow-sm rounded-4 h-100">
               <div class="card-body p-4 d-flex flex-column">
@@ -151,26 +151,26 @@
                   <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill fw-semibold">Đã xác nhận</span>
                 </div>
 
-                <!-- Timeline -->
+                
                 <div class="timeline-container my-4 flex-grow-1">
                   <div class="timeline-line"></div>
                   <div class="d-flex justify-content-between position-relative z-1">
 
-                    <!-- Step 1: Chờ xác nhận -->
+                    
                     <div class="timeline-step active">
                       <div class="timeline-icon bg-primary text-white"><i class="bi bi-hourglass-split"></i></div>
                       <div class="timeline-label mt-2 fw-bold text-dark">Chờ Xác Nhận</div>
                       <div class="timeline-time text-muted small">17:05:25<br>10/05/2026<br>ADMIN: TA</div>
                     </div>
 
-                    <!-- Step 2: Đã xác nhận -->
+                    
                     <div class="timeline-step active">
                       <div class="timeline-icon bg-primary text-white"><i class="bi bi-clipboard-check"></i></div>
                       <div class="timeline-label mt-2 fw-bold text-dark">Đã Xác Nhận</div>
                       <div class="timeline-time text-muted small">17:08:03<br>10/05/2026<br>ADMIN: TA</div>
                     </div>
 
-                    <!-- Step 3: Chờ lấy hàng -->
+                    
                     <div class="timeline-step">
                       <div class="timeline-icon bg-white text-muted border"><i class="bi bi-box-seam"></i></div>
                       <div class="timeline-label mt-2 text-muted fw-medium">Chờ Lấy Hàng</div>
@@ -179,7 +179,7 @@
                   </div>
                 </div>
 
-                <!-- Action Buttons -->
+                
                 <div class="d-flex justify-content-end gap-3 mt-3">
                   <button class="btn btn-outline-danger px-4 rounded-pill fw-medium"><i class="bi bi-x-circle me-1"></i> Hủy Đơn Hàng</button>
                   <button class="btn btn-primary px-4 rounded-pill fw-medium"><i class="bi bi-clock-history me-1"></i> Lịch Sử Thao Tác</button>
@@ -188,7 +188,7 @@
             </div>
           </div>
 
-          <!-- Tổng kết thanh toán -->
+          
           <div class="col-xl-4">
             <div class="card border-0 shadow-sm rounded-4 h-100">
               <div class="card-body p-4">
@@ -215,9 +215,9 @@
           </div>
         </div>
 
-        <!-- ROW 2: Thông tin 3 cột -->
+        
         <div class="row g-4 mb-4">
-          <!-- Thông tin khách hàng -->
+          
           <div class="col-xl-4">
             <div class="card border-0 shadow-sm rounded-4 h-100">
               <div class="card-body p-4">
@@ -239,7 +239,7 @@
             </div>
           </div>
 
-          <!-- Thông tin giao hàng -->
+          
           <div class="col-xl-4">
             <div class="card border-0 shadow-sm rounded-4 h-100">
               <div class="card-body p-4">
@@ -261,7 +261,7 @@
             </div>
           </div>
 
-          <!-- Lịch sử thanh toán -->
+          
           <div class="col-xl-4">
             <div class="card border-0 shadow-sm rounded-4 h-100">
               <div class="card-body p-4 d-flex flex-column">
@@ -288,12 +288,12 @@
           </div>
         </div>
 
-        <!-- ROW 3: Danh sách sản phẩm -->
+        
         <div class="card border-0 shadow-sm rounded-4 mb-4">
           <div class="card-body p-4">
             <h6 class="fw-bold mb-4 d-flex align-items-center"><i class="bi bi-box text-primary me-2"></i> Danh Sách Sản Phẩm (1)</h6>
 
-            <!-- Bảng sản phẩm -->
+            
             <div class="table-responsive">
               <table class="table align-middle">
                 <thead class="table-light">
@@ -333,7 +333,7 @@
 </template>
 
 <style scoped>
-/* Tùy chỉnh Menu Sidebar chung */
+
 .sidebar-menu .sidebar-link {
 color: #495057;
 padding: 0.7rem 1rem;
@@ -352,7 +352,7 @@ padding: 0.7rem 1rem;
   text-align: center;
 }
 
-/* Hover: Đổi sang màu xanh dương */
+
 .sidebar-menu .sidebar-link:hover:not(.active) {
   background-color: #f8f9fa;
   color: #0d6efd; 
@@ -363,7 +363,7 @@ padding: 0.7rem 1rem;
   color: #0d6efd;
 }
 
-/* Trạng thái Active (Nền xanh dương, chữ trắng) */
+
 .sidebar-menu .sidebar-link.active {
   background-color: #0d6efd !important; 
   color: white !important; 
@@ -375,9 +375,9 @@ padding: 0.7rem 1rem;
   color: white !important;
 }
 
-/* Submenu (Menu con) */
+
 .submenu .sidebar-link {
-  padding: 0.6rem 1rem 0.6rem 2.8rem; /* Thụt lề vào */
+  padding: 0.6rem 1rem 0.6rem 2.8rem; 
   font-size: 0.9rem;
   color: #6c757d;
 }
@@ -388,28 +388,28 @@ padding: 0.7rem 1rem;
   color: #adb5bd;
 }
 
-/* Mũi tên Dropdown */
+
 .sidebar-menu .sidebar-link .chevron {
   transition: transform 0.3s ease;
   font-size: 0.75rem;
   color: #6c757d;
 }
 
-/* Khi dropdown mở: Xoay mũi tên & đổi màu xanh dương */
+
 .sidebar-menu .sidebar-link:not(.collapsed) .chevron {
 transform: rotate(180deg);
   color: #0d6efd; 
 }
 
-/* =========== CSS TIMELINE TRẠNG THÁI =========== */
+
 .timeline-container {
   position: relative;
   padding: 0 20px;
 }
-/* Đường kẻ ngang chạy phía sau */
+
 .timeline-line {
   position: absolute;
-  top: 25px; /* Căn giữa theo icon */
+  top: 25px; 
   left: 10%;
   right: 10%;
   height: 3px;
@@ -420,7 +420,7 @@ transform: rotate(180deg);
   position: relative;
   z-index: 1;
   text-align: center;
-  width: 120px; /* Cố định độ rộng để text không bị xô lệch */
+  width: 120px; 
 }
 .timeline-icon {
   width: 52px;
@@ -433,7 +433,7 @@ transform: rotate(180deg);
   font-size: 1.4rem;
   transition: all 0.3s ease;
 }
-/* Style cho step đã hoàn thành (active) */
+
 .timeline-step.active .timeline-icon {
   box-shadow: 0 0 0 5px rgba(13, 110, 253, 0.15);
 }

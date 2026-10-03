@@ -5,9 +5,9 @@ import { GIOI_TINH, taoMaNhanVien, tinhTuoi } from '../../constants/nhanVien'
 import { avatarColors, getInitials, toIso, todayIso } from '../../utils/format'
 
 const props = defineProps({
-  item: { type: Object, default: null }, // null: thêm mới
-  all: { type: Array, default: () => [] }, // toàn bộ nhân viên, dùng để kiểm tra trùng
-  vaiTro: { type: Array, default: () => [] }, // [{ id, ten }] lấy từ bảng vai_tro
+  item: { type: Object, default: null }, 
+  all: { type: Array, default: () => [] }, 
+  vaiTro: { type: Array, default: () => [] }, 
   saving: { type: Boolean, default: false },
 })
 const emit = defineEmits(['save', 'close'])
@@ -15,7 +15,7 @@ const emit = defineEmits(['save', 'close'])
 const isEdit = computed(() => !!props.item)
 const maNhanVien = computed(() => (props.item ? props.item.ma : taoMaNhanVien(props.all)))
 
-// Mặc định vai trò "Nhân viên" (vai trò cuối danh sách không phải quản lý); nếu không có thì lấy vai trò đầu tiên.
+
 const vaiTroMacDinh = () => (props.vaiTro.find((v) => v.ten !== 'Quản lý') ?? props.vaiTro[0])?.id ?? null
 
 const form = reactive(
@@ -48,7 +48,7 @@ const errors = reactive({})
 const submitted = ref(false)
 const showPassword = ref(false)
 
-// Ngày sinh tối đa: đủ 18 tuổi tính đến hôm nay
+
 const maxBirthDate = computed(() => {
   const d = new Date()
   d.setFullYear(d.getFullYear() - 18)
@@ -91,7 +91,7 @@ function validate() {
   if (!diaChi) e.diaChi = 'Nhập địa chỉ.'
   else if (diaChi.length > 255) e.diaChi = 'Địa chỉ tối đa 255 ký tự.'
 
-  // Thêm mới bắt buộc có mật khẩu; khi sửa để trống nghĩa là giữ mật khẩu cũ.
+  
   if (!isEdit.value && !form.matKhau) e.matKhau = 'Nhập mật khẩu cho nhân viên mới.'
   else if (form.matKhau && (form.matKhau.length < 8 || form.matKhau.length > 50)) e.matKhau = 'Mật khẩu từ 8 đến 50 ký tự.'
 
@@ -105,7 +105,7 @@ function refreshErrors() {
   return e
 }
 
-// Sau lần bấm lưu đầu tiên, báo lỗi theo thời gian thực để người dùng thấy ngay khi đã sửa đúng.
+
 watch(form, () => {
   if (submitted.value) refreshErrors()
 })
