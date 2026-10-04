@@ -35,7 +35,8 @@
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small text-muted fw-semibold">Email <span class="text-danger">*</span></label>
-                    <input type="email" class="form-control bg-light border-0" v-model="formData.email" placeholder="Nhập email">
+                    <input type="email" class="form-control bg-light border-0" :class="{ 'is-invalid border-danger': emailErrorMsg, 'border': emailErrorMsg }" v-model="formData.email" placeholder="Nhập email">
+                    <div v-if="emailErrorMsg" class="text-danger small mt-1">{{ emailErrorMsg }}</div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small text-muted fw-semibold">Số điện thoại</label>
@@ -51,7 +52,7 @@
                   </div>
                   <div class="col-12">
                     <label class="form-label small text-muted fw-semibold">Ngày sinh</label>
-                    <input type="date" class="form-control bg-light border-0" v-model="formData.ngaySinh">
+                    <input type="date" class="form-control bg-light border-0" v-model="formData.ngaySinh" min="1900-01-01" max="9999-12-31">
                   </div>
                 </div>
               </div>
@@ -73,11 +74,11 @@
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label small text-muted fw-semibold">Họ tên người nhận <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control bg-light border-0" v-model="addressData.hoTenNguoiNhan" @input="isHoTenEdited = true" placeholder="Nhập họ tên người nhận">
+                    <input type="text" class="form-control bg-light border-0 text-muted" style="cursor: not-allowed;" v-model="addressData.hoTenNguoiNhan" placeholder="Nhập họ tên người nhận" readonly>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small text-muted fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control bg-light border-0" v-model="addressData.sdtNguoiNhan" @input="isSdtEdited = true" placeholder="Nhập số điện thoại nhận">
+                    <input type="text" class="form-control bg-light border-0 text-muted" style="cursor: not-allowed;" v-model="addressData.sdtNguoiNhan" placeholder="Nhập số điện thoại nhận" readonly>
                   </div>
                   <div class="col-md-4">
                     <label class="form-label small text-muted fw-semibold">Tỉnh/Thành phố <span class="text-danger">*</span></label>
@@ -152,6 +153,7 @@ onMounted(async () => {
 
 const errorMessage = ref('')
 const phoneErrorMsg = ref('')
+const emailErrorMsg = ref('')
 
 const formData = ref({
   maKH: '',
@@ -198,28 +200,23 @@ watch(() => addressData.value.quanHuyen, (newDistrictName) => {
   }
 })
 
-let isHoTenEdited = false
-let isSdtEdited = false
-
+// Đồng bộ 1 chiều từ trên xuống dưới
 watch(() => formData.value.ten, (newVal) => {
-  if (!isHoTenEdited) {
-    addressData.value.hoTenNguoiNhan = newVal
-  }
+  addressData.value.hoTenNguoiNhan = newVal
 })
 
 watch(() => formData.value.sdt, (newVal) => {
-  if (!isSdtEdited) {
-    addressData.value.sdtNguoiNhan = newVal
-  }
+  addressData.value.sdtNguoiNhan = newVal
 })
 
 const createCustomer = async () => {
   errorMessage.value = ''
   phoneErrorMsg.value = ''
+  emailErrorMsg.value = ''
 
   // Validate cơ bản
   if (!formData.value.ten || !formData.value.email) {
-    errorMessage.value = 'Không thể tạo khách hàng: Vui lòng nhập đầy đủ Họ tên và Email.'
+    errorMessage.value = 'Không thể tạo khách hàng: Vui lòng nhập đầy đủ thông tin.'
     return
   }
   
@@ -243,7 +240,7 @@ const createCustomer = async () => {
     if (!payload.ngaySinh) {
       payload.ngaySinh = null
     } else {
-      // Fix potential 5-digit year bug from HTML5 date picker
+      // Chặn lỗi nhập năm sinh quá 4 chữ số (ví dụ: năm 02024) từ thẻ HTML5 date picker
       if (payload.ngaySinh.length > 10) {
         errorMessage.value = 'Vui lòng nhập Ngày Sinh hợp lệ (năm không quá 4 chữ số).'
         return
@@ -254,7 +251,7 @@ const createCustomer = async () => {
     payload.tinhThanh = addressData.value.tinhThanh
     payload.quanHuyen = addressData.value.quanHuyen
     payload.phuongXa = addressData.value.phuongXa
-    payload.diaChiCuThe = addressData.value.diaChiCuThe
+    payload.diaChiCuThe = addressData.value.diaChiChiTiet
 
     // Gọi API lưu Khách hàng và Địa chỉ 1 lần
     await api.post('/khach-hang', payload)
@@ -265,9 +262,18 @@ const createCustomer = async () => {
     console.error(error)
     if (error.response && error.response.status === 400) {
       errorMessage.value = 'Dữ liệu không hợp lệ. Vui lòng kiểm tra lại Ngày sinh, Email hoặc Số điện thoại.'
+    } else if (error.response && error.response.status === 409) {
+      const backendMsg = error.response.data.message;
+      errorMessage.value = 'Không thể tạo khách hàng: ' + backendMsg;
+      if (backendMsg.includes('Email')) {
+         emailErrorMsg.value = 'Vui lòng kiểm tra lại email.';
+         phoneErrorMsg.value = '';
+      } else if (backendMsg.includes('điện thoại')) {
+         phoneErrorMsg.value = 'Vui lòng kiểm tra lại số điện thoại.';
+         emailErrorMsg.value = '';
+      }
     } else {
-      errorMessage.value = 'Không thể tạo khách hàng: Số điện thoại hoặc Email có thể đã được sử dụng.'
-      phoneErrorMsg.value = 'Vui lòng kiểm tra lại số điện thoại.'
+      errorMessage.value = 'Không thể tạo khách hàng: Lỗi máy chủ.'
     }
   }
 }
@@ -293,3 +299,6 @@ input:-webkit-autofill:active {
   transition: background-color 5000s ease-in-out 0s;
 }
 </style>
+
+
+
