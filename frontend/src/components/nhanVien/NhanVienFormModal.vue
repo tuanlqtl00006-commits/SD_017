@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { GIOI_TINH, taoMaNhanVien, tinhTuoi } from '../../constants/nhanVien'
-import { avatarColors, getInitials, toIso, todayIso } from '../../utils/format'
+import { avatarColors, formatDate, getInitials, toIso, todayIso } from '../../utils/format'
 
 const props = defineProps({
   item: { type: Object, default: null }, // null: thêm mới
@@ -12,6 +12,14 @@ const props = defineProps({
 })
 const emit = defineEmits(['save', 'close'])
 
+/*
+ * QUY ĐỊNH KHI SỬA NHÂN VIÊN
+ *  - Được sửa : họ tên, giới tính, ngày sinh, số điện thoại, địa chỉ, vai trò.
+ *  - Không sửa: mã nhân viên (hệ thống cấp), email (là tài khoản đăng nhập),
+ *               ngày vào làm (mốc tuyển dụng), mật khẩu (nhập lúc thêm mới, không hiện ở form sửa).
+ *  - Trạng thái hoạt động: dùng nút ẩn / hiện ở danh sách, không nằm trong form này.
+ * Khi thêm mới thì nhập đầy đủ tất cả các ô.
+ */
 const isEdit = computed(() => !!props.item)
 const maNhanVien = computed(() => (props.item ? props.item.ma : taoMaNhanVien(props.all)))
 
@@ -67,10 +75,13 @@ function validate() {
   if (!hoTen) e.hoTen = 'Nhập họ tên.'
   else if (hoTen.length < 2 || hoTen.length > 60) e.hoTen = 'Họ tên từ 2 đến 60 ký tự.'
 
-  const email = String(form.email).trim()
-  if (!email) e.email = 'Nhập email.'
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) e.email = 'Email chưa đúng định dạng, ví dụ: ten@footstyle.vn.'
-  else if (isTaken('email', email)) e.email = 'Email đã được sử dụng.'
+  // Email chỉ nhập lúc thêm mới; khi sửa email bị khóa nên không cần kiểm tra
+  if (!isEdit.value) {
+    const email = String(form.email).trim()
+    if (!email) e.email = 'Nhập email.'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) e.email = 'Email chưa đúng định dạng, ví dụ: ten@footstyle.vn.'
+    else if (isTaken('email', email)) e.email = 'Email đã được sử dụng.'
+  }
 
   const sdt = String(form.soDienThoai).trim()
   if (!sdt) e.soDienThoai = 'Nhập số điện thoại.'
@@ -81,19 +92,26 @@ function validate() {
 
   if (!form.idVaiTro) e.idVaiTro = 'Chọn vai trò.'
 
-  if (form.ngayVaoLam && form.ngaySinh) {
+  // Ngày vào làm phải sau khi đủ 18 tuổi.
+  // Khi sửa, ngày vào làm bị khóa nên lỗi được báo ở ô ngày sinh (ô duy nhất người dùng sửa được).
+  if (form.ngayVaoLam && form.ngaySinh && !e.ngaySinh) {
     const [y, m, d] = form.ngaySinh.split('-').map(Number)
     const dau18 = toIso(new Date(y + 18, m - 1, d))
-    if (form.ngayVaoLam < dau18) e.ngayVaoLam = 'Ngày vào làm phải sau khi nhân viên đủ 18 tuổi.'
+    if (form.ngayVaoLam < dau18) {
+      if (isEdit.value) e.ngaySinh = `Ngày sinh không hợp lệ: nhân viên phải đủ 18 tuổi vào ngày vào làm (${formatDate(form.ngayVaoLam)}).`
+      else e.ngayVaoLam = 'Ngày vào làm phải sau khi nhân viên đủ 18 tuổi.'
+    }
   }
 
   const diaChi = String(form.diaChi).trim()
   if (!diaChi) e.diaChi = 'Nhập địa chỉ.'
   else if (diaChi.length > 255) e.diaChi = 'Địa chỉ tối đa 255 ký tự.'
 
-  // Thêm mới bắt buộc có mật khẩu; khi sửa để trống nghĩa là giữ mật khẩu cũ.
-  if (!isEdit.value && !form.matKhau) e.matKhau = 'Nhập mật khẩu cho nhân viên mới.'
-  else if (form.matKhau && (form.matKhau.length < 8 || form.matKhau.length > 50)) e.matKhau = 'Mật khẩu từ 8 đến 50 ký tự.'
+  // Mật khẩu chỉ nhập lúc thêm mới (khi sửa không có ô mật khẩu).
+  if (!isEdit.value) {
+    if (!form.matKhau) e.matKhau = 'Nhập mật khẩu cho nhân viên mới.'
+    else if (form.matKhau.length < 8 || form.matKhau.length > 50) e.matKhau = 'Mật khẩu từ 8 đến 50 ký tự.'
+  }
 
   return e
 }
@@ -117,17 +135,22 @@ function submit() {
     nextTick(() => document.querySelector('#nv-form .is-invalid')?.focus())
     return
   }
-  emit('save', {
+  // Các trường được sửa (dùng cho cả thêm mới và sửa)
+  const payload = {
     hoTen: String(form.hoTen).trim().replace(/\s+/g, ' '),
-    email: String(form.email).trim().toLowerCase(),
     soDienThoai: String(form.soDienThoai).trim(),
     gioiTinh: form.gioiTinh,
     ngaySinh: form.ngaySinh || null,
     diaChi: String(form.diaChi).trim(),
-    ngayVaoLam: form.ngayVaoLam || null,
     idVaiTro: form.idVaiTro,
-    matKhau: form.matKhau || null,
-  })
+  }
+  // Email, ngày vào làm, mật khẩu: chỉ gửi khi THÊM MỚI. Khi sửa thì không gửi (giữ nguyên giá trị cũ).
+  if (!isEdit.value) {
+    payload.email = String(form.email).trim().toLowerCase()
+    payload.ngayVaoLam = form.ngayVaoLam || null
+    payload.matKhau = form.matKhau
+  }
+  emit('save', payload)
 }
 
 onMounted(() => {
@@ -142,6 +165,11 @@ onMounted(() => {
         <span class="ad-avatar ad-avatar-lg" :style="avatarColors(form.hoTen || '?')">{{ getInitials(form.hoTen) }}</span>
         <p class="ad-hint m-0">Ảnh đại diện hiển thị chữ cái đầu của họ tên.</p>
       </div>
+
+      <p v-if="isEdit" class="ad-hint mb-3">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        Có thể sửa: họ tên, số điện thoại, vai trò, ngày sinh, giới tính, địa chỉ. Các ô màu xám (mã nhân viên, email, ngày vào làm) không thể sửa.
+      </p>
 
       <div class="row g-3">
         <div class="col-md-4">
@@ -168,25 +196,26 @@ onMounted(() => {
         </div>
 
         <div class="col-md-6">
-          <label class="ad-label" for="nv-email">Email (dùng để đăng nhập) <span class="ad-required">*</span></label>
+          <label class="ad-label" for="nv-email">Email (dùng để đăng nhập) <span v-if="!isEdit" class="ad-required">*</span></label>
           <input
             id="nv-email"
             v-model="form.email"
             type="email"
             class="form-control ad-control"
             :class="{ 'is-invalid': errors.email }"
+            :readonly="isEdit"
             placeholder="ten@footstyle.vn"
             autocomplete="off"
             :aria-invalid="!!errors.email"
             aria-describedby="nv-email-msg"
           />
+          <p v-if="isEdit" class="ad-hint">Email là tài khoản đăng nhập nên không thể đổi.</p>
           <p v-if="errors.email" id="nv-email-msg" class="ad-error">{{ errors.email }}</p>
         </div>
 
-        <div class="col-md-6">
-          <label class="ad-label" for="nv-mat-khau">
-            Mật khẩu <span v-if="!isEdit" class="ad-required">*</span>
-          </label>
+        <!-- Mật khẩu chỉ nhập khi thêm mới; form sửa không có ô này -->
+        <div v-if="!isEdit" class="col-md-6">
+          <label class="ad-label" for="nv-mat-khau">Mật khẩu <span class="ad-required">*</span></label>
           <div class="ad-affix">
             <input
               id="nv-mat-khau"
@@ -195,7 +224,7 @@ onMounted(() => {
               class="form-control ad-control has-btn"
               :class="{ 'is-invalid': errors.matKhau }"
               maxlength="50"
-              :placeholder="isEdit ? 'Để trống nếu không đổi mật khẩu' : 'Từ 8 ký tự'"
+              placeholder="Từ 8 ký tự"
               autocomplete="new-password"
               :aria-invalid="!!errors.matKhau"
               aria-describedby="nv-mat-khau-msg"
@@ -269,9 +298,11 @@ onMounted(() => {
             type="date"
             class="form-control ad-control"
             :class="{ 'is-invalid': errors.ngayVaoLam }"
+            :readonly="isEdit"
             :aria-invalid="!!errors.ngayVaoLam"
             aria-describedby="nv-ngay-vao-lam-msg"
           />
+          <p v-if="isEdit" class="ad-hint">Ngày vào làm là mốc tuyển dụng nên không thể đổi.</p>
           <p v-if="errors.ngayVaoLam" id="nv-ngay-vao-lam-msg" class="ad-error">{{ errors.ngayVaoLam }}</p>
         </div>
 
