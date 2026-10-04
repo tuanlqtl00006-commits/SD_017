@@ -2,7 +2,12 @@ package com.footstyle.demo.dto;
 
 import java.time.LocalDate;
 
-/** Dữ liệu thêm / sửa nhân viên. matKhau bắt buộc khi thêm; khi sửa để trống nghĩa là giữ mật khẩu cũ. */
+/**
+ * Dữ liệu thêm / sửa nhân viên.
+ * - Thêm mới: dùng tất cả các trường.
+ * - Sửa: chỉ dùng hoTen, gioiTinh, ngaySinh, soDienThoai, diaChi, idVaiTro.
+ *   email, ngayVaoLam, matKhau không được sửa nên nếu có gửi lên cũng bị bỏ qua.
+ */
 public record NhanVienRequest(
         String hoTen,
         String gioiTinh,
