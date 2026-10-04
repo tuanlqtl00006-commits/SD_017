@@ -55,7 +55,11 @@ public class PhieuGiamGiaService {
     @Transactional(readOnly = true)
     public List<KhachHangTomTatResponse> getKhachHangCoTheChon() {
         List<KhachHangTomTatResponse> ketQua = new ArrayList<>();
+
         for (KhachHang k : khachHangRepo.findByTrangThaiOrderByTenAsc(1)) {
+
+        for (KhachHang k : khachHangRepo.findByTrangThaiOrderByHoTenAsc(1)) {
+
             ketQua.add(toKhachHang(k, false));
         }
         return ketQua;
@@ -78,7 +82,11 @@ public class PhieuGiamGiaService {
 
         // Phiếu cá nhân: mỗi khách được tặng là 1 dòng trong bảng phieu_giam_gia_khach_hang
         if (CA_NHAN.equals(req.hinhThuc())) {
+
             for (Long idKh : layDanhSachKhachHang(req)) {
+
+            for (Integer idKh : layDanhSachKhachHang(req)) {
+
                 phieuKhRepo.save(taoLienKet(p.getId(), idKh));
             }
         }
@@ -221,10 +229,16 @@ public class PhieuGiamGiaService {
     }
 
     // Danh sách id khách hàng của phiếu cá nhân: không rỗng, không trùng, phải tồn tại
+
     private List<Long> layDanhSachKhachHang(PhieuGiamGiaRequest req) {
         List<Long> ids = new ArrayList<>();
         if (req.khachHangIds() != null) {
             for (Long id : req.khachHangIds()) {
+
+    private List<Integer> layDanhSachKhachHang(PhieuGiamGiaRequest req) {
+        List<Integer> ids = new ArrayList<>();
+        if (req.khachHangIds() != null) {
+            for (Integer id : req.khachHangIds()) {
                 loi(id == null, "Danh sách khách hàng không hợp lệ.");
                 if (!ids.contains(id)) ids.add(id); // bỏ id trùng
             }
@@ -234,7 +248,11 @@ public class PhieuGiamGiaService {
         return ids;
     }
 
+
     private PhieuGiamGiaKhachHang taoLienKet(Integer idPhieu, Long idKhachHang) {
+
+    private PhieuGiamGiaKhachHang taoLienKet(Integer idPhieu, Integer idKhachHang) {
+
         PhieuGiamGiaKhachHang l = new PhieuGiamGiaKhachHang();
         l.setIdPhieuGiamGia(idPhieu);
         l.setIdKhachHang(idKhachHang);
@@ -249,11 +267,19 @@ public class PhieuGiamGiaService {
             phieuKhRepo.deleteAll(lienKetCu); // phiếu công khai không gắn khách hàng nào
             return;
         }
+
         List<Long> idMoi = layDanhSachKhachHang(req);
         
         // Duyệt các khách đang được tặng: ai không còn trong danh sách mới thì xóa
         List<PhieuGiamGiaKhachHang> canXoa = new ArrayList<>();
         List<Long> idDaCo = new ArrayList<>();
+
+        List<Integer> idMoi = layDanhSachKhachHang(req);
+
+        // Duyệt các khách đang được tặng: ai không còn trong danh sách mới thì xóa
+        List<PhieuGiamGiaKhachHang> canXoa = new ArrayList<>();
+        List<Integer> idDaCo = new ArrayList<>();
+
         for (PhieuGiamGiaKhachHang l : lienKetCu) {
             if (idMoi.contains(l.getIdKhachHang())) {
                 idDaCo.add(l.getIdKhachHang());
@@ -266,7 +292,11 @@ public class PhieuGiamGiaService {
         phieuKhRepo.deleteAll(canXoa);
 
         // Khách mới chưa có trong bảng thì thêm vào
+
         for (Long idKh : idMoi) {
+
+        for (Integer idKh : idMoi) {
+
             if (!idDaCo.contains(idKh)) {
                 phieuKhRepo.save(taoLienKet(p.getId(), idKh));
             }
@@ -286,7 +316,11 @@ public class PhieuGiamGiaService {
     }
 
     private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung) {
+
         return new KhachHangTomTatResponse(k.getId(), k.getMaKH(), k.getTen(), k.getSdt(), k.getEmail(), daDung);
+
+        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), daDung);
+
     }
 
     // Đổi entity thành dữ liệu trả về cho frontend (số trong DB -> chữ)

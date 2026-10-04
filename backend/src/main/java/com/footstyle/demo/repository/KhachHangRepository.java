@@ -15,7 +15,9 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
         List<KhachHang> searchKhachHang(@org.springframework.data.repository.query.Param("keyword") String keyword);
     boolean existsByEmail(String email);
     boolean existsBySdt(String sdt);
+
     List<KhachHang> findByTrangThaiOrderByTenAsc(Integer trangThai);
+
 }
 
 

@@ -21,4 +21,6 @@ public record PhieuGiamGiaRequest(
         LocalDate ngayBatDau,
         LocalDate ngayKetThuc,
         List<Long> khachHangIds) {
+        List<Integer> khachHangIds) {
+
 }
