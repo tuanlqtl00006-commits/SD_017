@@ -9,21 +9,16 @@
         
         <!-- Bộ lọc và Công cụ -->
         <div class="mb-4">
-          <div class="d-flex align-items-center mb-3">
-            <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 35px; height: 35px;">
-              <i class="bi bi-funnel text-muted"></i>
-            </div>
-            <span class="fw-bold text-muted fs-6">Bộ lọc</span>
-          </div>
+          <h6 class="fw-bold mb-3 d-flex align-items-center text-secondary"><i class="bi bi-funnel me-2 fs-5"></i> Bộ lọc</h6>
           
           <div class="bg-white rounded-3 shadow-sm p-3 d-flex flex-wrap align-items-center gap-3 border">
             
-            <div class="input-group" style="flex: 1; min-width: 350px;">
+            <div class="input-group" style="flex: 1; min-width: 250px;">
               <span class="input-group-text border-end-0 text-muted rounded-start-pill bg-light" style="padding-left: 1rem;"><i class="bi bi-search"></i></span>
-              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" @keyup.enter="search">
+              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" @keyup.enter="search" @input="search">
             </div>
             
-            <select class="form-select bg-light text-secondary rounded-pill" style="width: 150px;">
+            <select class="form-select bg-light text-secondary rounded-pill" style="width: 200px;" v-model="statusFilter" @change="currentPage = 1">
               <option selected value="">Tất cả</option>
               <option value="1">Hoạt động</option>
               <option value="0">Ngừng hoạt động</option>
@@ -70,12 +65,16 @@
                 </thead>
                 <tbody class="text-dark">
                   <tr v-if="customers.length === 0">
-                    <td colspan="7" class="text-center py-5 text-muted">
-                      Không có dữ liệu
+                    <td colspan="7" class="text-center py-5">
+                      <div class="d-flex flex-column align-items-center justify-content-center opacity-50">
+                        <i class="bi bi-search mb-3" style="font-size: 3rem; color: #dee2e6;"></i>
+                        <h6 class="text-muted fw-medium">Không tìm thấy khách hàng nào</h6>
+                        <span class="text-muted small">Vui lòng thử lại với từ khóa khác (Tên, SĐT, hoặc Email)</span>
+                      </div>
                     </td>
                   </tr>
-                  <tr v-for="(kh, index) in customers" :key="kh.id">
-                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ index + 1 }}</td>
+                  <tr v-for="(kh, index) in paginatedCustomers" :key="kh.id">
+                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.ten }}</td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.email }}</td>
                     <td class="py-3 small" style="border-bottom: 1px solid #f0f0f0; white-space: normal;">
@@ -116,26 +115,24 @@
             <div class="d-flex justify-content-end px-4 py-4 mt-2">
               <nav>
                 <ul class="pagination custom-pagination m-0 gap-1 border-0">
-                  <li class="page-item disabled">
-                    <a class="page-link border-0 text-muted bg-transparent" href="#"><i class="bi bi-chevron-double-left fs-6"></i></a>
+                  <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="goToPage(1)"><i class="bi bi-chevron-double-left fs-6"></i></a>
                   </li>
-                  <li class="page-item disabled">
-                    <a class="page-link border-0 text-muted bg-transparent" href="#"><i class="bi bi-chevron-left fs-6"></i></a>
+                  <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="prevPage"><i class="bi bi-chevron-left fs-6"></i></a>
                   </li>
-                  <li class="page-item active">
-                    <a class="page-link border-0 rounded-3 bg-primary bg-opacity-10 text-primary fw-bold" href="#">1</a>
+                  
+                  <li v-for="page in totalPages" :key="page" class="page-item" :class="{ active: currentPage === page }">
+                    <a class="page-link border-0 fw-medium" 
+                       :class="currentPage === page ? 'rounded-3 bg-primary bg-opacity-10 text-primary fw-bold' : 'text-muted bg-transparent'" 
+                       href="#" @click.prevent="goToPage(page)">{{ page }}</a>
                   </li>
-                  <li class="page-item">
-                    <a class="page-link border-0 text-muted bg-transparent fw-medium" href="#">2</a>
+
+                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="nextPage"><i class="bi bi-chevron-right fs-6"></i></a>
                   </li>
-                  <li class="page-item">
-                    <a class="page-link border-0 text-muted bg-transparent fw-medium" href="#">3</a>
-                  </li>
-                  <li class="page-item">
-                    <a class="page-link border-0 text-muted bg-transparent" href="#"><i class="bi bi-chevron-right fs-6"></i></a>
-                  </li>
-                  <li class="page-item">
-                    <a class="page-link border-0 text-muted bg-transparent" href="#"><i class="bi bi-chevron-double-right fs-6"></i></a>
+                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="goToPage(totalPages)"><i class="bi bi-chevron-double-right fs-6"></i></a>
                   </li>
                 </ul>
               </nav>
@@ -159,10 +156,6 @@
                     <input type="text" class="form-control bg-light border-0 text-muted" v-model="formData.maKH" :disabled="isEdit || isView" placeholder="KH123456789">
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label text-dark fw-medium mb-1">Ngày Sinh</label>
-                    <input type="date" class="form-control bg-light border-0 text-muted" v-model="formData.ngaySinh" :disabled="isView">
-                  </div>
-                  <div class="col-12">
                     <label class="form-label text-dark fw-medium mb-1">Họ và Tên <span class="text-danger" v-if="!isView">*</span></label>
                     <input type="text" class="form-control bg-light border-0" v-model="formData.ten" required placeholder="Nguyễn Hữu Việt..." :disabled="isView">
                   </div>
@@ -174,6 +167,10 @@
                   <div class="col-md-6">
                     <label class="form-label text-dark fw-medium mb-1">Email</label>
                     <input type="email" class="form-control bg-light border-0" v-model="formData.email" placeholder="email@gmail.com" :disabled="isView">
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label text-dark fw-medium mb-1">Ngày Sinh</label>
+                    <input type="date" class="form-control bg-light border-0 text-muted" v-model="formData.ngaySinh" :disabled="isView" min="1900-01-01" max="9999-12-31">
                   </div>
                   
                   <div class="col-12 mt-3">
@@ -243,7 +240,7 @@
 import { ref, onMounted } from 'vue'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
-import api from '../services/api' // using existing axios instance
+import api from '../services/api' // sử dụng cấu hình axios có sẵn
 
 const showModal = ref(false)
 const isEdit = ref(false)
@@ -306,14 +303,65 @@ watch(() => formData.value.quanHuyen, (newVal) => {
   }
 })
 
-const fetchCustomers = async () => {
+const fetchCustomers = async (resetPage = false) => {
   try {
     const response = await api.get('/khach-hang', {
       params: { search: searchQuery.value }
     })
     customers.value = response.data
+    if (resetPage) {
+      currentPage.value = 1
+    } else {
+      const totalPages = Math.ceil(customers.value.length / itemsPerPage.value)
+      if (currentPage.value > totalPages && totalPages > 0) {
+        currentPage.value = totalPages
+      }
+    }
   } catch (error) {
     console.error("Lỗi khi tải danh sách khách hàng:", error)
+  }
+}
+
+// Cài đặt chức năng phân trang
+const currentPage = ref(1)
+const itemsPerPage = 5
+
+import { computed } from 'vue'
+
+const statusFilter = ref('')
+
+const filteredCustomers = computed(() => {
+  if (statusFilter.value === '') {
+    return customers.value
+  }
+  const statusVal = Number(statusFilter.value)
+  return customers.value.filter(c => c.trangThai === statusVal)
+})
+
+const totalPages = computed(() => {
+  return Math.ceil(filteredCustomers.value.length / itemsPerPage) || 1
+})
+
+const paginatedCustomers = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  return filteredCustomers.value.slice(start, start + itemsPerPage)
+})
+
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--
+  }
+}
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++
   }
 }
 
@@ -323,12 +371,13 @@ onMounted(() => {
 })
 
 const search = () => {
-  fetchCustomers()
+  fetchCustomers(true)
 }
 
 const reset = () => {
   searchQuery.value = ''
-  fetchCustomers()
+  statusFilter.value = ''
+  fetchCustomers(true)
 }
 
 const isView = ref(false)
@@ -370,8 +419,30 @@ const openEditModal = (kh) => {
     diaChiCuThe = dc.diaChiCuThe || ''
   }
 
+  if (tinhThanh) {
+    const selectedProv = allLocations.value.find(p => p.full_name === tinhThanh)
+    districts.value = selectedProv ? selectedProv.data2 : []
+  }
+  if (quanHuyen) {
+    const selectedDist = districts.value.find(d => d.full_name === quanHuyen)
+    wards.value = selectedDist ? selectedDist.data3 : []
+  }
+
+  let parsedNgaySinh = '';
+  if (kh.ngaySinh) {
+    if (Array.isArray(kh.ngaySinh)) {
+      const y = kh.ngaySinh[0];
+      const m = String(kh.ngaySinh[1]).padStart(2, '0');
+      const d = String(kh.ngaySinh[2]).padStart(2, '0');
+      parsedNgaySinh = `${y}-${m}-${d}`;
+    } else {
+      parsedNgaySinh = String(kh.ngaySinh).substring(0, 10);
+    }
+  }
+
   formData.value = { 
     ...kh,
+    ngaySinh: parsedNgaySinh,
     tinhThanh: tinhThanh,
     quanHuyen: quanHuyen,
     phuongXa: phuongXa,
@@ -428,7 +499,7 @@ const toggleStatus = async (kh) => {
     await api.put(`/khach-hang/${kh.id}`, kh)
   } catch (error) {
     console.error(error)
-    kh.trangThai = kh.trangThai === 1 ? 0 : 1; // revert
+    kh.trangThai = kh.trangThai === 1 ? 0 : 1; // khôi phục lại trạng thái cũ nếu lỗi
   }
 }
 
@@ -511,3 +582,6 @@ const formatDate = (dateString) => {
   background-color: #fff;
 }
 </style>
+
+
+
