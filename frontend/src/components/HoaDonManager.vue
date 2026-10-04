@@ -29,10 +29,15 @@ const fetchHoaDon = async (page = 0) => {
     const response = await axios.get('http://localhost:8080/api/hoa-don', {
       params: {
         page: page,
-        size: 5 
+        size: 5, 
+        
+        
+        maHoaDon: filter.value.maHoaDon || null,
+        tuNgay: filter.value.tuNgay || null,
+        denNgay: filter.value.denNgay || null,
+        loaiDon: filter.value.loaiDon !== '' ? filter.value.loaiDon : null
       }
     });
-    
     danhSachHoaDon.value = response.data.content;
     totalPages.value = response.data.totalPages;
     currentPage.value = response.data.number;
@@ -46,6 +51,70 @@ const changePage = (page) => {
   if (page >= 0 && page < totalPages.value) {
     fetchHoaDon(page);
   }
+};
+
+
+const filter = ref({
+  maHoaDon: '',
+  tuNgay: '',
+  denNgay: '',
+  loaiDon: ''
+});
+
+
+const tuNgayInput = ref(null);
+const denNgayInput = ref(null);
+
+
+const openDatePicker = (element) => {
+  if (element && typeof element.showPicker === 'function') {
+    element.showPicker();
+  }
+};
+
+
+const handleSearch = () => {
+  fetchHoaDon(0); 
+};
+
+
+const handleReset = () => {
+  filter.value = { maHoaDon: '', tuNgay: '', denNgay: '', loaiDon: '' };
+  fetchHoaDon(0); 
+};
+
+
+const handleExport = () => {
+  if (danhSachHoaDon.value.length === 0) {
+    alert("Không có dữ liệu để xuất file!");
+    return;
+  }
+  
+  
+  let csvContent = "\uFEFFSTT,Mã Hóa Đơn,Tên Khách Hàng,Tên Nhân Viên,Tổng Tiền,Ngày Tạo,Loại Đơn\n";
+
+  
+  danhSachHoaDon.value.forEach((hd, index) => {
+    let row = [
+      index + 1,
+      hd.maHoaDon,
+      hd.tenKhachHang,
+      hd.tenNhanVien,
+      hd.tongTien,
+      formatDate(hd.ngayTao).replace(',', ''), 
+      hd.loaiDon
+    ].join(",");
+    csvContent += row + "\n";
+  });
+
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.setAttribute("download", "DanhSachHoaDon.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 onMounted(() => {
@@ -76,29 +145,61 @@ onMounted(() => {
             <div class="row g-3">
               <div class="col-md-3">
                 <label class="form-label small text-dark fw-medium">Mã hóa đơn</label>
-                <input type="text" class="form-control" placeholder="Nhập mã hóa đơn">
+                
+                <input type="text" class="form-control" placeholder="Nhập mã hóa đơn" v-model="filter.maHoaDon">
               </div>
+              
               <div class="col-md-3">
                 <label class="form-label small text-dark fw-medium">Ngày Bắt Đầu</label>
-                <input type="date" class="form-control text-muted" value="2025-02-20">
+                <div class="input-group shadow-sm">
+                  
+                  <input type="date" class="form-control border-end-0 text-dark" 
+                         v-model="filter.tuNgay" 
+                         ref="tuNgayInput"
+                         @click="openDatePicker(tuNgayInput)"
+                         style="cursor: pointer; box-shadow: none;">
+                  
+                  <span class="input-group-text bg-white text-primary border-start-0" 
+                        @click="openDatePicker(tuNgayInput)"
+                        style="cursor: pointer;">
+                    <i class="bi bi-calendar-event"></i>
+                  </span>
+                </div>
               </div>
+
+              
               <div class="col-md-3">
                 <label class="form-label small text-dark fw-medium">Ngày Kết Thúc</label>
-                <input type="date" class="form-control text-muted">
+                <div class="input-group shadow-sm">
+                  <input type="date" class="form-control border-end-0 text-dark" 
+                         v-model="filter.denNgay" 
+                         ref="denNgayInput"
+                         @click="openDatePicker(denNgayInput)"
+                         style="cursor: pointer; box-shadow: none;">
+                  <span class="input-group-text bg-white text-primary border-start-0" 
+                        @click="openDatePicker(denNgayInput)"
+                        style="cursor: pointer;">
+                    <i class="bi bi-calendar-event"></i>
+                  </span>
+                </div>
               </div>
               <div class="col-md-3">
                 <label class="form-label small text-dark fw-medium">Loại Đơn</label>
-                <select class="form-select text-muted">
-                  <option selected>Loại Đơn</option>
-                  <option value="1">Tại cửa hàng</option>
+                <select class="form-select text-muted" v-model="filter.loaiDon">
+                  <option value="">Tất cả Loại Đơn</option>
+                  <option value="1">Tại quầy</option>
                   <option value="2">Online</option>
                 </select>
               </div>
             </div>
+
             <div class="d-flex justify-content-end gap-3 mt-4">
-              <button class="btn btn-primary px-4 shadow-sm">Tìm kiếm</button>
-              <button class="btn btn-danger px-4 shadow-sm">Làm mới</button>
-              <button class="btn btn-success px-4 shadow-sm"><i class="bi bi-file-earmark-arrow-down me-1"></i> Xuất File</button>
+              
+              <button class="btn btn-primary px-4 shadow-sm" @click="handleSearch">Tìm kiếm</button>
+              <button class="btn btn-danger px-4 shadow-sm" @click="handleReset">Làm mới</button>
+              <button class="btn btn-success px-4 shadow-sm" @click="handleExport">
+                <i class="bi bi-file-earmark-arrow-down me-1"></i> Xuất File
+              </button>
             </div>
           </div>
         </div>
@@ -154,8 +255,11 @@ onMounted(() => {
                 <tbody class="text-dark">
                 
                 <tr v-if="danhSachHoaDon.length === 0">
-                  <td colspan="8" class="text-center py-4 text-muted">Đang tải dữ liệu hóa đơn...</td>
-                </tr>
+                    
+                    <td colspan="8" class="text-center py-4 text-danger fw-medium">
+                       Không tìm thấy hóa đơn nào phù hợp với điều kiện lọc!
+                    </td>
+                  </tr>
 
                 
                 <tr v-for="(hd, index) in danhSachHoaDon" :key="hd.id">
@@ -330,5 +434,11 @@ onMounted(() => {
 .custom-pagination .page-item.disabled .page-link {
   color: #adb5bd;
   background-color: #fff;
+}
+
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    display: none;
+    -webkit-appearance: none;
 }
 </style>

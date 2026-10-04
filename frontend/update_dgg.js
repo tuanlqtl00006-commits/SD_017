@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-const dggPath = 'd:/DATN/SD_017/frontend/src/components/DotGiamGiaManager.vue';
+const dggPath = 'src/components/DotGiamGiaManager.vue';
 let content = fs.readFileSync(dggPath, 'utf8');
 
 const dgg_modal_html = `

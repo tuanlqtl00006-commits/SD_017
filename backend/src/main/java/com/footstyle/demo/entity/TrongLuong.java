@@ -1,0 +1,18 @@
+package com.footstyle.demo.entity;
+
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
+
+/** Bảng trong_luong: Trọng lượng. Các cột id, trạng thái nằm ở lớp cha ThuocTinh. */
+@Entity
+@Getter
+@Setter
+@Table(name = "trong_luong")
+@AttributeOverride(name = "ma", column = @Column(name = "ma_trong_luong"))
+@AttributeOverride(name = "ten", column = @Column(name = "ten_trong_luong"))
+public class TrongLuong extends ThuocTinh {
+}

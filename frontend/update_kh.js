@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-const khachhangPath = 'd:/DATN/SD_017/frontend/src/components/KhachHangManager.vue';
+const khachhangPath = 'src/components/KhachHangManager.vue';
 let content = fs.readFileSync(khachhangPath, 'utf8');
 
 const kh_modal_html = `

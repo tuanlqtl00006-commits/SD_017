@@ -31,7 +31,8 @@ public class HoaDon {
     private BigDecimal tongTien;
     private BigDecimal phiVanChuyen;
     private BigDecimal tienGiamGia;
-    private Integer loaiDon; 
+    @Column(name = "loai_hoa_don")
+    private Integer loaiDon;
     private Integer trangThai; 
 
     @Column(name = "dia_chi_giao_hang")
