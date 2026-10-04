@@ -19,7 +19,7 @@ public class KhachHangController {
     @GetMapping
     public List<KhachHang> getAllKhachHang(@RequestParam(required = false) String search) {
         if (search != null && !search.trim().isEmpty()) {
-            return khachHangRepository.findByTenContainingIgnoreCaseOrSdtContainingIgnoreCaseOrEmailContainingIgnoreCase(search, search, search);
+            return khachHangRepository.searchKhachHang(search);
         }
         return khachHangRepository.findAll();
     }
@@ -31,7 +31,14 @@ public class KhachHangController {
     }
 
     @PostMapping
-    public KhachHang createKhachHang(@RequestBody KhachHang khachHang) {
+    public ResponseEntity<?> createKhachHang(@RequestBody KhachHang khachHang) {
+        if (khachHang.getEmail() != null && !khachHang.getEmail().isEmpty() && khachHangRepository.existsByEmail(khachHang.getEmail())) {
+            return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Email đã tồn tại."));
+        }
+        if (khachHang.getSdt() != null && !khachHang.getSdt().isEmpty() && khachHangRepository.existsBySdt(khachHang.getSdt())) {
+            return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
+        }
+
         if (khachHang.getMaKH() == null || khachHang.getMaKH().isEmpty()) {
             khachHang.setMaKH("KH" + System.currentTimeMillis());
         }
@@ -56,14 +63,24 @@ public class KhachHangController {
             khachHang.getDiaChiList().add(diaChi);
         }
 
-        return khachHangRepository.save(khachHang);
+        return ResponseEntity.ok(khachHangRepository.save(khachHang));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<KhachHang> updateKhachHang(@PathVariable Long id, @RequestBody KhachHang khachHangDetails) {
+    public ResponseEntity<?> updateKhachHang(@PathVariable Long id, @RequestBody KhachHang khachHangDetails) {
         Optional<KhachHang> optionalKhachHang = khachHangRepository.findById(id);
         if (optionalKhachHang.isPresent()) {
             KhachHang khachHang = optionalKhachHang.get();
+
+            // Check if changing email to an existing one
+            if (khachHangDetails.getEmail() != null && !khachHangDetails.getEmail().equals(khachHang.getEmail()) && khachHangRepository.existsByEmail(khachHangDetails.getEmail())) {
+                return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Email đã tồn tại."));
+            }
+            // Check if changing sdt to an existing one
+            if (khachHangDetails.getSdt() != null && !khachHangDetails.getSdt().equals(khachHang.getSdt()) && khachHangRepository.existsBySdt(khachHangDetails.getSdt())) {
+                return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
+            }
+
             khachHang.setTen(khachHangDetails.getTen());
             khachHang.setSdt(khachHangDetails.getSdt());
             khachHang.setEmail(khachHangDetails.getEmail());
@@ -108,3 +125,6 @@ public class KhachHangController {
         }
     }
 }
+
+
+
