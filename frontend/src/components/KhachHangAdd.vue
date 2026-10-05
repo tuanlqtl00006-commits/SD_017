@@ -51,9 +51,9 @@
                     </select>
                   </div>
                   <div class="col-12">
-                    <label class="form-label small text-muted fw-semibold">Ngày sinh</label>
-                    <input type="date" class="form-control bg-light border-0" v-model="formData.ngaySinh" min="1900-01-01" max="9999-12-31">
-                  </div>
+                      <label class="form-label small text-muted fw-semibold">Ngày sinh</label>
+                      <input type="date" class="form-control bg-light border-0" v-model="formData.ngaySinh" min="1900-01-01" max="9999-12-31">
+                    </div>
                 </div>
               </div>
             </div>
@@ -112,8 +112,8 @@
             <!-- Nút Tạo & Hủy -->
             <div class="d-flex justify-content-end mb-5 gap-3">
               <button class="btn btn-outline-secondary px-5 py-2 fw-bold shadow-sm" style="border-radius: 8px;" @click="router.push('/khach-hang')">
-                Hủy
-              </button>
+                  Quay lại
+                </button>
               <button class="btn btn-primary px-5 py-2 fw-bold shadow-sm" style="border-radius: 8px; background-color: #0d6efd; border-color: #0d6efd;" @click="createCustomer">
                 <i class="bi bi-save me-2"></i> Tạo khách hàng
               </button>
@@ -127,6 +127,7 @@
 </template>
 
 <script setup>
+import Swal from 'sweetalert2';
 import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Sidebar from './Sidebar.vue'
@@ -255,7 +256,7 @@ const createCustomer = async () => {
 
     // Gọi API lưu Khách hàng và Địa chỉ 1 lần
     await api.post('/khach-hang', payload)
-    
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Tạo khách hàng mới thành công!', showConfirmButton: false, timer: 3000, timerProgressBar: true });
     // Quay lại trang danh sách
     router.push('/khach-hang')
   } catch (error) {
@@ -299,6 +300,7 @@ input:-webkit-autofill:active {
   transition: background-color 5000s ease-in-out 0s;
 }
 </style>
+
 
 
 
