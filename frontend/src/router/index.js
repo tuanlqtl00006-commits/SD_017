@@ -3,6 +3,7 @@ import HoaDonManager from '../components/HoaDonManager.vue'
 import KhachHangManager from '../components/KhachHangManager.vue'
 import KhachHangAdd from '../components/KhachHangAdd.vue'
 import DotGiamGiaManager from '../components/DotGiamGiaManager.vue'
+import HoaDonChiTiet from '../components/HoaDonChiTiet.vue'
 
 const routes = [
   {
@@ -28,6 +29,11 @@ const routes = [
     path: '/dot-giam-gia',
     name: 'DotGiamGia',
     component: DotGiamGiaManager
+  },
+  {
+    path: '/hoa-don/chi-tiet/:id',
+    name: 'HoaDonChiTiet',
+    component: HoaDonChiTiet
   }
 ]
 

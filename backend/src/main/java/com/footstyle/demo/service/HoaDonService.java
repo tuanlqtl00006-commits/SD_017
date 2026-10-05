@@ -2,6 +2,7 @@ package com.footstyle.demo.service;
 
 import com.footstyle.demo.dto.HoaDonRequest;
 import com.footstyle.demo.entity.HoaDon;
+import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,8 @@ public class HoaDonService {
 
     @Autowired
     private HoaDonRepository hoaDonRepository;
+    @Autowired
+    private HoaDonChiTietRepository hoaDonChiTietRepository;
 
     public Page<HoaDonRequest> getDanhSach(Integer trangThai, Pageable pageable) {
         Page<HoaDon> pageHoaDon;
@@ -121,5 +124,43 @@ public class HoaDonService {
             }
             return request;
         });
+    }
+
+    public java.util.Map<String, Object> getChiTietHoaDon(Integer idHoaDon) {
+        java.util.Map<String, Object> response = new java.util.HashMap<>();
+
+        // 1. Lấy thông tin chung của Hóa Đơn
+        HoaDon hd = hoaDonRepository.findById(idHoaDon).orElse(null);
+        if (hd == null) return response;
+
+        java.util.Map<String, Object> hoaDonInfo = new java.util.HashMap<>();
+        hoaDonInfo.put("maHoaDon", hd.getMaHoaDon());
+        hoaDonInfo.put("tenKhachHang", hd.getKhachHang() != null ? hd.getKhachHang().getTen() : "Khách vãng lai");
+        hoaDonInfo.put("sdtNguoiNhan", hd.getKhachHang() != null ? hd.getKhachHang().getSdt() : null);
+        hoaDonInfo.put("ngayTao", hd.getNgayTao());
+        hoaDonInfo.put("trangThai", hd.getTrangThai());
+        hoaDonInfo.put("tongTien", hd.getTongTien());
+        
+        response.put("hoaDon", hoaDonInfo);
+
+        // 2. Lấy danh sách sản phẩm nằm trong hóa đơn đó
+        List<com.footstyle.demo.entity.HoaDonChiTiet> listHDCT = hoaDonChiTietRepository.findByHoaDon_Id(idHoaDon);
+        List<java.util.Map<String, Object>> chiTietList = new ArrayList<>();
+        
+        for (com.footstyle.demo.entity.HoaDonChiTiet ct : listHDCT) {
+            java.util.Map<String, Object> item = new java.util.HashMap<>();
+            
+            // LƯU Ý: Chỗ này tùy thuộc vào Entity HoaDonChiTiet của bạn liên kết với SanPham như thế nào.
+            // Nếu bạn đang nối với SanPhamChiTiet, hãy sửa thành: ct.getSanPhamChiTiet().getSanPham().getTenSanPham()
+            // Tạm thời mình để chữ "Sản phẩm Demo" để bạn test code chạy mượt trước nhé.
+            item.put("tenSanPham", "Sản phẩm Demo"); 
+            item.put("soLuong", ct.getSoLuong());
+            item.put("donGia", ct.getDonGia());
+            
+            chiTietList.add(item);
+        }
+        
+        response.put("chiTietList", chiTietList);
+        return response;
     }
 }

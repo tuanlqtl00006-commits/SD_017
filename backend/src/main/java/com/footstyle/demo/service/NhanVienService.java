@@ -74,9 +74,7 @@ public class NhanVienService {
                 : 0;
         napDuLieu(nv, req, false);
         if (laQuanLyDangHoatDong && !laQuanLy(nv.getVaiTro()) && soQuanLy <= 1) {
-           throw ApiException.conflict("KhĂ´ng thá»ƒ Ä‘á»•i vai trĂ² cá»§a quáº£n lĂ½ Ä‘ang hoáº¡t Ä‘á»™ng cuá»‘i cĂ¹ng.");
-        if (laQuanLyDangHoatDong && !laQuanLy(nv.getVaiTro()) && soQuanLy <= 1) {
-            throw ApiException.conflict("Không thể đổi vai trò của quản lý đang hoạt động cuối cùng.");
+            throw ApiException.conflict("Loi");
         }
         return toResponse(nhanVienRepo.save(nv));
     }
@@ -87,7 +85,7 @@ public class NhanVienService {
         NhanVien nv = timNhanVien(id);
         if (dangHoatDong(nv)) {
             if (laQuanLy(nv.getVaiTro())) {
-                kiemTraConQuanLyKhac(nv.getVaiTro(), "KhĂ´ng thá»ƒ ngÆ°ng hoáº¡t Ä‘á»™ng quáº£n lĂ½ cuá»‘i cĂ¹ng cá»§a há»‡ thá»‘ng.");
+                kiemTraConQuanLyKhac(nv.getVaiTro(), "Loi");
             }
             nv.setTrangThai(NhanVien.NGUNG_HOAT_DONG);
         } else {
@@ -141,22 +139,18 @@ public class NhanVienService {
     private void napDuLieu(NhanVien nv, NhanVienRequest req, boolean taoMoi) {
         Integer idHienTai = nv.getId() == null ? -1 : nv.getId(); // thĂªm má»›i chÆ°a cĂ³ id nĂªn dĂ¹ng -1
 
-    private void napDuLieu(NhanVien nv, NhanVienRequest req, boolean taoMoi) {
-        Integer idHienTai = nv.getId() == null ? -1 : nv.getId(); // thêm mới chưa có id nên dùng -1
-
         String email = nv.getEmail();
         LocalDate ngayVaoLam = nv.getNgayVaoLam();
         String matKhau = "";
         if (taoMoi) {
-
             email = req.email() == null ? "" : req.email().trim().toLowerCase();
             loi(email.isEmpty(), "Nháº­p email.");
             loi(email.length() > 255 || !email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$"), "Email chÆ°a Ä‘Ăºng Ä‘á»‹nh dáº¡ng, vĂ­ dá»¥: ten@footstyle.vn.");
             if (nhanVienRepo.existsByEmailIgnoreCaseAndIdNot(email, idHienTai)) {
-                throw ApiException.conflict("Email Ä‘Ă£ Ä‘Æ°á»£c sá»­ dá»¥ng.");
+                throw ApiException.conflict("Loi");
             }
 
-         
+            // NgĂ y vĂ o lĂ m: khĂ´ng nháº­p thĂ¬ láº¥y hĂ´m nay
             ngayVaoLam = req.ngayVaoLam() == null ? LocalDate.now() : req.ngayVaoLam();
 
             // Máº­t kháº©u: báº¯t buá»™c, 8 - 50 kĂ½ tá»±
@@ -165,42 +159,18 @@ public class NhanVienService {
             loi(matKhau.length() < 8 || matKhau.length() > 50, "Máº­t kháº©u tá»« 8 Ä‘áº¿n 50 kĂ½ tá»±.");
         }
 
-      
+        // ===== Pháº§n dĂ¹ng cho cáº£ THĂ�M Má»�I vĂ  Sá»¬A =====
+        // Há»� tĂªn
         String hoTen = req.hoTen() == null ? "" : req.hoTen().trim().replaceAll("\\s+", " ");
-        loi(hoTen.isEmpty(), "Nháº­p há» tĂªn.");
-        loi(hoTen.length() < 2 || hoTen.length() > 60, "Há» tĂªn tá»« 2 Ä‘áº¿n 60 kĂ½ tá»±.");
+        loi(hoTen.isEmpty(), "Nháº­p há»� tĂªn.");
+        loi(hoTen.length() < 2 || hoTen.length() > 60, "Há»� tĂªn tá»« 2 Ä‘áº¿n 60 kĂ½ tá»±.");
 
-        // Sá»‘ Ä‘iá»‡n thoáº¡i: 10 sá»‘, Ä‘áº§u sá»‘ 03/05/07/08/09, khĂ´ng trĂ¹ng ngÆ°á»i khĂ¡c
-            // Email: đúng định dạng và không trùng người khác
-            email = req.email() == null ? "" : req.email().trim().toLowerCase();
-            loi(email.isEmpty(), "Nhập email.");
-            loi(email.length() > 255 || !email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$"), "Email chưa đúng định dạng, ví dụ: ten@footstyle.vn.");
-            if (nhanVienRepo.existsByEmailIgnoreCaseAndIdNot(email, idHienTai)) {
-                throw ApiException.conflict("Email đã được sử dụng.");
-            }
-
-            // Ngày vào làm: không nhập thì lấy hôm nay
-            ngayVaoLam = req.ngayVaoLam() == null ? LocalDate.now() : req.ngayVaoLam();
-
-            // Mật khẩu: bắt buộc, 8 - 50 ký tự
-            matKhau = req.matKhau() == null ? "" : req.matKhau();
-            loi(matKhau.isEmpty(), "Nhập mật khẩu cho nhân viên mới.");
-            loi(matKhau.length() < 8 || matKhau.length() > 50, "Mật khẩu từ 8 đến 50 ký tự.");
-        }
-
-        // ===== Phần dùng cho cả THÊM MỚI và SỬA =====
-        // Họ tên
-        String hoTen = req.hoTen() == null ? "" : req.hoTen().trim().replaceAll("\\s+", " ");
-        loi(hoTen.isEmpty(), "Nhập họ tên.");
-        loi(hoTen.length() < 2 || hoTen.length() > 60, "Họ tên từ 2 đến 60 ký tự.");
-
-        // Số điện thoại: 10 số, đầu số 03/05/07/08/09, không trùng người khác
-
+        // Sá»‘ Ä‘iá»‡n thoáº¡i: 10 sá»‘, Ä‘áº§u sá»‘ 03/05/07/08/09, khĂ´ng trĂ¹ng ngÆ°á»�i khĂ¡c
         String sdt = req.soDienThoai() == null ? "" : req.soDienThoai().trim();
         loi(sdt.isEmpty(), "Nháº­p sá»‘ Ä‘iá»‡n thoáº¡i.");
         loi(!sdt.matches("^0[35789]\\d{8}$"), "Sá»‘ Ä‘iá»‡n thoáº¡i gá»“m 10 chá»¯ sá»‘, báº¯t Ä‘áº§u báº±ng 03, 05, 07, 08 hoáº·c 09.");
         if (nhanVienRepo.existsBySdtAndIdNot(sdt, idHienTai)) {
-            throw ApiException.conflict("Sá»‘ Ä‘iá»‡n thoáº¡i Ä‘Ă£ Ä‘Æ°á»£c sá»­ dá»¥ng.");
+            throw ApiException.conflict("Loi");
         }
 
         // Giá»›i tĂ­nh (khĂ´ng báº¯t buá»™c): chá»¯ -> sá»‘ lÆ°u trong DB
@@ -214,48 +184,25 @@ public class NhanVienService {
         LocalDate ngaySinh = req.ngaySinh();
         loi(ngaySinh != null && ngaySinh.isAfter(LocalDate.now().minusYears(18)), "NhĂ¢n viĂªn pháº£i tá»« Ä‘á»§ 18 tuá»•i.");
 
-
         // NgĂ y sinh vĂ  ngĂ y vĂ o lĂ m pháº£i khá»›p nhau (vĂ o lĂ m khi Ä‘Ă£ Ä‘á»§ 18 tuá»•i)
         if (ngayVaoLam != null && ngaySinh != null && ngayVaoLam.isBefore(ngaySinh.plusYears(18))) {
             if (taoMoi) {
                 throw ApiException.badRequest("NgĂ y vĂ o lĂ m khĂ´ng há»£p lá»‡ so vá»›i ngĂ y sinh (pháº£i tá»« Ä‘á»§ 18 tuá»•i).");
             }
             // Khi sá»­a, ngĂ y vĂ o lĂ m khĂ´ng Ä‘á»•i Ä‘Æ°á»£c nĂªn lá»—i náº±m á»Ÿ ngĂ y sinh
-            String ngay = ngayVaoLam.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            String ngay = ngayVaoLam.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
             throw ApiException.badRequest("NgĂ y sinh khĂ´ng há»£p lá»‡: nhĂ¢n viĂªn pháº£i Ä‘á»§ 18 tuá»•i vĂ o ngĂ y vĂ o lĂ m (" + ngay + ").");
         }
 
-       
+        // Ä�á»‹a chá»‰
         String diaChi = req.diaChi() == null ? "" : req.diaChi().trim();
         loi(diaChi.isEmpty(), "Nháº­p Ä‘á»‹a chá»‰.");
-        loi(diaChi.length() > 255, "Äá»‹a chá»‰ tá»‘i Ä‘a 255 kĂ½ tá»±.");
+        loi(diaChi.length() > 255, "Ä�á»‹a chá»‰ tá»‘i Ä‘a 255 kĂ½ tá»±.");
 
         // Vai trĂ²: pháº£i tá»“n táº¡i vĂ  Ä‘ang Ä‘Æ°á»£c sá»­ dá»¥ng
-        loi(req.idVaiTro() == null, "Chá»n vai trĂ².");
-        VaiTro vaiTro = vaiTroRepo.findById(req.idVaiTro())
-                .orElseThrow(() -> ApiException.badRequest("Vai trĂ² khĂ´ng tá»“n táº¡i."));
+        loi(req.idVaiTro() == null, "Chá»�n vai trĂ².");
+        VaiTro vaiTro = vaiTroRepo.findById(req.idVaiTro()).orElseThrow(() -> ApiException.badRequest("Vai trĂ² khĂ´ng tá»“n táº¡i."));
         loi(vaiTro.getTrangThai() == null || vaiTro.getTrangThai() != 1, "Vai trĂ² nĂ y Ä‘ang ngÆ°ng sá»­ dá»¥ng.");
-
-        if (ngayVaoLam != null && ngaySinh != null && ngayVaoLam.isBefore(ngaySinh.plusYears(18))) {
-            if (taoMoi) {
-                throw ApiException.badRequest("Ngày vào làm không hợp lệ so với ngày sinh (phải từ đủ 18 tuổi).");
-            }
-            // Khi sửa, ngày vào làm không đổi được nên lỗi nằm ở ngày sinh
-            String ngay = ngayVaoLam.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-            throw ApiException.badRequest("Ngày sinh không hợp lệ: nhân viên phải đủ 18 tuổi vào ngày vào làm (" + ngay + ").");
-        }
-
-        // Địa chỉ
-        String diaChi = req.diaChi() == null ? "" : req.diaChi().trim();
-        loi(diaChi.isEmpty(), "Nhập địa chỉ.");
-        loi(diaChi.length() > 255, "Địa chỉ tối đa 255 ký tự.");
-
-        // Vai trò: phải tồn tại và đang được sử dụng
-        loi(req.idVaiTro() == null, "Chọn vai trò.");
-        VaiTro vaiTro = vaiTroRepo.findById(req.idVaiTro())
-                .orElseThrow(() -> ApiException.badRequest("Vai trò không tồn tại."));
-        loi(vaiTro.getTrangThai() == null || vaiTro.getTrangThai() != 1, "Vai trò này đang ngưng sử dụng.");
-
 
         nv.setHoTen(hoTen);
         nv.setSdt(sdt);
@@ -264,15 +211,10 @@ public class NhanVienService {
         nv.setDiaChi(diaChi);
         nv.setVaiTro(vaiTro);
 
-        if (taoMoi) { // chá»‰ thĂªm má»›i má»›i Ä‘Æ°á»£c ghi 3 trÆ°á»ng nĂ y
+        if (taoMoi) { // chá»‰ thĂªm má»›i má»›i Ä‘Æ°á»£c ghi 3 trÆ°á»�ng nĂ y
             nv.setEmail(email);
             nv.setNgayVaoLam(ngayVaoLam);
             nv.setMatKhau(passwordEncoder.encode(matKhau)); // lÆ°u dáº¡ng bÄƒm BCrypt, khĂ´ng lÆ°u máº­t kháº©u gá»‘c
-
-        if (taoMoi) { // chỉ thêm mới mới được ghi 3 trường này
-            nv.setEmail(email);
-            nv.setNgayVaoLam(ngayVaoLam);
-            nv.setMatKhau(passwordEncoder.encode(matKhau)); // lưu dạng băm BCrypt, không lưu mật khẩu gốc
         }
     }
 

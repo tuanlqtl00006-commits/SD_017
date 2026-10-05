@@ -48,4 +48,13 @@ public class HoaDonController {
         
         return ResponseEntity.ok(responseMap); 
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getChiTietHoaDon(@PathVariable Integer id) {
+        Map<String, Object> result = hoaDonService.getChiTietHoaDon(id);
+        if (result.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(result);
+    }
 }

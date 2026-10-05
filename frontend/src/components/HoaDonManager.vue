@@ -1,16 +1,24 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+import { useRouter } from 'vue-router';
 
 import Sidebar from './Sidebar.vue';
 import Header from './Header.vue';
 
+const router = useRouter();
 
 const danhSachHoaDon = ref([]);
 const currentPage = ref(0); 
 const totalPages = ref(1);  
 
 const currentTab = ref(null);
+
+// Hàm xem chi tiết giờ chỉ làm nhiệm vụ chuyển trang
+const xemChiTiet = (idHoaDon) => {
+  // Chuyển hướng sang trang chi tiết và truyền ID lên thanh URL
+  router.push(`/hoa-don/chi-tiet/${idHoaDon}`); 
+};
 
 const formatCurrency = (value) => {
   if (!value) return '0 ₫';
@@ -29,13 +37,14 @@ const fetchHoaDon = async (page = 0) => {
     const response = await axios.get('http://localhost:8080/api/hoa-don', {
       params: {
         page: page,
-        size: 5, 
-        
-        
+        size: 5,
         maHoaDon: filter.value.maHoaDon || null,
         tuNgay: filter.value.tuNgay || null,
         denNgay: filter.value.denNgay || null,
-        loaiDon: filter.value.loaiDon !== '' ? filter.value.loaiDon : null
+        loaiDon: filter.value.loaiDon !== '' ? filter.value.loaiDon : null,
+        
+        // Dòng quyết định lọc theo Tabs
+        trangThai: activeTab.value !== null ? activeTab.value : null
       }
     });
     danhSachHoaDon.value = response.data.content;
@@ -60,6 +69,15 @@ const filter = ref({
   denNgay: '',
   loaiDon: ''
 });
+
+// 1. THÊM BIẾN NÀY ĐỂ QUẢN LÝ TAB (null là Tất cả)
+const activeTab = ref(null);
+
+// 2. THÊM HÀM CHUYỂN TAB
+const changeTab = (status) => {
+  activeTab.value = status;
+  fetchHoaDon(0); // Chuyển tab thì tự động reset về trang 1
+};
 
 
 const tuNgayInput = ref(null);
@@ -214,27 +232,28 @@ onMounted(() => {
               <h4 class="fw-bold m-0 text-dark" style="font-size: 1.25rem;">Danh Sách Hóa Đơn</h4>
             </div>
 
+<!-- DẢI TABS TRẠNG THÁI -->
             <ul class="nav custom-tabs d-flex justify-content-between flex-nowrap overflow-auto px-4 w-100" style="border-bottom: 1px solid #e9ecef;">
               <li class="nav-item">
-                <a class="nav-link active text-center px-2" href="#">Tất Cả</a>
+                <a class="nav-link text-center px-2" :class="{ active: activeTab === null }" href="#" @click.prevent="changeTab(null)">Tất Cả</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link text-center px-2" href="#">Chờ Xác Nhận</a>
+                <a class="nav-link text-center px-2" :class="{ active: activeTab === 1 }" href="#" @click.prevent="changeTab(1)">Chờ Xác Nhận</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link text-center px-2" href="#">Đã Xác Nhận</a>
+                <a class="nav-link text-center px-2" :class="{ active: activeTab === 2 }" href="#" @click.prevent="changeTab(2)">Đã Xác Nhận</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link text-center px-2" href="#">Chờ Vận Chuyển</a>
+                <a class="nav-link text-center px-2" :class="{ active: activeTab === 3 }" href="#" @click.prevent="changeTab(3)">Chờ Vận Chuyển</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link text-center px-2" href="#">Vận Chuyển</a>
+                <a class="nav-link text-center px-2" :class="{ active: activeTab === 4 }" href="#" @click.prevent="changeTab(4)">Vận Chuyển</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link text-center px-2" href="#">Đã Hoàn Thành</a>
+                <a class="nav-link text-center px-2" :class="{ active: activeTab === 5 }" href="#" @click.prevent="changeTab(5)">Đã Hoàn Thành</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link text-center px-2" href="#">Hủy</a>
+                <a class="nav-link text-center px-2" :class="{ active: activeTab === 0 }" href="#" @click.prevent="changeTab(0)">Hủy</a>
               </li>
             </ul>
 
@@ -281,8 +300,13 @@ onMounted(() => {
 
                   <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ hd.loaiDon }}</td>
 
-                  <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">
-                    <a href="#" class="text-secondary"><i class="bi bi-eye fs-5"></i></a>
+                  <!-- Cột Hành Động -->
+                  <td class="align-middle">
+                    <button class="btn btn-sm btn-outline-primary border-0" 
+                            title="Xem chi tiết" 
+                            @click="xemChiTiet(hd.id)">
+                      <i class="bi bi-eye fs-5"></i>
+                    </button>
                   </td>
                 </tr>
                 </tbody>
@@ -325,6 +349,8 @@ onMounted(() => {
 
       </main>
     </div>
+
+
   </div>
 </template>
 

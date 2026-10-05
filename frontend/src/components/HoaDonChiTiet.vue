@@ -1,3 +1,28 @@
+<script setup>
+import { ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import axios from 'axios';
+
+const route = useRoute();
+const idHoaDon = route.params.id; // Lấy ID từ URL (/hoa-don/chi-tiet/1 -> lấy số 1)
+
+const hoaDonInfo = ref(null);
+const danhSachSanPham = ref([]);
+
+onMounted(async () => {
+  try {
+    // Gọi đúng API Backend lúc nãy chúng ta vừa làm
+    const response = await axios.get(`http://localhost:8080/api/hoa-don/${idHoaDon}`);
+    hoaDonInfo.value = response.data.hoaDon;
+    danhSachSanPham.value = response.data.chiTietList;
+  } catch (error) {
+    console.error("Lỗi:", error);
+  }
+});
+</script>
+
+
+
 <template>
   <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
 

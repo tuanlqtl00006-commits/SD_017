@@ -17,7 +17,6 @@ public class PhieuGiamGiaKhachHang {
     private Integer id;
     @Column(name = "id_khach_hang")
     private Long idKhachHang;
-    private Integer idKhachHang;
     @Column(name = "id_phieu_giam_gia")
     private Integer idPhieuGiamGia;
 
