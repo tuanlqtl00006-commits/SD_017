@@ -1,10 +1,10 @@
 import fs from 'fs';
 
-const khachhangPath = 'd:/DATN/SD_017/frontend/src/components/KhachHangManager.vue';
+const khachhangPath = 'src/components/KhachHangManager.vue';
 let content = fs.readFileSync(khachhangPath, 'utf8');
 
 const kh_modal_html = `
-        <!-- Modal Thêm/Sửa Khách Hàng -->
+        
         <div v-if="showModal" class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-3 shadow" style="width: 500px; max-width: 90vw;">
             <div class="modal-header d-flex justify-content-between align-items-center p-3 border-bottom">

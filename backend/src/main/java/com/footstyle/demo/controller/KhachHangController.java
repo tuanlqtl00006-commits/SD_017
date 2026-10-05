@@ -21,7 +21,7 @@ public class KhachHangController {
         if (search != null && !search.trim().isEmpty()) {
             return khachHangRepository.searchKhachHang(search);
         }
-        return khachHangRepository.findAll();
+        return khachHangRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
     }
 
     @GetMapping("/{id}")
@@ -43,12 +43,12 @@ public class KhachHangController {
             khachHang.setMaKH("KH" + System.currentTimeMillis());
         }
         
-        // Auto-generate password from phone number
+        
         if (khachHang.getSdt() != null) {
             khachHang.setMatKhau(khachHang.getSdt());
         }
         
-        // Process address
+        
         if (khachHang.getTinhThanh() != null && !khachHang.getTinhThanh().isEmpty()) {
             com.footstyle.demo.entity.DiaChiKhachHang diaChi = new com.footstyle.demo.entity.DiaChiKhachHang();
             diaChi.setTinhThanhPho(khachHang.getTinhThanh());
@@ -88,7 +88,7 @@ public class KhachHangController {
             khachHang.setGioiTinh(khachHangDetails.getGioiTinh());
             khachHang.setTrangThai(khachHangDetails.getTrangThai());
             
-            // Process address update
+            
             if (khachHangDetails.getTinhThanh() != null && !khachHangDetails.getTinhThanh().isEmpty()) {
                 com.footstyle.demo.entity.DiaChiKhachHang diaChi;
                 if (!khachHang.getDiaChiList().isEmpty()) {
@@ -125,6 +125,7 @@ public class KhachHangController {
         }
     }
 }
+
 
 
 

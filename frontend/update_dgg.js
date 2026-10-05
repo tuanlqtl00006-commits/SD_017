@@ -1,10 +1,10 @@
 import fs from 'fs';
 
-const dggPath = 'd:/DATN/SD_017/frontend/src/components/DotGiamGiaManager.vue';
+const dggPath = 'src/components/DotGiamGiaManager.vue';
 let content = fs.readFileSync(dggPath, 'utf8');
 
 const dgg_modal_html = `
-        <!-- Modal Thêm/Sửa Đợt Giảm Giá -->
+        
         <div v-if="showModal" class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-3 shadow" style="width: 500px; max-width: 90vw;">
             <div class="modal-header d-flex justify-content-between align-items-center p-3 border-bottom">

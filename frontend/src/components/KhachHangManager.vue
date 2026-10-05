@@ -15,7 +15,7 @@
             
             <div class="input-group" style="flex: 1; min-width: 250px;">
               <span class="input-group-text border-end-0 text-muted rounded-start-pill bg-light" style="padding-left: 1rem;"><i class="bi bi-search"></i></span>
-              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" @keyup.enter="search" @input="search">
+              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" @keyup.enter="search">
             </div>
             
             <select class="form-select bg-light text-secondary rounded-pill" style="width: 200px;" v-model="statusFilter" @change="currentPage = 1">
@@ -87,12 +87,12 @@
                     </td>
                     <td class="py-3 text-muted" style="border-bottom: 1px solid #f0f0f0;">{{ kh.sdt }}</td>
                     <td class="py-3 text-center" style="border-bottom: 1px solid #f0f0f0;">
-                      <span class="badge rounded-pill fw-medium px-3 py-2" 
-                            :class="kh.trangThai === 1 ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-secondary'" 
-                            style="border: 1px solid; border-color: rgba(25, 135, 84, 0.2)">
-                        {{ kh.trangThai === 1 ? 'Hoạt động' : 'Ngừng hoạt động' }}
-                      </span>
-                    </td>
+                        <span class="badge rounded-pill fw-medium px-3 py-2" 
+                              :class="kh.trangThai === 1 ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-secondary'" 
+                              style="border: 1px solid; border-color: rgba(25, 135, 84, 0.2)">
+                          {{ kh.trangThai === 1 ? 'Hoạt động' : 'Ngừng hoạt động' }}
+                        </span>
+                      </td>
                     <td class="py-3 text-center" style="border-bottom: 1px solid #f0f0f0;">
                       <div class="d-flex justify-content-center gap-2">
                         <button class="btn btn-sm btn-light text-success rounded-circle action-btn" @click.prevent="openViewModal(kh)">
@@ -223,7 +223,7 @@
                   </div>
                 </div>
                 <div class="d-flex justify-content-end gap-3 mt-4">
-                  <button type="button" class="btn px-4 py-2 rounded-pill fw-bold border-0" :class="isView ? 'btn-primary text-white' : 'bg-light text-dark'" @click="closeModal" :style="isView ? 'background-color: #0d6efd;' : 'background-color: #f1f3f5 !important;'">{{ isView ? 'Đóng' : 'Hủy bỏ' }}</button>
+                  <button type="button" class="btn px-4 py-2 rounded-pill fw-bold border-0" :class="isView ? 'btn-primary text-white' : 'bg-light text-dark'" @click="closeModal" :style="isView ? 'background-color: #0d6efd;' : 'background-color: #f1f3f5 !important;'">{{ isView ? 'Đóng' : 'Quay lại' }}</button>
                   <button v-if="!isView" type="submit" class="btn btn-primary px-5 py-2 rounded-pill fw-bold shadow-sm" style="background-color: #0d6efd; border-color: #0d6efd;">Lưu thông tin</button>
                 </div>
               </form>
@@ -237,6 +237,8 @@
 </template>
 
 <script setup>
+import Swal from 'sweetalert2';
+const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
 import { ref, onMounted } from 'vue'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
@@ -486,7 +488,7 @@ const saveCustomer = async () => {
       await api.post('/khach-hang', payload)
     }
     closeModal()
-    fetchCustomers()
+    fetchCustomers(); Toast.fire({ icon: 'success', title: isEdit.value ? 'Cập nhật khách hàng thành công!' : 'Tạo khách hàng mới thành công!' })
   } catch (error) {
     console.error("Lỗi khi lưu khách hàng:", error)
     alert("Có lỗi xảy ra khi lưu khách hàng! Vui lòng kiểm tra lại dữ liệu.")
@@ -497,6 +499,7 @@ const toggleStatus = async (kh) => {
   try {
     kh.trangThai = kh.trangThai === 1 ? 0 : 1;
     await api.put(`/khach-hang/${kh.id}`, kh)
+    fetchCustomers(); 
   } catch (error) {
     console.error(error)
     kh.trangThai = kh.trangThai === 1 ? 0 : 1; // khôi phục lại trạng thái cũ nếu lỗi
@@ -506,7 +509,7 @@ const toggleStatus = async (kh) => {
 const deleteCustomer = async (kh) => {
   try {
     await api.delete(`/khach-hang/${kh.id}`)
-    fetchCustomers()
+    fetchCustomers(); Toast.fire({ icon: 'success', title: 'Xóa khách hàng thành công!' })
   } catch (error) {
     console.error("Lỗi khi xóa khách hàng:", error)
     alert("Có lỗi xảy ra khi xóa khách hàng!")
@@ -582,6 +585,8 @@ const formatDate = (dateString) => {
   background-color: #fff;
 }
 </style>
+
+
 
 
 
