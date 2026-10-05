@@ -47,10 +47,10 @@ public class DiaChiKhachHang {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    // Optional: Keep ngayTao/ngayCapNhat if we want, or remove them if they aren't in the DB natively. 
-    // Wait, the DB didn't originally have ngay_tao and ngay_cap_nhat!
-    // Let's remove them to prevent issues, or leave them since Hibernate already added them.
-    // I will leave them mapped to the new columns Hibernate just added.
+    
+    
+    
+    
     @Column(name = "ngay_tao")
     private LocalDateTime ngayTao;
 

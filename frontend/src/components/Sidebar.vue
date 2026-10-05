@@ -1,11 +1,11 @@
 <template>
   <div class="bg-white border-end d-flex flex-column" style="width: 320px;">
-    <!-- Logo -->
+    
     <div class="p-3 text-center mb-3 d-flex align-items-center justify-content-center" style="height: 130px;">
       <img src="/logo.png" alt="FootStyle" class="img-fluid" style="width: 95%; object-fit: contain; transform: scale(1.1);">
     </div>
 
-    <!-- Menu -->
+    
     <ul class="nav flex-column fw-medium px-3" style="font-size: 1.05rem; gap: 0.5rem;">
       <li class="nav-item">
         <a href="#" class="nav-link text-dark px-3 py-3 rounded-3 d-flex align-items-center text-nowrap">

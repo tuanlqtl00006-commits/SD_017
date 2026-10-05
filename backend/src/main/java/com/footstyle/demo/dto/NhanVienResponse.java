@@ -2,7 +2,7 @@ package com.footstyle.demo.dto;
 
 import java.time.LocalDate;
 
-/** Không bao giờ trả mật khẩu về frontend. */
+
 public record NhanVienResponse(
         Integer id,
         String ma,

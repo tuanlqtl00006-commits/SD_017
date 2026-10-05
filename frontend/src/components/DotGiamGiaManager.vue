@@ -61,34 +61,20 @@
                   </tr>
                 </thead>
                 <tbody class="text-dark">
-                  <tr v-for="(dgg, index) in filteredList" :key="dgg.id">
-                    <td class="py-4 text-center border-bottom-0">{{ index + 1 }}</td>
-                    <td class="py-4 border-bottom-0">{{ dgg.maDot || 'Đợt ưu đãi...' }}</td>
-                    <td class="py-4 border-bottom-0">{{ dgg.tenDot }}</td>
-                    <td class="py-4 border-bottom-0">{{ dgg.phanTramGiamDot }}%</td>
-                    <td class="py-4 border-bottom-0">{{ formatDateOnly(dgg.ngayBatDau) }}</td>
-                    <td class="py-4 border-bottom-0">{{ formatDateOnly(dgg.ngayKetThuc) }}</td>
-                    <td class="py-4 text-center border-bottom-0">
-                      <span class="badge rounded-pill" :class="statusBadgeClass(dgg.trangThai)" style="padding: 0.5rem 1rem; font-weight: 500;">
-                        {{ displayStatus(dgg.trangThai) }}
-                      </span>
+                  <tr v-for="(dgg, index) in dsDotGiamGia" :key="dgg.id">
+                    <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">{{ index + 1 }}</td>
+                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ dgg.maDot }}</td>
+                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ dgg.tenDot }}</td>
+                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ dgg.giaTriGiam }}</td>
+                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;" v-html="formatDateTime(dgg.batDau)"></td>
+                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;" v-html="formatDateTime(dgg.ketThuc)"></td>
+                    <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">
+                      <span class="badge py-2 px-3 rounded-pill" :class="dgg.trangThai === 'Đang diễn ra' ? 'bg-success text-white' : dgg.trangThai === 'Sắp diễn ra' ? 'bg-warning text-dark' : 'bg-secondary text-white'">{{ dgg.trangThai }}</span>
                     </td>
-                    <td class="py-4 text-center border-bottom-0">
-                      <div class="d-flex justify-content-center gap-2">
-                        <a href="#" class="bg-light rounded p-2 text-success d-inline-flex align-items-center justify-content-center" style="width: 32px; height: 32px;" @click.prevent="openViewModal(dgg)">
-                          <i class="bi bi-eye"></i>
-                        </a>
-                        <a href="#" class="bg-light rounded p-2 text-secondary d-inline-flex align-items-center justify-content-center" style="width: 32px; height: 32px;" @click.prevent="openEditModal(dgg)">
-                          <i class="bi bi-pencil-fill"></i>
-                        </a>
-                        <a href="#" class="bg-danger bg-opacity-10 rounded p-2 text-danger d-inline-flex align-items-center justify-content-center" style="width: 32px; height: 32px;" @click.prevent="deleteDGG(dgg)">
-                          <i class="bi bi-trash-fill"></i>
-                        </a>
-                      </div>
+                    <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">
+                      <a href="#" class="text-primary me-2" @click.prevent="openEditModal(dgg)"><i class="bi bi-pencil-square fs-5"></i></a>
+                      <a href="#" class="text-danger" @click.prevent="deleteDGG(dgg)"><i class="bi bi-trash fs-5"></i></a>
                     </td>
-                  </tr>
-                  <tr v-if="filteredList.length === 0">
-                    <td colspan="8" class="text-center py-5 text-muted">Không có dữ liệu đợt giảm giá</td>
                   </tr>
                 </tbody>
               </table>
@@ -127,7 +113,7 @@
         </div>
 
       
-        <!-- Modal Thêm/Sửa Đợt Giảm Giá -->
+        
         <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-3 shadow" style="width: 500px; max-width: 90vw; pointer-events: auto;">
             <div class="modal-header d-flex justify-content-between align-items-center p-3 border-bottom">
@@ -176,86 +162,97 @@
           </div>
         </div>
 
+      
+        
+        <div v-if="showModal" class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1050; display: flex; align-items: center; justify-content: center;">
+          <div class="modal-dialog bg-white rounded-3 shadow" style="width: 500px; max-width: 90vw;">
+            <div class="modal-header d-flex justify-content-between align-items-center p-3 border-bottom">
+              <h5 class="modal-title fw-bold text-primary m-0">{{ isEdit ? 'Cập Nhật Đợt Giảm Giá' : 'Thêm Mới Đợt Giảm Giá' }}</h5>
+              <button type="button" class="btn-close" @click="closeModal"></button>
+            </div>
+            <div class="modal-body p-4">
+              <form @submit.prevent="saveDGG">
+                <div class="mb-3">
+                  <label class="form-label small text-dark fw-medium">Mã Đợt</label>
+                  <input type="text" class="form-control" v-model="formData.maDot" required :disabled="isEdit">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small text-dark fw-medium">Tên Đợt Giảm Giá</label>
+                  <input type="text" class="form-control" v-model="formData.tenDot" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small text-dark fw-medium">Giá Trị Giảm</label>
+                  <input type="text" class="form-control" v-model="formData.giaTriGiam" required placeholder="vd: 20% hoặc 50000đ">
+                </div>
+                <div class="row">
+                  <div class="col-6 mb-3">
+                    <label class="form-label small text-dark fw-medium">Bắt đầu</label>
+                    <input type="datetime-local" class="form-control" v-model="formData.batDau" required>
+                  </div>
+                  <div class="col-6 mb-3">
+                    <label class="form-label small text-dark fw-medium">Kết thúc</label>
+                    <input type="datetime-local" class="form-control" v-model="formData.ketThuc" required>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small text-dark fw-medium">Trạng Thái</label>
+                  <select class="form-select" v-model="formData.trangThai">
+                    <option value="Sắp diễn ra">Sắp diễn ra</option>
+                    <option value="Đang diễn ra">Đang diễn ra</option>
+                    <option value="Đã kết thúc">Đã kết thúc</option>
+                  </select>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                  <button type="button" class="btn btn-secondary px-4" @click="closeModal">Hủy</button>
+                  <button type="submit" class="btn btn-primary px-4">Lưu</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
       </main>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref } from 'vue'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
-import api from '../services/api'
 
 const showModal = ref(false)
 const isEdit = ref(false)
-const isView = ref(false)
-
 const formData = ref({
   maDot: '',
   tenDot: '',
-  phanTramGiamDot: '',
-  ngayBatDau: '',
-  ngayKetThuc: '',
-  trangThai: 1
+  giaTriGiam: '',
+  batDau: '',
+  ketThuc: '',
+  trangThai: 'Sắp diễn ra'
 })
 
-const dsDotGiamGia = ref([])
-const searchQuery = ref('')
-const searchStartDate = ref('')
-const searchEndDate = ref('')
-const searchStatus = ref('') // 'Tất Cả' by default? Wait, I will use empty string
-
-// Fetch list from API
-const fetchDGG = async () => {
-  try {
-    const res = await api.get('/dot-giam-gia')
-    dsDotGiamGia.value = res.data
-  } catch (error) {
-    console.error("Lỗi khi tải danh sách đợt giảm giá:", error)
-  }
-}
-
-onMounted(() => {
-  fetchDGG()
-})
-
-const percentError = ref('')
+const dsDotGiamGia = ref([
+  { id: 1, maDot: 'DGG001', tenDot: 'Giảm giá mùa hè 2025', giaTriGiam: '20%', batDau: '2025-06-01T00:00', ketThuc: '2025-06-30T23:59', trangThai: 'Sắp diễn ra' },
+  { id: 2, maDot: 'DGG002', tenDot: 'Sale Quốc Khánh', giaTriGiam: '50,000đ', batDau: '2025-09-01T00:00', ketThuc: '2025-09-05T23:59', trangThai: 'Đang diễn ra' }
+])
 
 const openAddModal = () => {
   isEdit.value = false
-  isView.value = false
-  percentError.value = ''
   formData.value = {
     maDot: '',
     tenDot: '',
-    phanTramGiamDot: '',
-    ngayBatDau: '',
-    ngayKetThuc: '',
-    trangThai: 1
+    giaTriGiam: '',
+    batDau: '',
+    ketThuc: '',
+    trangThai: 'Sắp diễn ra'
   }
   showModal.value = true
 }
 
 const openEditModal = (dgg) => {
   isEdit.value = true
-  isView.value = false
-  percentError.value = ''
   formData.value = { ...dgg }
-  if (formData.value.phanTramGiamDot) formData.value.phanTramGiamDot = formData.value.phanTramGiamDot + '%';
-  if (formData.value.ngayBatDau && formData.value.ngayBatDau.length > 10) formData.value.ngayBatDau = formData.value.ngayBatDau.substring(0, 10);
-  if (formData.value.ngayKetThuc && formData.value.ngayKetThuc.length > 10) formData.value.ngayKetThuc = formData.value.ngayKetThuc.substring(0, 10);
-  showModal.value = true
-}
-
-const openViewModal = (dgg) => {
-  isEdit.value = false
-  isView.value = true
-  percentError.value = ''
-  formData.value = { ...dgg }
-  if (formData.value.phanTramGiamDot) formData.value.phanTramGiamDot = formData.value.phanTramGiamDot + '%';
-  if (formData.value.ngayBatDau && formData.value.ngayBatDau.length > 10) formData.value.ngayBatDau = formData.value.ngayBatDau.substring(0, 10);
-  if (formData.value.ngayKetThuc && formData.value.ngayKetThuc.length > 10) formData.value.ngayKetThuc = formData.value.ngayKetThuc.substring(0, 10);
   showModal.value = true
 }
 
@@ -263,65 +260,28 @@ const closeModal = () => {
   showModal.value = false
 }
 
-const saveDGG = async () => {
-  try {
-    percentError.value = ''
-    const payload = { ...formData.value }
-
-    // Parse the string into an integer (e.g. "20%" -> 20)
-    let parsedPercent = parseInt(String(payload.phanTramGiamDot).replace(/\D/g, ''), 10);
-    
-    if (isNaN(parsedPercent) || parsedPercent < 1 || parsedPercent > 100) {
-      percentError.value = "Phần trăm giảm giá phải nằm trong khoảng từ 1% đến 100%!"
-      return;
+const saveDGG = () => {
+  if (isEdit.value) {
+    const index = dsDotGiamGia.value.findIndex(d => d.maDot === formData.value.maDot)
+    if (index !== -1) {
+      dsDotGiamGia.value[index] = { ...formData.value }
     }
-    payload.phanTramGiamDot = parsedPercent;
-
-    // Ensure the backend receives LocalDateTime format by appending time if missing
-    if (payload.ngayBatDau && payload.ngayBatDau.length === 10) {
-      payload.ngayBatDau = payload.ngayBatDau + 'T00:00:00';
-    }
-    if (payload.ngayKetThuc && payload.ngayKetThuc.length === 10) {
-      payload.ngayKetThuc = payload.ngayKetThuc + 'T23:59:59';
-    }
-
-    if (isEdit.value) {
-      await api.put(`/dot-giam-gia/${payload.id}`, payload)
-    } else {
-      await api.post('/dot-giam-gia', payload)
-    }
-    closeModal()
-    fetchDGG()
-  } catch (error) {
-    console.error("Lỗi khi lưu đợt giảm giá:", error)
-    alert("Có lỗi xảy ra khi lưu đợt giảm giá!")
+  } else {
+    dsDotGiamGia.value.push({ ...formData.value, id: Date.now() })
   }
+  closeModal()
 }
 
-const deleteDGG = async (dgg) => {
-  try {
-    await api.delete(`/dot-giam-gia/${dgg.id}`)
-    fetchDGG()
-  } catch (error) {
-    console.error("Lỗi khi xóa đợt giảm giá:", error)
-    alert("Có lỗi xảy ra khi xóa đợt giảm giá!")
+const deleteDGG = (dgg) => {
+  if(confirm('Bạn có chắc chắn muốn xóa đợt giảm giá này?')) {
+    dsDotGiamGia.value = dsDotGiamGia.value.filter(d => d.maDot !== dgg.maDot)
   }
-}
-
-const formatDateOnly = (dateTimeString) => {
-  if (!dateTimeString) return ''
-  const date = new Date(dateTimeString)
-  if (isNaN(date.getTime())) return dateTimeString
-  const d = date.getDate().toString().padStart(2, '0')
-  const m = (date.getMonth() + 1).toString().padStart(2, '0')
-  const y = date.getFullYear()
-  return `${d}/${m}/${y}`
 }
 
 const formatDateTime = (dateTimeString) => {
   if (!dateTimeString) return ''
   const date = new Date(dateTimeString)
-  if (isNaN(date.getTime())) return dateTimeString
+  if(isNaN(date.getTime())) return dateTimeString
   const d = date.getDate().toString().padStart(2, '0')
   const m = (date.getMonth() + 1).toString().padStart(2, '0')
   const y = date.getFullYear()
@@ -330,61 +290,15 @@ const formatDateTime = (dateTimeString) => {
   const ss = date.getSeconds().toString().padStart(2, '0')
   return `${d}/${m}/${y}<br>${hh}:${mm}:${ss}`
 }
-
-const displayStatus = (statusValue) => {
-  if (statusValue === 0) return 'Sắp diễn ra';
-  if (statusValue === 1) return 'Đang diễn ra';
-  if (statusValue === 2) return 'Hết hạn';
-  return 'Không rõ';
-}
-
-const statusBadgeClass = (statusValue) => {
-  if (statusValue === 1) return 'bg-success bg-opacity-10 text-success';
-  if (statusValue === 0) return 'bg-warning bg-opacity-10 text-warning';
-  return 'bg-warning bg-opacity-10 text-warning'; // "Hết hạn" in design is also orange/yellow
-}
-
-// Local Search logic (can be replaced with API search later)
-const search = () => {
-  // Let's just rely on computed filteredList or fetchDGG? 
-  // The user asked for "reset", let's do a basic reset
-}
-
-const reset = () => {
-  searchQuery.value = ''
-  searchStartDate.value = ''
-  searchEndDate.value = ''
-  searchStatus.value = ''
-  fetchDGG()
-}
-
-const filteredList = computed(() => {
-  return dsDotGiamGia.value.filter(dgg => {
-    let match = true;
-    if (searchQuery.value && !dgg.tenDot?.toLowerCase().includes(searchQuery.value.toLowerCase()) && !dgg.maDot?.toLowerCase().includes(searchQuery.value.toLowerCase())) match = false;
-    if (searchStatus.value !== '' && String(dgg.trangThai) !== searchStatus.value) match = false;
-    
-    // basic date logic
-    if (searchStartDate.value && dgg.ngayBatDau) {
-      if (dgg.ngayBatDau.substring(0, 10) < searchStartDate.value) match = false;
-    }
-    if (searchEndDate.value && dgg.ngayKetThuc) {
-      if (dgg.ngayKetThuc.substring(0, 10) > searchEndDate.value) match = false;
-    }
-    
-    return match;
-  })
-})
-
 </script>
 
 <style scoped>
-/* Form Input */
+
 .form-control::placeholder {
   color: #ced4da;
 }
 
-/* Pagination */
+
 .custom-pagination .page-link {
   color: #495057;
   border: none !important;
