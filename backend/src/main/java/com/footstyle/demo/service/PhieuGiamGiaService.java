@@ -16,6 +16,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,7 +56,11 @@ public class PhieuGiamGiaService {
     @Transactional(readOnly = true)
     public List<KhachHangTomTatResponse> getKhachHangCoTheChon() {
         List<KhachHangTomTatResponse> ketQua = new ArrayList<>();
-        for (KhachHang k : khachHangRepo.findByTrangThaiOrderByHoTenAsc(1)) {
+        for (KhachHang k : khachHangRepo.findAll(Sort.by("ten"))) {
+            // chỉ lấy khách đang hoạt động (trang_thai = 1)
+            if (k.getTrangThai() == null || k.getTrangThai() != 1) {
+                continue;
+            }
             ketQua.add(toKhachHang(k, false));
         }
         return ketQua;
@@ -230,7 +235,13 @@ public class PhieuGiamGiaService {
             }
         }
         loi(ids.isEmpty(), "Phiếu cá nhân cần chọn ít nhất một khách hàng.");
-        loi(khachHangRepo.findAllById(ids).size() != ids.size(), "Có khách hàng không tồn tại trong hệ thống.");
+
+        // id khách hàng trong entity KhachHang là Long nên phải đổi từ Integer sang Long
+        List<Long> idsLong = new ArrayList<>();
+        for (Integer id : ids) {
+            idsLong.add(id.longValue());
+        }
+        loi(khachHangRepo.findAllById(idsLong).size() != ids.size(), "Có khách hàng không tồn tại trong hệ thống.");
         return ids;
     }
 
@@ -277,7 +288,10 @@ public class PhieuGiamGiaService {
     private List<KhachHangTomTatResponse> getKhachHangDuocTang(Integer idPhieu) {
         List<KhachHangTomTatResponse> ketQua = new ArrayList<>();
         for (PhieuGiamGiaKhachHang l : phieuKhRepo.findByIdPhieuGiamGia(idPhieu)) {
-            KhachHang k = khachHangRepo.findById(l.getIdKhachHang()).orElse(null);
+            if (l.getIdKhachHang() == null) {
+                continue;
+            }
+            KhachHang k = khachHangRepo.findById(l.getIdKhachHang().longValue()).orElse(null);
             if (k != null) {
                 ketQua.add(toKhachHang(k, l.getNgaySuDung() != null));
             }
@@ -285,8 +299,15 @@ public class PhieuGiamGiaService {
         return ketQua;
     }
 
+    // Entity KhachHang dùng: id (Long), maKH, ten
     private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung) {
-        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), daDung);
+        return new KhachHangTomTatResponse(
+                k.getId() == null ? null : k.getId().intValue(),
+                k.getMaKH(),
+                k.getTen(),
+                k.getSdt(),
+                k.getEmail(),
+                daDung);
     }
 
     // Đổi entity thành dữ liệu trả về cho frontend (số trong DB -> chữ)
