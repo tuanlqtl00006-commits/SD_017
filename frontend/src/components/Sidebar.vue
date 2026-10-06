@@ -53,6 +53,6 @@ const route = useRoute()
 
 <style scoped>
 .nav-link.active {
-  background-color: #0d6efd !important;
+  background-color: #0977ec !important;
 }
 </style>
