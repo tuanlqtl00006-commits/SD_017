@@ -1,0 +1,1226 @@
+/* ==========================================================================
+   FootStyle - style dùng chung cho các trang quản lý (phiếu giảm giá, nhân viên)
+   Màu chủ đạo lấy từ file logo FootStyle trong project: xanh #0977ec + xanh đen (navy) #18242f.
+   Tiền tố "ad-" để không đụng class của Bootstrap.
+   ========================================================================== */
+
+:root {
+  --fs-primary: #0977ec;
+  --fs-primary-dark: #075fc0;
+  --fs-primary-soft: #e7f1fd;
+  --fs-primary-line: #c9def9;
+  /* Màu khi di chuột (hover): nền xanh nhạt lấy từ xanh logo, chữ/biểu tượng xanh logo */
+  --fs-hover-bg: #e7f1fd;
+  --fs-hover-row: #f1f7fe;
+  --fs-navy: #18242f;
+  --fs-text: #18242f;
+  --fs-text-2: #4b5563;
+  --fs-muted: #7b8794;
+  --fs-line: #e6eaf0;
+  --fs-line-soft: #eef1f5;
+  --fs-surface: #f7f9fc;
+  --fs-danger: #dc3545;
+  --fs-success: #198754;
+
+  /* Ghi đè biến màu của Bootstrap cho khớp logo */
+  --bs-primary: #0977ec;
+  --bs-primary-rgb: 9, 119, 236;
+  --bs-link-color: #0977ec;
+  --bs-link-color-rgb: 9, 119, 236;
+  --bs-link-hover-color: #075fc0;
+  --bs-link-hover-color-rgb: 7, 95, 192;
+}
+
+/* ---------- Layout chung: thanh bên + tiêu đề ---------- */
+
+.nav-link.side-link {
+  color: #212529;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.nav-link.side-link .bi {
+  color: #6c757d;
+  -webkit-text-stroke: 0.8px;
+}
+/* Di chuột vào menu: nền xanh nhạt, chữ + biểu tượng xanh như logo */
+.nav-link.side-link:hover {
+  background-color: var(--fs-hover-bg);
+  color: var(--fs-primary-dark);
+}
+.nav-link.side-link:hover .bi {
+  color: var(--fs-primary);
+}
+.nav-link.side-link.active {
+  background-color: var(--fs-primary);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+.nav-link.side-link.active .bi {
+  color: #fff;
+}
+.nav-link.side-link:focus-visible {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+
+.ad-crumb-parent {
+  color: var(--fs-muted);
+  font-size: 1.05rem;
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+a.ad-crumb-parent:hover {
+  color: var(--fs-primary);
+}
+.ad-crumb-sep {
+  color: #b8c0cc;
+  font-size: 1.05rem;
+}
+h1.ad-page-title {
+  margin: 0;
+  font-size: 1.3rem;
+  line-height: 1.3;
+  letter-spacing: 0;
+  font-weight: 700;
+  color: var(--fs-text);
+}
+
+/* ---------- Khung trang & thẻ ---------- */
+
+.ad-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.ad-card {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.04);
+  box-shadow: 0 8px 30px rgba(31, 45, 61, 0.06);
+  padding: 1.5rem;
+}
+
+.ad-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+h2.ad-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.3;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: var(--fs-text);
+}
+.ad-card-sub {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: var(--fs-muted);
+}
+
+.ad-icon-box {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary);
+  font-size: 1.15rem;
+}
+.ad-icon-box-lg {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  font-size: 1.5rem;
+}
+
+/* ---------- Bộ lọc ---------- */
+
+.ad-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+}
+.ad-filter-grid--staff {
+  grid-template-columns: minmax(0, 2.2fr) repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 991.98px) {
+  .ad-filter-grid--staff {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Hàng đầu của bộ lọc: ô tìm kiếm kéo dài, các nút nằm bên phải (như video); hàng dưới là các ô chọn */
+.ad-filter-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.ad-filter-top-search {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.ad-filter-top-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.ad-filter-grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 767.98px) {
+  .ad-filter-grid--3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ad-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.ad-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--fs-text);
+}
+.ad-required {
+  color: var(--fs-danger);
+}
+
+/* ---------- Ô nhập liệu ---------- */
+
+.form-control.ad-control,
+.form-select.ad-control {
+  height: 46px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.88rem;
+  color: var(--fs-text);
+  background-color: #fff;
+  border: 1px solid #dce3ec;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.form-select.ad-control {
+  padding-right: 2.25rem;
+  cursor: pointer;
+}
+textarea.form-control.ad-control {
+  height: auto;
+  min-height: 46px;
+  resize: vertical;
+}
+.form-control.ad-control::placeholder {
+  color: #a3acb9;
+}
+.form-control.ad-control:focus,
+.form-select.ad-control:focus {
+  border-color: var(--fs-primary);
+  box-shadow: 0 0 0 4px rgba(9, 119, 236, 0.14);
+}
+.form-control.ad-control:disabled,
+.form-control.ad-control[readonly],
+.form-select.ad-control:disabled {
+  background-color: #f3f5f9;
+  color: var(--fs-muted);
+  cursor: not-allowed;
+}
+.form-control.ad-control.is-invalid,
+.form-select.ad-control.is-invalid {
+  border-color: var(--fs-danger);
+  background-color: #fffafa;
+  background-image: none;
+  padding-right: 0.9rem;
+}
+.form-select.ad-control.is-invalid {
+  background-image: var(--bs-form-select-bg-img);
+  padding-right: 2.25rem;
+}
+.form-control.ad-control.is-invalid:focus,
+.form-select.ad-control.is-invalid:focus {
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.15);
+}
+.form-select.ad-control-sm {
+  width: auto;
+  min-width: 76px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+.ad-error {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--fs-danger);
+}
+.ad-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--fs-muted);
+}
+
+/* Ô có icon/đơn vị nằm trong khung */
+.ad-affix {
+  position: relative;
+}
+.ad-affix > .bi,
+.ad-affix > .ad-suffix {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--fs-muted);
+  pointer-events: none;
+}
+.ad-affix > .bi {
+  left: 0.95rem;
+}
+.ad-affix > .ad-suffix {
+  right: 0.95rem;
+  font-size: 0.85rem;
+}
+.ad-affix > .bi ~ .form-control.ad-control {
+  padding-left: 2.6rem;
+}
+.ad-affix > .form-control.ad-control.has-suffix {
+  padding-right: 2.6rem;
+}
+.ad-affix-btn {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--fs-muted);
+}
+.ad-affix-btn:hover {
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary);
+}
+.ad-affix > .form-control.ad-control.has-btn {
+  padding-right: 3rem;
+}
+
+/* Ẩn nút tăng/giảm của ô số cho gọn */
+input[type='number'].ad-control {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type='number'].ad-control::-webkit-outer-spin-button,
+input[type='number'].ad-control::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Nhóm lựa chọn 2 phương án */
+.ad-segment {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  background: #f1f4f8;
+  border-radius: 12px;
+}
+.ad-segment-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  height: 38px;
+  margin: 0;
+  border-radius: 9px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fs-text-2);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.ad-segment-item:not(.active):hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--fs-primary);
+}
+.ad-segment-item.active {
+  background: #fff;
+  color: var(--fs-primary);
+  box-shadow: 0 2px 8px rgba(31, 45, 61, 0.1);
+}
+.ad-segment-item:has(input:focus-visible) {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Nút ---------- */
+
+.ad-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 46px;
+  padding: 0 1.15rem;
+  border: 1px solid var(--fs-line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--fs-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(31, 45, 61, 0.06);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.ad-btn:hover:not(:disabled) {
+  background: var(--fs-hover-bg);
+  border-color: var(--fs-primary-line);
+  color: var(--fs-primary-dark);
+}
+.ad-btn:focus-visible {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+.ad-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.ad-btn-primary {
+  background: var(--fs-primary);
+  border-color: var(--fs-primary);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(9, 119, 236, 0.28);
+}
+.ad-btn-primary:hover:not(:disabled) {
+  background: var(--fs-primary-dark);
+  border-color: var(--fs-primary-dark);
+  color: #fff;
+}
+.ad-btn-danger {
+  background: var(--fs-danger);
+  border-color: var(--fs-danger);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(220, 53, 69, 0.25);
+}
+.ad-btn-danger:hover:not(:disabled) {
+  background: #bb2d3b;
+  border-color: #bb2d3b;
+  color: #fff;
+}
+
+.ad-icon-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #f1f4f8;
+  color: #5b6675;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.ad-icon-btn:hover:not(:disabled) {
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary);
+}
+.ad-icon-btn:focus-visible {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+.ad-icon-btn.is-danger {
+  background: #fdecee;
+  color: var(--fs-danger);
+}
+.ad-icon-btn.is-danger:hover:not(:disabled) {
+  background: #f9d3d8;
+  color: #b02a37;
+}
+.ad-icon-btn.is-success {
+  background: #e6f6ee;
+  color: var(--fs-success);
+}
+.ad-icon-btn.is-success:hover:not(:disabled) {
+  background: #cdeedd;
+  color: #146c43;
+}
+.ad-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- Danh sách / bảng ---------- */
+
+.ad-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+.ad-list-head .ad-card-head {
+  margin-bottom: 0;
+}
+.ad-count {
+  font-size: 0.8rem;
+  color: var(--fs-muted);
+}
+
+.ad-table-wrap {
+  border: 1px solid var(--fs-line-soft);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.ad-table-scroll {
+  overflow-x: auto;
+}
+.ad-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  color: var(--fs-text);
+}
+.ad-table thead th {
+  padding: 0.85rem 0.7rem;
+  background: var(--fs-surface);
+  border-bottom: 1px solid var(--fs-line-soft);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+.ad-table tbody td {
+  padding: 0.85rem 0.7rem;
+  border-bottom: 1px solid var(--fs-line-soft);
+  vertical-align: middle;
+}
+.ad-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ad-table tbody tr:hover > td {
+  background: var(--fs-hover-row);
+}
+.ad-table .ad-col-stt {
+  width: 64px;
+  text-align: center;
+}
+.ad-table .ad-col-actions {
+  width: 110px;
+  text-align: center;
+}
+/* Ghim cột Hành động ở mép phải để luôn thấy khi bảng phải cuộn ngang trên màn hình nhỏ */
+.ad-table thead th.ad-col-actions {
+  position: sticky;
+  right: 0;
+  background: var(--fs-surface);
+}
+.ad-table tbody td.ad-col-actions {
+  position: sticky;
+  right: 0;
+  background: #fff;
+}
+.ad-code {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.ad-ellipsis {
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ad-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  max-width: 240px;
+  min-width: 170px;
+  overflow: hidden;
+}
+.ad-cell-wrap {
+  min-width: 200px;
+  max-width: 280px;
+}
+.ad-actions {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+.ad-nowrap {
+  white-space: nowrap;
+}
+
+.ad-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--fs-muted);
+}
+.ad-empty .bi {
+  font-size: 2rem;
+  color: #b8c0cc;
+}
+.ad-empty strong {
+  color: var(--fs-text);
+}
+
+/* Nhãn trạng thái */
+.ad-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ad-pill-blue {
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+}
+.ad-pill-purple {
+  background: #f0eaff;
+  color: #6741b8;
+}
+.ad-pill-green {
+  background: #e6f6ee;
+  color: #12803f;
+}
+.ad-pill-amber {
+  background: #fff3dc;
+  color: #94590a;
+}
+.ad-pill-gray {
+  background: #eef0f3;
+  color: #4b5563;
+}
+.ad-pill-red {
+  background: #fdecee;
+  color: #c62836;
+}
+
+/* Avatar nhân viên */
+.ad-avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  user-select: none;
+}
+.ad-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ad-avatar-lg {
+  width: 72px;
+  height: 72px;
+  font-size: 1.35rem;
+}
+
+/* ---------- Phân trang ---------- */
+
+.ad-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.1rem;
+}
+.ad-pager-size {
+  margin: 0;
+}
+.ad-pager-list {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fs-text-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.ad-page-btn:hover:not(:disabled):not(.active) {
+  background: var(--fs-hover-bg);
+  color: var(--fs-primary-dark);
+}
+.ad-page-btn.active {
+  background: var(--fs-primary-soft);
+  border-color: var(--fs-primary-line);
+  color: var(--fs-primary);
+}
+.ad-page-btn:disabled {
+  color: #c3c9d2;
+  cursor: not-allowed;
+}
+.ad-page-btn:focus-visible {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Hộp thoại ---------- */
+
+.ad-modal {
+  border: 0;
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+  animation: ad-pop 0.18s ease-out;
+}
+.ad-modal-header {
+  padding: 1.15rem 1.5rem;
+  border-bottom: 1px solid var(--fs-line-soft);
+  background: linear-gradient(180deg, #f5f9ff 0%, #fff 100%);
+}
+h2.ad-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+  font-size: 1.1rem;
+  letter-spacing: 0;
+  font-weight: 700;
+  color: var(--fs-text);
+}
+/* Thanh xanh nhỏ ở đầu tiêu đề cho giống điểm nhấn của logo */
+h2.ad-modal-title::before {
+  content: '';
+  flex: none;
+  width: 4px;
+  height: 1.15em;
+  border-radius: 4px;
+  background: var(--fs-primary);
+}
+/* Nút đóng (X): hover thì nền xanh nhạt hình tròn */
+.ad-modal-header .btn-close {
+  margin: 0;
+  padding: 0.65rem;
+  border-radius: 50%;
+  opacity: 0.55;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+.ad-modal-header .btn-close:hover {
+  background-color: var(--fs-hover-bg);
+  opacity: 1;
+}
+.ad-modal-body {
+  padding: 1.5rem 1.75rem;
+}
+/* Các ô trong form thoáng hơn một chút */
+.ad-modal-body .row.g-3 {
+  --bs-gutter-x: 1.15rem;
+  --bs-gutter-y: 1.15rem;
+}
+.ad-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--fs-line-soft);
+  background: #fafbfd;
+  gap: 0.6rem;
+}
+.ad-modal-footer > * {
+  margin: 0;
+}
+.ad-modal-footer .ad-btn {
+  min-width: 110px;
+}
+.ad-confirm-text {
+  margin: 0;
+  color: var(--fs-text-2);
+  line-height: 1.5;
+}
+
+.ad-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px dashed var(--fs-line);
+}
+h3.ad-detail-name {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--fs-text);
+}
+.ad-detail-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ad-dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1rem 1.5rem;
+  margin: 0;
+}
+.ad-dl dt {
+  margin-bottom: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--fs-muted);
+}
+.ad-dl dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--fs-text);
+  overflow-wrap: anywhere;
+}
+.ad-dl .ad-dl-full {
+  grid-column: 1 / -1;
+}
+@media (max-width: 575.98px) {
+  .ad-dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ad-avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.ad-avatar-upload .ad-btn {
+  height: 38px;
+  border-radius: 10px;
+  padding: 0 0.9rem;
+}
+
+/* ---------- Thông báo nổi ---------- */
+
+.ad-toast-host {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(380px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+.ad-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.8rem 0.9rem 0.8rem 1rem;
+  border-left: 4px solid;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 0.88rem;
+  color: var(--fs-text);
+  box-shadow: 0 12px 32px rgba(31, 45, 61, 0.18);
+  pointer-events: auto;
+  animation: ad-slide-in 0.2s ease-out;
+}
+.ad-toast-success {
+  border-color: var(--fs-success);
+}
+.ad-toast-success > .bi:first-child {
+  color: var(--fs-success);
+}
+.ad-toast-error {
+  border-color: var(--fs-danger);
+}
+.ad-toast-error > .bi:first-child {
+  color: var(--fs-danger);
+}
+.ad-toast-text {
+  flex: 1;
+}
+.ad-toast-close {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fs-muted);
+}
+.ad-toast-close:hover {
+  background: var(--fs-hover-bg);
+  color: var(--fs-primary);
+}
+
+@keyframes ad-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ad-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ad-modal,
+  .ad-toast {
+    animation: none;
+  }
+}
+
+/* ---- Co giãn khi zoom 90% / 100% hoặc màn hình hẹp ---- */
+/* Tiêu đề cột không xuống dòng; bảng quá hẹp thì cuộn ngang thay vì bóp chữ */
+.table > thead th { white-space: nowrap; }
+.table-responsive > .table { min-width: 880px; }
+@media (max-width: 1500px) {
+  .ad-aside .ad-link { padding: 0.6rem 0.85rem; font-size: 0.92rem; }
+  main.p-4 { padding: 1.25rem !important; }
+}
+
+/* Nền mờ của popup: Bootstrap dùng 100vw/100vh nên khi body bị zoom (--ui-zoom) sẽ chỉ phủ một phần màn hình */
+.modal-backdrop {
+  width: calc(100vw / var(--ui-zoom, 1));
+  height: calc(100vh / var(--ui-zoom, 1));
+}
+
+/* ---------- Nút / bảng / phân trang của Bootstrap: hover theo màu logo ---------- */
+
+/* Nút xanh dùng đúng xanh logo (Bootstrap mặc định là #0d6efd nên hơi lệch tông) */
+.btn-primary {
+  --bs-btn-bg: var(--fs-primary);
+  --bs-btn-border-color: var(--fs-primary);
+  --bs-btn-hover-bg: var(--fs-primary-dark);
+  --bs-btn-hover-border-color: var(--fs-primary-dark);
+  --bs-btn-active-bg: #064c9a;
+  --bs-btn-active-border-color: #064c9a;
+  --bs-btn-focus-shadow-rgb: 9, 119, 236;
+  --bs-btn-disabled-bg: var(--fs-primary);
+  --bs-btn-disabled-border-color: var(--fs-primary);
+}
+.btn-outline-primary {
+  --bs-btn-color: var(--fs-primary);
+  --bs-btn-border-color: var(--fs-primary);
+  --bs-btn-hover-bg: var(--fs-primary);
+  --bs-btn-hover-border-color: var(--fs-primary);
+  --bs-btn-active-bg: var(--fs-primary-dark);
+  --bs-btn-active-border-color: var(--fs-primary-dark);
+  --bs-btn-focus-shadow-rgb: 9, 119, 236;
+  --bs-btn-disabled-color: var(--fs-primary);
+  --bs-btn-disabled-border-color: var(--fs-primary);
+}
+/* Nút "Hủy" màu xám: di chuột thì chuyển sang xanh navy của logo */
+.btn-secondary {
+  --bs-btn-hover-bg: var(--fs-navy);
+  --bs-btn-hover-border-color: var(--fs-navy);
+  --bs-btn-active-bg: #0f1820;
+  --bs-btn-active-border-color: #0f1820;
+}
+/* Nút viền xám (phóng to / thu nhỏ) và nút tròn xám nhạt ở thanh trên: hover xanh nhạt + chữ xanh logo */
+.btn-outline-secondary {
+  --bs-btn-hover-color: var(--fs-primary-dark);
+  --bs-btn-hover-bg: var(--fs-hover-bg);
+  --bs-btn-hover-border-color: var(--fs-primary);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--fs-primary);
+  --bs-btn-active-border-color: var(--fs-primary);
+}
+.btn-light {
+  --bs-btn-hover-bg: var(--fs-hover-bg);
+  --bs-btn-hover-border-color: var(--fs-primary-line);
+  --bs-btn-hover-color: var(--fs-primary);
+  --bs-btn-active-bg: var(--fs-primary-line);
+  --bs-btn-active-border-color: var(--fs-primary-line);
+}
+/* .text-muted của Bootstrap dùng !important nên phải ép riêng khi hover */
+.btn-light.text-muted:hover,
+.btn-light.text-muted:focus-visible {
+  color: var(--fs-primary) !important;
+}
+
+/* Bảng Bootstrap (khách hàng, hóa đơn, đợt giảm giá): dòng nào được rê chuột tới thì tô xanh nhạt */
+.table > tbody > tr:hover > * {
+  --bs-table-bg-state: var(--fs-hover-row);
+}
+
+/* Phân trang của Bootstrap (nút có class bg-white !important nên hover cũng phải !important) */
+.custom-pagination .page-item:not(.disabled):not(.active) .page-link {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.custom-pagination .page-item:not(.disabled):not(.active) .page-link:hover {
+  background-color: var(--fs-hover-bg) !important;
+  border-color: var(--fs-primary-line);
+  color: var(--fs-primary-dark);
+}
+
+/* Ô nhập liệu: rê chuột vào thì viền ngả xanh logo (chưa chọn, chưa bị khóa, chưa báo lỗi) */
+.form-control.ad-control:hover:not(:focus):not(:disabled):not([readonly]):not(.is-invalid),
+.form-select.ad-control:hover:not(:focus):not(:disabled):not(.is-invalid) {
+  border-color: rgba(9, 119, 236, 0.45);
+}
+
+/* ---------- Form đẹp hơn (đợt 2) ---------- */
+
+/* Ô chọn: mũi tên xám xanh, khi đang chọn đổi sang xanh logo */
+.form-select.ad-control {
+  --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%237b8794' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-position: right 0.85rem center;
+}
+.form-select.ad-control:focus {
+  --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%230977ec' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+/* Đang gõ vào ô nào thì nhãn của ô đó đổi sang xanh logo */
+.ad-label {
+  transition: color 0.15s ease;
+}
+[class*='col-']:has(.ad-control:focus) > .ad-label {
+  color: var(--fs-primary-dark);
+}
+
+/* Tiêu đề từng nhóm trong form: chữ xanh + đường kẻ mảnh kéo dài */
+.ad-form-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fs-primary-dark);
+}
+.ad-form-section::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--fs-line);
+}
+.col-12 > .ad-form-section {
+  margin-top: 0.4rem;
+}
+.row > .col-12:first-child > .ad-form-section {
+  margin-top: 0;
+}
+
+/* Ô nhập mã: chữ đậm, giãn nhẹ cho dễ đọc */
+.form-control.ad-control.ad-input-code {
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+/* Ô tích chọn / nút tròn: màu xanh logo (Bootstrap mặc định là #0d6efd) */
+.form-check-input:checked,
+.form-check-input[type='checkbox']:indeterminate {
+  background-color: var(--fs-primary);
+  border-color: var(--fs-primary);
+}
+.form-check-input:focus {
+  border-color: var(--fs-primary);
+  box-shadow: 0 0 0 4px rgba(9, 119, 236, 0.16);
+}
+
+/* Thanh cuộn mảnh trong hộp thoại */
+.ad-modal-body {
+  scrollbar-width: thin;
+  scrollbar-color: #c9d3e0 transparent;
+}
+
+/* Màn hình hẹp: hộp thoại gọn lại, hai nút cuối form chia đều chiều ngang */
+@media (max-width: 575.98px) {
+  .ad-modal-body {
+    padding: 1.15rem;
+  }
+  .ad-modal-footer .ad-btn {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* ==========================================================================
+   Hiệu ứng khi rê chuột (hover) và bấm (active)
+   Chỉ dùng màu logo + chuyển động nhỏ (nhấc nhẹ, đổ bóng) cho dịu mắt, không đổi kích thước nên không làm lệch bố cục.
+   Đặt ở cuối file để ghi đè các quy tắc hover cũ ở trên.
+   ========================================================================== */
+
+/* Thanh bên: rê chuột vào mục menu thì chữ + icon chuyển xanh và trượt nhẹ sang phải */
+.nav-link.side-link {
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+.nav-link.side-link .bi {
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+.nav-link.side-link:not(.active):hover {
+  background-color: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+  transform: translateX(3px);
+}
+.nav-link.side-link:not(.active):hover .bi {
+  color: var(--fs-primary);
+  transform: scale(1.12);
+}
+
+/* Nút lớn: nhấc lên 1px + bóng đậm hơn; bấm xuống thì hạ lại */
+.ad-btn {
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+.ad-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--fs-primary-line);
+  color: var(--fs-primary-dark);
+  box-shadow: 0 8px 18px rgba(31, 45, 61, 0.12);
+}
+.ad-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(31, 45, 61, 0.1);
+}
+.ad-btn-primary:hover:not(:disabled) {
+  color: #fff;
+  border-color: var(--fs-primary-dark);
+  box-shadow: 0 12px 24px rgba(9, 119, 236, 0.38);
+}
+.ad-btn-primary:active:not(:disabled) {
+  box-shadow: 0 4px 10px rgba(9, 119, 236, 0.3);
+}
+.ad-btn-danger:hover:not(:disabled) {
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(220, 53, 69, 0.35);
+}
+
+/* Nút tròn nhỏ trong bảng (ngưng hoạt động, xem chi tiết...): phóng nhẹ + bóng */
+.ad-icon-btn {
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+.ad-icon-btn:hover:not(:disabled) {
+  transform: scale(1.12);
+  box-shadow: 0 4px 10px rgba(31, 45, 61, 0.14);
+}
+.ad-icon-btn:active:not(:disabled) {
+  transform: scale(0.94);
+  box-shadow: none;
+}
+
+/* Dòng trong bảng: nền xanh rất nhạt + vạch xanh bên trái để dễ biết đang trỏ vào dòng nào */
+.ad-table tbody tr > td {
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ad-table tbody tr:hover > td {
+  /* Màu đặc (không dùng rgba) để ô "Hành động" được ghim bên phải không bị trong suốt, lộ chữ phía sau khi bảng cuộn ngang */
+  background: var(--fs-hover-row);
+}
+.ad-table tbody tr:hover > td:first-child {
+  box-shadow: inset 3px 0 0 var(--fs-primary);
+}
+.ad-table tbody tr:has(.ad-empty):hover > td {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Ô nhập, ô chọn: rê chuột vào thì viền chuyển xanh nhạt (khi bấm vào vẫn dùng viền focus đậm) */
+.form-control.ad-control,
+.form-select.ad-control {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+.form-control.ad-control:hover:not(:focus):not(:disabled):not([readonly]):not(.is-invalid),
+.form-select.ad-control:hover:not(:focus):not(:disabled):not(.is-invalid) {
+  border-color: var(--fs-primary);
+}
+.form-select.ad-control:not(:disabled),
+.ad-segment-item,
+.ad-page-btn:not(:disabled),
+.ad-affix-btn {
+  cursor: pointer;
+}
+
+/* Nút chọn Nam / Nữ */
+.ad-segment-item {
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.ad-segment-item:not(.active):hover {
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+}
+
+/* Phân trang */
+.ad-page-btn {
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+}
+.ad-page-btn:hover:not(:disabled):not(.active) {
+  background: var(--fs-primary-soft);
+  border-color: var(--fs-primary-line);
+  color: var(--fs-primary-dark);
+  transform: translateY(-1px);
+}
+
+/* Đường dẫn "Quản lý sản phẩm /" trên đầu trang */
+.ad-crumb-parent {
+  transition: color 0.18s ease;
+}
+a.ad-crumb-parent:hover {
+  color: var(--fs-primary);
+}
+
+/* Khung chứa cần bấm để chọn ảnh / thẻ có thể bấm: nổi nhẹ khi rê chuột */
+.ad-card {
+  transition: box-shadow 0.2s ease;
+}
+.ad-card:hover {
+  box-shadow: 0 12px 34px rgba(31, 45, 61, 0.09);
+}
+
+/* Người dùng bật "giảm chuyển động" trong hệ điều hành thì tắt hết hiệu ứng chuyển động */
+@media (prefers-reduced-motion: reduce) {
+  .nav-link.side-link,
+  .nav-link.side-link .bi,
+  .ad-btn,
+  .ad-icon-btn,
+  .ad-page-btn,
+  .ad-card {
+    transition: none;
+  }
+  .nav-link.side-link:not(.active):hover,
+  .nav-link.side-link:not(.active):hover .bi,
+  .ad-btn:hover:not(:disabled),
+  .ad-btn:active:not(:disabled),
+  .ad-icon-btn:hover:not(:disabled),
+  .ad-icon-btn:active:not(:disabled),
+  .ad-page-btn:hover:not(:disabled):not(.active) {
+    transform: none;
+  }
+}

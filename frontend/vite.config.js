@@ -8,7 +8,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        // Backend mặc định ở cổng 8081; đổi bằng biến môi trường VITE_API_TARGET nếu backend chạy cổng khác
+        target: process.env.VITE_API_TARGET || 'http://localhost:8081',
         changeOrigin: true,
         secure: false,
       }
