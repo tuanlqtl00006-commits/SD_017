@@ -8,10 +8,16 @@
       <main class="p-4">
         
         <!-- Bộ lọc và Công cụ -->
-        <div class="mb-4">
-          <h6 class="fw-bold mb-3 d-flex align-items-center text-secondary"><i class="bi bi-funnel me-2 fs-5"></i> Bộ lọc</h6>
-          
-          <div class="bg-white rounded-3 shadow-sm p-3 d-flex flex-wrap align-items-center gap-3 border">
+        <div class="card bg-white rounded-4 shadow-sm border-0 mb-4">
+          <div class="card-body p-4">
+            <div class="d-flex align-items-center mb-3">
+              <i class="bi bi-funnel text-secondary fs-4 me-2"></i>
+              <div>
+                <h5 class="fw-bold mb-0 text-dark">Bộ lọc</h5>
+                <small class="text-muted">Tra cứu nhanh dữ liệu.</small>
+              </div>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-3">
             
             <div class="input-group" style="flex: 1; min-width: 250px;">
               <span class="input-group-text border-end-0 text-muted rounded-start-pill bg-light" style="padding-left: 1rem;"><i class="bi bi-search"></i></span>
@@ -28,18 +34,17 @@
               <i class="bi bi-arrow-counterclockwise me-2"></i> Đặt lại bộ lọc
             </button>
             
-            <button class="btn btn-outline-secondary d-flex align-items-center rounded-pill fw-medium custom-outline-btn text-muted">
+            <button type="button" @click="exportExcel" class="btn btn-outline-secondary d-flex align-items-center rounded-pill fw-medium custom-outline-btn text-muted">
               <i class="bi bi-file-earmark-excel me-2"></i> Xuất Excel
             </button>
             
             <router-link to="/khach-hang/them" class="btn btn-primary d-flex align-items-center rounded-pill fw-medium shadow-sm custom-solid-btn text-decoration-none text-white" style="background-color: #0d6efd; border-color: #0d6efd;">
               <i class="bi bi-plus-lg me-2"></i> Thêm khách hàng
             </router-link>
-            
           </div>
         </div>
+      </div>
 
-        
         <div class="card border-0 shadow-sm rounded-4 bg-white">
           <div class="card-body p-4">
             
@@ -74,7 +79,7 @@
                     </td>
                   </tr>
                   <tr v-for="(kh, index) in paginatedCustomers" :key="kh.id">
-                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
+                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.id }}</td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.ten }}</td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.email }}</td>
                     <td class="py-3 small" style="border-bottom: 1px solid #f0f0f0; white-space: normal;">
@@ -240,6 +245,7 @@
 import Swal from 'sweetalert2';
 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
 import { ref, onMounted } from 'vue'
+import { utils, writeFile } from 'xlsx'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
 import api from '../services/api' // sử dụng cấu hình axios có sẵn
@@ -382,6 +388,71 @@ const reset = () => {
   fetchCustomers(true)
 }
 
+
+const exportExcel = () => {
+  if (customers.value.length === 0) {
+    Toast.fire({ icon: 'warning', title: 'Không có dữ liệu để xuất!' })
+    return
+  }
+
+  // Chuẩn bị dữ liệu xuất
+  const dataToExport = customers.value.map((kh, index) => {
+    let diachi = ''
+    if (kh.diaChiList && kh.diaChiList.length > 0) {
+      const dc = kh.diaChiList[0]
+      diachi = [dc.diaChiCuThe, dc.phuongXa, dc.quanHuyen, dc.tinhThanhPho].filter(Boolean).join(', ')
+    }
+    
+    let parsedNgaySinh = '';
+    if (kh.ngaySinh) {
+      if (Array.isArray(kh.ngaySinh)) {
+        parsedNgaySinh = `${String(kh.ngaySinh[2]).padStart(2, '0')}/${String(kh.ngaySinh[1]).padStart(2, '0')}/${kh.ngaySinh[0]}`;
+      } else {
+        const parts = String(kh.ngaySinh).substring(0, 10).split('-');
+        if (parts.length === 3) {
+          parsedNgaySinh = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+      }
+    }
+
+    return {
+      'STT': index + 1,
+      'Mã Khách Hàng': kh.maKH || '',
+      'Họ và Tên': kh.ten || '',
+      'Số Điện Thoại': kh.sdt || '',
+      'Email': kh.email || '',
+      'Ngày Sinh': parsedNgaySinh,
+      'Giới Tính': kh.gioiTinh === 1 ? 'Nam' : 'Nữ',
+      'Địa Chỉ': diachi,
+      'Trạng Thái': kh.trangThai === 1 ? 'Hoạt động' : 'Ngừng hoạt động'
+    }
+  })
+
+  // Tạo worksheet
+  const worksheet = utils.json_to_sheet(dataToExport)
+
+  // Auto-size các cột cho đẹp
+  const wscols = [
+    { wch: 5 }, // STT
+    { wch: 20 }, // Mã KH
+    { wch: 25 }, // Tên
+    { wch: 15 }, // SĐT
+    { wch: 25 }, // Email
+    { wch: 12 }, // Ngày Sinh
+    { wch: 10 }, // Giới Tính
+    { wch: 50 }, // Địa Chỉ
+    { wch: 15 }  // Trạng Thái
+  ];
+  worksheet['!cols'] = wscols;
+
+  // Tạo workbook và xuất file
+  const workbook = utils.book_new()
+  utils.book_append_sheet(workbook, worksheet, "DanhSachKhachHang")
+  writeFile(workbook, "DanhSachKhachHang.xlsx")
+  
+  Toast.fire({ icon: 'success', title: 'Xuất file Excel thành công!' })
+}
+
 const isView = ref(false)
 
 const openAddModal = () => {
@@ -491,7 +562,11 @@ const saveCustomer = async () => {
     fetchCustomers(); Toast.fire({ icon: 'success', title: isEdit.value ? 'Cập nhật khách hàng thành công!' : 'Tạo khách hàng mới thành công!' })
   } catch (error) {
     console.error("Lỗi khi lưu khách hàng:", error)
-    alert("Có lỗi xảy ra khi lưu khách hàng! Vui lòng kiểm tra lại dữ liệu.")
+    if (error.response && error.response.data && error.response.data.message) {
+      Toast.fire({ icon: 'error', title: error.response.data.message })
+    } else {
+      Toast.fire({ icon: 'error', title: 'Có lỗi xảy ra khi lưu khách hàng! Vui lòng kiểm tra lại dữ liệu.' })
+    }
   }
 }
 
