@@ -4,9 +4,9 @@ import BaseModal from '../common/BaseModal.vue'
 import { taoMa } from '../../constants/thuocTinh'
 
 const props = defineProps({
-  cfg: { type: Object, required: true },
-  item: { type: Object, default: null },
-  all: { type: Array, default: () => [] },
+  cfg: { type: Object, required: true }, // cấu hình trong THUOC_TINH
+  item: { type: Object, default: null }, // null: tạo mới
+  all: { type: Array, default: () => [] }, // toàn bộ bản ghi, để kiểm tra trùng mã / tên
   saving: { type: Boolean, default: false },
 })
 const emit = defineEmits(['save', 'close'])
@@ -15,6 +15,7 @@ const isEdit = computed(() => !!props.item)
 const form = reactive({
   ten: props.item?.ten ?? '',
 })
+// Mã do hệ thống tự cấp: thêm mới chỉ hiển thị mã dự kiến, sửa thì giữ mã cũ (không cho nhập).
 const maHienThi = computed(() => (props.item ? props.item.ma : taoMa(props.cfg.prefix, props.all.map((x) => x.ma))))
 const errors = reactive({})
 const submitted = ref(false)

@@ -9,6 +9,7 @@ import { phieuGiamGiaService } from '../services/phieuGiamGiaService'
 import { HINH_THUC, LOAI_GIAM, TRANG_THAI, tinhTrangThai, isExpired, formatGiaTri } from '../constants/phieuGiamGia'
 import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatDate, todayIso } from '../utils/format'
 import { includesText } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
@@ -20,7 +21,7 @@ const list = ref([])
 const loading = ref(false)
 const saving = ref(false)
 
-
+/* ----- Bộ lọc (lọc ngay khi thay đổi) ----- */
 const defaultFilters = () => ({
   keyword: '',
   hinhThuc: '',
@@ -44,6 +45,7 @@ const filtered = computed(() =>
     if (f.hinhThuc && p.hinhThuc !== f.hinhThuc) return false
     if (f.loaiGiam && p.loaiGiam !== f.loaiGiam) return false
     if (f.trangThai && p.trangThai !== f.trangThai) return false
+    // Ngày bắt đầu / kết thúc ở bộ lọc: phiếu bắt đầu từ ngày... và kết thúc đến hết ngày...
     if (f.ngayBatDau && p.ngayBatDau < f.ngayBatDau) return false
     if (f.ngayKetThuc && p.ngayKetThuc > f.ngayKetThuc) return false
     return true
@@ -55,26 +57,46 @@ watch(filters, () => {
   page.value = 1
 })
 
-
-async function load(showLoading = true) {
+/* ----- Tải dữ liệu ----- */
+// loadSeq: mỗi lần tải có một số thứ tự. Nếu đã có lần tải / cập nhật mới hơn thì bỏ kết quả của lần cũ,
+// để dữ liệu cũ về chậm không đè lên trạng thái ẩn / hiện vừa đổi.
+// quiet = true: tải nền (không hiện "Đang tải…", lỗi mạng thì im lặng vì danh sách đang hiển thị vẫn dùng được).
+let loadSeq = 0
+async function load(showLoading = true, quiet = false) {
+  const seq = ++loadSeq
   if (showLoading) loading.value = true
   try {
-    list.value = await phieuGiamGiaService.getAll()
+    const ds = await phieuGiamGiaService.getAll()
+    if (seq !== loadSeq) return
+    list.value = ds
   } catch {
-    toast.error('Không tải được danh sách phiếu giảm giá. Vui lòng thử lại.')
+    if (seq === loadSeq && !(quiet && list.value.length)) toast.error('Không tải được danh sách phiếu giảm giá. Vui lòng thử lại.')
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 onMounted(load)
 
+// Luôn lấy dữ liệu mới nhất từ server khi: đổi bộ lọc trạng thái (vd sang xem mục đã ẩn) và khi quay lại tab trình duyệt.
+watch(() => filters.trangThai, () => load(false, true))
+useAutoRefresh(() => load(false, true))
 
-const formState = ref(null)
+// Đổi trạng thái xong thì cập nhật ngay dòng đó bằng dữ liệu server vừa trả về (không chờ tải lại cả danh sách).
+function patchRow(daDoi) {
+  if (!daDoi || daDoi.id === undefined) return
+  loadSeq++ // hủy kết quả các lần tải đang chạy dở (có thể còn chứa trạng thái cũ)
+  const i = list.value.findIndex((x) => x.id === daDoi.id)
+  if (i !== -1) list.value[i] = { ...list.value[i], ...daDoi }
+}
+
+/* ----- Tạo / sửa / xem chi tiết ----- */
+const formState = ref(null) // null: đóng | { item: null }: tạo mới | { item }: chỉnh sửa
 const detailItem = ref(null)
 
 function openCreate() {
   formState.value = { item: null }
 }
+// Danh sách không kèm khách hàng được tặng nên lấy chi tiết từ API trước khi mở.
 async function openDetail(row) {
   try {
     detailItem.value = { ...(await phieuGiamGiaService.getById(row.id)), trangThai: row.trangThai }
@@ -107,7 +129,7 @@ async function save(payload) {
   }
 }
 
-
+/* ----- Xuất Excel (đúng theo danh sách đang lọc) ----- */
 function exportFile() {
   if (!filtered.value.length) {
     toast.error('Không có phiếu giảm giá nào để xuất.')
@@ -150,7 +172,7 @@ function exportFile() {
   toast.success(`Đã xuất ${filtered.value.length} phiếu giảm giá ra file Excel.`)
 }
 
-
+/* ----- Bật / tắt hoạt động ----- */
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
 
@@ -181,10 +203,11 @@ async function confirmToggle() {
   const p = confirmItem.value
   confirmLoading.value = true
   try {
-    await phieuGiamGiaService.toggleActive(p.id)
+    const daDoi = await phieuGiamGiaService.toggleActive(p.id)
+    patchRow(daDoi) // đổi trạng thái ngay trên dòng, không chờ tải lại cả danh sách
     toast.success(p.hoatDong ? `Đã ẩn phiếu ${p.ma}.` : `Đã hiện lại phiếu ${p.ma}.`)
     confirmItem.value = null
-    await load(false)
+    load(false, true) // đồng bộ lại với server ở nền
   } catch (e) {
     toast.error(e.message || 'Không thể cập nhật trạng thái. Vui lòng thử lại.')
   } finally {

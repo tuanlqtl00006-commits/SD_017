@@ -1,4 +1,6 @@
 <script setup>
+// Một trang dùng chung cho 9 bảng thuộc tính (danh mục, thương hiệu, xuất xứ, chất liệu, độ cứng,
+// điểm cân bằng, màu sắc, trọng lượng, chu vi). Loại thuộc tính lấy từ route.meta.attr (xem router/index.js).
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
@@ -9,6 +11,7 @@ import { thuocTinhService } from '../services/thuocTinhService'
 import { THUOC_TINH, TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
 import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { includesText } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
 import { todayIso } from '../utils/format'
@@ -37,20 +40,39 @@ const filtered = computed(() =>
 const { page, pageSize, total, items: pageItems } = usePagination(filtered, 5)
 watch(filters, () => { page.value = 1 })
 
-async function load(showLoading = true) {
+// loadSeq: mỗi lần tải có một số thứ tự. Nếu đã có lần tải / cập nhật mới hơn thì bỏ kết quả của lần cũ,
+// để dữ liệu cũ về chậm không đè lên trạng thái ẩn / hiện vừa đổi.
+// quiet = true: tải nền (không hiện "Đang tải…", lỗi mạng thì im lặng vì danh sách đang hiển thị vẫn dùng được).
+let loadSeq = 0
+async function load(showLoading = true, quiet = false) {
+  const seq = ++loadSeq
   if (showLoading) loading.value = true
   try {
-    list.value = await thuocTinhService.getAll(type)
+    const ds = await thuocTinhService.getAll(type)
+    if (seq !== loadSeq) return
+    list.value = ds
   } catch {
-    toast.error(`Không tải được danh sách ${lower}. Vui lòng thử lại.`)
+    if (seq === loadSeq && !(quiet && list.value.length)) toast.error(`Không tải được danh sách ${lower}. Vui lòng thử lại.`)
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 onMounted(load)
 
+// Luôn lấy dữ liệu mới nhất từ server khi: đổi bộ lọc trạng thái (vd sang xem mục đã ẩn) và khi quay lại tab trình duyệt.
+watch(() => filters.trangThai, () => load(false, true))
+useAutoRefresh(() => load(false, true))
 
-const formState = ref(null)
+// Đổi trạng thái xong thì cập nhật ngay dòng đó bằng dữ liệu server vừa trả về (không chờ tải lại cả danh sách).
+function patchRow(daDoi) {
+  if (!daDoi || daDoi.id === undefined) return
+  loadSeq++ // hủy kết quả các lần tải đang chạy dở (có thể còn chứa trạng thái cũ)
+  const i = list.value.findIndex((x) => x.id === daDoi.id)
+  if (i !== -1) list.value[i] = { ...list.value[i], ...daDoi }
+}
+
+/* ----- Thêm / sửa ----- */
+const formState = ref(null) // null: đóng | { item: null }: thêm mới | { item }: chỉnh sửa
 async function save(payload) {
   const editing = formState.value?.item
   saving.value = true
@@ -71,7 +93,7 @@ async function save(payload) {
   }
 }
 
-
+/* ----- Bật / tắt hoạt động ----- */
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
 const confirmContent = computed(() => {
@@ -95,10 +117,11 @@ async function confirmToggle() {
   const x = confirmItem.value
   confirmLoading.value = true
   try {
-    await thuocTinhService.toggleActive(type, x.id)
+    const daDoi = await thuocTinhService.toggleActive(type, x.id)
+    patchRow(daDoi) // đổi trạng thái ngay trên dòng, không chờ tải lại cả danh sách
     toast.success(x.hoatDong ? `Đã ngưng hoạt động “${x.ten}”.` : `Đã kích hoạt lại “${x.ten}”.`)
     confirmItem.value = null
-    await load(false)
+    load(false, true) // đồng bộ lại với server ở nền
   } catch (e) {
     toast.error(e.message || 'Không thể cập nhật trạng thái. Vui lòng thử lại.')
   } finally {
@@ -106,7 +129,7 @@ async function confirmToggle() {
   }
 }
 
-
+/* ----- Xuất Excel ----- */
 function exportFile() {
   if (!filtered.value.length) {
     toast.error(`Không có ${lower} nào để xuất.`)

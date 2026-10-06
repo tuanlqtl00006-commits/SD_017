@@ -21,7 +21,7 @@ public class KhachHangController {
         if (search != null && !search.trim().isEmpty()) {
             return khachHangRepository.searchKhachHang(search);
         }
-        return khachHangRepository.findAll();
+        return khachHangRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"));
     }
 
     @GetMapping("/{id}")
@@ -45,7 +45,7 @@ public class KhachHangController {
         
         
         if (khachHang.getSdt() != null) {
-            khachHang.setMatKhau(khachHang.getSdt());
+            khachHang.setMatKhau(java.util.UUID.randomUUID().toString().substring(0, 8));
         }
         
         
@@ -125,6 +125,7 @@ public class KhachHangController {
         }
     }
 }
+
 
 
 

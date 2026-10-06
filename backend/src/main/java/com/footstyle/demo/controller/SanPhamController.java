@@ -41,4 +41,10 @@ public class SanPhamController {
     public SanPhamResponse sua(@PathVariable Integer id, @RequestBody SanPhamRequest req) {
         return service.sua(id, req);
     }
+
+    /** Ẩn / hiện (ngưng / kích hoạt bán). Không xóa cứng dữ liệu. */
+    @PutMapping("/{id}/trang-thai")
+    public SanPhamResponse doiTrangThai(@PathVariable Integer id) {
+        return service.doiTrangThai(id);
+    }
 }

@@ -17,7 +17,7 @@ defineProps({
     <div class="ad-filter-body">
       <slot />
     </div>
-    <div class="ad-filter-actions">
+    <div v-if="$slots.actions" class="ad-filter-actions">
       <slot name="actions" />
     </div>
   </section>

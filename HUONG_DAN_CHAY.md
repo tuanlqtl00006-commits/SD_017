@@ -16,14 +16,14 @@
 | POST / PUT | /api/phieu-giam-gia[/{id}] | Tạo / sửa |
 | PUT | /api/phieu-giam-gia/{id}/trang-thai | Ẩn / hiện phiếu (không xóa dữ liệu) |
 | GET | /api/nhan-vien, /api/nhan-vien/{id} | Danh sách / chi tiết nhân viên |
-| POST / PUT | /api/nhan-vien[/{id}] | Thêm / sửa (mật khẩu băm BCrypt, không trả về) |
+| POST / PUT | /api/nhan-vien[/{id}] | Thêm: nhập đủ (mật khẩu băm BCrypt, không trả về). Sửa: chỉ đổi họ tên, giới tính, ngày sinh, SĐT, địa chỉ, vai trò; mã, email, ngày vào làm, mật khẩu giữ nguyên |
 | PUT | /api/nhan-vien/{id}/trang-thai | Ẩn / hiện nhân viên (không xóa dữ liệu) |
 | GET | /api/vai-tro | Danh sách vai trò |
 | GET | /api/san-pham, /api/san-pham/{id} | Danh sách / chi tiết sản phẩm (kèm ảnh chính, ảnh phụ) |
 | POST / PUT | /api/san-pham[/{id}] | Thêm / sửa sản phẩm (sửa không đổi mã) |
 | PUT | /api/san-pham/{id}/trang-thai | Ngưng / kích hoạt bán sản phẩm (không xóa dữ liệu) |
 | GET | /api/bien-the-san-pham[/{id}] | Danh sách / chi tiết biến thể (bảng san_pham_chi_tiet) |
-| POST / PUT | /api/bien-the-san-pham[/{id}] | Thêm / sửa biến thể (sửa không đổi mã, không đổi sản phẩm) |
+| POST / PUT | /api/bien-the-san-pham[/{id}] | Thêm / sửa biến thể (khi sửa được đổi sản phẩm, vd SP008 → SP007; mã không sửa tay, chỉ phần đầu mã tự đổi theo sản phẩm mới) |
 | PUT | /api/bien-the-san-pham/{id}/trang-thai | Ngưng / kích hoạt biến thể |
 | GET / POST | /api/thuoc-tinh/{loai} | Danh sách / thêm thuộc tính. `loai` = danh-muc, thuong-hieu, xuat-xu, chat-lieu, do-cung, diem-can-bang, mau-sac, trong-luong, chu-vi |
 | PUT | /api/thuoc-tinh/{loai}/{id} | Sửa tên thuộc tính (mã giữ nguyên) |

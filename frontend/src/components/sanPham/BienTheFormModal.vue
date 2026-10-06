@@ -3,10 +3,10 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 
 const props = defineProps({
-  item: { type: Object, default: null },
-  all: { type: Array, default: () => [] },
+  item: { type: Object, default: null }, // null: tạo mới
+  all: { type: Array, default: () => [] }, // toàn bộ biến thể, để kiểm tra trùng mã / tổ hợp
   sanPhams: { type: Array, default: () => [] },
-  options: { type: Function, required: true },
+  options: { type: Function, required: true }, // (slug, idDangChon) => danh sách cho dropdown
   saving: { type: Boolean, default: false },
 })
 const emit = defineEmits(['save', 'close'])
@@ -27,6 +27,24 @@ const submitted = ref(false)
 
 const sanPhamOptions = computed(() => props.sanPhams.filter((p) => p.hoatDong || p.id === props.item?.idSanPham))
 
+// Mã biến thể không sửa tay được khi sửa. Nhưng nếu đổi sản phẩm mà mã gốc đang bắt đầu bằng mã sản phẩm gốc
+// (vd SP008-DEN-4U-G5) thì phần đầu mã tự đổi sang mã sản phẩm mới (SP007-DEN-4U-G5), giống cách backend xử lý.
+// Luôn tính lại từ mã gốc nên đổi qua đổi lại nhiều lần vẫn đúng.
+watch(
+  () => form.idSanPham,
+  (idMoi) => {
+    if (!isEdit.value) return
+    form.ma = props.item.ma
+    const spGoc = props.sanPhams.find((p) => p.id === props.item.idSanPham)
+    const spMoi = props.sanPhams.find((p) => p.id === idMoi)
+    if (!spGoc || !spMoi || spGoc.id === spMoi.id) return
+    if (props.item.ma.toUpperCase().startsWith(spGoc.ma.toUpperCase() + '-')) {
+      form.ma = spMoi.ma + props.item.ma.slice(spGoc.ma.length)
+    }
+  },
+)
+
+// Gợi ý mã khi tạo mới: <mã SP>-<màu>-<trọng lượng>-<chu vi>, người dùng vẫn sửa được.
 const codeTouched = ref(isEdit.value)
 const nameOf = (slug, id) => props.options(slug, id).find((o) => o.id === id)?.ten ?? ''
 const slugify = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').replace(/[^A-Za-z0-9]+/g, '').toUpperCase()
@@ -51,7 +69,7 @@ function validate() {
   const ma = String(form.ma).trim().toUpperCase()
   if (!ma) e.ma = 'Nhập mã biến thể.'
   else if (!/^[A-Z0-9-]{3,50}$/.test(ma)) e.ma = 'Mã gồm 3-50 ký tự chữ, số hoặc dấu gạch ngang, không dấu, không khoảng trắng.'
-  else if (!isEdit.value && props.all.some((b) => b.ma === ma)) e.ma = 'Mã biến thể đã tồn tại.'
+  else if (props.all.some((b) => b.id !== props.item?.id && b.ma === ma)) e.ma = 'Mã biến thể đã tồn tại.' // khi sửa thì bỏ qua chính nó
 
   const gia = Number(form.giaBan)
   if (form.giaBan === '' || Number.isNaN(gia)) e.giaBan = 'Nhập giá bán.'
@@ -106,14 +124,15 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
       <div class="row g-3">
         <div class="col-12">
           <label class="ad-label" for="bt-san-pham">Sản phẩm <span class="ad-required">*</span></label>
-          <select id="bt-san-pham" v-model="form.idSanPham" class="form-select ad-control" :class="{ 'is-invalid': errors.idSanPham }" :disabled="isEdit" :aria-invalid="!!errors.idSanPham">
+          <select id="bt-san-pham" v-model="form.idSanPham" class="form-select ad-control" :class="{ 'is-invalid': errors.idSanPham }" :aria-invalid="!!errors.idSanPham">
             <option value="">Chọn sản phẩm</option>
             <option v-for="p in sanPhamOptions" :key="p.id" :value="p.id">{{ p.ma }} - {{ p.ten }}</option>
           </select>
           <p v-if="errors.idSanPham" class="ad-error">{{ errors.idSanPham }}</p>
-          <p v-else-if="isEdit" class="ad-hint">Không thể đổi sản phẩm của biến thể.</p>
+          <p v-else-if="isEdit" class="ad-hint">Có thể đổi sang sản phẩm khác (chỉ chọn được sản phẩm đang hoạt động).</p>
         </div>
 
+        <div class="col-12"><h3 class="ad-form-section">Thuộc tính biến thể</h3></div>
         <div class="col-md-4">
           <label class="ad-label" for="bt-mau">Màu sắc <span class="ad-required">*</span></label>
           <select id="bt-mau" v-model="form.idMauSac" class="form-select ad-control" :class="{ 'is-invalid': errors.idMauSac }" :aria-invalid="!!errors.idMauSac">
@@ -139,13 +158,14 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
           <p v-if="errors.idChuVi" class="ad-error">{{ errors.idChuVi }}</p>
         </div>
 
+        <div class="col-12"><h3 class="ad-form-section">Mã, giá bán và tồn kho</h3></div>
         <div class="col-md-6">
           <label class="ad-label" for="bt-ma">Mã biến thể <span class="ad-required">*</span></label>
           <input
             id="bt-ma"
             v-model="form.ma"
             type="text"
-            class="form-control ad-control text-uppercase"
+            class="form-control ad-control ad-input-code text-uppercase"
             :class="{ 'is-invalid': errors.ma }"
             :readonly="isEdit"
             maxlength="50"
@@ -154,12 +174,15 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
             @input="codeTouched = true"
           />
           <p v-if="errors.ma" class="ad-error">{{ errors.ma }}</p>
-          <p v-else-if="isEdit" class="ad-hint">Không thể đổi mã sau khi tạo.</p>
+          <p v-else-if="isEdit" class="ad-hint">Không sửa tay được. Nếu đổi sản phẩm thì phần đầu mã tự đổi theo (SP008-… thành SP007-…).</p>
           <p v-else class="ad-hint">Tự gợi ý theo sản phẩm, màu, trọng lượng, chu vi; có thể sửa.</p>
         </div>
         <div class="col-md-3">
-          <label class="ad-label" for="bt-gia">Giá bán (₫) <span class="ad-required">*</span></label>
-          <input id="bt-gia" v-model.number="form.giaBan" type="number" min="0" step="1000" class="form-control ad-control" :class="{ 'is-invalid': errors.giaBan }" :aria-invalid="!!errors.giaBan" />
+          <label class="ad-label" for="bt-gia">Giá bán <span class="ad-required">*</span></label>
+          <div class="ad-affix">
+            <input id="bt-gia" v-model.number="form.giaBan" type="number" min="0" step="1000" class="form-control ad-control has-suffix" :class="{ 'is-invalid': errors.giaBan }" :aria-invalid="!!errors.giaBan" />
+            <span class="ad-suffix" aria-hidden="true">₫</span>
+          </div>
           <p v-if="errors.giaBan" class="ad-error">{{ errors.giaBan }}</p>
         </div>
         <div class="col-md-3">

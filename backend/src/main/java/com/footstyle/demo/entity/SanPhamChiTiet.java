@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
 
-
+/** Bảng san_pham_chi_tiet (biến thể) = sản phẩm + màu sắc + trọng lượng + chu vi, kèm giá bán và tồn kho. */
 @Entity
 @Getter
 @Setter
@@ -17,19 +17,19 @@ public class SanPhamChiTiet {
     @Column(name = "id")
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "id_san_pham") 
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "id_san_pham")
     private SanPham sanPham;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "id_mau_sac")
     private MauSac mauSac;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "id_trong_luong")
     private TrongLuong trongLuong;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "id_chu_vi")
     private ChuVi chuVi;
 
@@ -51,6 +51,6 @@ public class SanPhamChiTiet {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    public static final int HOAT_DONG = 1;        
+    public static final int HOAT_DONG = 1;        // trang_thai
     public static final int NGUNG_HOAT_DONG = 0;
 }

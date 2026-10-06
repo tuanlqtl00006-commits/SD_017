@@ -6,16 +6,16 @@
       <Header />
 
       <main class="p-4">
-        
+        <!-- Cảnh báo lỗi nếu có -->
         <div v-if="errorMessage" class="alert alert-danger bg-danger bg-opacity-10 text-danger border-0 rounded-3 d-flex align-items-center mb-4 p-3" role="alert">
           <span class="fw-medium">{{ errorMessage }}</span>
         </div>
 
         <div class="row g-4 justify-content-center">
-          
+          <!-- Form thông tin -->
           <div class="col-12 col-xl-10">
             
-            
+            <!-- Thông tin cơ bản -->
             <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
               <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-4">
@@ -51,14 +51,14 @@
                     </select>
                   </div>
                   <div class="col-12">
-                    <label class="form-label small text-muted fw-semibold">Ngày sinh</label>
-                    <input type="date" class="form-control bg-light border-0" v-model="formData.ngaySinh" min="1900-01-01" max="9999-12-31">
-                  </div>
+                      <label class="form-label small text-muted fw-semibold">Ngày sinh</label>
+                      <input type="date" class="form-control bg-light border-0" v-model="formData.ngaySinh" min="1900-01-01" max="9999-12-31">
+                    </div>
                 </div>
               </div>
             </div>
 
-            
+            <!-- Địa chỉ giao hàng --> 
             <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
               <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-4">
@@ -109,11 +109,11 @@
               </div>
             </div>
 
-            
+            <!-- Nút Tạo & Hủy -->
             <div class="d-flex justify-content-end mb-5 gap-3">
               <button class="btn btn-outline-secondary px-5 py-2 fw-bold shadow-sm" style="border-radius: 8px;" @click="router.push('/khach-hang')">
-                Hủy
-              </button>
+                  Quay lại
+                </button>
               <button class="btn btn-primary px-5 py-2 fw-bold shadow-sm" style="border-radius: 8px; background-color: #0d6efd; border-color: #0d6efd;" @click="createCustomer">
                 <i class="bi bi-save me-2"></i> Tạo khách hàng
               </button>
@@ -127,6 +127,7 @@
 </template>
 
 <script setup>
+import Swal from 'sweetalert2';
 import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Sidebar from './Sidebar.vue'
@@ -200,6 +201,7 @@ watch(() => addressData.value.quanHuyen, (newDistrictName) => {
   }
 })
 
+// Đồng bộ 1 chiều từ trên xuống dưới
 watch(() => formData.value.ten, (newVal) => {
   addressData.value.hoTenNguoiNhan = newVal
 })
@@ -213,6 +215,7 @@ const createCustomer = async () => {
   phoneErrorMsg.value = ''
   emailErrorMsg.value = ''
 
+  // Validate cơ bản
   if (!formData.value.ten || !formData.value.email) {
     errorMessage.value = 'Không thể tạo khách hàng: Vui lòng nhập đầy đủ thông tin.'
     return
@@ -238,19 +241,23 @@ const createCustomer = async () => {
     if (!payload.ngaySinh) {
       payload.ngaySinh = null
     } else {
+      // Chặn lỗi nhập năm sinh quá 4 chữ số (ví dụ: năm 02024) từ thẻ HTML5 date picker
       if (payload.ngaySinh.length > 10) {
         errorMessage.value = 'Vui lòng nhập Ngày Sinh hợp lệ (năm không quá 4 chữ số).'
         return
       }
     }
 
+    // Gộp dữ liệu địa chỉ vào chung payload để backend xử lý
     payload.tinhThanh = addressData.value.tinhThanh
     payload.quanHuyen = addressData.value.quanHuyen
     payload.phuongXa = addressData.value.phuongXa
     payload.diaChiCuThe = addressData.value.diaChiChiTiet
 
+    // Gọi API lưu Khách hàng và Địa chỉ 1 lần
     await api.post('/khach-hang', payload)
-    
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Tạo khách hàng mới thành công!', showConfirmButton: false, timer: 3000, timerProgressBar: true });
+    // Quay lại trang danh sách
     router.push('/khach-hang')
   } catch (error) {
     console.error(error)
@@ -283,7 +290,7 @@ const createCustomer = async () => {
   background-color: #fff8f8 !important;
 }
 
-
+/* Fix Chrome Autofill background color */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 
 input:-webkit-autofill:focus, 
@@ -293,6 +300,7 @@ input:-webkit-autofill:active {
   transition: background-color 5000s ease-in-out 0s;
 }
 </style>
+
 
 
 

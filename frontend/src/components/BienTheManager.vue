@@ -9,6 +9,7 @@ import { TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
 import { useThuocTinh } from '../composables/useThuocTinh'
 import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatMoney, todayIso } from '../utils/format'
 import { includesText } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
@@ -24,7 +25,7 @@ const saving = ref(false)
 
 const spOf = (id) => sanPhams.value.find((p) => p.id === id)
 
-
+/* ----- Bộ lọc ----- */
 const defaultFilters = () => ({ keyword: '', idSanPham: '', idMauSac: '', trangThai: '', conHang: '' })
 const filters = reactive(defaultFilters())
 const resetFilters = () => Object.assign(filters, defaultFilters())
@@ -44,22 +45,41 @@ const filtered = computed(() =>
 const { page, pageSize, total, items: pageItems } = usePagination(filtered, 5)
 watch(filters, () => { page.value = 1 })
 
-
-async function load(showLoading = true) {
+/* ----- Tải dữ liệu ----- */
+// loadSeq: mỗi lần tải có một số thứ tự. Nếu đã có lần tải / cập nhật mới hơn thì bỏ kết quả của lần cũ,
+// để dữ liệu cũ về chậm không đè lên trạng thái ẩn / hiện vừa đổi.
+// quiet = true: tải nền (không hiện "Đang tải…", lỗi mạng thì im lặng vì danh sách đang hiển thị vẫn dùng được).
+// Tải nền chỉ lấy lại biến thể + sản phẩm (2 lời gọi), không tải lại các bảng thuộc tính.
+let loadSeq = 0
+async function load(showLoading = true, quiet = false) {
+  const seq = ++loadSeq
   if (showLoading) loading.value = true
   try {
-    const [bt, sp] = await Promise.all([bienTheService.getAll(), sanPhamService.getAll(), loadThuocTinh()])
+    const [bt, sp] = await Promise.all([bienTheService.getAll(), sanPhamService.getAll(), quiet ? null : loadThuocTinh()])
+    if (seq !== loadSeq) return
     list.value = bt
     sanPhams.value = sp
   } catch {
-    toast.error('Không tải được danh sách biến thể. Vui lòng thử lại.')
+    if (seq === loadSeq && !(quiet && list.value.length)) toast.error('Không tải được danh sách biến thể. Vui lòng thử lại.')
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 onMounted(load)
 
+// Luôn lấy dữ liệu mới nhất từ server khi: đổi bộ lọc trạng thái (vd sang xem mục đã ẩn) và khi quay lại tab trình duyệt.
+watch(() => filters.trangThai, () => load(false, true))
+useAutoRefresh(() => load(false, true))
 
+// Đổi trạng thái xong thì cập nhật ngay dòng đó bằng dữ liệu server vừa trả về (không chờ tải lại cả danh sách).
+function patchRow(daDoi) {
+  if (!daDoi || daDoi.id === undefined) return
+  loadSeq++ // hủy kết quả các lần tải đang chạy dở (có thể còn chứa trạng thái cũ)
+  const i = list.value.findIndex((x) => x.id === daDoi.id)
+  if (i !== -1) list.value[i] = { ...list.value[i], ...daDoi }
+}
+
+/* ----- Thêm / sửa ----- */
 const formState = ref(null)
 async function save(payload) {
   const editing = formState.value?.item
@@ -81,7 +101,7 @@ async function save(payload) {
   }
 }
 
-
+/* ----- Bật / tắt hoạt động ----- */
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
 const confirmContent = computed(() => {
@@ -95,10 +115,11 @@ async function confirmToggle() {
   const b = confirmItem.value
   confirmLoading.value = true
   try {
-    await bienTheService.toggleActive(b.id)
+    const daDoi = await bienTheService.toggleActive(b.id)
+    patchRow(daDoi) // đổi trạng thái ngay trên dòng, không chờ tải lại cả danh sách
     toast.success(b.hoatDong ? `Đã ngưng hoạt động biến thể ${b.ma}.` : `Đã kích hoạt lại biến thể ${b.ma}.`)
     confirmItem.value = null
-    await load(false)
+    load(false, true) // đồng bộ lại với server ở nền
   } catch (e) {
     toast.error(e.message || 'Không thể cập nhật trạng thái. Vui lòng thử lại.')
   } finally {
@@ -106,7 +127,7 @@ async function confirmToggle() {
   }
 }
 
-
+/* ----- Xuất Excel ----- */
 function exportFile() {
   if (!filtered.value.length) {
     toast.error('Không có biến thể nào để xuất.')

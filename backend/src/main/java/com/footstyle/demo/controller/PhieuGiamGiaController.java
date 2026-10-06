@@ -28,7 +28,7 @@ public class PhieuGiamGiaController {
         return service.getAll();
     }
 
-    
+    /** Khách hàng có thể chọn khi tặng phiếu cá nhân. */
     @GetMapping("/khach-hang")
     public List<KhachHangTomTatResponse> getKhachHangCoTheChon() {
         return service.getKhachHangCoTheChon();
@@ -49,7 +49,7 @@ public class PhieuGiamGiaController {
         return service.sua(id, req);
     }
 
-    
+    /** Ẩn / hiện (bật / tắt hoạt động). Không xóa cứng dữ liệu. */
     @PutMapping("/{id}/trang-thai")
     public PhieuGiamGiaResponse doiTrangThai(@PathVariable Integer id) {
         return service.doiTrangThai(id);

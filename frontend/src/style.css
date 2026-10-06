@@ -294,3 +294,12 @@ code {
     border-right-color: var(--border);
   }
 }
+
+/* Hệ số thu nhỏ dùng chung: các chỗ dùng vh/vw phải chia cho nó để vẫn phủ đủ màn hình */
+:root {
+  --ui-zoom: 0.75; /* độ phóng to phần bảng / nội dung bên phải (0.75 = 75%) */
+  --ui-side-zoom: 0.85; /* độ phóng to thanh bên trái (độc lập với nội dung) */
+}
+body {
+  zoom: var(--ui-zoom);
+}

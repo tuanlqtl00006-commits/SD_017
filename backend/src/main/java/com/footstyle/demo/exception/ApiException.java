@@ -2,7 +2,7 @@ package com.footstyle.demo.exception;
 
 import org.springframework.http.HttpStatus;
 
-
+/** Lỗi nghiệp vụ trả về cho frontend dưới dạng { "message": "..." }. */
 public class ApiException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;

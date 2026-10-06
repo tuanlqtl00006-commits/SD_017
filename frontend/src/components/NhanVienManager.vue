@@ -1,37 +1,29 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
-import NhanVienFormModal from './nhanVien/NhanVienFormModal.vue'
-import NhanVienDetailModal from './nhanVien/NhanVienDetailModal.vue'
 import { nhanVienService } from '../services/nhanVienService'
 import { TRANG_THAI } from '../constants/nhanVien'
 import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { avatarColors, formatDate, getInitials, todayIso } from '../utils/format'
-import { includesText } from '../utils/text'
+import { matchesWords } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
 
 const toast = useToast()
+const router = useRouter()
 
 const list = ref([])
-const vaiTroList = ref([])
+const vaiTroList = ref([]) // [{ id, ten }] từ bảng vai_tro
 const loading = ref(false)
-const saving = ref(false)
 
-
-const TIM_THEO = [
-  { key: 'hoTen', label: 'Họ tên', placeholder: 'Nhập họ tên, ví dụ: Lê Quốc Bảo' },
-  { key: 'ma', label: 'Mã nhân viên', placeholder: 'Nhập mã, ví dụ: NV0003' },
-  { key: 'soDienThoai', label: 'Số điện thoại', placeholder: 'Nhập số điện thoại, ví dụ: 0912000003' },
-  { key: 'email', label: 'Email', placeholder: 'Nhập email, ví dụ: bao.lq@footstyle.vn' },
-]
-
-const defaultFilters = () => ({ timTheo: 'hoTen', keyword: '', idVaiTro: '', trangThai: '' })
+/* ----- Bộ lọc (lọc ngay khi thay đổi) ----- */
+// Một ô tìm kiếm chung: gõ mã, họ tên, email hoặc số điện thoại đều tìm được (không phân biệt hoa thường, dấu).
+const defaultFilters = () => ({ keyword: '', idVaiTro: '', trangThai: '' })
 const filters = reactive(defaultFilters())
-
-const placeholderTimKiem = computed(() => TIM_THEO.find((t) => t.key === filters.timTheo).placeholder)
 
 function resetFilters() {
   Object.assign(filters, defaultFilters())
@@ -40,7 +32,7 @@ function resetFilters() {
 const filtered = computed(() =>
   list.value.filter((e) => {
     const f = filters
-    if (f.keyword && !includesText(e[f.timTheo] ?? '', f.keyword)) return false
+    if (f.keyword && !matchesWords([e.ma, e.hoTen, e.email, e.soDienThoai].join(' '), f.keyword)) return false
     if (f.idVaiTro && e.idVaiTro !== f.idVaiTro) return false
     if (f.trangThai && String(e.hoatDong) !== f.trangThai) return false
     return true
@@ -52,57 +44,49 @@ watch(filters, () => {
   page.value = 1
 })
 
-
-async function load(showLoading = true) {
+/* ----- Tải dữ liệu ----- */
+// loadSeq: mỗi lần tải có một số thứ tự. Nếu đã có lần tải / cập nhật mới hơn thì bỏ kết quả của lần cũ,
+// để dữ liệu cũ về chậm không đè lên trạng thái ẩn / hiện vừa đổi.
+// quiet = true: tải nền (không hiện "Đang tải…", lỗi mạng thì im lặng vì danh sách đang hiển thị vẫn dùng được).
+let loadSeq = 0
+async function load(showLoading = true, quiet = false) {
+  const seq = ++loadSeq
   if (showLoading) loading.value = true
   try {
     const [nhanVien, vaiTro] = await Promise.all([nhanVienService.getAll(), nhanVienService.getVaiTro()])
+    if (seq !== loadSeq) return
     list.value = nhanVien
     vaiTroList.value = vaiTro
   } catch {
-    toast.error('Không tải được danh sách nhân viên. Vui lòng thử lại.')
+    if (seq === loadSeq && !(quiet && list.value.length)) toast.error('Không tải được danh sách nhân viên. Vui lòng thử lại.')
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 onMounted(load)
 
+// Luôn lấy dữ liệu mới nhất từ server khi: đổi bộ lọc trạng thái (vd sang xem mục đã ẩn) và khi quay lại tab trình duyệt.
+watch(() => filters.trangThai, () => load(false, true))
+useAutoRefresh(() => load(false, true))
 
-const formState = ref(null)
-const detailItem = ref(null)
+// Đổi trạng thái xong thì cập nhật ngay dòng đó bằng dữ liệu server vừa trả về (không chờ tải lại cả danh sách).
+function patchRow(daDoi) {
+  if (!daDoi || daDoi.id === undefined) return
+  loadSeq++ // hủy kết quả các lần tải đang chạy dở (có thể còn chứa trạng thái cũ)
+  const i = list.value.findIndex((x) => x.id === daDoi.id)
+  if (i !== -1) list.value[i] = { ...list.value[i], ...daDoi }
+}
 
+/* ----- Thêm / xem chi tiết / sửa ----- */
+// Là trang riêng (NhanVienFormPage.vue), giống video; ở đây chỉ chuyển trang.
 function openCreate() {
-  formState.value = { item: null }
+  router.push('/nhan-vien/them')
 }
 function openDetail(row) {
-  detailItem.value = row
-}
-function editFromDetail() {
-  formState.value = { item: detailItem.value }
-  detailItem.value = null
+  router.push('/nhan-vien/' + row.id)
 }
 
-async function save(payload) {
-  const editing = formState.value?.item
-  saving.value = true
-  try {
-    if (editing) {
-      await nhanVienService.update(editing.id, payload)
-      toast.success('Đã lưu thay đổi nhân viên.')
-    } else {
-      await nhanVienService.create(payload)
-      toast.success('Đã thêm nhân viên.')
-    }
-    formState.value = null
-    await load(false)
-  } catch (e) {
-    toast.error(e.message || 'Không thể lưu nhân viên. Vui lòng thử lại.')
-  } finally {
-    saving.value = false
-  }
-}
-
-
+/* ----- Xuất Excel (đúng theo danh sách đang lọc) ----- */
 function exportFile() {
   if (!filtered.value.length) {
     toast.error('Không có nhân viên nào để xuất.')
@@ -141,7 +125,7 @@ function exportFile() {
   toast.success(`Đã xuất ${filtered.value.length} nhân viên ra file Excel.`)
 }
 
-
+/* ----- Bật / tắt hoạt động ----- */
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
 
@@ -163,6 +147,7 @@ const confirmContent = computed(() => {
       }
 })
 
+// Backend chặn việc ẩn / đổi vai trò quản lý đang hoạt động cuối cùng và báo lỗi bằng toast.
 function toggleTitle(e) {
   return e.hoatDong ? 'Ẩn nhân viên' : 'Hiện lại nhân viên'
 }
@@ -171,10 +156,11 @@ async function confirmToggle() {
   const e = confirmItem.value
   confirmLoading.value = true
   try {
-    await nhanVienService.toggleActive(e.id)
+    const daDoi = await nhanVienService.toggleActive(e.id)
+    patchRow(daDoi) // dòng này đổi trạng thái ngay: ẩn xong sang xem nhân viên đã ẩn là thấy luôn
     toast.success(e.hoatDong ? `Đã ẩn nhân viên ${e.hoTen}.` : `Đã hiện lại nhân viên ${e.hoTen}.`)
     confirmItem.value = null
-    await load(false)
+    load(false, true) // đồng bộ lại với server ở nền
   } catch (err) {
     toast.error(err.message || 'Không thể cập nhật trạng thái. Vui lòng thử lại.')
   } finally {
@@ -186,16 +172,9 @@ async function confirmToggle() {
 <template>
   <div class="ad-page">
     <FilterCard subtitle="Tra cứu nhanh dữ liệu.">
-      <div class="ad-filter-grid">
+      <div class="ad-filter-grid ad-filter-grid--staff">
         <div>
-          <label class="ad-label" for="nv-tim-theo">Tìm theo</label>
-          <select id="nv-tim-theo" v-model="filters.timTheo" class="form-select ad-control">
-            <option v-for="t in TIM_THEO" :key="t.key" :value="t.key">{{ t.label }}</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="ad-label" for="nv-keyword">Từ khóa</label>
+          <label class="ad-label" for="nv-keyword">Tìm kiếm</label>
           <div class="ad-affix">
             <i class="bi bi-search" aria-hidden="true"></i>
             <input
@@ -203,7 +182,7 @@ async function confirmToggle() {
               v-model.trim="filters.keyword"
               type="text"
               class="form-control ad-control"
-              :placeholder="placeholderTimKiem"
+              placeholder="Tìm theo mã, họ tên, email, SĐT…"
               autocomplete="off"
             />
           </div>
@@ -329,16 +308,6 @@ async function confirmToggle() {
       <BasePagination v-if="total" v-model:page="page" v-model:pageSize="pageSize" :total="total" />
     </section>
 
-    <NhanVienFormModal
-      v-if="formState"
-      :item="formState.item"
-      :all="list"
-      :vai-tro="vaiTroList"
-      :saving="saving"
-      @save="save"
-      @close="formState = null"
-    />
-    <NhanVienDetailModal v-if="detailItem" :item="detailItem" @edit="editFromDetail" @close="detailItem = null" />
     <ConfirmDialog
       v-if="confirmItem"
       v-bind="confirmContent"

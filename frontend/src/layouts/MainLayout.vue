@@ -6,10 +6,15 @@ import { THUOC_TINH_LIST } from '../constants/thuocTinh'
 
 const route = useRoute()
 
+// Breadcrumb trên header lấy từ meta của route (xem router/index.js)
 const pageTitle = computed(() => route.meta.title || '')
 const pageParent = computed(() => route.meta.parent || '')
 const pageParentTo = computed(() => route.meta.parentTo || '')
 
+// to: null => chưa có trang, vẫn hiển thị nhưng chưa chuyển trang được.
+// children => mục cha có menu con (bấm để mở/đóng).
+// Vai trò theo sơ đồ use case: Quản Lý kế thừa Nhân Viên nên thấy đủ mọi chức năng.
+// roles: ['nhan-vien'] => cả Nhân Viên và Quản Lý; ['quan-ly'] => chỉ Quản Lý.
 const NV = ['nhan-vien', 'quan-ly']
 const QL = ['quan-ly']
 const menuAll = [
@@ -17,6 +22,8 @@ const menuAll = [
   { key: 'ban-hang', label: 'Bán hàng tại quầy', icon: 'bi-shop', to: null, roles: NV },
   { key: 'hoa-don', label: 'Quản lý hóa đơn', icon: 'bi-receipt', to: '/hoa-don', roles: NV },
   {
+    // Gộp cả các bảng thuộc tính (danh_muc, thuong_hieu, xuat_xu, chat_lieu, do_cung, diem_can_bang, mau_sac, trong_luong, chu_vi)
+    // vào Quản lý sản phẩm cho đúng use case "Quản lý sản phẩm".
     key: 'san-pham', label: 'Quản lý sản phẩm', icon: 'bi-box-seam', roles: QL,
     children: [
       { label: 'Sản phẩm', icon: 'bi-box', to: '/san-pham', exact: true },
@@ -28,15 +35,23 @@ const menuAll = [
   { key: 'dot-giam-gia', label: 'Quản lý đợt giảm giá', icon: 'bi-tag', to: '/dot-giam-gia', roles: QL },
   { key: 'khach-hang', label: 'Quản lý khách hàng', icon: 'bi-people', to: '/khach-hang', roles: NV },
   { key: 'nhan-vien', label: 'Quản lý nhân viên', icon: 'bi-person', to: '/nhan-vien', roles: QL },
+  // Chưa có trong sơ đồ use case nên tạm ẩn khỏi menu (bỏ chú thích nếu muốn hiện lại / vẽ thêm vào sơ đồ):
+  // { key: 'ho-tro', label: 'Hỗ trợ trực tuyến', icon: 'bi-chat-dots', to: null, roles: NV },
+  // { key: 'danh-gia', label: 'Quản lý đánh giá', icon: 'bi-star', to: null, roles: NV },
+  // { key: 'lich-lam', label: 'Quản lý lịch làm', icon: 'bi-calendar3', children: [], roles: QL },
 ]
 
+// Vai trò đang dùng (chưa có đăng nhập nên chọn ở header, nhớ lại sau khi tải lại trang)
 const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } }
-const writeLS = (k, v) => { try { localStorage.setItem(k, v) } catch {  } }
+const writeLS = (k, v) => { try { localStorage.setItem(k, v) } catch { /* bỏ qua */ } }
 const role = ref(readLS('fs-role', 'quan-ly'))
 watch(role, (v) => writeLS('fs-role', v))
 const menu = computed(() => menuAll.filter((m) => m.roles.includes(role.value)))
 
+// Mục menu sáng cả khi đang ở trang con (vd /hoa-don/1 vẫn sáng "Quản lý hóa đơn")
 const isActive = (to, exact = false) => !!to && (route.path === to || (!exact && route.path.startsWith(to + '/')))
+// Phóng to / thu nhỏ phần nội dung bên phải (mặc định 75%). Thanh bên trái tự co giãn theo cho vừa mắt:
+// luôn lớn hơn nội dung ~10% nhưng chỉ trong khoảng 80% - 100% để menu không quá bé / quá to.
 const ZOOM_DEFAULT = 75, ZOOM_MIN = 50, ZOOM_MAX = 125, ZOOM_STEP = 5
 const zoomPct = ref(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number(readLS('fs-zoom', String(ZOOM_DEFAULT))) || ZOOM_DEFAULT)))
 const applyZoom = () => {
@@ -49,6 +64,7 @@ applyZoom()
 watch(zoomPct, (v) => { writeLS('fs-zoom', String(v)); applyZoom() })
 const zoomBy = (d) => { zoomPct.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomPct.value + d)) }
 
+// Nhóm có menu con mặc định đóng cho gọn; bấm vào nhóm để mở/đóng.
 const open = reactive({ 'san-pham': false })
 for (const g of menuAll) {
   if (g.children?.some((c) => isActive(c.to, c.exact))) open[g.key] = true
@@ -57,8 +73,8 @@ const toggle = (key) => { open[key] = !open[key] }
 </script>
 
 <template>
-  <div class="d-flex" style="min-height: calc(100vh / var(--ui-zoom)); background-color: #f4f7f6;">
-    
+  <div class="d-flex" style="min-height: calc(100vh / var(--ui-zoom)); background-color: #f3f6fb;">
+    <!-- Thanh bên -->
     <aside class="bg-white border-end d-flex flex-column flex-shrink-0 ad-aside">
       <div class="ad-logo p-3 text-center mb-1 d-flex align-items-center justify-content-center">
         <img src="/logo.png" alt="FootStyle" class="img-fluid" style="width: 80%; object-fit: contain;">
@@ -67,11 +83,11 @@ const toggle = (key) => { open[key] = !open[key] }
       <nav aria-label="Menu chính" class="pb-4">
         <ul class="nav flex-column fw-medium px-2 m-0" style="font-size: 0.9rem; gap: 0.2rem;">
           <li v-for="item in menu" :key="item.key" class="nav-item">
-            
+            <!-- Mục có menu con -->
             <template v-if="item.children">
               <button
                 type="button"
-                class="nav-link side-link ad-link w-100 border-0 bg-transparent justify-content-between"
+                class="nav-link side-link ad-link w-100 border-0 justify-content-between"
                 :aria-expanded="!!open[item.key]"
                 @click="toggle(item.key)"
               >
@@ -89,7 +105,7 @@ const toggle = (key) => { open[key] = !open[key] }
                 </li>
               </ul>
             </template>
-            
+            <!-- Mục thường -->
             <RouterLink v-else-if="item.to" :to="item.to" class="nav-link side-link ad-link" :class="{ active: isActive(item.to) }">
               <i class="bi icon" :class="item.icon" aria-hidden="true"></i>{{ item.label }}
             </RouterLink>
@@ -101,7 +117,7 @@ const toggle = (key) => { open[key] = !open[key] }
       </nav>
     </aside>
 
-    
+    <!-- Khu vực nội dung -->
     <div class="flex-grow-1 d-flex flex-column" style="min-width: 0;">
       <header class="bg-white border-bottom px-4 py-3 d-flex flex-wrap align-items-center gap-3">
         <div class="me-auto d-flex align-items-baseline gap-2">
@@ -113,13 +129,13 @@ const toggle = (key) => { open[key] = !open[key] }
           </template>
         </div>
 
-        
+        <!-- Phóng to / thu nhỏ phần nội dung -->
         <div class="btn-group btn-group-sm" role="group" aria-label="Phóng to thu nhỏ nội dung">
           <button type="button" class="btn btn-outline-secondary" :disabled="zoomPct <= ZOOM_MIN" aria-label="Thu nhỏ" @click="zoomBy(-ZOOM_STEP)"><i class="bi bi-dash-lg"></i></button>
           <button type="button" class="btn btn-outline-secondary ad-zoom-val" :title="`Về ${ZOOM_DEFAULT}%`" @click="zoomPct = ZOOM_DEFAULT">{{ zoomPct }}%</button>
           <button type="button" class="btn btn-outline-secondary" :disabled="zoomPct >= ZOOM_MAX" aria-label="Phóng to" @click="zoomBy(ZOOM_STEP)"><i class="bi bi-plus-lg"></i></button>
         </div>
-        
+        <!-- Chọn vai trò để xem menu theo use case (chưa có đăng nhập) -->
         <select v-model="role" class="form-select form-select-sm ad-role" aria-label="Vai trò">
           <option value="quan-ly">Quản Lý</option>
           <option value="nhan-vien">Nhân Viên</option>
@@ -152,7 +168,7 @@ const toggle = (key) => { open[key] = !open[key] }
 </template>
 
 <style scoped>
-
+/* Thanh bên có độ phóng to riêng (--ui-side-zoom): body đã zoom --ui-zoom nên ở đây nhân thêm tỉ lệ bù, chiều cao chia cho hệ số hiệu dụng để luôn phủ hết màn hình */
 .ad-aside { position: sticky; top: 0; zoom: calc(var(--ui-side-zoom) / var(--ui-zoom)); height: calc(100vh / var(--ui-side-zoom)); overflow-y: auto; overflow-x: hidden; width: 300px; }
 .ad-logo { height: 100px; }
 .ad-role { width: auto; }
@@ -166,7 +182,7 @@ const toggle = (key) => { open[key] = !open[key] }
 .ad-sublink { padding: 0.6rem 1rem 0.6rem 2.8rem; font-size: 0.9rem; color: #6c757d; }
 .ad-sublink .icon { font-size: 1rem; margin-right: 0.6rem; width: 20px; }
 
-
+/* Màn hình thấp (zoom 100% trên laptop): thu gọn khoảng cách để thấy ĐỦ các chức năng mà không phải cuộn */
 @media (max-height: 820px) {
   .ad-logo { height: 76px; padding-block: 0.5rem !important; }
   .ad-link { padding: 0.45rem 0.85rem; font-size: 0.92rem; }

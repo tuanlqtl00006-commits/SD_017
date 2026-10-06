@@ -42,7 +42,7 @@ public class BienTheController {
         return service.sua(id, req);
     }
 
-    
+    /** Ẩn / hiện biến thể. Không xóa cứng dữ liệu. */
     @PutMapping("/{id}/trang-thai")
     public BienTheResponse doiTrangThai(@PathVariable Integer id) {
         return service.doiTrangThai(id);
