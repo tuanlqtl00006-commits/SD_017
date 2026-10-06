@@ -7,12 +7,12 @@
       
       <h5 class="m-0 d-flex align-items-center fs-5">
         <template v-if="route.path.includes('/khach-hang/them')">
-          <router-link to="/khach-hang" class="text-secondary text-decoration-none fw-medium" style="font-size: 1.1rem;">Khách hàng</router-link>
+          <router-link to="/khach-hang" class="text-secondary text-decoration-none fw-medium" style="font-size: 1.1rem;">Quản lý khách hàng</router-link>
           <span class="text-secondary mx-2 fw-medium" style="font-size: 1.1rem;">/</span>
           <span class="text-dark fw-bold" style="font-size: 1.1rem;">Thêm khách hàng</span>
         </template>
         <template v-else-if="route.path.includes('/khach-hang')">
-          <span class="text-dark fw-bold" style="font-size: 1.1rem;">Khách hàng</span>
+          <span class="text-dark fw-bold" style="font-size: 1.1rem;">Quản lý khách hàng</span>
         </template>
         <template v-else>
           <span class="text-dark fw-bold" style="font-size: 1.1rem;">{{ pageTitle }}</span>
@@ -44,7 +44,7 @@ const route = useRoute()
 
 const pageTitle = computed(() => {
   if (route.path.includes('/khach-hang/them')) return 'Thêm khách hàng'
-  if (route.path.includes('/khach-hang')) return 'Khách hàng'
+  if (route.path.includes('/khach-hang')) return 'Quản lý khách hàng'
   if (route.path.includes('/hoa-don')) return 'Quản lý Hóa đơn'
   if (route.path.includes('/dot-giam-gia')) return 'Quản Lý Đợt Giảm Giá'
   return 'Trang chủ'
