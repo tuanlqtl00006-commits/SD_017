@@ -72,11 +72,11 @@ public class KhachHangController {
         if (optionalKhachHang.isPresent()) {
             KhachHang khachHang = optionalKhachHang.get();
 
-            // Check if changing email to an existing one
+            
             if (khachHangDetails.getEmail() != null && !khachHangDetails.getEmail().equals(khachHang.getEmail()) && khachHangRepository.existsByEmail(khachHangDetails.getEmail())) {
                 return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Email đã tồn tại."));
             }
-            // Check if changing sdt to an existing one
+            
             if (khachHangDetails.getSdt() != null && !khachHangDetails.getSdt().equals(khachHang.getSdt()) && khachHangRepository.existsBySdt(khachHangDetails.getSdt())) {
                 return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
             }

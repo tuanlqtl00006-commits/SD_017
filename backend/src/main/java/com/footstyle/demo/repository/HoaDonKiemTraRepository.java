@@ -4,10 +4,10 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
 
-/**
- * Kiểm tra dữ liệu đã phát sinh ở bảng hoa_don (chưa có entity HoaDon trong module này)
- * để chặn xóa nhân viên / phiếu giảm giá đã được dùng.
- */
+
+
+
+
 @Repository
 public class HoaDonKiemTraRepository {
 

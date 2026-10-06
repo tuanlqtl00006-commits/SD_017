@@ -3,10 +3,10 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 
 const props = defineProps({
-  item: { type: Object, default: null }, // null: tạo mới
-  all: { type: Array, default: () => [] }, // toàn bộ biến thể, để kiểm tra trùng mã / tổ hợp
+  item: { type: Object, default: null },
+  all: { type: Array, default: () => [] },
   sanPhams: { type: Array, default: () => [] },
-  options: { type: Function, required: true }, // (slug, idDangChon) => danh sách cho dropdown
+  options: { type: Function, required: true },
   saving: { type: Boolean, default: false },
 })
 const emit = defineEmits(['save', 'close'])
@@ -27,7 +27,6 @@ const submitted = ref(false)
 
 const sanPhamOptions = computed(() => props.sanPhams.filter((p) => p.hoatDong || p.id === props.item?.idSanPham))
 
-// Gợi ý mã khi tạo mới: <mã SP>-<màu>-<trọng lượng>-<chu vi>, người dùng vẫn sửa được.
 const codeTouched = ref(isEdit.value)
 const nameOf = (slug, id) => props.options(slug, id).find((o) => o.id === id)?.ten ?? ''
 const slugify = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').replace(/[^A-Za-z0-9]+/g, '').toUpperCase()

@@ -7,7 +7,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
-/** Bảng xuat_xu: Xuất xứ. Các cột id, trạng thái nằm ở lớp cha ThuocTinh. */
+
 @Entity
 @Getter
 @Setter

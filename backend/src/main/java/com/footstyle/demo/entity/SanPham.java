@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
 
-/** Bảng san_pham: thông tin chung của một mẫu sản phẩm. Màu / trọng lượng / chu vi / giá nằm ở SanPhamChiTiet. */
+
 @Entity
 @Getter
 @Setter
@@ -59,6 +59,6 @@ public class SanPham {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    public static final int HOAT_DONG = 1;        // trang_thai
+    public static final int HOAT_DONG = 1;        
     public static final int NGUNG_HOAT_DONG = 0;
 }

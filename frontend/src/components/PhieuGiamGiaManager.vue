@@ -20,7 +20,7 @@ const list = ref([])
 const loading = ref(false)
 const saving = ref(false)
 
-/* ----- Bộ lọc (lọc ngay khi thay đổi) ----- */
+
 const defaultFilters = () => ({
   keyword: '',
   hinhThuc: '',
@@ -44,7 +44,6 @@ const filtered = computed(() =>
     if (f.hinhThuc && p.hinhThuc !== f.hinhThuc) return false
     if (f.loaiGiam && p.loaiGiam !== f.loaiGiam) return false
     if (f.trangThai && p.trangThai !== f.trangThai) return false
-    // Ngày bắt đầu / kết thúc ở bộ lọc: phiếu bắt đầu từ ngày... và kết thúc đến hết ngày...
     if (f.ngayBatDau && p.ngayBatDau < f.ngayBatDau) return false
     if (f.ngayKetThuc && p.ngayKetThuc > f.ngayKetThuc) return false
     return true
@@ -56,7 +55,7 @@ watch(filters, () => {
   page.value = 1
 })
 
-/* ----- Tải dữ liệu ----- */
+
 async function load(showLoading = true) {
   if (showLoading) loading.value = true
   try {
@@ -69,14 +68,13 @@ async function load(showLoading = true) {
 }
 onMounted(load)
 
-/* ----- Tạo / sửa / xem chi tiết ----- */
-const formState = ref(null) // null: đóng | { item: null }: tạo mới | { item }: chỉnh sửa
+
+const formState = ref(null)
 const detailItem = ref(null)
 
 function openCreate() {
   formState.value = { item: null }
 }
-// Danh sách không kèm khách hàng được tặng nên lấy chi tiết từ API trước khi mở.
 async function openDetail(row) {
   try {
     detailItem.value = { ...(await phieuGiamGiaService.getById(row.id)), trangThai: row.trangThai }
@@ -109,7 +107,7 @@ async function save(payload) {
   }
 }
 
-/* ----- Xuất Excel (đúng theo danh sách đang lọc) ----- */
+
 function exportFile() {
   if (!filtered.value.length) {
     toast.error('Không có phiếu giảm giá nào để xuất.')
@@ -152,7 +150,7 @@ function exportFile() {
   toast.success(`Đã xuất ${filtered.value.length} phiếu giảm giá ra file Excel.`)
 }
 
-/* ----- Bật / tắt hoạt động ----- */
+
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
 

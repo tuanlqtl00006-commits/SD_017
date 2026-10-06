@@ -22,7 +22,7 @@ public class GlobalExceptionHandler {
                 .body(Map.of("message", "Dữ liệu gửi lên không hợp lệ. Vui lòng kiểm tra lại các trường đã nhập."));
     }
 
-    /** Trùng khóa duy nhất (vd 2 người cùng tạo một mã) hoặc vi phạm khóa ngoại. */
+    
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleIntegrity(DataIntegrityViolationException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

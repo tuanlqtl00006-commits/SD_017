@@ -7,18 +7,15 @@ import { TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
 import { useToast } from '../composables/useToast'
 import { layTen } from '../utils/text'
 
-// NGÀY 2: Quản lý sản phẩm = THÊM + SỬA (và hiển thị danh sách để thấy kết quả).
-// Các chức năng làm ở những ngày sau: lọc, phân trang, ngưng/kích hoạt, xem chi tiết, xuất Excel.
 
 const toast = useToast()
 
-/* ===== 1. DỮ LIỆU CỦA TRANG ===== */
 
-const danhSachSanPham = ref([]) // dữ liệu bảng san_pham
-const dangTai = ref(false) // true: đang tải, hiện chữ "Đang tải dữ liệu…"
-const dangLuu = ref(false) // true: đang lưu form, khóa nút để không bấm 2 lần
 
-// 6 bảng thuộc tính của sản phẩm: dùng để đổ vào dropdown của form và đổi id thành tên trong bảng
+const danhSachSanPham = ref([])
+const dangTai = ref(false)
+const dangLuu = ref(false)
+
 const thuocTinh = reactive({
   'danh-muc': [],
   'thuong-hieu': [],
@@ -28,10 +25,9 @@ const thuocTinh = reactive({
   'diem-can-bang': [],
 })
 
-/* ===== 2. TẢI DỮ LIỆU ===== */
+
 
 async function taiThuocTinh() {
-  // Gọi API lấy 6 bảng thuộc tính cùng lúc rồi gán vào thuocTinh
   const cacLoai = Object.keys(thuocTinh)
   const ketQua = await Promise.all(cacLoai.map((loai) => thuocTinhService.getAll(loai)))
   cacLoai.forEach((loai, i) => {
@@ -42,7 +38,6 @@ async function taiThuocTinh() {
 async function taiDuLieu(hienChuDangTai = true) {
   if (hienChuDangTai) dangTai.value = true
   try {
-    // Hai lời gọi API độc lập nhau nên chạy song song cho nhanh
     const [sanPham] = await Promise.all([sanPhamService.getAll(), taiThuocTinh()])
     danhSachSanPham.value = sanPham
   } catch (loi) {
@@ -52,26 +47,23 @@ async function taiDuLieu(hienChuDangTai = true) {
   }
 }
 
-// onMounted: chạy 1 lần khi trang vừa hiện ra -> tải dữ liệu
 onMounted(() => taiDuLieu())
 
-/* ===== 3. THÊM / SỬA ===== */
 
-const hienForm = ref(false) // true: đang mở form thêm/sửa
-const spDangSua = ref(null) // null: thêm mới; có giá trị: đang sửa sản phẩm đó
+
+const hienForm = ref(false)
+const spDangSua = ref(null)
 
 function moFormThem() {
   spDangSua.value = null
   hienForm.value = true
 }
 
-// Bấm nút "Chỉnh sửa" ngay trên dòng của bảng
 function moFormSua(sp) {
   spDangSua.value = sp
   hienForm.value = true
 }
 
-// Form báo "save" kèm dữ liệu đã kiểm tra -> gọi service thêm hoặc sửa
 async function luuSanPham(duLieu) {
   dangLuu.value = true
   try {
@@ -83,7 +75,7 @@ async function luuSanPham(duLieu) {
       toast.success('Đã thêm sản phẩm.')
     }
     hienForm.value = false
-    await taiDuLieu(false) // tải lại danh sách để thấy dữ liệu mới
+    await taiDuLieu(false)
   } catch (loi) {
     toast.error(loi.message || 'Không thể lưu sản phẩm. Vui lòng thử lại.')
   } finally {
@@ -155,7 +147,7 @@ async function luuSanPham(duLieu) {
       </div>
     </section>
 
-    <!-- Form thêm / sửa: spDangSua = null là thêm mới, có giá trị là sửa sản phẩm đó -->
+    
     <SanPhamFormModal
       v-if="hienForm"
       :item="spDangSua"

@@ -8,7 +8,7 @@ import java.util.List;
 @Repository
 public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Integer> {
 
-    // Tìm danh sách chi tiết của 1 hóa đơn
+    
     List<HoaDonChiTiet> findByHoaDon_Id(Integer idHoaDon);
 
 }

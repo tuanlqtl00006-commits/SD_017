@@ -16,13 +16,11 @@ import { exportExcel } from '../utils/exportExcel'
 const toast = useToast()
 
 const list = ref([])
-const vaiTroList = ref([]) // [{ id, ten }] từ bảng vai_tro
+const vaiTroList = ref([])
 const loading = ref(false)
 const saving = ref(false)
 
-/* ----- Bộ lọc (lọc ngay khi thay đổi) ----- */
-// "Tìm theo" nào thì chỉ so khớp đúng cột đó, không trộn các cột lại với nhau.
-// key = tên thuộc tính của nhân viên (xem nhanVienService.js)
+
 const TIM_THEO = [
   { key: 'hoTen', label: 'Họ tên', placeholder: 'Nhập họ tên, ví dụ: Lê Quốc Bảo' },
   { key: 'ma', label: 'Mã nhân viên', placeholder: 'Nhập mã, ví dụ: NV0003' },
@@ -33,7 +31,6 @@ const TIM_THEO = [
 const defaultFilters = () => ({ timTheo: 'hoTen', keyword: '', idVaiTro: '', trangThai: '' })
 const filters = reactive(defaultFilters())
 
-// Gợi ý trong ô nhập đổi theo cột đang chọn
 const placeholderTimKiem = computed(() => TIM_THEO.find((t) => t.key === filters.timTheo).placeholder)
 
 function resetFilters() {
@@ -43,7 +40,6 @@ function resetFilters() {
 const filtered = computed(() =>
   list.value.filter((e) => {
     const f = filters
-    // Chỉ lấy giá trị của đúng cột đang chọn (cột nào để trống thì coi như '')
     if (f.keyword && !includesText(e[f.timTheo] ?? '', f.keyword)) return false
     if (f.idVaiTro && e.idVaiTro !== f.idVaiTro) return false
     if (f.trangThai && String(e.hoatDong) !== f.trangThai) return false
@@ -56,7 +52,7 @@ watch(filters, () => {
   page.value = 1
 })
 
-/* ----- Tải dữ liệu ----- */
+
 async function load(showLoading = true) {
   if (showLoading) loading.value = true
   try {
@@ -71,8 +67,8 @@ async function load(showLoading = true) {
 }
 onMounted(load)
 
-/* ----- Thêm / sửa / xem chi tiết ----- */
-const formState = ref(null) // null: đóng | { item: null }: thêm mới | { item }: chỉnh sửa
+
+const formState = ref(null)
 const detailItem = ref(null)
 
 function openCreate() {
@@ -106,7 +102,7 @@ async function save(payload) {
   }
 }
 
-/* ----- Xuất Excel (đúng theo danh sách đang lọc) ----- */
+
 function exportFile() {
   if (!filtered.value.length) {
     toast.error('Không có nhân viên nào để xuất.')
@@ -145,7 +141,7 @@ function exportFile() {
   toast.success(`Đã xuất ${filtered.value.length} nhân viên ra file Excel.`)
 }
 
-/* ----- Bật / tắt hoạt động ----- */
+
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
 
@@ -167,7 +163,6 @@ const confirmContent = computed(() => {
       }
 })
 
-// Backend chặn việc ẩn / đổi vai trò quản lý đang hoạt động cuối cùng và báo lỗi bằng toast.
 function toggleTitle(e) {
   return e.hoatDong ? 'Ẩn nhân viên' : 'Hiện lại nhân viên'
 }

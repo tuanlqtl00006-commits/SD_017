@@ -14,9 +14,7 @@ const totalPages = ref(1);
 
 const currentTab = ref(null);
 
-// Hàm xem chi tiết giờ chỉ làm nhiệm vụ chuyển trang
 const xemChiTiet = (idHoaDon) => {
-  // Chuyển hướng sang trang chi tiết và truyền ID lên thanh URL
   router.push(`/hoa-don/chi-tiet/${idHoaDon}`); 
 };
 
@@ -43,7 +41,6 @@ const fetchHoaDon = async (page = 0) => {
         denNgay: filter.value.denNgay || null,
         loaiDon: filter.value.loaiDon !== '' ? filter.value.loaiDon : null,
         
-        // Dòng quyết định lọc theo Tabs
         trangThai: activeTab.value !== null ? activeTab.value : null
       }
     });
@@ -70,13 +67,11 @@ const filter = ref({
   loaiDon: ''
 });
 
-// 1. THÊM BIẾN NÀY ĐỂ QUẢN LÝ TAB (null là Tất cả)
 const activeTab = ref(null);
 
-// 2. THÊM HÀM CHUYỂN TAB
 const changeTab = (status) => {
   activeTab.value = status;
-  fetchHoaDon(0); // Chuyển tab thì tự động reset về trang 1
+  fetchHoaDon(0);
 };
 
 
@@ -232,7 +227,7 @@ onMounted(() => {
               <h4 class="fw-bold m-0 text-dark" style="font-size: 1.25rem;">Danh Sách Hóa Đơn</h4>
             </div>
 
-<!-- DẢI TABS TRẠNG THÁI -->
+
             <ul class="nav custom-tabs d-flex justify-content-between flex-nowrap overflow-auto px-4 w-100" style="border-bottom: 1px solid #e9ecef;">
               <li class="nav-item">
                 <a class="nav-link text-center px-2" :class="{ active: activeTab === null }" href="#" @click.prevent="changeTab(null)">Tất Cả</a>
@@ -300,7 +295,7 @@ onMounted(() => {
 
                   <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ hd.loaiDon }}</td>
 
-                  <!-- Cột Hành Động -->
+                  
                   <td class="align-middle">
                     <button class="btn btn-sm btn-outline-primary border-0" 
                             title="Xem chi tiết" 

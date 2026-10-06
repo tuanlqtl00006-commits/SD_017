@@ -1,8 +1,4 @@
-/* ==========================================================================
-   FootStyle - style dùng chung cho các trang quản lý (phiếu giảm giá, nhân viên)
-   Màu chủ đạo lấy từ logo/giao diện của nhóm: xanh #0d6efd.
-   Tiền tố "ad-" để không đụng class của Bootstrap.
-   ========================================================================== */
+
 
 :root {
   --fs-primary: #0d6efd;
@@ -19,7 +15,7 @@
   --fs-success: #198754;
 }
 
-/* ---------- Layout chung: thanh bên + tiêu đề ---------- */
+
 
 .nav-link.side-link {
   color: #212529;
@@ -65,7 +61,7 @@ h1.ad-page-title {
   color: var(--fs-text);
 }
 
-/* ---------- Khung trang & thẻ ---------- */
+
 
 .ad-page {
   display: flex;
@@ -119,7 +115,7 @@ h2.ad-card-title {
   font-size: 1.5rem;
 }
 
-/* ---------- Bộ lọc ---------- */
+
 
 .ad-filter-grid {
   display: grid;
@@ -154,7 +150,7 @@ h2.ad-card-title {
   color: var(--fs-danger);
 }
 
-/* ---------- Ô nhập liệu ---------- */
+
 
 .form-control.ad-control,
 .form-select.ad-control {
@@ -221,7 +217,7 @@ textarea.form-control.ad-control {
   color: var(--fs-muted);
 }
 
-/* Ô có icon/đơn vị nằm trong khung */
+
 .ad-affix {
   position: relative;
 }
@@ -268,7 +264,7 @@ textarea.form-control.ad-control {
   padding-right: 3rem;
 }
 
-/* Ẩn nút tăng/giảm của ô số cho gọn */
+
 input[type='number'].ad-control {
   -moz-appearance: textfield;
   appearance: textfield;
@@ -279,7 +275,7 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   margin: 0;
 }
 
-/* Nhóm lựa chọn 2 phương án */
+
 .ad-segment {
   display: flex;
   gap: 0.35rem;
@@ -312,7 +308,7 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   outline-offset: 2px;
 }
 
-/* ---------- Nút ---------- */
+
 
 .ad-btn {
   display: inline-flex;
@@ -404,7 +400,7 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   cursor: not-allowed;
 }
 
-/* ---------- Danh sách / bảng ---------- */
+
 
 .ad-list-head {
   display: flex;
@@ -462,7 +458,7 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   width: 110px;
   text-align: center;
 }
-/* Ghim cột Hành động ở mép phải để luôn thấy khi bảng phải cuộn ngang trên màn hình nhỏ */
+
 .ad-table thead th.ad-col-actions {
   position: sticky;
   right: 0;
@@ -522,7 +518,7 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   color: var(--fs-text);
 }
 
-/* Nhãn trạng thái */
+
 .ad-pill {
   display: inline-flex;
   align-items: center;
@@ -558,7 +554,7 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   color: #c62836;
 }
 
-/* Avatar nhân viên */
+
 .ad-avatar {
   flex: none;
   width: 40px;
@@ -583,7 +579,7 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   font-size: 1.35rem;
 }
 
-/* ---------- Phân trang ---------- */
+
 
 .ad-pager {
   display: flex;
@@ -632,7 +628,7 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   outline-offset: 2px;
 }
 
-/* ---------- Hộp thoại ---------- */
+
 
 .ad-modal {
   border: 0;
@@ -727,7 +723,7 @@ h3.ad-detail-name {
   padding: 0 0.9rem;
 }
 
-/* ---------- Thông báo nổi ---------- */
+
 
 .ad-toast-host {
   position: fixed;
@@ -810,8 +806,8 @@ h3.ad-detail-name {
   }
 }
 
-/* ---- Co giãn khi zoom 90% / 100% hoặc màn hình hẹp ---- */
-/* Tiêu đề cột không xuống dòng; bảng quá hẹp thì cuộn ngang thay vì bóp chữ */
+
+
 .table > thead th { white-space: nowrap; }
 .table-responsive > .table { min-width: 880px; }
 @media (max-width: 1500px) {
@@ -819,7 +815,7 @@ h3.ad-detail-name {
   main.p-4 { padding: 1.25rem !important; }
 }
 
-/* Nền mờ của popup: Bootstrap dùng 100vw/100vh nên khi body bị zoom (--ui-zoom) sẽ chỉ phủ một phần màn hình */
+
 .modal-backdrop {
   width: calc(100vw / var(--ui-zoom, 1));
   height: calc(100vh / var(--ui-zoom, 1));

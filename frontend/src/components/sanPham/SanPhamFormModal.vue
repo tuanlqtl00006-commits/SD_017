@@ -4,22 +4,16 @@ import BaseModal from '../common/BaseModal.vue'
 import { taoMa } from '../../constants/thuocTinh'
 import { layLuaChon } from '../../utils/text'
 
-// Dữ liệu cha (SanPhamManager) truyền xuống
 const props = defineProps({
-  item: { type: Object, default: null }, // null: thêm mới; có giá trị: sửa sản phẩm này
-  all: { type: Array, default: () => [] }, // toàn bộ sản phẩm, để kiểm tra trùng mã
-  thuocTinh: { type: Object, required: true }, // các bảng thuộc tính để đổ vào dropdown
-  saving: { type: Boolean, default: false }, // đang lưu thì khóa nút
+  item: { type: Object, default: null },
+  all: { type: Array, default: () => [] },
+  thuocTinh: { type: Object, required: true },
+  saving: { type: Boolean, default: false },
 })
-// Form báo ngược lên cha: 'save' (kèm dữ liệu) hoặc 'close' (đóng)
 const emit = defineEmits(['save', 'close'])
 
-// true nếu đang sửa, false nếu thêm mới
 const isEdit = computed(() => props.item !== null)
 
-// 6 ô chọn của sản phẩm. Dùng v-for để khỏi lặp 6 đoạn HTML giống nhau.
-//   field: tên trường trong form (cũng là cột khóa ngoại trong bảng san_pham)
-//   slug : tên bảng thuộc tính để lấy danh sách cho dropdown
 const SELECTS = [
   { field: 'idDanhMuc', slug: 'danh-muc', label: 'Danh mục' },
   { field: 'idThuongHieu', slug: 'thuong-hieu', label: 'Thương hiệu' },
@@ -29,8 +23,6 @@ const SELECTS = [
   { field: 'idDiemCanBang', slug: 'diem-can-bang', label: 'Điểm cân bằng' },
 ]
 
-// Giá trị ban đầu của form
-// Thêm mới: để trống, mã tự gợi ý (SP007...). Sửa: lấy dữ liệu của sản phẩm cũ.
 const form = reactive({
   ma: '',
   ten: '',
@@ -41,12 +33,11 @@ const form = reactive({
   idDoCung: '',
   idDiemCanBang: '',
   anhChinh: '',
-  anhPhu: '', // mỗi dòng một đường dẫn ảnh phụ (khi gửi sẽ tách thành mảng)
+  anhPhu: '',
   moTa: '',
 })
 
 if (props.item) {
-  // Đang sửa: chép dữ liệu cũ vào form
   form.ma = props.item.ma
   form.ten = props.item.ten
   form.idDanhMuc = props.item.idDanhMuc
@@ -59,17 +50,15 @@ if (props.item) {
   form.anhPhu = (props.item.anhPhu || []).join('\n')
   form.moTa = props.item.moTa
 } else {
-  // Thêm mới: gợi ý mã không trùng mã đã có
   const cacMaDaCo = props.all.map((p) => p.ma)
   form.ma = taoMa('SP', cacMaDaCo)
 }
 
-/* ----- Kiểm tra dữ liệu (validate) ----- */
 
-const errors = reactive({}) // lưu lỗi của từng ô, ví dụ errors.ten = 'Nhập tên sản phẩm.'
-const daBamLuu = ref(false) // chỉ hiện lỗi sau khi người dùng bấm Lưu lần đầu
 
-// Tách ô "ảnh phụ" thành mảng: bỏ dòng trống, bỏ khoảng trắng thừa
+const errors = reactive({})
+const daBamLuu = ref(false)
+
 function tachAnhPhu() {
   return String(form.anhPhu)
     .split('\n')
@@ -77,14 +66,11 @@ function tachAnhPhu() {
     .filter((dong) => dong !== '')
 }
 
-// Kiểm tra từng ô. Trả về true nếu hợp lệ, false nếu có lỗi.
 function kiemTra() {
-  // Xóa lỗi cũ
   for (const key of Object.keys(errors)) {
     delete errors[key]
   }
 
-  // Mã sản phẩm: bắt buộc, 3-20 ký tự chữ hoặc số, không trùng
   const ma = String(form.ma).trim().toUpperCase()
   if (ma === '') {
     errors.ma = 'Nhập mã sản phẩm.'
@@ -94,7 +80,6 @@ function kiemTra() {
     errors.ma = 'Mã sản phẩm đã tồn tại.'
   }
 
-  // Tên sản phẩm: bắt buộc, tối đa 255 ký tự (khớp độ dài cột trong SQL)
   const ten = String(form.ten).trim()
   if (ten === '') {
     errors.ten = 'Nhập tên sản phẩm.'
@@ -102,14 +87,12 @@ function kiemTra() {
     errors.ten = 'Tên sản phẩm tối đa 255 ký tự.'
   }
 
-  // 6 ô chọn: bắt buộc phải chọn (giá trị '' nghĩa là chưa chọn)
   for (const s of SELECTS) {
     if (form[s.field] === '') {
       errors[s.field] = 'Chọn ' + s.label.toLowerCase() + '.'
     }
   }
 
-  // Ảnh chính: không bắt buộc, nhưng nếu nhập thì phải là đường dẫn http(s)
   const anh = String(form.anhChinh).trim()
   if (anh !== '' && !/^https?:\/\/\S+$/i.test(anh)) {
     errors.anhChinh = 'Đường dẫn ảnh phải bắt đầu bằng http:// hoặc https://.'
@@ -117,7 +100,6 @@ function kiemTra() {
     errors.anhChinh = 'Đường dẫn ảnh tối đa 500 ký tự.'
   }
 
-  // Ảnh phụ: mỗi dòng một đường dẫn http(s); phải có ảnh chính; tổng tối đa 10 ảnh (giống backend)
   const dsPhu = tachAnhPhu()
   if (dsPhu.some((u) => !/^https?:\/\/\S+$/i.test(u))) {
     errors.anhPhu = 'Mỗi dòng là một đường dẫn bắt đầu bằng http:// hoặc https://.'
@@ -129,23 +111,18 @@ function kiemTra() {
     errors.anhPhu = 'Mỗi sản phẩm tối đa 10 ảnh (gồm cả ảnh chính).'
   }
 
-  // Không có lỗi nào -> hợp lệ
   return Object.keys(errors).length === 0
 }
 
-// Sau khi đã bấm Lưu một lần, người dùng sửa ô nào thì kiểm tra lại ngay để lỗi biến mất
 watch(form, () => {
   if (daBamLuu.value) kiemTra()
 })
 
-// Bấm nút Lưu
 function guiForm() {
   daBamLuu.value = true
   if (!kiemTra()) {
-    return // có lỗi thì dừng, không gửi lên cha
+    return
   }
-  // Hợp lệ: chuẩn hóa dữ liệu rồi báo cho cha lưu.
-  // Number(...) vì giá trị lấy từ dropdown có thể là chuỗi, còn id trong dữ liệu là số.
   emit('save', {
     ma: String(form.ma).trim().toUpperCase(),
     ten: String(form.ten).trim(),
@@ -161,7 +138,6 @@ function guiForm() {
   })
 }
 
-// Mở form xong thì đặt con trỏ vào ô Tên cho tiện nhập
 onMounted(() => {
   const o = document.getElementById('sp-ten')
   if (o) o.focus()

@@ -40,25 +40,25 @@ public class HoaDonController {
             @RequestParam(value = "ghiChu", required = false) String ghiChu) {
         
         try {
-            // 1. Tìm hóa đơn
+            
             HoaDon hoaDon = hoaDonRepository.findById(id).orElse(null);
             if (hoaDon == null) {
                 return ResponseEntity.badRequest().body("Không tìm thấy hóa đơn!");
             }
             
-            // 2. Cập nhật trạng thái hóa đơn mới
+            
             hoaDon.setTrangThai(trangThaiMoi);
             hoaDonRepository.save(hoaDon);
             
-            // 3. TẠO VÀ LƯU LỊCH SỬ THAO TÁC
+            
             LichSuHoaDon lichSu = new LichSuHoaDon();
             lichSu.setHoaDon(hoaDon);
             lichSu.setTrangThai(trangThaiMoi);
             
-            // ĐỔI TÊN Ở ĐÂY: (Sau này có form Đăng nhập thì lấy tên từ tài khoản ra)
+            
             lichSu.setNguoiTao("ADMIN - Nguyễn Trịnh Phương Minh"); 
 
-            // Cập nhật tên hành động cho đúng với trạng thái thay vì câu mặc định
+            
             String tenTrangThai = "";
             switch (trangThaiMoi) {
                 case 0: tenTrangThai = "Hủy đơn hàng"; break;
@@ -116,10 +116,10 @@ public class HoaDonController {
             return ResponseEntity.notFound().build();
         }
 
-        // TÌM THÊM DANH SÁCH LỊCH SỬ CỦA HÓA ĐƠN NÀY
+        
         java.util.List<LichSuHoaDon> lichSuList = lichSuHoaDonRepository.findByHoaDon_Id(id);
         
-        // THÊM DÒNG NÀY ĐỂ TRẢ VỀ CÙNG VỚI HÓA ĐƠN VÀ CHI TIẾT
+        
         result.put("danhSachLichSu", lichSuList);
 
         return ResponseEntity.ok(result);

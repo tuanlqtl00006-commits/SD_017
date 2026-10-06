@@ -7,7 +7,7 @@
 
       <main class="p-4">
         
-        <!-- Bộ lọc và Công cụ -->
+        
         <div class="mb-4">
           <h6 class="fw-bold mb-3 d-flex align-items-center text-secondary"><i class="bi bi-funnel me-2 fs-5"></i> Bộ lọc</h6>
           
@@ -141,7 +141,7 @@
           </div>
         </div>
 
-        <!-- Modal Sửa Khách Hàng -->
+        
         <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-4 shadow-lg" style="width: 750px; max-width: 95vw; pointer-events: auto; animation: slideDown 0.3s ease-out;">
             <div class="modal-header d-flex justify-content-between align-items-center px-4 pt-4 pb-2 border-bottom-0">
@@ -240,7 +240,7 @@
 import { ref, onMounted } from 'vue'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
-import api from '../services/api' // sử dụng cấu hình axios có sẵn
+import api from '../services/api'
 
 const showModal = ref(false)
 const isEdit = ref(false)
@@ -261,13 +261,11 @@ const formData = ref({
 const customers = ref([])
 const searchQuery = ref('')
 
-// Dữ liệu địa chỉ
 const provinces = ref([])
 const districts = ref([])
 const wards = ref([])
 const allLocations = ref([])
 
-// Fetch địa chỉ từ ESGOO
 const fetchLocations = async () => {
   try {
     const res = await api.get('https://esgoo.net/api-tinhthanh/4/0.htm')
@@ -280,14 +278,12 @@ const fetchLocations = async () => {
   }
 }
 
-// Watchers để cập nhật dropdown Quận/Huyện và Phường/Xã
 import { watch } from 'vue'
 
 watch(() => formData.value.tinhThanh, (newVal) => {
   if (newVal) {
     const selectedProv = allLocations.value.find(p => p.full_name === newVal)
     districts.value = selectedProv ? selectedProv.data2 : []
-    // Không reset nếu đang load dữ liệu sửa (sẽ xử lý logic reset cẩn thận)
   } else {
     districts.value = []
     wards.value = []
@@ -322,7 +318,6 @@ const fetchCustomers = async (resetPage = false) => {
   }
 }
 
-// Cài đặt chức năng phân trang
 const currentPage = ref(1)
 const itemsPerPage = 5
 
@@ -499,7 +494,7 @@ const toggleStatus = async (kh) => {
     await api.put(`/khach-hang/${kh.id}`, kh)
   } catch (error) {
     console.error(error)
-    kh.trangThai = kh.trangThai === 1 ? 0 : 1; // khôi phục lại trạng thái cũ nếu lỗi
+    kh.trangThai = kh.trangThai === 1 ? 0 : 1;
   }
 }
 
@@ -524,12 +519,12 @@ const formatDate = (dateString) => {
 </script>
 
 <style scoped>
-/* Form Input */
+
 .form-control::placeholder {
   color: #ced4da;
 }
 
-/* Action Buttons */
+
 .action-btn {
   width: 32px;
   height: 32px;
@@ -547,7 +542,7 @@ const formatDate = (dateString) => {
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-/* Custom Buttons */
+
 .custom-outline-btn {
   border-color: #dee2e6;
   padding: 0.5rem 1.25rem;
@@ -566,7 +561,7 @@ const formatDate = (dateString) => {
   border-color: #0a58ca !important;
 }
 
-/* Pagination */
+
 .custom-pagination .page-link {
   color: #495057;
   border: none !important;

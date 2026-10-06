@@ -1,15 +1,12 @@
-package com.footstyle.demo.entity;
-
+package entity;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
-
+import lombok.*;
 import java.math.BigDecimal;
-
+import java.time.LocalDateTime;
+import java.util.List;
 @Entity
 @Table(name = "hoa_don_chi_tiet")
-@Getter
-@Setter
+@Getter @Setter
 public class HoaDonChiTiet {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -17,11 +14,10 @@ public class HoaDonChiTiet {
 
     @ManyToOne
     @JoinColumn(name = "id_hoa_don")
-    @com.fasterxml.jackson.annotation.JsonIgnore 
     private HoaDon hoaDon;
 
     @ManyToOne
-    @JoinColumn(name = "id_san_pham_chi_tiet") 
+    @JoinColumn(name = "id_san_pham_chi_tiet")
     private SanPhamChiTiet sanPhamChiTiet;
 
     private Integer soLuong;

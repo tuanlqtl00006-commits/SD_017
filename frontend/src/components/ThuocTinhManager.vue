@@ -1,6 +1,4 @@
 <script setup>
-// Một trang dùng chung cho 9 bảng thuộc tính (danh mục, thương hiệu, xuất xứ, chất liệu, độ cứng,
-// điểm cân bằng, màu sắc, trọng lượng, chu vi). Loại thuộc tính lấy từ route.meta.attr (xem router/index.js).
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
@@ -51,8 +49,8 @@ async function load(showLoading = true) {
 }
 onMounted(load)
 
-/* ----- Thêm / sửa ----- */
-const formState = ref(null) // null: đóng | { item: null }: thêm mới | { item }: chỉnh sửa
+
+const formState = ref(null)
 async function save(payload) {
   const editing = formState.value?.item
   saving.value = true
@@ -73,7 +71,7 @@ async function save(payload) {
   }
 }
 
-/* ----- Bật / tắt hoạt động ----- */
+
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
 const confirmContent = computed(() => {
@@ -108,7 +106,7 @@ async function confirmToggle() {
   }
 }
 
-/* ----- Xuất Excel ----- */
+
 function exportFile() {
   if (!filtered.value.length) {
     toast.error(`Không có ${lower} nào để xuất.`)

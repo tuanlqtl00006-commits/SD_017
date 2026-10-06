@@ -5,25 +5,17 @@ import { GIOI_TINH, taoMaNhanVien, tinhTuoi } from '../../constants/nhanVien'
 import { avatarColors, formatDate, getInitials, toIso, todayIso } from '../../utils/format'
 
 const props = defineProps({
-  item: { type: Object, default: null }, // null: thêm mới
-  all: { type: Array, default: () => [] }, // toàn bộ nhân viên, dùng để kiểm tra trùng
-  vaiTro: { type: Array, default: () => [] }, // [{ id, ten }] lấy từ bảng vai_tro
+  item: { type: Object, default: null },
+  all: { type: Array, default: () => [] },
+  vaiTro: { type: Array, default: () => [] },
   saving: { type: Boolean, default: false },
 })
 const emit = defineEmits(['save', 'close'])
 
-/*
- * QUY ĐỊNH KHI SỬA NHÂN VIÊN
- *  - Được sửa : họ tên, giới tính, ngày sinh, số điện thoại, địa chỉ, vai trò.
- *  - Không sửa: mã nhân viên (hệ thống cấp), email (là tài khoản đăng nhập),
- *               ngày vào làm (mốc tuyển dụng), mật khẩu (nhập lúc thêm mới, không hiện ở form sửa).
- *  - Trạng thái hoạt động: dùng nút ẩn / hiện ở danh sách, không nằm trong form này.
- * Khi thêm mới thì nhập đầy đủ tất cả các ô.
- */
+
 const isEdit = computed(() => !!props.item)
 const maNhanVien = computed(() => (props.item ? props.item.ma : taoMaNhanVien(props.all)))
 
-// Mặc định vai trò "Nhân viên" (vai trò cuối danh sách không phải quản lý); nếu không có thì lấy vai trò đầu tiên.
 const vaiTroMacDinh = () => (props.vaiTro.find((v) => v.ten !== 'Quản lý') ?? props.vaiTro[0])?.id ?? null
 
 const form = reactive(
@@ -56,7 +48,6 @@ const errors = reactive({})
 const submitted = ref(false)
 const showPassword = ref(false)
 
-// Ngày sinh tối đa: đủ 18 tuổi tính đến hôm nay
 const maxBirthDate = computed(() => {
   const d = new Date()
   d.setFullYear(d.getFullYear() - 18)
@@ -75,7 +66,6 @@ function validate() {
   if (!hoTen) e.hoTen = 'Nhập họ tên.'
   else if (hoTen.length < 2 || hoTen.length > 60) e.hoTen = 'Họ tên từ 2 đến 60 ký tự.'
 
-  // Email chỉ nhập lúc thêm mới; khi sửa email bị khóa nên không cần kiểm tra
   if (!isEdit.value) {
     const email = String(form.email).trim()
     if (!email) e.email = 'Nhập email.'
@@ -92,8 +82,6 @@ function validate() {
 
   if (!form.idVaiTro) e.idVaiTro = 'Chọn vai trò.'
 
-  // Ngày vào làm phải sau khi đủ 18 tuổi.
-  // Khi sửa, ngày vào làm bị khóa nên lỗi được báo ở ô ngày sinh (ô duy nhất người dùng sửa được).
   if (form.ngayVaoLam && form.ngaySinh && !e.ngaySinh) {
     const [y, m, d] = form.ngaySinh.split('-').map(Number)
     const dau18 = toIso(new Date(y + 18, m - 1, d))
@@ -107,7 +95,6 @@ function validate() {
   if (!diaChi) e.diaChi = 'Nhập địa chỉ.'
   else if (diaChi.length > 255) e.diaChi = 'Địa chỉ tối đa 255 ký tự.'
 
-  // Mật khẩu chỉ nhập lúc thêm mới (khi sửa không có ô mật khẩu).
   if (!isEdit.value) {
     if (!form.matKhau) e.matKhau = 'Nhập mật khẩu cho nhân viên mới.'
     else if (form.matKhau.length < 8 || form.matKhau.length > 50) e.matKhau = 'Mật khẩu từ 8 đến 50 ký tự.'
@@ -123,7 +110,6 @@ function refreshErrors() {
   return e
 }
 
-// Sau lần bấm lưu đầu tiên, báo lỗi theo thời gian thực để người dùng thấy ngay khi đã sửa đúng.
 watch(form, () => {
   if (submitted.value) refreshErrors()
 })
@@ -135,7 +121,6 @@ function submit() {
     nextTick(() => document.querySelector('#nv-form .is-invalid')?.focus())
     return
   }
-  // Các trường được sửa (dùng cho cả thêm mới và sửa)
   const payload = {
     hoTen: String(form.hoTen).trim().replace(/\s+/g, ' '),
     soDienThoai: String(form.soDienThoai).trim(),
@@ -144,7 +129,6 @@ function submit() {
     diaChi: String(form.diaChi).trim(),
     idVaiTro: form.idVaiTro,
   }
-  // Email, ngày vào làm, mật khẩu: chỉ gửi khi THÊM MỚI. Khi sửa thì không gửi (giữ nguyên giá trị cũ).
   if (!isEdit.value) {
     payload.email = String(form.email).trim().toLowerCase()
     payload.ngayVaoLam = form.ngayVaoLam || null
@@ -213,7 +197,7 @@ onMounted(() => {
           <p v-if="errors.email" id="nv-email-msg" class="ad-error">{{ errors.email }}</p>
         </div>
 
-        <!-- Mật khẩu chỉ nhập khi thêm mới; form sửa không có ô này -->
+        
         <div v-if="!isEdit" class="col-md-6">
           <label class="ad-label" for="nv-mat-khau">Mật khẩu <span class="ad-required">*</span></label>
           <div class="ad-affix">

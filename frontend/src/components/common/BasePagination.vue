@@ -11,7 +11,6 @@ const emit = defineEmits(['update:page', 'update:pageSize'])
 
 const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
 
-// Hiển thị tối đa 5 số trang quanh trang hiện tại.
 const pages = computed(() => {
   const maxVisible = 5
   let start = Math.max(1, props.page - Math.floor(maxVisible / 2))

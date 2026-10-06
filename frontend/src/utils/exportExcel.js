@@ -1,18 +1,16 @@
-// Xuất file .xlsx thật, không cần thư viện ngoài (tự đóng gói zip dạng "store").
 
 const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
 const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 const escapeXml = (value) =>
   String(value)
-    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 
-/** 0 -> 'A', 25 -> 'Z', 26 -> 'AA' */
+
 function columnName(index) {
   let n = index + 1
   let name = ''
@@ -90,7 +88,7 @@ function crc32(bytes) {
   return (c ^ 0xffffffff) >>> 0
 }
 
-/** Gói các file vào một zip không nén. files: [{ name, text }] */
+
 function zipStore(files) {
   const enc = new TextEncoder()
   const localParts = []
@@ -106,10 +104,10 @@ function zipStore(files) {
     const lv = new DataView(local.buffer)
     lv.setUint32(0, 0x04034b50, true)
     lv.setUint16(4, 20, true)
-    lv.setUint16(6, 0x0800, true) // tên file UTF-8
-    lv.setUint16(8, 0, true) // không nén
+    lv.setUint16(6, 0x0800, true)
+    lv.setUint16(8, 0, true)
     lv.setUint16(10, 0, true)
-    lv.setUint16(12, 0x21, true) // ngày 1980-01-01
+    lv.setUint16(12, 0x21, true)
     lv.setUint32(14, crc, true)
     lv.setUint32(18, data.length, true)
     lv.setUint32(22, data.length, true)
@@ -147,10 +145,7 @@ function zipStore(files) {
   return new Blob([...localParts, ...centralParts, end], { type: MIME })
 }
 
-/**
- * Tạo Blob .xlsx.
- * columns: [{ header, key, width }]  rows: [{ [key]: string | number }]
- */
+
 export function buildXlsx({ sheetName = 'Sheet1', columns, rows }) {
   const safeName = sheetName.replace(/[[\]:*?/\\]/g, ' ').slice(0, 31) || 'Sheet1'
   return zipStore([
@@ -195,7 +190,7 @@ export function buildXlsx({ sheetName = 'Sheet1', columns, rows }) {
   ])
 }
 
-/** Tạo file .xlsx và tải về máy. */
+
 export function exportExcel({ filename, ...options }) {
   const url = URL.createObjectURL(buildXlsx(options))
   const link = document.createElement('a')

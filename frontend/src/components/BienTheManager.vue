@@ -24,7 +24,7 @@ const saving = ref(false)
 
 const spOf = (id) => sanPhams.value.find((p) => p.id === id)
 
-/* ----- Bộ lọc ----- */
+
 const defaultFilters = () => ({ keyword: '', idSanPham: '', idMauSac: '', trangThai: '', conHang: '' })
 const filters = reactive(defaultFilters())
 const resetFilters = () => Object.assign(filters, defaultFilters())
@@ -44,7 +44,7 @@ const filtered = computed(() =>
 const { page, pageSize, total, items: pageItems } = usePagination(filtered, 5)
 watch(filters, () => { page.value = 1 })
 
-/* ----- Tải dữ liệu ----- */
+
 async function load(showLoading = true) {
   if (showLoading) loading.value = true
   try {
@@ -59,7 +59,7 @@ async function load(showLoading = true) {
 }
 onMounted(load)
 
-/* ----- Thêm / sửa ----- */
+
 const formState = ref(null)
 async function save(payload) {
   const editing = formState.value?.item
@@ -81,7 +81,7 @@ async function save(payload) {
   }
 }
 
-/* ----- Bật / tắt hoạt động ----- */
+
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
 const confirmContent = computed(() => {
@@ -106,7 +106,7 @@ async function confirmToggle() {
   }
 }
 
-/* ----- Xuất Excel ----- */
+
 function exportFile() {
   if (!filtered.value.length) {
     toast.error('Không có biến thể nào để xuất.')

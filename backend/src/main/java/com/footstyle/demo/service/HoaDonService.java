@@ -129,7 +129,7 @@ public class HoaDonService {
     public java.util.Map<String, Object> getChiTietHoaDon(Integer idHoaDon) {
         java.util.Map<String, Object> response = new java.util.HashMap<>();
 
-        // 1. Lấy thông tin chung của Hóa Đơn
+        
         HoaDon hd = hoaDonRepository.findById(idHoaDon).orElse(null);
         if (hd == null) return response;
 
@@ -143,7 +143,7 @@ public class HoaDonService {
         
         response.put("hoaDon", hoaDonInfo);
 
-        // 2. Lấy danh sách sản phẩm nằm trong hóa đơn đó
+        
         List<com.footstyle.demo.entity.HoaDonChiTiet> listHDCT = hoaDonChiTietRepository.findByHoaDon_Id(idHoaDon);
         List<java.util.Map<String, Object>> chiTietList = new ArrayList<>();
         
@@ -163,23 +163,23 @@ public class HoaDonService {
                     tenSp = ct.getSanPhamChiTiet().getSanPham().getTenSanPham();
                 }
                 
-                // Lấy Màu Sắc
+                
                 if (ct.getSanPhamChiTiet().getMauSac() != null) {
-                    mauSac = ct.getSanPhamChiTiet().getMauSac().getTen(); // Dùng getTen() theo ThuocTinh.java
+                    mauSac = ct.getSanPhamChiTiet().getMauSac().getTen(); 
                 }
                 
-                // Lấy Trọng Lượng (Ví dụ: 3U, 4U)
+                
                 if (ct.getSanPhamChiTiet().getTrongLuong() != null) {
-                    trongLuong = ct.getSanPhamChiTiet().getTrongLuong().getTen(); // Dùng getTen()
+                    trongLuong = ct.getSanPhamChiTiet().getTrongLuong().getTen(); 
                 }
                 
-                // Lấy Chu vi cán (Ví dụ: G5, G6)
+                
                 if (ct.getSanPhamChiTiet().getChuVi() != null) {
-                    chuVi = ct.getSanPhamChiTiet().getChuVi().getTen(); // Dùng getTen()
+                    chuVi = ct.getSanPhamChiTiet().getChuVi().getTen(); 
                 }
             }
             
-            // Đẩy lên Vue.js
+            
             item.put("tenSanPham", tenSp);
             item.put("maSPCT", maSpct);
             item.put("mauSac", mauSac);

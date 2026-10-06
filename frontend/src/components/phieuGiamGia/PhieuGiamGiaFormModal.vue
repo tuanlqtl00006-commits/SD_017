@@ -7,14 +7,13 @@ import { includesText } from '../../utils/text'
 import { todayIso } from '../../utils/format'
 
 const props = defineProps({
-  item: { type: Object, default: null }, // null: tạo mới; khi sửa có kèm khachHangs (lấy từ API chi tiết)
-  all: { type: Array, default: () => [] }, // toàn bộ phiếu, dùng để kiểm tra trùng mã
+  item: { type: Object, default: null },
+  all: { type: Array, default: () => [] },
   saving: { type: Boolean, default: false },
 })
 const emit = defineEmits(['save', 'close'])
 
 const isEdit = computed(() => !!props.item)
-// Phiếu đã có người dùng thì không đổi hình thức (công khai / cá nhân) và không bỏ được khách đã dùng.
 const daCoNguoiDung = computed(
   () => (props.item?.soLuongDaDung ?? 0) > 0 || (props.item?.khachHangs ?? []).some((k) => k.daDung),
 )
@@ -55,7 +54,7 @@ const form = reactive(
 const isPercent = computed(() => form.loaiGiam === 'PHAN_TRAM')
 const isCaNhan = computed(() => form.hinhThuc === 'CA_NHAN')
 
-/* ----- Chọn khách hàng (chỉ phiếu cá nhân) ----- */
+
 const khachHangAll = ref([])
 const khachLoading = ref(false)
 const khachError = ref('')
@@ -93,7 +92,6 @@ function boChonDangLoc() {
   form.khachHangIds = form.khachHangIds.filter((id) => !dangLoc.has(id) || giuLai.has(id))
 }
 
-// Phiếu cá nhân: mỗi khách được tặng 1 phiếu nên số lượng = số khách được chọn.
 watch(
   () => [isCaNhan.value, form.khachHangIds.length],
   ([caNhan, n]) => {
@@ -112,7 +110,6 @@ watch(
 const errors = reactive({})
 const submitted = ref(false)
 
-// Đổi sang giảm theo số tiền thì bỏ "giảm tối đa" (chỉ dùng cho giảm theo %).
 watch(
   () => form.loaiGiam,
   (value) => {
@@ -180,7 +177,6 @@ function refreshErrors() {
   return e
 }
 
-// Sau lần bấm lưu đầu tiên, báo lỗi theo thời gian thực để người dùng thấy ngay khi đã sửa đúng.
 watch(form, () => {
   if (submitted.value) refreshErrors()
 })

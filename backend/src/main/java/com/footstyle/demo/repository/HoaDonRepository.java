@@ -13,11 +13,11 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Integer>, JpaSpe
     Page<HoaDon> findByMaHoaDonContainingAndTrangThai(String maHoaDon, Integer trangThai, Pageable pageable);
     Page<HoaDon> findByMaHoaDonContaining(String maHoaDon, Pageable pageable);
 
-    // 1. Sắp xếp từ BÉ đến LỚN (HD001 -> HD012)
+    
     @org.springframework.data.jpa.repository.Query("SELECT h FROM HoaDon h ORDER BY h.id ASC")
     java.util.List<HoaDon> findAllByOrderByIdAsc();
 
-    // 2. Sắp xếp từ LỚN đến BÉ (Mới nhất lên đầu: HD012 -> HD001)
+    
     @org.springframework.data.jpa.repository.Query("SELECT h FROM HoaDon h ORDER BY h.id DESC")
     java.util.List<HoaDon> findAllByOrderByIdDesc();
 }

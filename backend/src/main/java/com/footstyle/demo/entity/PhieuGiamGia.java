@@ -58,10 +58,10 @@ public class PhieuGiamGia {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    public static final int DOI_TUONG_TAT_CA = 1;       // doi_tuong_ap_dung: Tất cả (phiếu công khai)
-    public static final int DOI_TUONG_KHACH_CU_THE = 2; // doi_tuong_ap_dung: Khách hàng cụ thể (phiếu cá nhân)
-    public static final int LOAI_PHAN_TRAM = 1;         // loai_giam: Phần trăm
-    public static final int LOAI_SO_TIEN = 2;           // loai_giam: Số tiền
-    public static final int HOAT_DONG = 1;              // trang_thai
+    public static final int DOI_TUONG_TAT_CA = 1;       
+    public static final int DOI_TUONG_KHACH_CU_THE = 2; 
+    public static final int LOAI_PHAN_TRAM = 1;         
+    public static final int LOAI_SO_TIEN = 2;           
+    public static final int HOAT_DONG = 1;              
     public static final int NGUNG_HOAT_DONG = 0;
 }

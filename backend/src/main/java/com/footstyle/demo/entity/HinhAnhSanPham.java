@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-/** Bảng hinh_anh_san_pham: một sản phẩm có nhiều ảnh, đúng một ảnh có la_anh_chinh = 1. */
+
 @Entity
 @Getter
 @Setter
@@ -29,6 +29,6 @@ public class HinhAnhSanPham {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    public static final int HOAT_DONG = 1;        // trang_thai (0 = ảnh đã bỏ khỏi sản phẩm)
+    public static final int HOAT_DONG = 1;        
     public static final int NGUNG_HOAT_DONG = 0;
 }

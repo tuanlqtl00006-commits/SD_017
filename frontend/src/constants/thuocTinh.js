@@ -1,8 +1,3 @@
-// Các bảng thuộc tính của sản phẩm trong ERD (danh_muc, thuong_hieu, xuat_xu, chat_lieu, do_cung,
-// diem_can_bang, mau_sac, trong_luong, chu_vi). Cả 9 bảng cùng cấu trúc: id, ma, ten, trang_thai
-// nên dùng chung một trang quản lý (ThuocTinhManager.vue), chỉ khác cấu hình ở đây.
-//   slug   : đường dẫn /san-pham/<slug>
-//   prefix : tiền tố mã gợi ý khi tạo mới
 
 export const THUOC_TINH = {
   'danh-muc': {
@@ -36,14 +31,13 @@ export const THUOC_TINH = {
 
 export const THUOC_TINH_LIST = Object.values(THUOC_TINH)
 
-// Trạng thái dùng chung cho thuộc tính, sản phẩm, biến thể (cột trang_thai: 1 = hoạt động, 0 = ngưng)
 export const TRANG_THAI = {
   HOAT_DONG: { label: 'Đang hoạt động', cls: 'ad-pill-green' },
   NGUNG: { label: 'Ngưng hoạt động', cls: 'ad-pill-red' },
 }
 export const trangThaiOf = (item) => (item.hoatDong ? 'HOAT_DONG' : 'NGUNG')
 
-/** Mã kế tiếp dạng DM001: lấy số lớn nhất đang có + 1 (giống cách backend cấp mã). Chỉ để hiển thị trước. */
+
 export function taoMa(prefix, existing = []) {
   let max = 0
   for (const ma of existing) {

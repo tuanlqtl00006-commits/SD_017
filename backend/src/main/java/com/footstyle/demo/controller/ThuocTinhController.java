@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 9 bảng thuộc tính dùng chung một controller: /api/thuoc-tinh/{loai}, loai = danh-muc, thuong-hieu, mau-sac, ... */
+
 @RestController
 @RequestMapping("/api/thuoc-tinh/{loai}")
 @RequiredArgsConstructor
@@ -38,7 +38,7 @@ public class ThuocTinhController {
         return service.sua(loai, id, req);
     }
 
-    /** Ẩn / hiện. Không xóa cứng vì sản phẩm đang dùng thuộc tính này. */
+    
     @PutMapping("/{id}/trang-thai")
     public ThuocTinhResponse doiTrangThai(@PathVariable String loai, @PathVariable Integer id) {
         return service.doiTrangThai(loai, id);

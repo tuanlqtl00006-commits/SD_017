@@ -17,9 +17,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Quản lý biến thể sản phẩm (bảng san_pham_chi_tiet) = sản phẩm + màu sắc + trọng lượng + chu vi, kèm giá bán, tồn kho.
- */
+
+
+
 @Service
 @RequiredArgsConstructor
 public class BienTheService {
@@ -30,7 +30,7 @@ public class BienTheService {
     private final TrongLuongRepository trongLuongRepo;
     private final ChuViRepository chuViRepo;
 
-    /* ===================== Đọc ===================== */
+    
 
     @Transactional(readOnly = true)
     public List<BienTheResponse> getAll() {
@@ -46,7 +46,7 @@ public class BienTheService {
         return toResponse(timBienThe(id));
     }
 
-    /* ===================== Thêm / sửa / đổi trạng thái ===================== */
+    
 
     @Transactional
     public BienTheResponse them(BienTheRequest req) {
@@ -54,7 +54,7 @@ public class BienTheService {
         b.setTrangThai(SanPhamChiTiet.HOAT_DONG);
         b.setNgayTao(LocalDateTime.now());
 
-        // Sản phẩm của biến thể: phải tồn tại và đang hoạt động
+        
         loi(req.idSanPham() == null, "Chọn sản phẩm.");
         SanPham sp = sanPhamRepo.findById(req.idSanPham())
                 .orElseThrow(() -> ApiException.badRequest("Sản phẩm không tồn tại."));
@@ -62,7 +62,7 @@ public class BienTheService {
                 "Sản phẩm đã ngưng hoạt động, không thể thêm biến thể mới.");
         b.setSanPham(sp);
 
-        // Mã biến thể: chỉ đặt khi thêm mới, không đổi sau đó
+        
         String ma = req.ma() == null ? "" : req.ma().trim().toUpperCase();
         loi(ma.isEmpty(), "Nhập mã biến thể.");
         loi(!ma.matches("[A-Z0-9-]{3,50}"), "Mã gồm 3-50 ký tự chữ, số hoặc dấu gạch ngang, không dấu, không khoảng trắng.");
@@ -76,7 +76,7 @@ public class BienTheService {
         return toResponse(bienTheRepo.save(b));
     }
 
-    // Sửa: không đổi mã, không đổi sản phẩm
+    
     @Transactional
     public BienTheResponse sua(Integer id, BienTheRequest req) {
         SanPhamChiTiet b = timBienThe(id);
@@ -85,7 +85,7 @@ public class BienTheService {
         return toResponse(bienTheRepo.save(b));
     }
 
-    // Không xóa biến thể (có thể đã nằm trong hóa đơn), chỉ ẩn / hiện bằng cột trạng thái
+    
     @Transactional
     public BienTheResponse doiTrangThai(Integer id) {
         SanPhamChiTiet b = timBienThe(id);
@@ -101,7 +101,7 @@ public class BienTheService {
         return toResponse(bienTheRepo.save(b));
     }
 
-    /* ===================== Hàm phụ ===================== */
+    
 
     private SanPhamChiTiet timBienThe(Integer id) {
         return bienTheRepo.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy biến thể."));
@@ -111,22 +111,22 @@ public class BienTheService {
         return b.getTrangThai() != null && b.getTrangThai() == SanPhamChiTiet.HOAT_DONG;
     }
 
-    // Nếu điều kiện đúng thì báo lỗi 400 kèm câu thông báo
+    
     private void loi(boolean dieuKien, String thongBao) {
         if (dieuKien) {
             throw ApiException.badRequest(thongBao);
         }
     }
 
-    // Kiểm tra màu / trọng lượng / chu vi / giá / tồn, hợp lệ thì ghi vào b (chưa lưu xuống DB).
-    // Dùng chung cho thêm và sửa; b.getSanPham() đã được gán trước khi gọi.
+    
+    
     private void napDuLieu(SanPhamChiTiet b, BienTheRequest req) {
         b.setMauSac(ThuocTinhChon.chon(mauSacRepo, req.idMauSac(), b.getMauSac(), "màu sắc"));
         b.setTrongLuong(ThuocTinhChon.chon(trongLuongRepo, req.idTrongLuong(), b.getTrongLuong(), "trọng lượng"));
         b.setChuVi(ThuocTinhChon.chon(chuViRepo, req.idChuVi(), b.getChuVi(), "chu vi"));
 
-        // Một sản phẩm không có 2 biến thể cùng màu + trọng lượng + chu vi
-        Integer idHienTai = b.getId() == null ? -1 : b.getId(); // thêm mới chưa có id nên dùng -1
+        
+        Integer idHienTai = b.getId() == null ? -1 : b.getId(); 
         if (bienTheRepo.existsBySanPhamIdAndMauSacIdAndTrongLuongIdAndChuViIdAndIdNot(
                 b.getSanPham().getId(), b.getMauSac().getId(), b.getTrongLuong().getId(), b.getChuVi().getId(), idHienTai)) {
             throw ApiException.conflict("Sản phẩm đã có biến thể với màu sắc, trọng lượng và chu vi này.");

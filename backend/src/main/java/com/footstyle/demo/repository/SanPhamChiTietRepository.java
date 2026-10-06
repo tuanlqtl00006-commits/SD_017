@@ -12,7 +12,7 @@ public interface SanPhamChiTietRepository extends JpaRepository<SanPhamChiTiet, 
 
     boolean existsByMaSpctIgnoreCase(String maSpct);
 
-    /** Cùng sản phẩm + màu + trọng lượng + chu vi (bỏ qua chính biến thể đang sửa) là biến thể trùng. */
+    
     boolean existsBySanPhamIdAndMauSacIdAndTrongLuongIdAndChuViIdAndIdNot(
             Integer idSanPham, Integer idMauSac, Integer idTrongLuong, Integer idChuVi, Integer id);
 }
