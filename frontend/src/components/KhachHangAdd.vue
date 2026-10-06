@@ -1,11 +1,5 @@
 <template>
-  <div class="d-flex" style="min-height: 100vh; background-color: #f4f6f8;">
-    <Sidebar />
-
-    <div class="flex-grow-1 d-flex flex-column">
-      <Header />
-
-      <main class="p-4">
+  <div>
         <!-- Cảnh báo lỗi nếu có -->
         <div v-if="errorMessage" class="alert alert-danger bg-danger bg-opacity-10 text-danger border-0 rounded-3 d-flex align-items-center mb-4 p-3" role="alert">
           <span class="fw-medium">{{ errorMessage }}</span>
@@ -121,17 +115,13 @@
 
           </div>
         </div>
-      </main>
-    </div>
-  </div>
+      </div>
 </template>
 
 <script setup>
 import Swal from 'sweetalert2';
 import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import Sidebar from './Sidebar.vue'
-import Header from './Header.vue'
 import api from '../services/api'
 import axios from 'axios'
 

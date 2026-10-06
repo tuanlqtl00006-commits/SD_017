@@ -58,11 +58,20 @@ const routes = [
         path: 'khach-hang',
         name: 'khach-hang',
         component: () => import('../components/KhachHangManager.vue'),
+        meta: { title: 'Khách hàng' },
+      },
+      // Thêm khách hàng là một trang riêng (có nút "Quay lại")
+      {
+        path: 'khach-hang/them',
+        name: 'khach-hang-them',
+        component: () => import('../components/KhachHangAdd.vue'),
+        meta: { parent: 'Khách hàng', parentTo: '/khach-hang', title: 'Thêm khách hàng' },
       },
       {
         path: 'dot-giam-gia',
         name: 'dot-giam-gia',
         component: () => import('../components/DotGiamGiaManager.vue'),
+        meta: { parent: 'Quản lý giảm giá', title: 'Đợt giảm giá' },
       },
       {
         path: 'phieu-giam-gia',

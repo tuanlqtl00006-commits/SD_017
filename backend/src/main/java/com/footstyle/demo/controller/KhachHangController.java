@@ -25,7 +25,7 @@ public class KhachHangController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<KhachHang> getKhachHangById(@PathVariable Long id) {
+    public ResponseEntity<KhachHang> getKhachHangById(@PathVariable Integer id) {
         Optional<KhachHang> khachHang = khachHangRepository.findById(id);
         return khachHang.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -39,8 +39,8 @@ public class KhachHangController {
             return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
         }
 
-        if (khachHang.getMaKH() == null || khachHang.getMaKH().isEmpty()) {
-            khachHang.setMaKH("KH" + System.currentTimeMillis());
+        if (khachHang.getMaKhachHang() == null || khachHang.getMaKhachHang().isEmpty()) {
+            khachHang.setMaKhachHang("KH" + System.currentTimeMillis());
         }
         
         // Auto-generate password from phone number
@@ -48,26 +48,11 @@ public class KhachHangController {
             khachHang.setMatKhau(java.util.UUID.randomUUID().toString().substring(0, 8));
         }
         
-        // Process address
-        if (khachHang.getTinhThanh() != null && !khachHang.getTinhThanh().isEmpty()) {
-            com.footstyle.demo.entity.DiaChiKhachHang diaChi = new com.footstyle.demo.entity.DiaChiKhachHang();
-            diaChi.setTinhThanhPho(khachHang.getTinhThanh());
-            diaChi.setQuanHuyen(khachHang.getQuanHuyen());
-            diaChi.setPhuongXa(khachHang.getPhuongXa());
-            diaChi.setDiaChiCuThe(khachHang.getDiaChiCuThe());
-            diaChi.setTenNguoiNhan(khachHang.getTen());
-            diaChi.setSdtNguoiNhan(khachHang.getSdt());
-            diaChi.setLaDiaChiMacDinh(true);
-            diaChi.setTrangThai(1);
-            diaChi.setKhachHang(khachHang);
-            khachHang.getDiaChiList().add(diaChi);
-        }
-
         return ResponseEntity.ok(khachHangRepository.save(khachHang));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateKhachHang(@PathVariable Long id, @RequestBody KhachHang khachHangDetails) {
+    public ResponseEntity<?> updateKhachHang(@PathVariable Integer id, @RequestBody KhachHang khachHangDetails) {
         Optional<KhachHang> optionalKhachHang = khachHangRepository.findById(id);
         if (optionalKhachHang.isPresent()) {
             KhachHang khachHang = optionalKhachHang.get();
@@ -81,33 +66,13 @@ public class KhachHangController {
                 return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
             }
 
-            khachHang.setTen(khachHangDetails.getTen());
+            khachHang.setHoTen(khachHangDetails.getHoTen());
             khachHang.setSdt(khachHangDetails.getSdt());
             khachHang.setEmail(khachHangDetails.getEmail());
             khachHang.setNgaySinh(khachHangDetails.getNgaySinh());
             khachHang.setGioiTinh(khachHangDetails.getGioiTinh());
             khachHang.setTrangThai(khachHangDetails.getTrangThai());
             
-            // Process address update
-            if (khachHangDetails.getTinhThanh() != null && !khachHangDetails.getTinhThanh().isEmpty()) {
-                com.footstyle.demo.entity.DiaChiKhachHang diaChi;
-                if (!khachHang.getDiaChiList().isEmpty()) {
-                    diaChi = khachHang.getDiaChiList().get(0);
-                } else {
-                    diaChi = new com.footstyle.demo.entity.DiaChiKhachHang();
-                    diaChi.setKhachHang(khachHang);
-                    diaChi.setLaDiaChiMacDinh(true);
-                    diaChi.setTrangThai(1);
-                    khachHang.getDiaChiList().add(diaChi);
-                }
-                diaChi.setTinhThanhPho(khachHangDetails.getTinhThanh());
-                diaChi.setQuanHuyen(khachHangDetails.getQuanHuyen());
-                diaChi.setPhuongXa(khachHangDetails.getPhuongXa());
-                diaChi.setDiaChiCuThe(khachHangDetails.getDiaChiCuThe());
-                diaChi.setTenNguoiNhan(khachHangDetails.getTen());
-                diaChi.setSdtNguoiNhan(khachHangDetails.getSdt());
-            }
-
             return ResponseEntity.ok(khachHangRepository.save(khachHang));
         } else {
             return ResponseEntity.notFound().build();
@@ -115,7 +80,7 @@ public class KhachHangController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteKhachHang(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteKhachHang(@PathVariable Integer id) {
         Optional<KhachHang> khachHang = khachHangRepository.findById(id);
         if (khachHang.isPresent()) {
             khachHangRepository.delete(khachHang.get());
