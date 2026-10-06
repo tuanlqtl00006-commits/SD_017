@@ -150,13 +150,45 @@ public class HoaDonService {
         for (com.footstyle.demo.entity.HoaDonChiTiet ct : listHDCT) {
             java.util.Map<String, Object> item = new java.util.HashMap<>();
             
-            // LƯU Ý: Chỗ này tùy thuộc vào Entity HoaDonChiTiet của bạn liên kết với SanPham như thế nào.
-            // Nếu bạn đang nối với SanPhamChiTiet, hãy sửa thành: ct.getSanPhamChiTiet().getSanPham().getTenSanPham()
-            // Tạm thời mình để chữ "Sản phẩm Demo" để bạn test code chạy mượt trước nhé.
-            item.put("tenSanPham", "Sản phẩm Demo"); 
+            String tenSp = "Sản phẩm không xác định";
+            String maSpct = "---";
+            String mauSac = "---";
+            String trongLuong = "---"; 
+            String chuVi = "---";
+            
+            if (ct.getSanPhamChiTiet() != null) {
+                maSpct = ct.getSanPhamChiTiet().getMaSpct(); 
+                
+                if (ct.getSanPhamChiTiet().getSanPham() != null) {
+                    tenSp = ct.getSanPhamChiTiet().getSanPham().getTenSanPham();
+                }
+                
+                // Lấy Màu Sắc
+                if (ct.getSanPhamChiTiet().getMauSac() != null) {
+                    mauSac = ct.getSanPhamChiTiet().getMauSac().getTen(); // Dùng getTen() theo ThuocTinh.java
+                }
+                
+                // Lấy Trọng Lượng (Ví dụ: 3U, 4U)
+                if (ct.getSanPhamChiTiet().getTrongLuong() != null) {
+                    trongLuong = ct.getSanPhamChiTiet().getTrongLuong().getTen(); // Dùng getTen()
+                }
+                
+                // Lấy Chu vi cán (Ví dụ: G5, G6)
+                if (ct.getSanPhamChiTiet().getChuVi() != null) {
+                    chuVi = ct.getSanPhamChiTiet().getChuVi().getTen(); // Dùng getTen()
+                }
+            }
+            
+            // Đẩy lên Vue.js
+            item.put("tenSanPham", tenSp);
+            item.put("maSPCT", maSpct);
+            item.put("mauSac", mauSac);
+            item.put("trongLuong", trongLuong);
+            item.put("chuVi", chuVi);
+            
+            item.put("hinhAnh", null); 
             item.put("soLuong", ct.getSoLuong());
             item.put("donGia", ct.getDonGia());
-            
             chiTietList.add(item);
         }
         

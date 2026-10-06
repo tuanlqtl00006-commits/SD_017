@@ -17,19 +17,19 @@ public class SanPhamChiTiet {
     @Column(name = "id")
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
-    @JoinColumn(name = "id_san_pham")
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "id_san_pham") // <-- Kẻ tình nghi số 2
     private SanPham sanPham;
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_mau_sac")
     private MauSac mauSac;
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_trong_luong")
     private TrongLuong trongLuong;
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_chu_vi")
     private ChuVi chuVi;
 
