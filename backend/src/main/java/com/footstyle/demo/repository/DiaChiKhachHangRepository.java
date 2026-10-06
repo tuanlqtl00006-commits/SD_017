@@ -7,6 +7,6 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface DiaChiKhachHangRepository extends JpaRepository<DiaChiKhachHang, Long> {
-    List<DiaChiKhachHang> findByKhachHangId(Long idKhachHang);
+public interface DiaChiKhachHangRepository extends JpaRepository<DiaChiKhachHang, Integer> {
+    List<DiaChiKhachHang> findByKhachHangId(Integer idKhachHang);
 }

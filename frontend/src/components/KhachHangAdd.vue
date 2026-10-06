@@ -1,11 +1,5 @@
 <template>
-  <div class="d-flex" style="min-height: 100vh; background-color: #f4f6f8;">
-    <Sidebar />
-
-    <div class="flex-grow-1 d-flex flex-column">
-      <Header />
-
-      <main class="p-4">
+  <div>
         <!-- Cảnh báo lỗi nếu có -->
         <div v-if="errorMessage" class="alert alert-danger bg-danger bg-opacity-10 text-danger border-0 rounded-3 d-flex align-items-center mb-4 p-3" role="alert">
           <span class="fw-medium">{{ errorMessage }}</span>
@@ -121,17 +115,13 @@
 
           </div>
         </div>
-      </main>
-    </div>
-  </div>
+      </div>
 </template>
 
 <script setup>
 import Swal from 'sweetalert2';
 import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import Sidebar from './Sidebar.vue'
-import Header from './Header.vue'
 import api from '../services/api'
 import axios from 'axios'
 
@@ -237,7 +227,15 @@ const createCustomer = async () => {
   }
 
   try {
-    const payload = { ...formData.value }
+    // Backend (entity KhachHang) dùng tên trường "hoTen", không phải "ten"
+    const payload = {
+      hoTen: formData.value.ten.trim(),
+      sdt: formData.value.sdt.trim(),
+      email: formData.value.email.trim(),
+      ngaySinh: formData.value.ngaySinh,
+      gioiTinh: formData.value.gioiTinh,
+      trangThai: formData.value.trangThai
+    }
     if (!payload.ngaySinh) {
       payload.ngaySinh = null
     } else {
@@ -248,11 +246,17 @@ const createCustomer = async () => {
       }
     }
 
-    // Gộp dữ liệu địa chỉ vào chung payload để backend xử lý
-    payload.tinhThanh = addressData.value.tinhThanh
-    payload.quanHuyen = addressData.value.quanHuyen
-    payload.phuongXa = addressData.value.phuongXa
-    payload.diaChiCuThe = addressData.value.diaChiChiTiet
+    // Gộp địa chỉ mặc định vào payload (tên trường theo entity DiaChiKhachHang)
+    payload.diaChiList = [{
+      tenNguoiNhan: addressData.value.hoTenNguoiNhan,
+      sdtNguoiNhan: addressData.value.sdtNguoiNhan,
+      tinhThanhPho: addressData.value.tinhThanh,
+      quanHuyen: addressData.value.quanHuyen,
+      phuongXa: addressData.value.phuongXa,
+      diaChiCuThe: addressData.value.diaChiChiTiet,
+      laDiaChiMacDinh: true,
+      trangThai: 1
+    }]
 
     // Gọi API lưu Khách hàng và Địa chỉ 1 lần
     await api.post('/khach-hang', payload)
