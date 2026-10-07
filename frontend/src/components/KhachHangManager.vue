@@ -1,11 +1,6 @@
 <template>
-  <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
-    <Sidebar />
+  <div>
 
-    <div class="flex-grow-1 d-flex flex-column">
-      <Header />
-
-      <main class="p-4">
         
         <!-- Bộ lọc và Công cụ -->
         <div class="card bg-white rounded-4 shadow-sm border-0 mb-4">
@@ -21,7 +16,7 @@
             
             <div class="input-group" style="flex: 1; min-width: 250px;">
               <span class="input-group-text border-end-0 text-muted rounded-start-pill bg-light" style="padding-left: 1rem;"><i class="bi bi-search"></i></span>
-              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" @keyup.enter="search">
+              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" autocomplete="off" @keyup.enter="search">
             </div>
             
             <select class="form-select bg-light text-secondary rounded-pill" style="width: 200px;" v-model="statusFilter" @change="currentPage = 1">
@@ -55,7 +50,7 @@
                <h4 class="fw-bold m-0 text-dark" style="font-size: 1.25rem;">Danh sách khách hàng</h4>
             </div>
             
-            <div class="table-responsive">
+            <div class="table-responsive ad-grid-table">
               <table class="table align-middle text-start">
                 <thead style="background-color: #f8f9fa;">
                   <tr>
@@ -80,11 +75,11 @@
                   </tr>
                   <tr v-for="(kh, index) in paginatedCustomers" :key="kh.id">
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.id }}</td>
-                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.ten }}</td>
+                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.hoTen || kh.ten }}</td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.email }}</td>
                     <td class="py-3 small" style="border-bottom: 1px solid #f0f0f0; white-space: normal;">
                       <span v-if="kh.diaChiList && kh.diaChiList.length > 0">
-                        {{ kh.diaChiList[0].diaChiCuThe ? kh.diaChiList[0].diaChiCuThe + ', ' : '' }}{{ kh.diaChiList[0].phuongXa }}, {{ kh.diaChiList[0].quanHuyen }}, {{ kh.diaChiList[0].tinhThanhPho }}
+                        {{ getDefaultAddress(kh).diaChiCuThe ? getDefaultAddress(kh).diaChiCuThe + ', ' : '' }}{{ getDefaultAddress(kh).phuongXa }}, {{ getDefaultAddress(kh).quanHuyen }}, {{ getDefaultAddress(kh).tinhThanhPho }}
                       </span>
                       <span v-else>
                         Chưa cập nhật địa chỉ
@@ -93,22 +88,25 @@
                     <td class="py-3 text-muted" style="border-bottom: 1px solid #f0f0f0;">{{ kh.sdt }}</td>
                     <td class="py-3 text-center" style="border-bottom: 1px solid #f0f0f0;">
                         <span class="badge rounded-pill fw-medium px-3 py-2" 
-                              :class="kh.trangThai === 1 ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-secondary'" 
-                              style="border: 1px solid; border-color: rgba(25, 135, 84, 0.2)">
+                              :class="kh.trangThai === 1 ? 'bg-success bg-opacity-10 text-success border-0' : 'bg-danger bg-opacity-10 text-danger border-0'" 
+                              >
                           {{ kh.trangThai === 1 ? 'Hoạt động' : 'Ngừng hoạt động' }}
                         </span>
                       </td>
                     <td class="py-3 text-center" style="border-bottom: 1px solid #f0f0f0;">
                       <div class="d-flex justify-content-center gap-2">
+                                                <button class="btn btn-sm btn-light rounded-circle action-btn" :class="kh.trangThai == 1 ? 'text-success bg-success bg-opacity-10' : 'text-danger bg-danger bg-opacity-10'" @click.prevent="toggleStatus(kh)" :title="kh.trangThai == 1 ? 'Ngừng hoạt động' : 'Kích hoạt'">
+                          <i class="bi bi-power"></i>
+                        </button>
                         <button class="btn btn-sm btn-light text-success rounded-circle action-btn" @click.prevent="openViewModal(kh)">
                           <i class="bi bi-eye"></i>
                         </button>
-                        <button class="btn btn-sm btn-light text-secondary rounded-circle action-btn" @click.prevent="openEditModal(kh)">
-                          <i class="bi bi-pencil-fill"></i>
+                        <button class="btn btn-sm btn-light text-primary rounded-circle action-btn" @click.prevent="openEditModal(kh)" title="Quản lý địa chỉ">
+                          <i class="bi bi-geo-alt-fill"></i>
                         </button>
-                        <button class="btn btn-sm btn-light text-danger rounded-circle action-btn" @click.prevent="deleteCustomer(kh)">
+                        <!-- <button class="btn btn-sm btn-light text-danger rounded-circle action-btn" @click.prevent="deleteCustomer(kh)">
                           <i class="bi bi-trash-fill"></i>
-                        </button>
+                        </button> -->
                       </div>
                     </td>
                   </tr>
@@ -147,7 +145,7 @@
         </div>
 
         <!-- Modal Sửa Khách Hàng -->
-        <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
+        <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: calc(100vw / var(--ui-zoom, 1)); height: calc(100vh / var(--ui-zoom, 1)); background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-4 shadow-lg" style="width: 750px; max-width: 95vw; pointer-events: auto; animation: slideDown 0.3s ease-out;">
             <div class="modal-header d-flex justify-content-between align-items-center px-4 pt-4 pb-2 border-bottom-0">
               <h4 class="modal-title fw-bold text-dark m-0">{{ isView ? 'Chi Tiết Khách Hàng' : 'Cập Nhật Khách Hàng' }}</h4>
@@ -236,8 +234,14 @@
           </div>
         </div>
 
-      </main>
-    </div>
+        <!-- Address Management Modal -->
+        <KhachHangAddressModal 
+          v-if="showAddressModal" 
+          :customer="selectedCustomerForAddress" 
+          @close="showAddressModal = false"
+          @address-updated="fetchCustomers()" 
+        />
+      
   </div>
 </template>
 
@@ -248,9 +252,12 @@ import { ref, onMounted } from 'vue'
 import { utils, writeFile } from 'xlsx'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
+import KhachHangAddressModal from './KhachHangAddressModal.vue'
 import api from '../services/api' // sử dụng cấu hình axios có sẵn
 
 const showModal = ref(false)
+const showAddressModal = ref(false)
+const selectedCustomerForAddress = ref(null)
 const isEdit = ref(false)
 const formData = ref({
   maKH: '',
@@ -382,6 +389,12 @@ const search = () => {
   fetchCustomers(true)
 }
 
+const getDefaultAddress = (kh) => {
+  if (!kh.diaChiList || kh.diaChiList.length === 0) return null;
+  const defaultAddr = kh.diaChiList.find(addr => addr.laDiaChiMacDinh);
+  return defaultAddr || kh.diaChiList[0];
+};
+
 const reset = () => {
   searchQuery.value = ''
   statusFilter.value = ''
@@ -399,7 +412,7 @@ const exportExcel = () => {
   const dataToExport = customers.value.map((kh, index) => {
     let diachi = ''
     if (kh.diaChiList && kh.diaChiList.length > 0) {
-      const dc = kh.diaChiList[0]
+      const dc = getDefaultAddress(kh)
       diachi = [dc.diaChiCuThe, dc.phuongXa, dc.quanHuyen, dc.tinhThanhPho].filter(Boolean).join(', ')
     }
     
@@ -417,8 +430,8 @@ const exportExcel = () => {
 
     return {
       'STT': index + 1,
-      'Mã Khách Hàng': kh.maKH || '',
-      'Họ và Tên': kh.ten || '',
+      'Mã Khách Hàng': kh.maKhachHang || kh.maKH || '',
+      'Họ và Tên': kh.hoTen || kh.ten || '',
       'Số Điện Thoại': kh.sdt || '',
       'Email': kh.email || '',
       'Ngày Sinh': parsedNgaySinh,
@@ -475,8 +488,12 @@ const openAddModal = () => {
 }
 
 const openEditModal = (kh) => {
-  isEdit.value = true
-  isView.value = false
+  selectedCustomerForAddress.value = kh;
+  showAddressModal.value = true;
+}
+
+
+const populateForm = (kh) => {
   phoneErrorMsg.value = ''
   
   let tinhThanh = ''
@@ -485,7 +502,7 @@ const openEditModal = (kh) => {
   let diaChiCuThe = ''
 
   if (kh.diaChiList && kh.diaChiList.length > 0) {
-    const dc = kh.diaChiList[0]
+    const dc = getDefaultAddress(kh) || kh.diaChiList[0]
     tinhThanh = dc.tinhThanhPho || ''
     quanHuyen = dc.quanHuyen || ''
     phuongXa = dc.phuongXa || ''
@@ -501,32 +518,71 @@ const openEditModal = (kh) => {
     wards.value = selectedDist ? selectedDist.data3 : []
   }
 
-  let parsedNgaySinh = '';
-  if (kh.ngaySinh) {
-    if (Array.isArray(kh.ngaySinh)) {
-      const y = kh.ngaySinh[0];
-      const m = String(kh.ngaySinh[1]).padStart(2, '0');
-      const d = String(kh.ngaySinh[2]).padStart(2, '0');
-      parsedNgaySinh = `${y}-${m}-${d}`;
-    } else {
-      parsedNgaySinh = String(kh.ngaySinh).substring(0, 10);
+  formData.value = {
+    id: kh.id,
+    maKH: kh.maKhachHang || kh.maKH || '',
+    ten: kh.hoTen || kh.ten || '',
+    sdt: kh.sdt || '',
+    email: kh.email || '',
+    ngaySinh: kh.ngaySinh || '',
+    gioiTinh: kh.gioiTinh !== undefined ? kh.gioiTinh : 1,
+    trangThai: kh.trangThai !== undefined ? kh.trangThai : 1,
+    tinhThanh,
+    quanHuyen,
+    phuongXa,
+    diaChiCuThe
+  }
+}
+
+
+const toggleStatus = async (kh) => {
+  const isActivating = kh.trangThai == 0;
+  const actionText = isActivating ? 'kích hoạt' : 'ngừng';
+  
+  const result = await Swal.fire({
+    title: 'Xác nhận',
+    text: `Bạn có chắc chắn muốn ${actionText} hoạt động khách hàng này không?`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#0d6efd',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: 'Đồng ý',
+    cancelButtonText: 'Hủy',
+    reverseButtons: true
+  });
+
+  if (result.isConfirmed) {
+    try {
+      populateForm(kh);
+
+      const payload = { ...formData.value, trangThai: isActivating ? 1 : 0 };
+
+      const payload = {
+        ...formData.value,
+        hoTen: formData.value.ten,          // backend đọc "hoTen", không phải "ten"
+        maKhachHang: formData.value.maKH,
+        ngaySinh: formData.value.ngaySinh || null,
+        trangThai: isActivating ? 1 : 0
+      };
+
+      await api.put(`/khach-hang/${kh.id}`, payload);
+      fetchCustomers();
+      Toast.fire({
+        icon: 'success',
+        title: `Đã ${actionText} hoạt động thành công!`
+      });
+    } catch (error) {
+      console.error(error);
+      Swal.fire('Lỗi', 'Không thể thay đổi trạng thái', 'error');
     }
   }
-
-  formData.value = { 
-    ...kh,
-    ngaySinh: parsedNgaySinh,
-    tinhThanh: tinhThanh,
-    quanHuyen: quanHuyen,
-    phuongXa: phuongXa,
-    diaChiCuThe: diaChiCuThe
-  }
-  showModal.value = true
 }
 
 const openViewModal = (kh) => {
-  openEditModal(kh)
+  populateForm(kh)
+  isEdit.value = true
   isView.value = true
+  showModal.value = true
 }
 
 const closeModal = () => {
@@ -544,6 +600,8 @@ const saveCustomer = async () => {
     }
 
     const payload = { ...formData.value }
+    payload.maKhachHang = payload.maKH;
+    payload.hoTen = payload.ten;
     if (!payload.ngaySinh) {
       payload.ngaySinh = null
     } else {
@@ -567,17 +625,6 @@ const saveCustomer = async () => {
     } else {
       Toast.fire({ icon: 'error', title: 'Có lỗi xảy ra khi lưu khách hàng! Vui lòng kiểm tra lại dữ liệu.' })
     }
-  }
-}
-
-const toggleStatus = async (kh) => {
-  try {
-    kh.trangThai = kh.trangThai === 1 ? 0 : 1;
-    await api.put(`/khach-hang/${kh.id}`, kh)
-    fetchCustomers(); 
-  } catch (error) {
-    console.error(error)
-    kh.trangThai = kh.trangThai === 1 ? 0 : 1; // khôi phục lại trạng thái cũ nếu lỗi
   }
 }
 
@@ -660,8 +707,3 @@ const formatDate = (dateString) => {
   background-color: #fff;
 }
 </style>
-
-
-
-
-

@@ -1,4 +1,4 @@
-# Chạy project FootStyle (phần Quản lý sản phẩm + Phiếu giảm giá + Nhân viên)
+# Chạy project FootStyle (Quản lý sản phẩm, Phiếu giảm giá, Nhân viên, Khách hàng, Đợt giảm giá, Hóa đơn)
 
 1. SQL Server: chạy `database/SD_17.sql`, sau đó `database/SD_17_du_lieu_mau.sql` (vai trò, 10 nhân viên, 6 khách hàng, 11 phiếu giảm giá)
    và `database/SD_17_du_lieu_san_pham.sql` (9 bảng thuộc tính, 6 sản phẩm, 14 biến thể, chỉ mục chống trùng biến thể).
@@ -19,6 +19,13 @@
 | POST / PUT | /api/nhan-vien[/{id}] | Thêm: nhập đủ (mật khẩu băm BCrypt, không trả về). Sửa: chỉ đổi họ tên, giới tính, ngày sinh, SĐT, địa chỉ, vai trò; mã, email, ngày vào làm, mật khẩu giữ nguyên |
 | PUT | /api/nhan-vien/{id}/trang-thai | Ẩn / hiện nhân viên (không xóa dữ liệu) |
 | GET | /api/vai-tro | Danh sách vai trò |
+| GET / POST | /api/khach-hang | Danh sách / thêm khách hàng |
+| GET / PUT / DELETE | /api/khach-hang/{id} | Chi tiết / sửa / xóa khách hàng |
+| GET / POST | /api/dot-giam-gia | Danh sách / thêm đợt giảm giá |
+| GET / PUT / DELETE | /api/dot-giam-gia/{id} | Chi tiết / sửa / xóa đợt giảm giá |
+| GET | /api/hoa-don, /api/hoa-don/{id} | Danh sách / chi tiết hóa đơn |
+| PUT | /api/hoa-don/cap-nhat-trang-thai/{id} | Cập nhật trạng thái hóa đơn |
+| GET / POST | /api/dia-chi/khach-hang/{id} | Địa chỉ của khách hàng |
 | GET | /api/san-pham, /api/san-pham/{id} | Danh sách / chi tiết sản phẩm (kèm ảnh chính, ảnh phụ) |
 | POST / PUT | /api/san-pham[/{id}] | Thêm / sửa sản phẩm (sửa không đổi mã) |
 | PUT | /api/san-pham/{id}/trang-thai | Ngưng / kích hoạt bán sản phẩm (không xóa dữ liệu) |

@@ -3,6 +3,8 @@ package com.footstyle.demo.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Getter
@@ -26,9 +28,25 @@ public class KhachHang {
 
     @Column(name = "email")
     private String email;
+    
+    @Column(name = "ngay_sinh")
+    private LocalDate ngaySinh;
+    
+    @Column(name = "gioi_tinh")
+    private Integer gioiTinh;
+    
+    @Column(name = "ngay_tao")
+    private LocalDateTime ngayTao;
+    
+    @Column(name = "ngay_cap_nhat")
+    private LocalDateTime ngayCapNhat;
+    
+    @Column(name = "mat_khau")
+    private String matKhau;
 
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    // Chỉ map các cột cần để chọn khách hàng khi tặng phiếu cá nhân (CRUD khách hàng làm ở module riêng).
+    @OneToMany(mappedBy = "khachHang", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    private java.util.List<DiaChiKhachHang> diaChiList = new java.util.ArrayList<>();
 }

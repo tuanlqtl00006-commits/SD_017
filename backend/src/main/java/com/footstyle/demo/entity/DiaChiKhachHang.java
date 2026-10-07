@@ -47,10 +47,6 @@ public class DiaChiKhachHang {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    
-    
-    
-    
     @Column(name = "ngay_tao")
     private LocalDateTime ngayTao;
 
@@ -77,19 +73,4 @@ public class DiaChiKhachHang {
     public void setLaDiaChiMacDinh(Boolean laDiaChiMacDinh) { this.laDiaChiMacDinh = laDiaChiMacDinh; }
     public Integer getTrangThai() { return trangThai; }
     public void setTrangThai(Integer trangThai) { this.trangThai = trangThai; }
-    public LocalDateTime getNgayTao() { return ngayTao; }
-    public void setNgayTao(LocalDateTime ngayTao) { this.ngayTao = ngayTao; }
-    public LocalDateTime getNgayCapNhat() { return ngayCapNhat; }
-    public void setNgayCapNhat(LocalDateTime ngayCapNhat) { this.ngayCapNhat = ngayCapNhat; }
-
-    @PrePersist
-    protected void onCreate() {
-        ngayTao = LocalDateTime.now();
-        ngayCapNhat = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        ngayCapNhat = LocalDateTime.now();
-    }
 }

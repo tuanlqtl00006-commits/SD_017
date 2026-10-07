@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
+import api from '../services/api';
 import { useRouter } from 'vue-router';
 import Header from './Header.vue';
 
@@ -13,7 +13,7 @@ const totalPages = ref(1);
 const currentTab = ref(null);
 
 const xemChiTiet = (idHoaDon) => {
-  router.push(`/hoa-don/chi-tiet/${idHoaDon}`); 
+  router.push(`/hoa-don/${idHoaDon}`); 
 };
 
 const formatCurrency = (value) => {
@@ -30,7 +30,7 @@ const formatDate = (dateString) => {
 
 const fetchHoaDon = async (page = 0) => {
   try {
-    const response = await axios.get('http://localhost:8080/api/hoa-don', {
+    const response = await api.get('/hoa-don', {
       params: {
         page: page,
         size: 5,
@@ -243,7 +243,10 @@ onMounted(() => {
                 <a class="nav-link text-center px-2" :class="{ active: activeTab === 4 }" href="#" @click.prevent="changeTab(4)">Vận Chuyển</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link text-center px-2" :class="{ active: activeTab === 5 }" href="#" @click.prevent="changeTab(5)">Đã Hoàn Thành</a>
+                <a class="nav-link text-center px-2" :class="{ active: activeTab === 5 }" href="#" @click.prevent="changeTab(5)">Đã Giao Hàng</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link text-center px-2" :class="{ active: activeTab === 6 }" href="#" @click.prevent="changeTab(6)">Đã Hoàn Thành</a>
               </li>
               <li class="nav-item">
                 <a class="nav-link text-center px-2" :class="{ active: activeTab === 0 }" href="#" @click.prevent="changeTab(0)">Hủy</a>
