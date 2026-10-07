@@ -47,10 +47,30 @@ public class DiaChiKhachHang {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    // Optional: Keep ngayTao/ngayCapNhat if we want, or remove them if they aren't in the DB natively. 
-    // Wait, the DB didn't originally have ngay_tao and ngay_cap_nhat!
-    // Let's remove them to prevent issues, or leave them since Hibernate already added them.
-    // I will leave them mapped to the new columns Hibernate just added.
+    @Column(name = "ngay_tao")
+    private LocalDateTime ngayTao;
+
+    @Column(name = "ngay_cap_nhat")
+    private LocalDateTime ngayCapNhat;
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public KhachHang getKhachHang() { return khachHang; }
+    public void setKhachHang(KhachHang khachHang) { this.khachHang = khachHang; }
+    public String getTenNguoiNhan() { return tenNguoiNhan; }
+    public void setTenNguoiNhan(String tenNguoiNhan) { this.tenNguoiNhan = tenNguoiNhan; }
+    public String getSdtNguoiNhan() { return sdtNguoiNhan; }
+    public void setSdtNguoiNhan(String sdtNguoiNhan) { this.sdtNguoiNhan = sdtNguoiNhan; }
+    public String getTinhThanhPho() { return tinhThanhPho; }
+    public void setTinhThanhPho(String tinhThanhPho) { this.tinhThanhPho = tinhThanhPho; }
+    public String getQuanHuyen() { return quanHuyen; }
+    public void setQuanHuyen(String quanHuyen) { this.quanHuyen = quanHuyen; }
+    public String getPhuongXa() { return phuongXa; }
+    public void setPhuongXa(String phuongXa) { this.phuongXa = phuongXa; }
+    public String getDiaChiCuThe() { return diaChiCuThe; }
+    public void setDiaChiCuThe(String diaChiCuThe) { this.diaChiCuThe = diaChiCuThe; }
+    public Boolean getLaDiaChiMacDinh() { return laDiaChiMacDinh; }
+    public void setLaDiaChiMacDinh(Boolean laDiaChiMacDinh) { this.laDiaChiMacDinh = laDiaChiMacDinh; }
     public Integer getTrangThai() { return trangThai; }
     public void setTrangThai(Integer trangThai) { this.trangThai = trangThai; }
 }

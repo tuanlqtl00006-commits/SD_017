@@ -14,7 +14,7 @@ function push(message, type = 'success', timeout = 3500) {
   if (timeout) setTimeout(() => remove(id), timeout)
 }
 
-/** Thông báo nổi dùng chung. Hiển thị bởi <ToastHost /> trong MainLayout. */
+
 export function useToast() {
   return {
     toasts,

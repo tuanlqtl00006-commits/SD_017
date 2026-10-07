@@ -42,7 +42,7 @@ public class NhanVienController {
         return service.sua(id, req);
     }
 
-    /** Ẩn / hiện (bật / tắt hoạt động). Không xóa cứng dữ liệu. */
+    
     @PutMapping("/{id}/trang-thai")
     public NhanVienResponse doiTrangThai(@PathVariable Integer id) {
         return service.doiTrangThai(id);

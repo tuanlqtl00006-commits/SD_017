@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue'
 
-/** Phân trang phía client cho một danh sách (ref/computed). */
+
 export function usePagination(source, initialSize = 5) {
   const page = ref(1)
   const pageSize = ref(initialSize)
@@ -14,7 +14,6 @@ export function usePagination(source, initialSize = 5) {
   watch(pageSize, () => {
     page.value = 1
   })
-  // Xóa/lọc làm số trang giảm: kéo về trang cuối còn tồn tại.
   watch(totalPages, (n) => {
     if (page.value > n) page.value = n
   })

@@ -3,8 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 
 const props = defineProps({
   title: { type: String, required: true },
-  size: { type: String, default: 'md' }, // sm | md | lg
-  // true: không đóng khi bấm nền mờ hoặc nhấn Esc (dùng cho form để tránh mất dữ liệu)
+  size: { type: String, default: 'md' },
   staticBackdrop: { type: Boolean, default: false },
 })
 const emit = defineEmits(['close'])

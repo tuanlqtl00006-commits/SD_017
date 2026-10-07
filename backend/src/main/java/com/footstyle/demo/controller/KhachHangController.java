@@ -17,10 +17,7 @@ public class KhachHangController {
     private KhachHangRepository khachHangRepository;
 
     @GetMapping
-    public List<KhachHang> getAllKhachHang(@RequestParam(required = false) String search) {
-        if (search != null && !search.trim().isEmpty()) {
-            return khachHangRepository.searchKhachHang(search);
-        }
+    public List<KhachHang> getAllKhachHang() {
         return khachHangRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"));
     }
 
@@ -39,30 +36,22 @@ public class KhachHangController {
             return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
         }
 
-
         if (khachHang.getHoTen() == null || khachHang.getHoTen().trim().isEmpty()) {
             return ResponseEntity.badRequest().body(java.util.Collections.singletonMap("message", "Vui lòng nhập họ tên khách hàng."));
         }
 
-
         if (khachHang.getMaKhachHang() == null || khachHang.getMaKhachHang().isEmpty()) {
             khachHang.setMaKhachHang("KH" + System.currentTimeMillis());
         }
-        
-        // Auto-generate password from phone number
+
         if (khachHang.getSdt() != null) {
             khachHang.setMatKhau(java.util.UUID.randomUUID().toString().substring(0, 8));
         }
-
-        
-        return ResponseEntity.ok(khachHangRepository.save(khachHang));
-
 
         if (khachHang.getTrangThai() == null) {
             khachHang.setTrangThai(1);
         }
 
-        // Địa chỉ gửi kèm: trường khachHang bị @JsonIgnore nên phải tự gắn lại, nếu không id_khach_hang sẽ NULL
         if (khachHang.getDiaChiList() != null) {
             khachHang.getDiaChiList().forEach(dc -> {
                 dc.setKhachHang(khachHang);
@@ -76,7 +65,6 @@ public class KhachHangController {
             String rootMsg = ex.getRootCause() != null ? ex.getRootCause().getMessage() : ex.getMessage();
             return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Lỗi lưu dữ liệu: " + rootMsg));
         }
-
     }
 
     @PutMapping("/{id}")
@@ -85,17 +73,12 @@ public class KhachHangController {
         if (optionalKhachHang.isPresent()) {
             KhachHang khachHang = optionalKhachHang.get();
 
-            // Check if changing email to an existing one
             if (khachHangDetails.getEmail() != null && !khachHangDetails.getEmail().equals(khachHang.getEmail()) && khachHangRepository.existsByEmail(khachHangDetails.getEmail())) {
                 return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Email đã tồn tại."));
             }
-            // Check if changing sdt to an existing one
             if (khachHangDetails.getSdt() != null && !khachHangDetails.getSdt().equals(khachHang.getSdt()) && khachHangRepository.existsBySdt(khachHangDetails.getSdt())) {
                 return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
             }
-
-
-            khachHang.setHoTen(khachHangDetails.getHoTen());
 
             if (khachHangDetails.getHoTen() != null && !khachHangDetails.getHoTen().trim().isEmpty()) {
                 khachHang.setHoTen(khachHangDetails.getHoTen().trim());
@@ -106,12 +89,9 @@ public class KhachHangController {
             khachHang.setNgaySinh(khachHangDetails.getNgaySinh());
             khachHang.setGioiTinh(khachHangDetails.getGioiTinh());
 
-            khachHang.setTrangThai(khachHangDetails.getTrangThai());
-
             if (khachHangDetails.getTrangThai() != null) {
                 khachHang.setTrangThai(khachHangDetails.getTrangThai());
             }
-
             
             return ResponseEntity.ok(khachHangRepository.save(khachHang));
         } else {
@@ -130,7 +110,3 @@ public class KhachHangController {
         }
     }
 }
-
-
-
-

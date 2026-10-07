@@ -93,7 +93,7 @@ public class HoaDon {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    @OneToMany(mappedBy = "hoaDon")
+    @OneToMany(mappedBy = "hoaDon", cascade = CascadeType.ALL)
     @com.fasterxml.jackson.annotation.JsonIgnore
     private List<HoaDonChiTiet> danhSachChiTiet;
 }
