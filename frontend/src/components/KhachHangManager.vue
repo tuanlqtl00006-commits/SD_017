@@ -554,6 +554,9 @@ const toggleStatus = async (kh) => {
   if (result.isConfirmed) {
     try {
       populateForm(kh);
+
+      const payload = { ...formData.value, trangThai: isActivating ? 1 : 0 };
+
       const payload = {
         ...formData.value,
         hoTen: formData.value.ten,          // backend đọc "hoTen", không phải "ten"
@@ -561,6 +564,7 @@ const toggleStatus = async (kh) => {
         ngaySinh: formData.value.ngaySinh || null,
         trangThai: isActivating ? 1 : 0
       };
+
       await api.put(`/khach-hang/${kh.id}`, payload);
       fetchCustomers();
       Toast.fire({

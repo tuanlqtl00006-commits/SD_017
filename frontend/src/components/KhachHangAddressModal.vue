@@ -1,5 +1,9 @@
 <template>
+
+  <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
+
   <div style="position: fixed; top: 0; left: 0; width: calc(100vw / var(--ui-zoom, 1)); height: calc(100vh / var(--ui-zoom, 1)); background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
+
     <div class="modal-dialog bg-white rounded-4 shadow-lg" style="width: 800px; max-width: 95vw; pointer-events: auto; animation: slideDown 0.3s ease-out;">
       
       <!-- Header -->
@@ -9,7 +13,11 @@
             <i class="bi bi-geo-alt-fill fs-5"></i>
           </div>
           <div>
+
+            <h5 class="fw-bold mb-0 text-dark">Địa chỉ của {{ customer?.ten || 'Khách Hàng' }}</h5>
+
             <h5 class="fw-bold mb-0 text-dark">Địa chỉ của {{ customerName || 'Khách Hàng' }}</h5>
+
             <small class="text-muted">Quản lý địa chỉ giao hàng</small>
           </div>
         </div>
@@ -108,7 +116,11 @@
 </template>
 
 <script setup>
+
+import { ref, onMounted, watch } from 'vue'
+
 import { ref, onMounted, watch, computed } from 'vue'
+
 import api from '../services/api'
 import Swal from 'sweetalert2'
 
@@ -120,6 +132,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'address-updated'])
+
 
 // Backend trả về "hoTen"; "ten" chỉ là tên biến cũ phía form
 const customerName = computed(() => props.customer?.hoTen || props.customer?.ten || '')
@@ -212,7 +225,11 @@ const fetchAddresses = async () => {
 const addNewAddress = () => {
   formData.value = {
     id: null,
+
+    tenNguoiNhan: props.customer.ten || '',
+
     tenNguoiNhan: customerName.value,
+
     sdtNguoiNhan: props.customer.sdt || '',
     tinhThanhPho: '',
     quanHuyen: '',
@@ -249,6 +266,10 @@ const editAddress = (addr) => {
 
   formData.value = {
     id: addr.id,
+
+    tenNguoiNhan: addr.tenNguoiNhan,
+    sdtNguoiNhan: addr.sdtNguoiNhan,
+
     tenNguoiNhan: addr.tenNguoiNhan || customerName.value,
     sdtNguoiNhan: addr.sdtNguoiNhan || props.customer.sdt || '',
     tinhThanhPho: matchedProv,
@@ -271,10 +292,17 @@ const saveAddress = async () => {
     
     if (formData.value.id) {
       await api.put(`/dia-chi/${formData.value.id}`, formData.value)
+
+      Swal.fire({ icon: 'success', title: 'Cập nhật thành công!' })
+    } else {
+      await api.post(`/dia-chi/khach-hang/${props.customer.id}`, formData.value)
+      Swal.fire({ icon: 'success', title: 'Thêm mới thành công!' })
+
       showToast('Cập nhật địa chỉ thành công!')
     } else {
       await api.post(`/dia-chi/khach-hang/${props.customer.id}`, formData.value)
       showToast('Thêm địa chỉ mới thành công!')
+
     }
     
     showForm.value = false
@@ -301,7 +329,10 @@ const deleteAddress = async (id) => {
   if (result.isConfirmed) {
     try {
       await api.delete(`/dia-chi/${id}`)
+
+
       showToast('Xóa địa chỉ thành công!')
+
       // Swal.fire('Đã xóa!', 'Địa chỉ đã được xóa.', 'success')
       fetchAddresses()
       emit('address-updated')

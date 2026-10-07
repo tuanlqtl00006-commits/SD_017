@@ -92,12 +92,19 @@ const errorMsg = ref('')
 const fetchData = async () => {
   try {
     const [prodRes, detailRes] = await Promise.all([
+
+      api.get('/san-pham-chi-tiet'),
+      api.get(`/dot-giam-gia-chi-tiet/campaign/${props.campaign.id}`)
+    ])
+    products.value = prodRes.data
+
       // API biến thể sản phẩm thật của nhóm (BienTheController)
       api.get('/bien-the-san-pham'),
       api.get(`/dot-giam-gia-chi-tiet/campaign/${props.campaign.id}`)
     ])
     products.value = (prodRes.data || [])
       .map(bt => ({ id: bt.id, maSpct: bt.ma, giaBan: bt.giaBan }))
+
     details.value = detailRes.data
   } catch (error) {
     console.error(error)

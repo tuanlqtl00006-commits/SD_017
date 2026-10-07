@@ -50,6 +50,9 @@
               <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-tags-fill text-primary me-2"></i>Danh sách các đợt giảm giá</h5>
             </div>
 
+
+            <div class="table-responsive">
+
             <div class="table-responsive ad-grid-table mx-4 mt-4">
               <table class="table table-hover align-middle mb-0 custom-table">
                 <thead class="bg-light text-secondary">
@@ -115,6 +118,17 @@
                   
                   <li v-for="page in totalPages" :key="page" class="page-item" :class="{ active: currentPage === page }">
                     <a class="page-link border-0 fw-medium" 
+                       :class="currentPage === page ? 'bg-primary text-white shadow-sm rounded-circle' : 'text-dark bg-transparent hover-bg-light rounded-circle'" 
+                       href="#" @click.prevent="goToPage(page)" style="width: 35px; height: 35px; display: flex; align-items: center; justify-content: center;">
+                      {{ page }}
+                    </a>
+                  </li>
+                  
+                  <li class="page-item" :class="{ disabled: currentPage === totalPages || totalPages === 0 }">
+                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="nextPage"><i class="bi bi-chevron-right fs-6"></i></a>
+                  </li>
+                  <li class="page-item" :class="{ disabled: currentPage === totalPages || totalPages === 0 }">
+
                        :class="currentPage === page ? 'rounded-3 bg-primary bg-opacity-10 text-primary fw-bold' : 'text-muted bg-transparent'" 
                        href="#" @click.prevent="goToPage(page)">{{ page }}</a>
                   </li>
@@ -153,6 +167,7 @@
                     <label class="form-label small text-dark fw-medium">Phần Trăm Giảm</label>
                     <input type="text" class="form-control rounded-3" v-model="formData.phanTramGiamDot" placeholder="vd: 20%" :disabled="isView" required>
                     <div v-if="percentError" class="text-danger small mt-1">{{ percentError }}</div>
+
                   </div>
                   <div class="row">
                     <div class="col-6 mb-3">
@@ -172,6 +187,27 @@
                       <option :value="2">Ngừng Hoạt Động</option>
                     </select>
                   </div>
+
+                  </div>
+                  <div class="row">
+                    <div class="col-6 mb-3">
+                      <label class="form-label small text-dark fw-medium">Ngày bắt đầu</label>
+                      <input type="date" min="2000-01-01" max="2099-12-31" class="form-control rounded-3" v-model="formData.ngayBatDau" :disabled="isView" required>
+                    </div>
+                    <div class="col-6 mb-3">
+                      <label class="form-label small text-dark fw-medium">Ngày kết thúc</label>
+                      <input type="date" min="2000-01-01" max="2099-12-31" class="form-control rounded-3" v-model="formData.ngayKetThuc" :disabled="isView" required>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label small text-dark fw-medium">Trạng Thái</label>
+                    <select class="form-select rounded-3" v-model="formData.trangThai" :disabled="isView">
+                      <option :value="1">Đang Hoạt Động</option>
+                      
+                      <option :value="2">Ngừng Hoạt Động</option>
+                    </select>
+                  </div>
+
                   <div class="d-flex justify-content-end gap-2 mt-4">
                     <button type="button" class="btn btn-secondary rounded-3 px-4 fw-medium" @click="closeModal">Hủy</button>
                     <button v-if="!isView" type="submit" class="btn btn-primary rounded-3 px-4 fw-medium" style="background-color: #0d6efd; border-color: #0d6efd;">Lưu</button>
@@ -211,6 +247,9 @@ import DotGiamGiaChiTietModal from './DotGiamGiaChiTietModal.vue'
 
 const currentPage = ref(1)
 const itemsPerPage = 5
+
+const totalPages = computed(() => Math.ceil(filteredList.value.length / itemsPerPage))
+
 const totalPages = computed(() => Math.ceil(filteredList.value.length / itemsPerPage) || 1)
 
 const paginatedList = computed(() => {
@@ -504,6 +543,7 @@ watch([searchQuery, searchStartDate, searchEndDate, searchStatus], () => {
 }
 .form-control::placeholder {
   color: #adb5bd;
+
 }
 
 /* Custom Table Design */
@@ -525,11 +565,36 @@ watch([searchQuery, searchStartDate, searchEndDate, searchStatus], () => {
   font-size: 0.8rem;
 }
 
+
+}
+
+/* Custom Table Design */
+.custom-table td {
+  font-size: 0.9rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f3f5;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+.custom-table tbody tr:hover {
+  background-color: #fcfcfc;
+}
+
+/* Status Badges */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  font-size: 0.8rem;
+}
+
+
 /* Icon Buttons */
 .icon-btn {
   width: 32px;
   height: 32px;
   display: inline-flex;
+
+
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
@@ -552,12 +617,31 @@ watch([searchQuery, searchStartDate, searchEndDate, searchStatus], () => {
   width: 38px;
   height: 38px;
   display: flex;
+
   align-items: center;
   justify-content: center;
-  font-weight: 500;
+  transition: all 0.2s;
+}
+.icon-btn:hover {
+  background-color: #e9ecef !important;
+  transform: translateY(-1px);
+}
+
+/* Button Danger specific */
+
+
+
+
+
+/* Pagination */
+.custom-pagination .page-link {
+  transition: all 0.2s ease-in-out;
+}
+.custom-pagination .page-link:hover:not(.bg-primary) {
+  background-color: #f8f9fa !important;
 }
 .custom-pagination .page-item.disabled .page-link {
-  color: #adb5bd;
-  background-color: #fff;
+  opacity: 0.5;
+  pointer-events: none;
 }
 </style>
