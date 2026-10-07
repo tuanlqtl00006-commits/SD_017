@@ -555,8 +555,6 @@ const toggleStatus = async (kh) => {
     try {
       populateForm(kh);
 
-      const payload = { ...formData.value, trangThai: isActivating ? 1 : 0 };
-
       const payload = {
         ...formData.value,
         hoTen: formData.value.ten,          // backend đọc "hoTen", không phải "ten"

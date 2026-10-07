@@ -51,8 +51,6 @@
             </div>
 
 
-            <div class="table-responsive">
-
             <div class="table-responsive ad-grid-table mx-4 mt-4">
               <table class="table table-hover align-middle mb-0 custom-table">
                 <thead class="bg-light text-secondary">
@@ -128,15 +126,6 @@
                     <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="nextPage"><i class="bi bi-chevron-right fs-6"></i></a>
                   </li>
                   <li class="page-item" :class="{ disabled: currentPage === totalPages || totalPages === 0 }">
-
-                       :class="currentPage === page ? 'rounded-3 bg-primary bg-opacity-10 text-primary fw-bold' : 'text-muted bg-transparent'" 
-                       href="#" @click.prevent="goToPage(page)">{{ page }}</a>
-                  </li>
-
-                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="nextPage"><i class="bi bi-chevron-right fs-6"></i></a>
-                  </li>
-                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
                     <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="goToPage(totalPages)"><i class="bi bi-chevron-double-right fs-6"></i></a>
                   </li>
                 </ul>
@@ -187,27 +176,6 @@
                       <option :value="2">Ngừng Hoạt Động</option>
                     </select>
                   </div>
-
-                  </div>
-                  <div class="row">
-                    <div class="col-6 mb-3">
-                      <label class="form-label small text-dark fw-medium">Ngày bắt đầu</label>
-                      <input type="date" min="2000-01-01" max="2099-12-31" class="form-control rounded-3" v-model="formData.ngayBatDau" :disabled="isView" required>
-                    </div>
-                    <div class="col-6 mb-3">
-                      <label class="form-label small text-dark fw-medium">Ngày kết thúc</label>
-                      <input type="date" min="2000-01-01" max="2099-12-31" class="form-control rounded-3" v-model="formData.ngayKetThuc" :disabled="isView" required>
-                    </div>
-                  </div>
-                  <div class="mb-3">
-                    <label class="form-label small text-dark fw-medium">Trạng Thái</label>
-                    <select class="form-select rounded-3" v-model="formData.trangThai" :disabled="isView">
-                      <option :value="1">Đang Hoạt Động</option>
-                      
-                      <option :value="2">Ngừng Hoạt Động</option>
-                    </select>
-                  </div>
-
                   <div class="d-flex justify-content-end gap-2 mt-4">
                     <button type="button" class="btn btn-secondary rounded-3 px-4 fw-medium" @click="closeModal">Hủy</button>
                     <button v-if="!isView" type="submit" class="btn btn-primary rounded-3 px-4 fw-medium" style="background-color: #0d6efd; border-color: #0d6efd;">Lưu</button>
@@ -247,8 +215,6 @@ import DotGiamGiaChiTietModal from './DotGiamGiaChiTietModal.vue'
 
 const currentPage = ref(1)
 const itemsPerPage = 5
-
-const totalPages = computed(() => Math.ceil(filteredList.value.length / itemsPerPage))
 
 const totalPages = computed(() => Math.ceil(filteredList.value.length / itemsPerPage) || 1)
 
@@ -543,28 +509,6 @@ watch([searchQuery, searchStartDate, searchEndDate, searchStatus], () => {
 }
 .form-control::placeholder {
   color: #adb5bd;
-
-}
-
-/* Custom Table Design */
-.custom-table td {
-  font-size: 0.9rem;
-  vertical-align: middle;
-  border-bottom: 1px solid #f1f3f5;
-  padding-top: 1rem;
-  padding-bottom: 1rem;
-}
-.custom-table tbody tr:hover {
-  background-color: #fcfcfc;
-}
-
-/* Status Badges */
-.badge {
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  font-size: 0.8rem;
-}
-
 
 }
 

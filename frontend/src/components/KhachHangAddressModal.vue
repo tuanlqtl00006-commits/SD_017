@@ -1,7 +1,5 @@
 <template>
 
-  <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
-
   <div style="position: fixed; top: 0; left: 0; width: calc(100vw / var(--ui-zoom, 1)); height: calc(100vh / var(--ui-zoom, 1)); background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
 
     <div class="modal-dialog bg-white rounded-4 shadow-lg" style="width: 800px; max-width: 95vw; pointer-events: auto; animation: slideDown 0.3s ease-out;">
@@ -13,9 +11,6 @@
             <i class="bi bi-geo-alt-fill fs-5"></i>
           </div>
           <div>
-
-            <h5 class="fw-bold mb-0 text-dark">Địa chỉ của {{ customer?.ten || 'Khách Hàng' }}</h5>
-
             <h5 class="fw-bold mb-0 text-dark">Địa chỉ của {{ customerName || 'Khách Hàng' }}</h5>
 
             <small class="text-muted">Quản lý địa chỉ giao hàng</small>
@@ -116,8 +111,6 @@
 </template>
 
 <script setup>
-
-import { ref, onMounted, watch } from 'vue'
 
 import { ref, onMounted, watch, computed } from 'vue'
 
@@ -226,8 +219,6 @@ const addNewAddress = () => {
   formData.value = {
     id: null,
 
-    tenNguoiNhan: props.customer.ten || '',
-
     tenNguoiNhan: customerName.value,
 
     sdtNguoiNhan: props.customer.sdt || '',
@@ -292,17 +283,10 @@ const saveAddress = async () => {
     
     if (formData.value.id) {
       await api.put(`/dia-chi/${formData.value.id}`, formData.value)
-
-      Swal.fire({ icon: 'success', title: 'Cập nhật thành công!' })
-    } else {
-      await api.post(`/dia-chi/khach-hang/${props.customer.id}`, formData.value)
-      Swal.fire({ icon: 'success', title: 'Thêm mới thành công!' })
-
       showToast('Cập nhật địa chỉ thành công!')
     } else {
       await api.post(`/dia-chi/khach-hang/${props.customer.id}`, formData.value)
       showToast('Thêm địa chỉ mới thành công!')
-
     }
     
     showForm.value = false
