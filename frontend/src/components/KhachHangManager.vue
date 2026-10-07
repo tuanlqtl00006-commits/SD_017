@@ -16,7 +16,7 @@
             
             <div class="input-group" style="flex: 1; min-width: 250px;">
               <span class="input-group-text border-end-0 text-muted rounded-start-pill bg-light" style="padding-left: 1rem;"><i class="bi bi-search"></i></span>
-              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" @keyup.enter="search">
+              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" autocomplete="off" @keyup.enter="search">
             </div>
             
             <select class="form-select bg-light text-secondary rounded-pill" style="width: 200px;" v-model="statusFilter" @change="currentPage = 1">
@@ -50,7 +50,7 @@
                <h4 class="fw-bold m-0 text-dark" style="font-size: 1.25rem;">Danh sách khách hàng</h4>
             </div>
             
-            <div class="table-responsive">
+            <div class="table-responsive ad-grid-table">
               <table class="table align-middle text-start">
                 <thead style="background-color: #f8f9fa;">
                   <tr>
@@ -145,7 +145,7 @@
         </div>
 
         <!-- Modal Sửa Khách Hàng -->
-        <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
+        <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: calc(100vw / var(--ui-zoom, 1)); height: calc(100vh / var(--ui-zoom, 1)); background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-4 shadow-lg" style="width: 750px; max-width: 95vw; pointer-events: auto; animation: slideDown 0.3s ease-out;">
             <div class="modal-header d-flex justify-content-between align-items-center px-4 pt-4 pb-2 border-bottom-0">
               <h4 class="modal-title fw-bold text-dark m-0">{{ isView ? 'Chi Tiết Khách Hàng' : 'Cập Nhật Khách Hàng' }}</h4>
@@ -430,8 +430,8 @@ const exportExcel = () => {
 
     return {
       'STT': index + 1,
-      'Mã Khách Hàng': kh.maKH || '',
-      'Họ và Tên': kh.ten || '',
+      'Mã Khách Hàng': kh.maKhachHang || kh.maKH || '',
+      'Họ và Tên': kh.hoTen || kh.ten || '',
       'Số Điện Thoại': kh.sdt || '',
       'Email': kh.email || '',
       'Ngày Sinh': parsedNgaySinh,
@@ -554,7 +554,17 @@ const toggleStatus = async (kh) => {
   if (result.isConfirmed) {
     try {
       populateForm(kh);
+
       const payload = { ...formData.value, trangThai: isActivating ? 1 : 0 };
+
+      const payload = {
+        ...formData.value,
+        hoTen: formData.value.ten,          // backend đọc "hoTen", không phải "ten"
+        maKhachHang: formData.value.maKH,
+        ngaySinh: formData.value.ngaySinh || null,
+        trangThai: isActivating ? 1 : 0
+      };
+
       await api.put(`/khach-hang/${kh.id}`, payload);
       fetchCustomers();
       Toast.fire({

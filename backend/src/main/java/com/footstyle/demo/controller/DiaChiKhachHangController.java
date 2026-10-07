@@ -33,7 +33,10 @@ public class DiaChiKhachHangController {
     public ResponseEntity<?> addDiaChi(@PathVariable Integer idKhachHang, @RequestBody DiaChiKhachHang diaChi) {
         return khachHangRepository.findById(idKhachHang).map(kh -> {
             diaChi.setKhachHang(kh);
+
             diaChi.setNgayTao(LocalDateTime.now());
+
+
             if (diaChi.getLaDiaChiMacDinh() != null && diaChi.getLaDiaChiMacDinh()) {
                 // Remove default from other addresses
                 List<DiaChiKhachHang> others = diaChiRepository.findByKhachHangId(idKhachHang);
@@ -55,7 +58,9 @@ public class DiaChiKhachHangController {
             existing.setQuanHuyen(payload.getQuanHuyen());
             existing.setPhuongXa(payload.getPhuongXa());
             existing.setDiaChiCuThe(payload.getDiaChiCuThe());
+
             existing.setNgayCapNhat(LocalDateTime.now());
+
             
             if (payload.getLaDiaChiMacDinh() != null && payload.getLaDiaChiMacDinh()) {
                 existing.setLaDiaChiMacDinh(true);
