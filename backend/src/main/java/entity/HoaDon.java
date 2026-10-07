@@ -1,4 +1,6 @@
 package entity;
+import com.footstyle.demo.entity.KhachHang;
+import com.footstyle.demo.entity.NhanVien;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;

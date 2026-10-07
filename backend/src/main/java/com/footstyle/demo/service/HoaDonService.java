@@ -36,7 +36,7 @@ public class HoaDonService {
             request.setId(hd.getId() != null ? hd.getId().intValue() : null);
             request.setMaHoaDon(hd.getMaHoaDon());
 
-            request.setTenKhachHang(hd.getKhachHang() != null ? hd.getKhachHang().getTen() : "Khách lẻ");
+            request.setTenKhachHang(hd.getKhachHang() != null ? hd.getKhachHang().getHoTen() : "Khách lẻ");
             request.setTenNhanVien(hd.getNhanVien() != null ? hd.getNhanVien().getHoTen() : "Không xác định");
 
             request.setTongTien(hd.getTongTien());
@@ -105,7 +105,7 @@ public class HoaDonService {
             HoaDonRequest request = new HoaDonRequest();
             request.setId(hd.getId() != null ? hd.getId().intValue() : null);
             request.setMaHoaDon(hd.getMaHoaDon());
-            request.setTenKhachHang(hd.getKhachHang() != null ? hd.getKhachHang().getTen() : "Khách lẻ");
+            request.setTenKhachHang(hd.getKhachHang() != null ? hd.getKhachHang().getHoTen() : "Khách lẻ");
             request.setTenNhanVien(hd.getNhanVien() != null ? hd.getNhanVien().getHoTen() : "Không xác định");
             request.setTongTien(hd.getTongTien());
             request.setNgayTao(hd.getNgayTao());
@@ -135,7 +135,7 @@ public class HoaDonService {
 
         java.util.Map<String, Object> hoaDonInfo = new java.util.HashMap<>();
         hoaDonInfo.put("maHoaDon", hd.getMaHoaDon());
-        hoaDonInfo.put("tenKhachHang", hd.getKhachHang() != null ? hd.getKhachHang().getTen() : "Khách vãng lai");
+        hoaDonInfo.put("tenKhachHang", hd.getKhachHang() != null ? hd.getKhachHang().getHoTen() : "Khách vãng lai");
         hoaDonInfo.put("sdtNguoiNhan", hd.getKhachHang() != null ? hd.getKhachHang().getSdt() : null);
         hoaDonInfo.put("ngayTao", hd.getNgayTao());
         hoaDonInfo.put("trangThai", hd.getTrangThai());

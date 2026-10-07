@@ -1,6 +1,6 @@
 <template>
   <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
-    <Sidebar />
+
 
     <div class="flex-grow-1 d-flex flex-column">
       <Header />
@@ -218,7 +218,6 @@
 
 <script setup>
 import { ref } from 'vue'
-import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
 
 const showModal = ref(false)

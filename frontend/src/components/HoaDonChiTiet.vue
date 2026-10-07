@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import axios from 'axios';
-import Sidebar from './Sidebar.vue';
+
 
 const route = useRoute();
 const idHoaDon = route.params.id;
@@ -142,7 +142,6 @@ onMounted(() => {
 <template>
   <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
 
-    <Sidebar />
 
 
     
