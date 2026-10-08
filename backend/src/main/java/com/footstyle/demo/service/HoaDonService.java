@@ -167,14 +167,14 @@ public class HoaDonService {
 
         // Lịch sử thao tác (cũ -> mới)
         List<Map<String, Object>> lichSu = new ArrayList<>();
-        for (LichSuHoaDon ls : lichSuHoaDonRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+        for (LichSuHoaDon ls : lichSuHoaDonRepository.findByHoaDon_IdOrderByNgayTaoAscIdAsc(hd.getId())) {
             Map<String, Object> m = new HashMap<>();
             m.put("id", ls.getId());
-            m.put("hanhDong", ls.getHanhDong());
-            m.put("trangThai", maTrangThaiTuHanhDong(ls.getHanhDong()));
-            m.put("nguoiThaoTac", ls.getNguoiThaoTac());
-            m.put("thoiGian", ls.getThoiGian());
-            m.put("moTa", ls.getMoTa());
+            m.put("hanhDong", ls.getTrangThai());
+            m.put("trangThai", maTrangThaiTuHanhDong(ls.getTrangThai()));
+            m.put("nguoiThaoTac", ls.getNguoiTao());
+            m.put("thoiGian", ls.getNgayTao());
+            m.put("moTa", ls.getGhiChu());
             lichSu.add(m);
         }
         response.put("lichSu", lichSu);
@@ -289,11 +289,11 @@ public class HoaDonService {
 
         LichSuHoaDon ls = new LichSuHoaDon();
         ls.setHoaDon(hd);
-        ls.setHanhDong(TEN_TRANG_THAI.get(moi));
-        ls.setThoiGian(now);
-        ls.setMoTa(ghiChu.isEmpty() ? "Chuyển sang \"" + TEN_TRANG_THAI.get(moi) + "\"" : ghiChu);
+        ls.setTrangThai(TEN_TRANG_THAI.get(moi));
+        ls.setNgayTao(now);
+        ls.setGhiChu(ghiChu.isEmpty() ? "Chuyển sang \"" + TEN_TRANG_THAI.get(moi) + "\"" : ghiChu);
         String nguoi = req.nguoiThaoTac() == null ? "" : req.nguoiThaoTac().trim();
-        ls.setNguoiThaoTac(nguoi.isEmpty() ? "Quản lý" : nguoi);
+        ls.setNguoiTao(nguoi.isEmpty() ? "Quản lý" : nguoi);
         lichSuHoaDonRepository.save(ls);
 
         return getChiTietHoaDon(hd.getId());
