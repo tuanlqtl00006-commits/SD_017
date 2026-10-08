@@ -48,8 +48,7 @@ public class HoaDonController {
             
             LichSuHoaDon lichSu = new LichSuHoaDon();
             lichSu.setHoaDon(hoaDon);
-            lichSu.setTrangThai(trangThaiMoi);
-            lichSu.setNguoiThaoTac("ADMIN - Nguyễn Trịnh Phương Minh"); 
+            lichSu.setNguoiTao("ADMIN - Nguyễn Trịnh Phương Minh"); 
 
             String tenTrangThai = "";
             switch (trangThaiMoi) {
@@ -62,10 +61,9 @@ public class HoaDonController {
                 case 6: tenTrangThai = "Hoàn thành"; break;
                 default: tenTrangThai = "Cập nhật trạng thái";
             }
-            lichSu.setMoTa(ghiChu != null && !ghiChu.isEmpty() ? ghiChu : tenTrangThai);
-            lichSu.setHanhDong(tenTrangThai);
-            lichSu.setThoiGian(LocalDateTime.now());
-            lichSu.setNgayTao(new Date()); 
+            lichSu.setTrangThai(tenTrangThai);
+            lichSu.setGhiChu(ghiChu != null && !ghiChu.isEmpty() ? ghiChu : tenTrangThai);
+            lichSu.setNgayTao(LocalDateTime.now()); 
             
             lichSuHoaDonRepository.save(lichSu);
             

@@ -22,35 +22,17 @@ public class LichSuHoaDon {
     private HoaDon hoaDon;
 
     @Column(name = "nguoi_thao_tac")
-    private String nguoiThaoTac;
+    private String nguoiTao;
 
-    /** Tên hành động dạng chữ, vd "Chờ xác nhận", "Đã xác nhận", "Hủy đơn hàng" (cột NVARCHAR). */
+    // Ép biến trangThai trỏ đúng vào cột hanh_dong trong SQL
     @Column(name = "hanh_dong")
-    private String hanhDong;
+    private String trangThai; 
 
-    // Added to support old properties if accessed
-    private Integer trangThai;
-
+    // Ép biến ngayTao trỏ đúng vào cột thoi_gian trong SQL
     @Column(name = "thoi_gian")
-    private LocalDateTime thoiGian;
-
-    // Optional field to avoid compile error if Date was used
-    private Date ngayTao;
+    private LocalDateTime ngayTao; // (Hoặc LocalDateTime tùy bạn đang dùng kiểu gì)
 
     @Column(name = "mo_ta")
-    private String moTa;
+    private String ghiChu;
 
-    // To support older alias
-    public void setNguoiTao(String nguoiTao) {
-        this.nguoiThaoTac = nguoiTao;
-    }
-    public String getNguoiTao() {
-        return this.nguoiThaoTac;
-    }
-    public void setGhiChu(String ghiChu) {
-        this.moTa = ghiChu;
-    }
-    public String getGhiChu() {
-        return this.moTa;
-    }
 }
