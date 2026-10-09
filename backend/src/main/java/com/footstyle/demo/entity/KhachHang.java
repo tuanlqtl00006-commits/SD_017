@@ -47,6 +47,10 @@ public class KhachHang {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
+    // Ảnh đại diện: đường dẫn ảnh đã tải lên, vd "/api/uploads/abc.jpg" (cột tự được thêm khi khởi động, xem KhachHangSchemaPatch)
+    @Column(name = "anh_dai_dien")
+    private String anhDaiDien;
+
     @OneToMany(mappedBy = "khachHang", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private java.util.List<DiaChiKhachHang> diaChiList = new java.util.ArrayList<>();
 }

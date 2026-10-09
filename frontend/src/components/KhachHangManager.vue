@@ -55,7 +55,8 @@
                 <thead style="background-color: #f8f9fa;">
                   <tr>
                     <th class="py-3 fw-bold text-dark border-0" style="width: 60px;">STT</th>
-                    <th class="py-3 fw-bold text-dark border-0">Họ tên</th>
+                    <th class="py-3 fw-bold text-dark border-0 text-center" style="width: 80px;">Ảnh</th>
+                      <th class="py-3 fw-bold text-dark border-0">Họ tên</th>
                     <th class="py-3 fw-bold text-dark border-0">Email</th>
                     <th class="py-3 fw-bold text-dark border-0" style="width: 250px;">Địa chỉ</th>
                     <th class="py-3 fw-bold text-dark border-0">Số điện thoại</th>
@@ -65,7 +66,7 @@
                 </thead>
                 <tbody class="text-dark">
                   <tr v-if="customers.length === 0">
-                    <td colspan="7" class="text-center py-5">
+                    <td colspan="8" class="text-center py-5">
                       <div class="d-flex flex-column align-items-center justify-content-center opacity-50">
                         <i class="bi bi-search mb-3" style="font-size: 3rem; color: #dee2e6;"></i>
                         <h6 class="text-muted fw-medium">Không tìm thấy khách hàng nào</h6>
@@ -75,7 +76,13 @@
                   </tr>
                   <tr v-for="(kh, index) in paginatedCustomers" :key="kh.id">
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.id }}</td>
-                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.hoTen || kh.ten }}</td>
+                    <td class="py-3 text-center" style="border-bottom: 1px solid #f0f0f0;">
+                        <img v-if="kh.anhDaiDien" :src="kh.anhDaiDien" class="rounded-circle object-fit-cover shadow-sm" style="width: 45px; height: 45px; border: 2px solid #fff;" />
+                        <div v-else class="rounded-circle d-flex align-items-center justify-content-center bg-light text-secondary mx-auto shadow-sm" style="width: 45px; height: 45px; border: 2px solid #fff;">
+                            <i class="bi bi-person fs-5"></i>
+                        </div>
+                      </td>
+                      <td class="py-3 fw-medium" style="border-bottom: 1px solid #f0f0f0;">{{ kh.hoTen || kh.ten }}</td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.email }}</td>
                     <td class="py-3 small" style="border-bottom: 1px solid #f0f0f0; white-space: normal;">
                       <span v-if="kh.diaChiList && kh.diaChiList.length > 0">

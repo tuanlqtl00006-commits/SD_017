@@ -6,7 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @RestController
@@ -16,8 +19,39 @@ public class KhachHangController {
     @Autowired
     private KhachHangRepository khachHangRepository;
 
+    // Giới hạn tuổi khách hàng (frontend: src/utils/ngaySinhKhachHang.js cũng dùng 14 và 120)
+    private static final int TUOI_TOI_THIEU = 14;
+    private static final int TUOI_TOI_DA = 120;
+
+    /**
+     * Kiểm tra ngày sinh: bắt buộc, không ở tương lai, từ 14 đến 120 tuổi.
+     * Ngày không có thật (30/02...) hoặc sai định dạng yyyy-MM-dd đã bị Jackson chặn từ lúc đọc JSON (trả 400).
+     * Trả về câu báo lỗi, hoặc null nếu hợp lệ.
+     */
+    private String kiemTraNgaySinh(LocalDate ngaySinh) {
+        if (ngaySinh == null) {
+            return "Vui lòng chọn ngày sinh.";
+        }
+        LocalDate homNay = LocalDate.now();
+        if (ngaySinh.isAfter(homNay)) {
+            return "Ngày sinh không được lớn hơn ngày hiện tại.";
+        }
+        if (ngaySinh.isAfter(homNay.minusYears(TUOI_TOI_THIEU))) {
+            return "Khách hàng phải từ " + TUOI_TOI_THIEU + " tuổi trở lên.";
+        }
+        LocalDate ngaySinhSomNhat = homNay.minusYears(TUOI_TOI_DA);
+        if (ngaySinh.isBefore(ngaySinhSomNhat)) {
+            return "Tuổi tối đa là " + TUOI_TOI_DA + " (ngày sinh không được trước "
+                    + ngaySinhSomNhat.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ").";
+        }
+        return null;
+    }
+
     @GetMapping
-    public List<KhachHang> getAllKhachHang() {
+    public List<KhachHang> getAllKhachHang(@RequestParam(required = false) String search) {
+        if (search != null && !search.trim().isEmpty()) {
+            return khachHangRepository.searchKhachHang(search);
+        }
         return khachHangRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"));
     }
 
@@ -40,10 +74,16 @@ public class KhachHangController {
             return ResponseEntity.badRequest().body(java.util.Collections.singletonMap("message", "Vui lòng nhập họ tên khách hàng."));
         }
 
+        String loiNgaySinh = kiemTraNgaySinh(khachHang.getNgaySinh());
+        if (loiNgaySinh != null) {
+            return ResponseEntity.badRequest().body(java.util.Collections.singletonMap("message", loiNgaySinh));
+        }
+
         if (khachHang.getMaKhachHang() == null || khachHang.getMaKhachHang().isEmpty()) {
             khachHang.setMaKhachHang("KH" + System.currentTimeMillis());
         }
-
+        
+        // Auto-generate password from phone number
         if (khachHang.getSdt() != null) {
             khachHang.setMatKhau(java.util.UUID.randomUUID().toString().substring(0, 8));
         }
@@ -52,6 +92,7 @@ public class KhachHangController {
             khachHang.setTrangThai(1);
         }
 
+        // Địa chỉ gửi kèm: trường khachHang bị @JsonIgnore nên phải tự gắn lại, nếu không id_khach_hang sẽ NULL
         if (khachHang.getDiaChiList() != null) {
             khachHang.getDiaChiList().forEach(dc -> {
                 dc.setKhachHang(khachHang);
@@ -73,9 +114,11 @@ public class KhachHangController {
         if (optionalKhachHang.isPresent()) {
             KhachHang khachHang = optionalKhachHang.get();
 
+            // Check if changing email to an existing one
             if (khachHangDetails.getEmail() != null && !khachHangDetails.getEmail().equals(khachHang.getEmail()) && khachHangRepository.existsByEmail(khachHangDetails.getEmail())) {
                 return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Email đã tồn tại."));
             }
+            // Check if changing sdt to an existing one
             if (khachHangDetails.getSdt() != null && !khachHangDetails.getSdt().equals(khachHang.getSdt()) && khachHangRepository.existsBySdt(khachHangDetails.getSdt())) {
                 return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
             }
@@ -84,11 +127,21 @@ public class KhachHangController {
                 khachHang.setHoTen(khachHangDetails.getHoTen().trim());
             }
 
+            // Chỉ kiểm tra khi ngày sinh thực sự bị đổi (nút bật/tắt trạng thái gửi lại ngày sinh cũ,
+            // khách cũ chưa có ngày sinh vẫn đổi trạng thái được)
+            if (!Objects.equals(khachHangDetails.getNgaySinh(), khachHang.getNgaySinh())) {
+                String loiNgaySinh = kiemTraNgaySinh(khachHangDetails.getNgaySinh());
+                if (loiNgaySinh != null) {
+                    return ResponseEntity.badRequest().body(java.util.Collections.singletonMap("message", loiNgaySinh));
+                }
+            }
             khachHang.setSdt(khachHangDetails.getSdt());
             khachHang.setEmail(khachHangDetails.getEmail());
             khachHang.setNgaySinh(khachHangDetails.getNgaySinh());
             khachHang.setGioiTinh(khachHangDetails.getGioiTinh());
-
+            if (khachHangDetails.getAnhDaiDien() != null) {
+                khachHang.setAnhDaiDien(khachHangDetails.getAnhDaiDien().isBlank() ? null : khachHangDetails.getAnhDaiDien());
+            }
             if (khachHangDetails.getTrangThai() != null) {
                 khachHang.setTrangThai(khachHangDetails.getTrangThai());
             }
@@ -110,3 +163,7 @@ public class KhachHangController {
         }
     }
 }
+
+
+
+
