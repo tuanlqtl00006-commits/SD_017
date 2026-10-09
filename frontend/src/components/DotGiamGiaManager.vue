@@ -15,17 +15,17 @@
             <div class="d-flex flex-wrap align-items-center gap-3">
               <div class="input-group" style="flex: 1; min-width: 250px;">
                 <span class="input-group-text border-end-0 text-muted rounded-start-pill bg-light" style="padding-left: 1rem;"><i class="bi bi-search"></i></span>
-                <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Mã, tên, giá trị..." v-model="searchInput" @keyup.enter="search">
+                <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Mã, tên, giá trị..." v-model="searchText" @keyup.enter="search">
               </div>
 
-              <input type="date" min="2000-01-01" max="2099-12-31" class="form-control bg-light text-secondary rounded-pill" style="width: 150px;" v-model="searchStartDate" title="Ngày bắt đầu">
-              <input type="date" min="2000-01-01" max="2099-12-31" class="form-control bg-light text-secondary rounded-pill" style="width: 150px;" v-model="searchEndDate" title="Ngày kết thúc">
+              <input type="date" min="2000-01-01" max="2099-12-31" class="form-control bg-light text-secondary rounded-pill" style="width: 150px;" v-model="searchStartDate" title="Ngày bắt đầu" data-no-auto-picker>
+              <input type="date" min="2000-01-01" max="2099-12-31" class="form-control bg-light text-secondary rounded-pill" style="width: 150px;" v-model="searchEndDate" title="Ngày kết thúc" data-no-auto-picker>
               
               <select class="form-select bg-light text-secondary rounded-pill" style="width: 150px;" v-model="searchStatus">
                 <option value="">Tất cả</option>
-                <option value="1">Đang Hoạt Động</option>
-                
-                <option value="2">Ngừng Hoạt Động</option>
+                <option value="1">Đang diễn ra</option>
+                <option value="2">Sắp diễn ra</option>
+                <option value="0">Đã kết thúc</option>
               </select>
               
               <button class="btn btn-outline-secondary d-flex align-items-center rounded-pill fw-medium custom-outline-btn text-muted" @click="reset">
@@ -80,12 +80,11 @@
                     </td>
                     <td class="text-center pe-4">
                       <div class="d-flex justify-content-center gap-2">
-                        <button class="btn btn-sm rounded-circle d-flex align-items-center justify-content-center" 
-                                :class="dgg.trangThai === 1 ? 'text-success bg-success bg-opacity-10' : 'text-danger bg-danger bg-opacity-10'" 
-                                style="width: 32px; height: 32px; border: none;" 
-                                title="Đổi trạng thái" 
-                                @click="toggleStatus(dgg)">
-                          <i class="bi bi-power"></i>
+                        <button class="btn btn-sm btn-light text-primary rounded-circle d-flex align-items-center justify-content-center" 
+                                style="width: 32px; height: 32px; background-color: transparent; border: none;" 
+                                title="Sửa" 
+                                @click="openEditModal(dgg)">
+                          <i class="bi bi-pencil"></i>
                         </button>
                         <button class="btn btn-sm btn-light text-secondary rounded-circle d-flex align-items-center justify-content-center" 
                                 style="width: 32px; height: 32px; background-color: transparent; border: none;" 
@@ -161,20 +160,16 @@
                   <div class="row">
                     <div class="col-6 mb-3">
                       <label class="form-label small text-dark fw-medium">Ngày bắt đầu</label>
-                      <input type="date" min="2000-01-01" max="2099-12-31" class="form-control rounded-3" v-model="formData.ngayBatDau" :disabled="isView" required>
+                      <input type="date" min="2000-01-01" max="2099-12-31" class="form-control rounded-3" v-model="formData.ngayBatDau" :disabled="isView" required data-no-auto-picker>
                     </div>
                     <div class="col-6 mb-3">
                       <label class="form-label small text-dark fw-medium">Ngày kết thúc</label>
-                      <input type="date" min="2000-01-01" max="2099-12-31" class="form-control rounded-3" v-model="formData.ngayKetThuc" :disabled="isView" required>
+                      <input type="date" min="2000-01-01" max="2099-12-31" class="form-control rounded-3" v-model="formData.ngayKetThuc" :disabled="isView" required data-no-auto-picker>
                     </div>
                   </div>
                   <div class="mb-3">
                     <label class="form-label small text-dark fw-medium">Trạng Thái</label>
-                    <select class="form-select rounded-3" v-model="formData.trangThai" :disabled="isView">
-                      <option :value="1">Đang Hoạt Động</option>
-                      
-                      <option :value="2">Ngừng Hoạt Động</option>
-                    </select>
+                    <input type="text" class="form-control rounded-3 text-muted" value="Hệ thống tự động cập nhật theo ngày" disabled>
                   </div>
                   <div class="d-flex justify-content-end gap-2 mt-4">
                     <button type="button" class="btn btn-secondary rounded-3 px-4 fw-medium" @click="closeModal">Hủy</button>
@@ -251,6 +246,7 @@ const formData = ref({
 
 const dsDotGiamGia = ref([])
 const searchQuery = ref('')
+const searchText = ref('')
 const searchStartDate = ref('')
 const searchEndDate = ref('')
 const searchStatus = ref('')
@@ -459,36 +455,57 @@ const formatDateOnly = (dateTimeString) => {
 }
 
 const displayStatus = (statusValue) => {
-  if (statusValue === 1) return 'Đang Hoạt Động';
-  
-  if (statusValue === 2 || statusValue === 0) return 'Ngừng Hoạt Động';
-  return 'Không rõ';
+  if (statusValue === 1) return 'Đang diễn ra';
+  if (statusValue === 2) return 'Sắp diễn ra';
+  if (statusValue === 0) return 'Đã kết thúc';
+  return 'Ngừng hoạt động';
 }
 
 const statusBadgeClass = (statusValue) => {
   if (statusValue === 1) return 'bg-success bg-opacity-10 text-success border-0';
+  if (statusValue === 2) return 'bg-warning bg-opacity-10 text-warning border-0';
+  if (statusValue === 0) return 'bg-secondary bg-opacity-10 text-secondary border-0';
   return 'bg-danger bg-opacity-10 text-danger border-0';
 }
 
 const reset = () => {
   searchQuery.value = ''
+  searchText.value = ''
   searchStartDate.value = ''
   searchEndDate.value = ''
   searchStatus.value = ''
   fetchDGG()
 }
 
+const search = () => {
+  searchQuery.value = searchText.value;
+  currentPage.value = 1;
+}
+
+const toYmd = (v) => {
+  if (!v) return ''
+  if (Array.isArray(v)) return "${v[0]}-${String(v[1]).padStart(2, '0')}-${String(v[2]).padStart(2, '0')}"
+  return String(v).substring(0, 10)
+}
+
 const filteredList = computed(() => {
   return dsDotGiamGia.value.filter(dgg => {
     let match = true;
-    if (searchQuery.value && !dgg.tenDot?.toLowerCase().includes(searchQuery.value.toLowerCase()) && !dgg.maDot?.toLowerCase().includes(searchQuery.value.toLowerCase()) && !String(dgg.phanTramGiamDot).includes(searchQuery.value)) match = false;
+    const q = (searchQuery.value || '').trim().toLowerCase();
+    if (q) {
+      const ten = (dgg.tenDot || '').toLowerCase();
+      const ma = (dgg.maDot || '').toLowerCase();
+      const pt = String(dgg.phanTramGiamDot || '');
+      if (!ten.includes(q) && !ma.includes(q) && !pt.includes(q)) match = false;
+    }
+    
     if (searchStatus.value !== '' && String(dgg.trangThai) !== searchStatus.value) match = false;
     
-    if (searchStartDate.value && dgg.ngayBatDau) {
-      if (dgg.ngayBatDau.substring(0, 10) < searchStartDate.value) match = false;
+    if (searchStartDate.value && dgg.ngayKetThuc) {
+      if (toYmd(dgg.ngayKetThuc) < searchStartDate.value) match = false;
     }
-    if (searchEndDate.value && dgg.ngayKetThuc) {
-      if (dgg.ngayKetThuc.substring(0, 10) > searchEndDate.value) match = false;
+    if (searchEndDate.value && dgg.ngayBatDau) {
+      if (toYmd(dgg.ngayBatDau) > searchEndDate.value) match = false;
     }
     
     return match;
@@ -589,3 +606,10 @@ watch([searchQuery, searchStartDate, searchEndDate, searchStatus], () => {
   pointer-events: none;
 }
 </style>
+
+
+
+
+
+
+
