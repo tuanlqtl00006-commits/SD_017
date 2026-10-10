@@ -100,6 +100,7 @@ database/SD_17_du_lieu.sql: MỚI, chỉ phần dữ liệu (phần 2 đến 5 c
 có mục "THÊM DỮ LIỆU MỚI Ở ĐÂY" ở cuối. Đã kiểm tra: mọi lệnh đọc được theo cú pháp T-SQL, mọi INSERT dùng đúng bảng / cột của file tổng. Chưa chạy trên SQL Server thật.
 
 
+
 GỘP THÊM NGÀY 10/10/2026 (tối) - SD_017-main_1.zip + SD_017-main_2.zip
 =======================================================================
 Bản 1 (SD_017-main_1.zip) = bản gộp mới nhất của nhóm (có toàn bộ phần ghi ở trên).
@@ -135,3 +136,5 @@ KHÔNG ĐƯA VÀO (Bản 1 đã có cách làm riêng / mới hơn)
   - MailService.java: biên dịch bằng javac với lớp giả tối thiểu của Spring / Jakarta Mail / Thymeleaf: 0 lỗi.
 CHƯA KIỂM TRA ĐƯỢC (môi trường bị chặn tải thư viện Maven)
   - mvn / Spring Boot chạy thật, câu truy vấn thongKeMuaHangTheoKhach trên SQL Server, gửi mail Gmail thật.
+=======
+

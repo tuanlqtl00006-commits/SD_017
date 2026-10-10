@@ -39,7 +39,10 @@ public class PhieuGiamGiaService {
     private final PhieuGiamGiaKhachHangRepository phieuKhRepo;
     private final KhachHangRepository khachHangRepo;
     private final MailService mailService;
+ Hieu
     private final HoaDonRepository hoaDonRepo; // thống kê số đơn đã mua của khách (bảng chọn khách nhận phiếu)
+=======
+
 
     /* ===================== Đọc ===================== */
 

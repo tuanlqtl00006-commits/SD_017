@@ -2,24 +2,37 @@ package com.footstyle.demo.service;
 
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.PhieuGiamGia;
+
 import jakarta.annotation.PreDestroy;
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+=======
+
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+=======
+import jakarta.annotation.PreDestroy;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+=======
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.stereotype.Service;
+
 
 /**
  * Gửi mail phiếu giảm giá cho khách hàng (chỉ phiếu CÁ NHÂN). Có 3 loại mail:
@@ -27,10 +40,14 @@ import org.thymeleaf.context.Context;
  *  - CAP_NHAT : khách vẫn được tặng nhưng thông tin phiếu đã đổi (giá trị giảm, đơn tối thiểu, ngày...);
  *  - HUY      : khách bị bỏ khỏi danh sách nhận phiếu -> phiếu bị thu hồi.
  *
+
  * Nội dung mail là HTML dựng từ mẫu Thymeleaf trong resources/templates/mail (pgg-moi / pgg-cap-nhat / pgg-huy,
  * phần dùng chung ở fragments.html), có gắn kèm logo FootStyle (resources/mail/logo.png).
  *
  * Chưa cấu hình tài khoản gửi (MAIL_USERNAME) thì không gửi mail thật mà chỉ ghi nội dung vào log, để chạy thử không bị lỗi.
+=======
+ * Chưa cấu hình SMTP (spring.mail.host) thì không gửi mail thật mà chỉ ghi nội dung vào log, để chạy thử không bị lỗi.
+
  * Mail gửi ở luồng riêng nên không làm chậm / làm hỏng thao tác lưu phiếu.
  */
 @Service
@@ -40,6 +57,7 @@ public class MailService {
 
     private static final Logger log = LoggerFactory.getLogger(MailService.class);
     private static final DateTimeFormatter NGAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private static final DateTimeFormatter NGAY_GIO = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     // Logo gắn kèm trong mail; trong mẫu HTML gọi bằng src="cid:footstyleLogo"
@@ -52,6 +70,12 @@ public class MailService {
     private final String username;
     private final String tenCuaHang;
     private final String shopUrl;
+=======
+
+    private final ObjectProvider<JavaMailSender> mailSender;
+    private final String from;
+    private final String tenCuaHang;
+
     private final ExecutorService luongGui = Executors.newFixedThreadPool(2, r -> {
         Thread t = new Thread(r, "gui-mail");
         t.setDaemon(true);
@@ -59,6 +83,7 @@ public class MailService {
     });
 
     public MailService(ObjectProvider<JavaMailSender> mailSender,
+
                        ObjectProvider<TemplateEngine> templateEngine,
                        @Value("${app.mail.from:}") String from,
                        @Value("${spring.mail.username:}") String username,
@@ -70,6 +95,14 @@ public class MailService {
         this.from = (from == null || from.isBlank()) ? this.username : from.trim();
         this.tenCuaHang = tenCuaHang;
         this.shopUrl = shopUrl;
+
+                       @Value("${app.mail.from:}") String from,
+                       @Value("${spring.mail.username:}") String username,
+                       @Value("${app.mail.ten-cua-hang:FootStyle}") String tenCuaHang) {
+        this.mailSender = mailSender;
+        this.from = (from == null || from.isBlank()) ? username : from;
+        this.tenCuaHang = tenCuaHang;
+
     }
 
     @PreDestroy
@@ -89,6 +122,7 @@ public class MailService {
         }
         final String den = kh.getEmail().trim();
         final String tieuDe = tieuDe(loai, phieu);
+
         final String noiDungChu = noiDungChu(loai, phieu, kh);   // bản chữ thường: ghi log khi giả lập
         final String noiDungHtml = noiDungHtml(loai, phieu, kh); // bản HTML có giao diện: gửi thật
         luongGui.submit(() -> gui(den, tieuDe, noiDungChu, noiDungHtml));
@@ -117,6 +151,26 @@ public class MailService {
             } else {
                 h.setText(noiDungChu, false);
             }
+=======
+        final String noiDung = noiDung(loai, phieu, kh);
+        luongGui.submit(() -> gui(den, tieuDe, noiDung));
+    }
+
+    private void gui(String den, String tieuDe, String noiDung) {
+        JavaMailSender sender = mailSender.getIfAvailable();
+        if (sender == null) {
+            log.info("[MAIL GIẢ LẬP - chưa cấu hình SMTP] Đến: {} | Tiêu đề: {}\n{}", den, tieuDe, noiDung);
+            return;
+        }
+        try {
+            SimpleMailMessage m = new SimpleMailMessage();
+            if (from != null && !from.isBlank()) {
+                m.setFrom(from);
+            }
+            m.setTo(den);
+            m.setSubject(tieuDe);
+            m.setText(noiDung);
+
             sender.send(m);
             log.info("Đã gửi mail '{}' đến {}", tieuDe, den);
         } catch (Exception e) {
@@ -130,6 +184,7 @@ public class MailService {
     private String tieuDe(Loai loai, PhieuGiamGia p) {
         switch (loai) {
             case MOI:
+
                 return "🎁 Tặng bạn phiếu giảm giá đặc biệt từ " + tenCuaHang + "!";
             case CAP_NHAT:
                 return "🔔 Phiếu giảm giá " + p.getMaPhieu() + " của bạn vừa được cập nhật";
@@ -169,6 +224,17 @@ public class MailService {
     }
 
     private String noiDungChu(Loai loai, PhieuGiamGia p, KhachHang kh) {
+=======
+                return "[" + tenCuaHang + "] Bạn nhận được phiếu giảm giá " + p.getMaPhieu();
+            case CAP_NHAT:
+                return "[" + tenCuaHang + "] Phiếu giảm giá " + p.getMaPhieu() + " đã được cập nhật";
+            default:
+                return "[" + tenCuaHang + "] Phiếu giảm giá " + p.getMaPhieu() + " đã bị hủy";
+        }
+    }
+
+    private String noiDung(Loai loai, PhieuGiamGia p, KhachHang kh) {
+
         StringBuilder sb = new StringBuilder();
         sb.append("Xin chào ").append(kh.getHoTen() == null ? "quý khách" : kh.getHoTen()).append(",\n\n");
         switch (loai) {
@@ -188,13 +254,20 @@ public class MailService {
             sb.append("- Mức giảm: ").append(mucGiam(p)).append('\n');
             sb.append("- Đơn tối thiểu: ").append(tien(p.getGiaTriDonHangToiThieu())).append('\n');
             sb.append("- Hiệu lực: ")
+
                     .append(ngay(p.getNgayBatDau(), NGAY))
                     .append(" - ")
                     .append(ngay(p.getNgayKetThuc(), NGAY)).append('\n');
+=======
+                    .append(p.getNgayBatDau() == null ? "" : p.getNgayBatDau().format(NGAY))
+                    .append(" - ")
+                    .append(p.getNgayKetThuc() == null ? "" : p.getNgayKetThuc().format(NGAY)).append('\n');
+
         }
         sb.append("\nCảm ơn bạn đã đồng hành cùng ").append(tenCuaHang).append(".\n");
         return sb.toString();
     }
+
 
     private static boolean phanTram(PhieuGiamGia p) {
         return p.getLoaiGiam() != null && p.getLoaiGiam() == PhieuGiamGia.LOAI_PHAN_TRAM;
@@ -202,6 +275,11 @@ public class MailService {
 
     private String mucGiam(PhieuGiamGia p) {
         if (!phanTram(p)) {
+=======
+    private String mucGiam(PhieuGiamGia p) {
+        boolean phanTram = p.getLoaiGiam() != null && p.getLoaiGiam() == PhieuGiamGia.LOAI_PHAN_TRAM;
+        if (!phanTram) {
+
             return "giảm " + tien(p.getGiaTriGiam());
         }
         String s = "giảm " + p.getGiaTriGiam() + "%";
@@ -211,11 +289,14 @@ public class MailService {
         return s;
     }
 
+
     private static String ngay(LocalDateTime t, DateTimeFormatter dinhDang) {
         return t == null ? "" : t.format(dinhDang);
     }
 
     /** 200000 -> "200.000 ₫" */
+=======
+
     private String tien(Long v) {
         long x = v == null ? 0 : v;
         return String.format(new Locale("vi", "VN"), "%,d ₫", x);

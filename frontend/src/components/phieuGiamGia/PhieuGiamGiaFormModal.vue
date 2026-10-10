@@ -243,7 +243,10 @@ onMounted(() => {
 <template>
   <component
     :is="asPage ? FormPageShell : BaseModal"
+
     v-bind="asPage ? { title: titleText } : { title: titleText, size: isCaNhan ? 'xl' : 'lg', staticBackdrop: true, onClose: () => emit('close') }"
+=======
+    v-bind="asPage ? { title: titleText } : { title: titleText, size: 'lg', staticBackdrop: true, onClose: () => emit('close') }"
   >
     <form id="pgg-form" novalidate @submit.prevent="submit">
       <div class="row g-3">
