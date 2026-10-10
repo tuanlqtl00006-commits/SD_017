@@ -2,53 +2,52 @@ package com.footstyle.demo.controller;
 
 import com.footstyle.demo.entity.DotGiamGia;
 import com.footstyle.demo.entity.DotGiamGiaChiTiet;
-import com.footstyle.demo.repository.DotGiamGiaRepository;
+import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.DotGiamGiaChiTietRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
+import com.footstyle.demo.repository.DotGiamGiaRepository;
+import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import java.util.List;
-import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/dot-giam-gia-chi-tiet")
+@RequiredArgsConstructor
 public class DotGiamGiaChiTietController {
 
-    @Autowired
-    private DotGiamGiaChiTietRepository dotGiamGiaChiTietRepository;
-
-    @Autowired
-    private DotGiamGiaRepository dotGiamGiaRepository;
+    private final DotGiamGiaChiTietRepository chiTietRepository;
+    private final DotGiamGiaRepository dotGiamGiaRepository;
+    private final SanPhamChiTietRepository sanPhamChiTietRepository;
 
     @GetMapping("/campaign/{campaignId}")
     public List<DotGiamGiaChiTiet> getByCampaign(@PathVariable Long campaignId) {
-        return dotGiamGiaChiTietRepository.findByDotGiamGiaId(campaignId);
+        return chiTietRepository.findByDotGiamGiaId(campaignId);
     }
 
     @PostMapping("/campaign/{campaignId}")
-    public ResponseEntity<?> addProductToCampaign(@PathVariable Long campaignId, @RequestBody DotGiamGiaChiTiet chiTiet) {
-        Optional<DotGiamGia> campaignOpt = dotGiamGiaRepository.findById(campaignId);
-        if (!campaignOpt.isPresent()) {
-            return ResponseEntity.badRequest().body(java.util.Collections.singletonMap("message", "KhĂ´ng tĂ¬m tháº¥y Ä‘á»£t giáº£m giĂ¡"));
+    public DotGiamGiaChiTiet addProductToCampaign(@PathVariable Long campaignId, @RequestBody DotGiamGiaChiTiet chiTiet) {
+        DotGiamGia campaign = dotGiamGiaRepository.findById(campaignId)
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy đợt giảm giá."));
+        if (chiTiet.getIdSanPhamChiTiet() == null
+                || !sanPhamChiTietRepository.existsById(chiTiet.getIdSanPhamChiTiet().intValue())) {
+            throw ApiException.badRequest("Vui lòng chọn biến thể sản phẩm hợp lệ.");
         }
-        
-        if (dotGiamGiaChiTietRepository.existsByDotGiamGiaIdAndIdSanPhamChiTiet(campaignId, chiTiet.getIdSanPhamChiTiet())) {
-            return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Sáº£n pháº©m nĂ y Ä‘Ă£ tá»“n táº¡i trong Ä‘á»£t giáº£m giĂ¡"));
+        Integer percent = chiTiet.getPhanTramGiamBienThe();
+        if (percent == null || percent < 1 || percent > 100) {
+            throw ApiException.badRequest("Phần trăm giảm phải từ 1 đến 100.");
         }
-
-        chiTiet.setDotGiamGia(campaignOpt.get());
-        if(chiTiet.getTrangThai() == null) chiTiet.setTrangThai(1);
-        
-        return ResponseEntity.ok(dotGiamGiaChiTietRepository.save(chiTiet));
+        if (chiTietRepository.existsByDotGiamGiaIdAndIdSanPhamChiTiet(campaignId, chiTiet.getIdSanPhamChiTiet())) {
+            throw ApiException.conflict("Sản phẩm này đã tồn tại trong đợt giảm giá.");
+        }
+        chiTiet.setId(null);
+        chiTiet.setDotGiamGia(campaign);
+        if (chiTiet.getTrangThai() == null) chiTiet.setTrangThai(1);
+        return chiTietRepository.save(chiTiet);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        if (dotGiamGiaChiTietRepository.existsById(id)) {
-            dotGiamGiaChiTietRepository.deleteById(id);
-            return ResponseEntity.ok().build();
-        }
-        return ResponseEntity.notFound().build();
+    public void delete(@PathVariable Long id) {
+        if (!chiTietRepository.existsById(id)) throw ApiException.notFound("Không tìm thấy chi tiết đợt giảm giá.");
+        chiTietRepository.deleteById(id);
     }
 }

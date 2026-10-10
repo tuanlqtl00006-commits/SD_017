@@ -21,9 +21,12 @@ const vaiTroList = ref([]) // [{ id, ten }] từ bảng vai_tro
 const loading = ref(false)
 
 /* ----- Bộ lọc (lọc ngay khi thay đổi) ----- */
-// Một ô tìm kiếm chung: gõ mã, họ tên, email hoặc số điện thoại đều tìm được (không phân biệt hoa thường, dấu).
+// Một ô tìm kiếm chung: gõ mã, họ tên, email, số điện thoại hoặc số CCCD đều tìm được (không phân biệt hoa thường, dấu).
 const defaultFilters = () => ({ keyword: '', idVaiTro: '', trangThai: '' })
 const filters = reactive(defaultFilters())
+
+// Các vị trí làm việc của nhân viên, ngăn cách bằng dấu phẩy
+const tenViTri = (e) => (e.viTri ?? []).map((v) => v.ten).join(', ')
 
 function resetFilters() {
   Object.assign(filters, defaultFilters())
@@ -32,7 +35,7 @@ function resetFilters() {
 const filtered = computed(() =>
   list.value.filter((e) => {
     const f = filters
-    if (f.keyword && !matchesWords([e.ma, e.hoTen, e.email, e.soDienThoai].join(' '), f.keyword)) return false
+    if (f.keyword && !matchesWords([e.ma, e.hoTen, e.email, e.soDienThoai, e.cccd].join(' '), f.keyword)) return false
     if (f.idVaiTro && e.idVaiTro !== f.idVaiTro) return false
     if (f.trangThai && String(e.hoatDong) !== f.trangThai) return false
     return true
@@ -106,6 +109,8 @@ function exportFile() {
       { header: 'Địa chỉ', key: 'diaChi', width: 40 },
       { header: 'Ngày vào làm', key: 'ngayVaoLam', width: 14 },
       { header: 'Vai trò', key: 'vaiTro', width: 16 },
+      { header: 'Vị trí', key: 'viTri', width: 30 },
+      { header: 'Số CCCD', key: 'cccd', width: 16 },
       { header: 'Trạng thái', key: 'trangThai', width: 18 },
     ],
     rows: filtered.value.map((e, i) => ({
@@ -119,6 +124,8 @@ function exportFile() {
       diaChi: e.diaChi,
       ngayVaoLam: e.ngayVaoLam ? formatDate(e.ngayVaoLam) : '',
       vaiTro: e.vaiTro,
+      viTri: tenViTri(e),
+      cccd: e.cccd || '',
       trangThai: TRANG_THAI[e.hoatDong].label,
     })),
   })
@@ -182,7 +189,7 @@ async function confirmToggle() {
               v-model.trim="filters.keyword"
               type="text"
               class="form-control ad-control"
-              placeholder="Tìm theo mã, họ tên, email, SĐT…"
+              placeholder="Tìm theo mã, họ tên, email, SĐT, CCCD…"
               autocomplete="off"
             />
           </div>
@@ -242,16 +249,17 @@ async function confirmToggle() {
                 <th>SĐT</th>
                 <th>Địa chỉ</th>
                 <th>Vai trò</th>
+                <th>Vị trí</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="11"><div class="ad-empty">Đang tải dữ liệu…</div></td>
+                <td colspan="12"><div class="ad-empty">Đang tải dữ liệu…</div></td>
               </tr>
               <tr v-else-if="!pageItems.length">
-                <td colspan="11">
+                <td colspan="12">
                   <div class="ad-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
                     <strong>Không tìm thấy nhân viên</strong>
@@ -272,6 +280,7 @@ async function confirmToggle() {
                   <td class="ad-nowrap">{{ e.soDienThoai }}</td>
                   <td><span class="ad-clamp-2" :title="e.diaChi">{{ e.diaChi }}</span></td>
                   <td class="ad-nowrap">{{ e.vaiTro }}</td>
+                  <td><span class="ad-clamp-2" :title="tenViTri(e)">{{ tenViTri(e) || '—' }}</span></td>
                   <td>
                     <span class="ad-pill" :class="TRANG_THAI[e.hoatDong].cls">{{ TRANG_THAI[e.hoatDong].label }}</span>
                   </td>
@@ -305,7 +314,7 @@ async function confirmToggle() {
         </div>
       </div>
 
-      <BasePagination v-if="total" v-model:page="page" v-model:pageSize="pageSize" :total="total" />
+      <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
     </section>
 
     <ConfirmDialog

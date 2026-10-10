@@ -42,10 +42,10 @@ public class HoaDonService {
             HoaDon.DA_HUY, "Đã hủy",
             HoaDon.CHO_XAC_NHAN, "Chờ xác nhận",
             HoaDon.DA_XAC_NHAN, "Đã xác nhận",
-            HoaDon.CHO_LAY_HANG, "Chờ lấy hàng",
+            HoaDon.CHO_LAY_HANG, "Chờ giao hàng",
             HoaDon.DANG_GIAO, "Đang giao hàng",
             HoaDon.DA_GIAO, "Đã giao hàng",
-            HoaDon.HOAN_THANH, "Hoàn thành");
+            HoaDon.HOAN_THANH, "Đã hoàn thành");
 
     private final HoaDonRepository hoaDonRepository;
     private final HoaDonChiTietRepository hoaDonChiTietRepository;
@@ -55,10 +55,10 @@ public class HoaDonService {
 
     /* ===================== Danh sách ===================== */
 
-    @Transactional(readOnly = true)
-    public Page<HoaDonRequest> getDanhSachCoLoc(String maHoaDon, LocalDate tuNgay, LocalDate denNgay,
-                                                Integer loaiDon, Integer trangThai, Pageable pageable) {
-        Specification<HoaDon> spec = (root, query, cb) -> {
+    /** Điều kiện lọc dùng chung cho danh sách và bộ đếm theo trạng thái (trangThai = null: không lọc theo trạng thái). */
+    private Specification<HoaDon> boLoc(String maHoaDon, LocalDate tuNgay, LocalDate denNgay,
+                                        Integer loaiDon, Integer trangThai) {
+        return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (maHoaDon != null && !maHoaDon.trim().isEmpty()) {
                 predicates.add(cb.like(root.get("maHoaDon"), "%" + maHoaDon.trim() + "%"));
@@ -77,12 +77,34 @@ public class HoaDonService {
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    /** Số hóa đơn theo từng trạng thái (đã áp các bộ lọc mã / ngày / loại đơn), để hiện số trên các tab. Khóa "tatCa" = tổng. */
+    @Transactional(readOnly = true)
+    public Map<String, Long> demTheoTrangThai(String maHoaDon, LocalDate tuNgay, LocalDate denNgay, Integer loaiDon) {
+        Map<String, Long> ketQua = new LinkedHashMap<>();
+        ketQua.put("tatCa", hoaDonRepository.count(boLoc(maHoaDon, tuNgay, denNgay, loaiDon, null)));
+        for (int tt = HoaDon.DA_HUY; tt <= HoaDon.HOAN_THANH; tt++) {
+            ketQua.put(String.valueOf(tt), hoaDonRepository.count(boLoc(maHoaDon, tuNgay, denNgay, loaiDon, tt)));
+        }
+        return ketQua;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<HoaDonRequest> getDanhSachCoLoc(String maHoaDon, LocalDate tuNgay, LocalDate denNgay,
+                                                Integer loaiDon, Integer trangThai, Pageable pageable) {
+        Specification<HoaDon> spec = boLoc(maHoaDon, tuNgay, denNgay, loaiDon, trangThai);
 
         return hoaDonRepository.findAll(spec, pageable).map(hd -> {
             HoaDonRequest request = new HoaDonRequest();
             request.setId(hd.getId());
             request.setMaHoaDon(hd.getMaHoaDon());
-            request.setTenKhachHang(hd.getKhachHang() != null ? hd.getKhachHang().getHoTen() : "Khách lẻ");
+            request.setTenKhachHang(hd.getKhachHang() != null ? hd.getKhachHang().getHoTen() : "Khách vãng lai");
+            // SĐT khách: ưu tiên SĐT trong hồ sơ khách hàng; khách chưa có SĐT (hoặc khách vãng lai) thì lấy SĐT người nhận ghi trên hóa đơn
+            String sdtKhach = hd.getKhachHang() != null ? hd.getKhachHang().getSdt() : null;
+            if (sdtKhach == null || sdtKhach.trim().isEmpty()) sdtKhach = hd.getSdtNguoiNhan();
+            request.setSdtKhachHang(sdtKhach == null || sdtKhach.trim().isEmpty() ? null : sdtKhach.trim());
+            request.setMaNhanVien(hd.getNhanVien() != null ? hd.getNhanVien().getMaNhanVien() : null);
             request.setTenNhanVien(hd.getNhanVien() != null ? hd.getNhanVien().getHoTen() : "Không xác định");
             // Số tiền khách phải trả (đã trừ giảm giá, cộng phí ship)
             request.setTongTien(hd.getThanhTien() != null ? hd.getThanhTien() : hd.getTongTien());
@@ -317,7 +339,7 @@ public class HoaDonService {
     }
 
     private static String tenLoaiDon(Integer loaiDon) {
-        return Integer.valueOf(HoaDon.GIAO_HANG).equals(loaiDon) ? "Giao hàng" : "Tại quầy";
+        return Integer.valueOf(HoaDon.GIAO_HANG).equals(loaiDon) ? "Trực tuyến" : "Tại quầy";
     }
 
     /** "Chờ xác nhận" -> 1 ... để frontend vẽ dòng thời gian; hành động khác (vd ghi chú) trả null. */
@@ -331,6 +353,13 @@ public class HoaDonService {
         }
         if (h.equalsIgnoreCase("Hủy đơn hàng")) {
             return HoaDon.DA_HUY;
+        }
+        // Lịch sử ghi trước khi đổi tên trạng thái vẫn dùng chữ cũ
+        if (h.equalsIgnoreCase("Chờ lấy hàng")) {
+            return HoaDon.CHO_LAY_HANG;
+        }
+        if (h.equalsIgnoreCase("Hoàn thành")) {
+            return HoaDon.HOAN_THANH;
         }
         for (Map.Entry<Integer, String> e : TEN_TRANG_THAI.entrySet()) {
             if (e.getValue().equalsIgnoreCase(h)) {

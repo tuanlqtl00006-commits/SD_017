@@ -6,6 +6,7 @@ import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
 import SanPhamDetailModal from './sanPham/SanPhamDetailModal.vue'
 import { sanPhamService, bienTheService } from '../services/sanPhamService'
+import { useGiamGiaBienThe } from '../composables/useGiamGiaBienThe'
 import { thuocTinhService } from '../services/thuocTinhService'
 import { TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
 import { useToast } from '../composables/useToast'
@@ -52,6 +53,7 @@ async function taiThuocTinh() {
 // imLang = true: tải nền (không hiện "Đang tải…", chỉ lấy lại sản phẩm + biến thể, lỗi mạng thì im lặng).
 let seqTai = 0
 async function taiDuLieu(hienChuDangTai = true, imLang = false) {
+  loadGiamGia()
   const seq = ++seqTai
   if (hienChuDangTai) dangTai.value = true
   try {
@@ -97,6 +99,8 @@ useAutoRefresh(() => taiDuLieu(false, true))
 
 // Mỗi sản phẩm thêm thông tin tính từ biến thể: số biến thể, tổng tồn kho, giá thấp nhất và cao nhất.
 // computed: tự tính lại mỗi khi danhSachSanPham hoặc danhSachBienThe thay đổi.
+const { loadGiamGia, giaSauGiam } = useGiamGiaBienThe()
+
 const sanPhamKemThongKe = computed(() => {
   const ketQua = []
   for (const sp of danhSachSanPham.value) {
@@ -106,10 +110,17 @@ const sanPhamKemThongKe = computed(() => {
     let tongTon = 0
     let giaCaoNhat = null
     let giaThapNhat = null // null = chưa có biến thể nào đang hoạt động
+    let giaSauNhat = null // giá thấp nhất sau khi trừ đợt giảm giá đang diễn ra
+    let giaGocCuaGiaSauNhat = null
     for (const b of bienTheCuaSp) {
       // Chỉ tính biến thể đang hoạt động (biến thể đã ngưng không còn bán nên không tính vào tồn kho)
       if (b.hoatDong) {
         tongTon = tongTon + b.soLuongTon
+        const giaSau = giaSauGiam(b)
+        if (giaSauNhat === null || giaSau < giaSauNhat) {
+          giaSauNhat = giaSau
+          giaGocCuaGiaSauNhat = b.giaBan
+        }
         if (giaThapNhat === null || b.giaBan < giaThapNhat) {
           giaThapNhat = b.giaBan
         }
@@ -125,6 +136,8 @@ const sanPhamKemThongKe = computed(() => {
       tongTon: tongTon,
       giaTu: giaThapNhat,
       giaDen: giaCaoNhat,
+      giaSauGiam: giaSauNhat,
+      giaGocGiam: giaGocCuaGiaSauNhat,
     })
   }
   return ketQua
@@ -375,7 +388,13 @@ function xuatExcel() {
                   <td>{{ layTen(thuocTinh['thuong-hieu'], p.idThuongHieu) }}</td>
                   <td>{{ layTen(thuocTinh['danh-muc'], p.idDanhMuc) }}</td>
                   <td>{{ p.tongTon }}</td>
-                  <td class="ad-nowrap">{{ hienGia(p) }}</td>
+                  <td class="ad-nowrap">
+                    <template v-if="p.giaSauGiam !== null && p.giaSauGiam < p.giaGocGiam">
+                      <div class="fw-bold ad-price-sale">{{ formatMoney(p.giaSauGiam) }}</div>
+                      <div class="text-muted small text-decoration-line-through">{{ formatMoney(p.giaGocGiam) }}</div>
+                    </template>
+                    <template v-else>{{ hienGia(p) }}</template>
+                  </td>
                   <td><span class="ad-pill" :class="TRANG_THAI[trangThaiOf(p)].cls">{{ TRANG_THAI[trangThaiOf(p)].label }}</span></td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
@@ -401,7 +420,7 @@ function xuatExcel() {
         </div>
       </div>
 
-      <BasePagination v-if="total" v-model:page="page" v-model:pageSize="pageSize" :total="total" />
+      <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
     </section>
 
     <!-- Xem chi tiết kèm danh sách biến thể của sản phẩm -->

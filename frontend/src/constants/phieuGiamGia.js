@@ -18,13 +18,16 @@ export const TRANG_THAI = {
 }
 
 /**
- * Trạng thái hiển thị được tính từ cờ hoatDong (bật/tắt thủ công) và khoảng ngày áp dụng.
- * Phiếu bị tắt thủ công luôn là "Ngưng hoạt động", bất kể ngày.
+ * Trạng thái hiển thị được tính từ khoảng ngày áp dụng và cờ hoatDong (công tắc bật/tắt):
+ *  - quá ngày kết thúc            -> "Đã kết thúc" (không phụ thuộc công tắc, công tắc cũng biến mất)
+ *  - còn hạn nhưng công tắc đang tắt -> "Ngưng hoạt động"
+ *  - chưa tới ngày bắt đầu         -> "Sắp diễn ra"
+ *  - đang trong khoảng ngày        -> "Đang hoạt động"
  */
 export function tinhTrangThai(p, today = todayIso()) {
+  if (today > p.ngayKetThuc) return 'DA_KET_THUC'
   if (!p.hoatDong) return 'NGUNG_HOAT_DONG'
   if (today < p.ngayBatDau) return 'SAP_DIEN_RA'
-  if (today > p.ngayKetThuc) return 'DA_KET_THUC'
   return 'DANG_HOAT_DONG'
 }
 

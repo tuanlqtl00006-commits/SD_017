@@ -1,136 +1,47 @@
 package com.footstyle.demo.controller;
 
+import com.footstyle.demo.dto.KhachHangRequest;
 import com.footstyle.demo.entity.KhachHang;
-import com.footstyle.demo.repository.KhachHangRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
+import com.footstyle.demo.service.KhachHangService;
 import java.util.List;
-import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/khach-hang")
+@RequiredArgsConstructor
 public class KhachHangController {
 
-    @Autowired
-    private KhachHangRepository khachHangRepository;
+    private final KhachHangService service;
 
     @GetMapping
-    public List<KhachHang> getAllKhachHang(@RequestParam(required = false) String search) {
-        if (search != null && !search.trim().isEmpty()) {
-            return khachHangRepository.searchKhachHang(search);
-        }
-        return khachHangRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"));
+    public List<KhachHang> getAll(@RequestParam(required = false) String search) {
+        return service.timKiem(search);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<KhachHang> getKhachHangById(@PathVariable Integer id) {
-        Optional<KhachHang> khachHang = khachHangRepository.findById(id);
-        return khachHang.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    public KhachHang getById(@PathVariable Integer id) {
+        return service.layTheoId(id);
     }
 
     @PostMapping
-    public ResponseEntity<?> createKhachHang(@RequestBody KhachHang khachHang) {
-        if (khachHang.getEmail() != null && !khachHang.getEmail().isEmpty() && khachHangRepository.existsByEmail(khachHang.getEmail())) {
-            return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Email đã tồn tại."));
-        }
-        if (khachHang.getSdt() != null && !khachHang.getSdt().isEmpty() && khachHangRepository.existsBySdt(khachHang.getSdt())) {
-            return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
-        }
-
-
-        if (khachHang.getHoTen() == null || khachHang.getHoTen().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body(java.util.Collections.singletonMap("message", "Vui lòng nhập họ tên khách hàng."));
-        }
-
-
-        if (khachHang.getMaKhachHang() == null || khachHang.getMaKhachHang().isEmpty()) {
-            khachHang.setMaKhachHang("KH" + System.currentTimeMillis());
-        }
-        
-        // Auto-generate password from phone number
-        if (khachHang.getSdt() != null) {
-            khachHang.setMatKhau(java.util.UUID.randomUUID().toString().substring(0, 8));
-        }
-
-        
-        return ResponseEntity.ok(khachHangRepository.save(khachHang));
-
-
-        if (khachHang.getTrangThai() == null) {
-            khachHang.setTrangThai(1);
-        }
-
-        // Địa chỉ gửi kèm: trường khachHang bị @JsonIgnore nên phải tự gắn lại, nếu không id_khach_hang sẽ NULL
-        if (khachHang.getDiaChiList() != null) {
-            khachHang.getDiaChiList().forEach(dc -> {
-                dc.setKhachHang(khachHang);
-                if (dc.getTrangThai() == null) dc.setTrangThai(1);
-            });
-        }
-        
-        try {
-            return ResponseEntity.ok(khachHangRepository.save(khachHang));
-        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-            String rootMsg = ex.getRootCause() != null ? ex.getRootCause().getMessage() : ex.getMessage();
-            return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Lỗi lưu dữ liệu: " + rootMsg));
-        }
-
+    public KhachHang create(@RequestBody KhachHangRequest req) {
+        return service.them(req);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateKhachHang(@PathVariable Integer id, @RequestBody KhachHang khachHangDetails) {
-        Optional<KhachHang> optionalKhachHang = khachHangRepository.findById(id);
-        if (optionalKhachHang.isPresent()) {
-            KhachHang khachHang = optionalKhachHang.get();
+    public KhachHang update(@PathVariable Integer id, @RequestBody KhachHangRequest req) {
+        return service.sua(id, req);
+    }
 
-            // Check if changing email to an existing one
-            if (khachHangDetails.getEmail() != null && !khachHangDetails.getEmail().equals(khachHang.getEmail()) && khachHangRepository.existsByEmail(khachHangDetails.getEmail())) {
-                return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Email đã tồn tại."));
-            }
-            // Check if changing sdt to an existing one
-            if (khachHangDetails.getSdt() != null && !khachHangDetails.getSdt().equals(khachHang.getSdt()) && khachHangRepository.existsBySdt(khachHangDetails.getSdt())) {
-                return ResponseEntity.status(409).body(java.util.Collections.singletonMap("message", "Số điện thoại đã tồn tại."));
-            }
-
-
-            khachHang.setHoTen(khachHangDetails.getHoTen());
-
-            if (khachHangDetails.getHoTen() != null && !khachHangDetails.getHoTen().trim().isEmpty()) {
-                khachHang.setHoTen(khachHangDetails.getHoTen().trim());
-            }
-
-            khachHang.setSdt(khachHangDetails.getSdt());
-            khachHang.setEmail(khachHangDetails.getEmail());
-            khachHang.setNgaySinh(khachHangDetails.getNgaySinh());
-            khachHang.setGioiTinh(khachHangDetails.getGioiTinh());
-
-            khachHang.setTrangThai(khachHangDetails.getTrangThai());
-
-            if (khachHangDetails.getTrangThai() != null) {
-                khachHang.setTrangThai(khachHangDetails.getTrangThai());
-            }
-
-            
-            return ResponseEntity.ok(khachHangRepository.save(khachHang));
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    /** Bật / tắt hoạt động khách hàng. */
+    @PutMapping("/{id}/trang-thai")
+    public KhachHang toggleStatus(@PathVariable Integer id) {
+        return service.doiTrangThai(id);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteKhachHang(@PathVariable Integer id) {
-        Optional<KhachHang> khachHang = khachHangRepository.findById(id);
-        if (khachHang.isPresent()) {
-            khachHangRepository.delete(khachHang.get());
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    public void delete(@PathVariable Integer id) {
+        service.xoa(id);
     }
 }
-
-
-
-

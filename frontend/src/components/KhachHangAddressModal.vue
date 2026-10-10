@@ -1,9 +1,5 @@
 <template>
-
-  <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
-
-  <div style="position: fixed; top: 0; left: 0; width: calc(100vw / var(--ui-zoom, 1)); height: calc(100vh / var(--ui-zoom, 1)); background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
-
+  <div style="position: fixed; top: 0; left: 0; width: calc(100vw / var(--ui-zoom)); height: calc(100vh / var(--ui-zoom)); background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
     <div class="modal-dialog bg-white rounded-4 shadow-lg" style="width: 800px; max-width: 95vw; pointer-events: auto; animation: slideDown 0.3s ease-out;">
       
       <!-- Header -->
@@ -13,11 +9,7 @@
             <i class="bi bi-geo-alt-fill fs-5"></i>
           </div>
           <div>
-
-            <h5 class="fw-bold mb-0 text-dark">Địa chỉ của {{ customer?.ten || 'Khách Hàng' }}</h5>
-
-            <h5 class="fw-bold mb-0 text-dark">Địa chỉ của {{ customerName || 'Khách Hàng' }}</h5>
-
+            <h5 class="fw-bold mb-0 text-dark">Địa chỉ của {{ customer?.hoTen || 'Khách Hàng' }}</h5>
             <small class="text-muted">Quản lý địa chỉ giao hàng</small>
           </div>
         </div>
@@ -39,27 +31,13 @@
               <label class="form-label small text-muted mb-1">Số điện thoại</label>
               <input type="text" class="form-control" v-model="formData.sdtNguoiNhan">
             </div>
-            <div class="col-md-4">
-              <label class="form-label small text-muted mb-1">Tỉnh/Thành</label>
-              <select class="form-select" v-model="formData.tinhThanhPho">
-                <option value="">Chọn</option>
-                <option v-for="p in provinces" :key="p.id" :value="p.full_name">{{ p.full_name }}</option>
-              </select>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label small text-muted mb-1">Quận/Huyện</label>
-              <select class="form-select" v-model="formData.quanHuyen">
-                <option value="">Chọn</option>
-                <option v-for="d in districts" :key="d.id" :value="d.full_name">{{ d.full_name }}</option>
-              </select>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label small text-muted mb-1">Phường/Xã</label>
-              <select class="form-select" v-model="formData.phuongXa">
-                <option value="">Chọn</option>
-                <option v-for="w in wards" :key="w.id" :value="w.full_name">{{ w.full_name }}</option>
-              </select>
-            </div>
+            <!-- Tỉnh/Thành phố -> Phường/Xã theo đơn vị hành chính sau sáp nhập (không còn Quận/Huyện) -->
+            <DiaChiHanhChinhSelect
+              v-model:tinh-thanh="formData.tinhThanhPho"
+              v-model:phuong-xa="formData.phuongXa"
+              id-prefix="kh-dc"
+              col-class="col-md-6"
+            />
             <div class="col-12">
               <label class="form-label small text-muted mb-1">Địa chỉ cụ thể</label>
               <input type="text" class="form-control" v-model="formData.diaChiCuThe">
@@ -72,7 +50,7 @@
             </div>
             <div class="col-12 d-flex justify-content-end gap-2 mt-3">
               <button class="btn btn-light" @click="showForm = false">Hủy</button>
-              <button class="btn btn-primary" @click="saveAddress">Lưu địa chỉ</button>
+              <button class="btn btn-primary" :disabled="saving" @click="saveAddress">Lưu địa chỉ</button>
             </div>
           </div>
         </div>
@@ -88,15 +66,12 @@
                     <span v-if="addr.laDiaChiMacDinh" class="badge bg-success bg-opacity-10 text-success rounded-pill fw-medium px-2 py-1" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Mặc định</span>
                   </div>
                   <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-danger rounded-pill px-3" style="font-size: 0.8rem; font-weight: 500;" @click="deleteAddress(addr.id)">Xóa</button>
+                    <button class="btn btn-sm btn-outline-danger rounded-pill px-3" style="font-size: 0.8rem; font-weight: 500;" @click="deleteAddress(addr)">Xóa</button>
                     <button class="btn btn-sm btn-outline-primary rounded-pill px-3" style="font-size: 0.8rem; font-weight: 500;" @click="editAddress(addr)">Sửa</button>
                   </div>
                 </div>
                 <p class="mb-1 text-muted" style="font-size: 0.9rem;">{{ addr.sdtNguoiNhan }}</p>
-                <p class="mb-0 text-muted" style="font-size: 0.9rem;">
-                  {{ addr.diaChiCuThe ? addr.diaChiCuThe + ', ' : '' }}
-                  {{ addr.phuongXa }}, {{ addr.quanHuyen }}, {{ addr.tinhThanhPho }}
-                </p>
+                <p class="mb-0 text-muted" style="font-size: 0.9rem;">{{ ghepDiaChi(addr) }}</p>
               </div>
             </div>
           </div>
@@ -112,17 +87,29 @@
       </div>
       
     </div>
+
+    <ConfirmDialog
+      v-if="confirmDelete"
+      title="Xóa địa chỉ"
+      message="Bạn có chắc chắn muốn xóa địa chỉ này không?"
+      confirm-text="Xóa"
+      variant="danger"
+      :loading="deleting"
+      @confirm="doDeleteAddress"
+      @cancel="confirmDelete = null"
+    />
   </div>
 </template>
 
 <script setup>
-
-import { ref, onMounted, watch } from 'vue'
-
-import { ref, onMounted, watch, computed } from 'vue'
-
+import { ref, onMounted } from 'vue'
 import api from '../services/api'
-import Swal from 'sweetalert2'
+import ConfirmDialog from './common/ConfirmDialog.vue'
+import DiaChiHanhChinhSelect from './common/DiaChiHanhChinhSelect.vue'
+import { ghepDiaChi } from '../utils/diaChi'
+import { useToast } from '../composables/useToast'
+
+const toast = useToast()
 
 const props = defineProps({
   customer: {
@@ -132,15 +119,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'address-updated'])
-
-
-// Backend trả về "hoTen"; "ten" chỉ là tên biến cũ phía form
-const customerName = computed(() => props.customer?.hoTen || props.customer?.ten || '')
-
-// Thông báo nhỏ góc trên phải, tự tắt sau 3s (giống "Tạo khách hàng mới thành công!")
-const showToast = (title, icon = 'success') => {
-  Swal.fire({ toast: true, position: 'top-end', icon, title, showConfirmButton: false, timer: 3000, timerProgressBar: true })
-}
 const addresses = ref([])
 const showForm = ref(false)
 const formTitle = ref('')
@@ -150,61 +128,10 @@ const formData = ref({
   tenNguoiNhan: '',
   sdtNguoiNhan: '',
   tinhThanhPho: '',
-  quanHuyen: '',
   phuongXa: '',
+  quanHuyen: '',
   diaChiCuThe: '',
   laDiaChiMacDinh: false
-})
-
-// Location data
-const allLocations = ref([])
-const provinces = ref([])
-const districts = ref([])
-const wards = ref([])
-
-const fetchLocations = async () => {
-  try {
-    const response = await fetch('https://esgoo.net/api-tinhthanh/4/0.htm')
-    const data = await response.json()
-    if (data.error === 0) {
-      allLocations.value = data.data
-      provinces.value = data.data
-    }
-  } catch (error) {
-    console.error("Error fetching locations:", error)
-  }
-}
-
-watch(() => formData.value.tinhThanhPho, (newVal) => {
-  if (newVal) {
-    const selectedProv = allLocations.value.find(p => p.full_name === newVal)
-    districts.value = selectedProv ? selectedProv.data2 : []
-    
-    if (!selectedProv?.data2?.find(d => d.full_name === formData.value.quanHuyen)) {
-        formData.value.quanHuyen = ''
-        formData.value.phuongXa = ''
-        wards.value = []
-    }
-  } else {
-    districts.value = []
-    wards.value = []
-    formData.value.quanHuyen = ''
-    formData.value.phuongXa = ''
-  }
-})
-
-watch(() => formData.value.quanHuyen, (newVal) => {
-  if (newVal) {
-    const selectedDist = districts.value.find(d => d.full_name === newVal)
-    wards.value = selectedDist ? selectedDist.data3 : []
-    
-    if (!selectedDist?.data3?.find(w => w.full_name === formData.value.phuongXa)) {
-        formData.value.phuongXa = ''
-    }
-  } else {
-    wards.value = []
-    formData.value.phuongXa = ''
-  }
 })
 
 const fetchAddresses = async () => {
@@ -219,20 +146,16 @@ const fetchAddresses = async () => {
     })
   } catch (error) {
     console.error("Error fetching addresses:", error)
+    toast.error(error.message || 'Không tải được danh sách địa chỉ.')
   }
 }
 
 const addNewAddress = () => {
   formData.value = {
     id: null,
-
-    tenNguoiNhan: props.customer.ten || '',
-
-    tenNguoiNhan: customerName.value,
-
+    tenNguoiNhan: props.customer.hoTen || '',
     sdtNguoiNhan: props.customer.sdt || '',
     tinhThanhPho: '',
-    quanHuyen: '',
     phuongXa: '',
     diaChiCuThe: '',
     laDiaChiMacDinh: addresses.value.length === 0
@@ -242,108 +165,84 @@ const addNewAddress = () => {
 }
 
 const editAddress = (addr) => {
-  let matchedProv = addr.tinhThanhPho;
-  let matchedDist = addr.quanHuyen;
-  let matchedWard = addr.phuongXa;
-
-  // Try to find matching locations even if prefixes are missing
-  const prov = allLocations.value.find(p => p.full_name === addr.tinhThanhPho || p.name === addr.tinhThanhPho || p.full_name.includes(addr.tinhThanhPho));
-  if (prov) {
-    matchedProv = prov.full_name;
-    districts.value = prov.data2;
-    
-    const dist = prov.data2.find(d => d.full_name === addr.quanHuyen || d.name === addr.quanHuyen || d.full_name.includes(addr.quanHuyen));
-    if (dist) {
-      matchedDist = dist.full_name;
-      wards.value = dist.data3;
-      
-      const ward = dist.data3.find(w => w.full_name === addr.phuongXa || w.name === addr.phuongXa || w.full_name.includes(addr.phuongXa));
-      if (ward) {
-        matchedWard = ward.full_name;
-      }
-    }
-  }
-
+  // Tên tỉnh / phường xã lấy nguyên từ địa chỉ đã lưu. Địa chỉ cũ (trước sáp nhập) không còn trong danh sách mới
+  // thì ô chọn vẫn hiện giá trị cũ kèm lời nhắc chọn lại; địa chỉ có Quận/Huyện cũ vẫn được giữ nguyên khi lưu.
   formData.value = {
     id: addr.id,
-
     tenNguoiNhan: addr.tenNguoiNhan,
     sdtNguoiNhan: addr.sdtNguoiNhan,
-
-    tenNguoiNhan: addr.tenNguoiNhan || customerName.value,
-    sdtNguoiNhan: addr.sdtNguoiNhan || props.customer.sdt || '',
-    tinhThanhPho: matchedProv,
-    quanHuyen: matchedDist,
-    phuongXa: matchedWard,
+    tinhThanhPho: addr.tinhThanhPho || '',
+    phuongXa: addr.phuongXa || '',
+    quanHuyen: addr.quanHuyen || '',
     diaChiCuThe: addr.diaChiCuThe,
     laDiaChiMacDinh: addr.laDiaChiMacDinh
   }
-  
+
   formTitle.value = 'Cập nhật địa chỉ'
   showForm.value = true
 }
 
+const saving = ref(false)
+
 const saveAddress = async () => {
+  if (!formData.value.tenNguoiNhan || !formData.value.sdtNguoiNhan || !formData.value.tinhThanhPho || !formData.value.phuongXa || !formData.value.diaChiCuThe) {
+    toast.error('Vui lòng điền đủ họ tên, số điện thoại, tỉnh/thành phố, phường/xã và địa chỉ cụ thể!')
+    return
+  }
+  if (!/^[0-9]{10,11}$/.test(formData.value.sdtNguoiNhan)) {
+    toast.error('Số điện thoại người nhận không hợp lệ (chỉ gồm 10-11 chữ số).')
+    return
+  }
+  saving.value = true
   try {
-    if (!formData.value.tenNguoiNhan || !formData.value.sdtNguoiNhan || !formData.value.tinhThanhPho) {
-      Swal.fire({ icon: 'warning', title: 'Vui lòng điền đủ thông tin!' })
-      return
-    }
-    
+    // Địa chỉ mới (sau sáp nhập) không có Quận/Huyện: chỉ giữ lại quận/huyện cũ khi tỉnh/phường xã vẫn là giá trị cũ chưa đổi
+    const goc = addresses.value.find((a) => a.id === formData.value.id)
+    const giuQuanHuyenCu = goc && goc.tinhThanhPho === formData.value.tinhThanhPho && goc.phuongXa === formData.value.phuongXa
+    formData.value.quanHuyen = giuQuanHuyenCu ? goc.quanHuyen || '' : ''
     if (formData.value.id) {
       await api.put(`/dia-chi/${formData.value.id}`, formData.value)
-
-      Swal.fire({ icon: 'success', title: 'Cập nhật thành công!' })
+      toast.success('Đã cập nhật địa chỉ.')
     } else {
       await api.post(`/dia-chi/khach-hang/${props.customer.id}`, formData.value)
-      Swal.fire({ icon: 'success', title: 'Thêm mới thành công!' })
-
-      showToast('Cập nhật địa chỉ thành công!')
-    } else {
-      await api.post(`/dia-chi/khach-hang/${props.customer.id}`, formData.value)
-      showToast('Thêm địa chỉ mới thành công!')
-
+      toast.success('Đã thêm địa chỉ mới.')
     }
-    
     showForm.value = false
-    fetchAddresses()
+    await fetchAddresses()
     emit('address-updated')
   } catch (error) {
-    Swal.fire({ icon: 'error', title: 'Có lỗi xảy ra!' })
+    console.error(error)
+    toast.error(error.message || 'Có lỗi xảy ra khi lưu địa chỉ!')
+  } finally {
+    saving.value = false
   }
 }
 
-const deleteAddress = async (id) => {
-  const result = await Swal.fire({
-    title: 'Xóa địa chỉ',
-    text: "Bạn có chắc chắn muốn xóa địa chỉ này không?",
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonColor: '#0d6efd',
-    cancelButtonColor: '#6c757d',
-    confirmButtonText: 'Đồng ý',
-    cancelButtonText: 'Hủy',
-    reverseButtons: true
-  })
-  
-  if (result.isConfirmed) {
-    try {
-      await api.delete(`/dia-chi/${id}`)
+const confirmDelete = ref(null)
+const deleting = ref(false)
 
+const deleteAddress = (addr) => {
+  confirmDelete.value = addr
+}
 
-      showToast('Xóa địa chỉ thành công!')
-
-      // Swal.fire('Đã xóa!', 'Địa chỉ đã được xóa.', 'success')
-      fetchAddresses()
-      emit('address-updated')
-    } catch (error) {
-      Swal.fire('Lỗi!', 'Không thể xóa địa chỉ này.', 'error')
-    }
+const doDeleteAddress = async () => {
+  const addr = confirmDelete.value
+  if (!addr) return
+  deleting.value = true
+  try {
+    await api.delete(`/dia-chi/${addr.id}`)
+    toast.success('Đã xóa địa chỉ.')
+    confirmDelete.value = null
+    await fetchAddresses()
+    emit('address-updated')
+  } catch (error) {
+    console.error(error)
+    toast.error(error.message || 'Không thể xóa địa chỉ này.')
+  } finally {
+    deleting.value = false
   }
 }
 
 onMounted(() => {
-  fetchLocations()
   fetchAddresses()
 })
 </script>

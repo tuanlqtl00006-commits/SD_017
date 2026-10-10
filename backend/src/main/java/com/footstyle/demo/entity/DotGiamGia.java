@@ -32,6 +32,9 @@ public class DotGiamGia {
     @Column(name = "ngay_ket_thuc", nullable = false)
     private LocalDateTime ngayKetThuc;
 
+    @Column(name = "mo_ta", columnDefinition = "NVARCHAR(500)")
+    private String moTa;
+
     @Column(name = "trang_thai")
     private Integer trangThai;
 

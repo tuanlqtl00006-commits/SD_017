@@ -3,7 +3,6 @@ import MainLayout from '../layouts/MainLayout.vue'
 import { THUOC_TINH_LIST } from '../constants/thuocTinh'
 
 // meta.title / meta.parent: hiển thị trên header (kiểu "Quản lý giảm giá / Phiếu giảm giá").
-// Trang hóa đơn có thẻ tiêu đề riêng nên không khai báo meta.
 const routes = [
   {
     path: '/',
@@ -11,9 +10,16 @@ const routes = [
     redirect: '/hoa-don',
     children: [
       {
+        path: 'thong-ke',
+        name: 'thong-ke',
+        component: () => import('../components/ThongKe.vue'),
+        meta: { title: 'Thống kê' },
+      },
+      {
         path: 'hoa-don',
         name: 'hoa-don',
         component: () => import('../components/HoaDonManager.vue'),
+        meta: { title: 'Hóa đơn' },
       },
       {
         path: 'hoa-don/:id',
@@ -52,7 +58,7 @@ const routes = [
         path: `san-pham/${t.slug}`,
         name: `thuoc-tinh-${t.slug}`,
         component: () => import('../components/ThuocTinhManager.vue'),
-        meta: { parent: 'Quản lý sản phẩm', title: t.label, attr: t.slug },
+        meta: { parent: 'Danh sách thuộc tính', title: t.label, attr: t.slug },
       })),
       {
         path: 'khach-hang',
@@ -74,10 +80,34 @@ const routes = [
         meta: { parent: 'Quản lý giảm giá', title: 'Đợt giảm giá' },
       },
       {
+        path: 'dot-giam-gia/them',
+        name: 'dot-giam-gia-them',
+        component: () => import('../components/dotGiamGia/DotGiamGiaFormPage.vue'),
+        meta: { parent: 'Đợt giảm giá', parentTo: '/dot-giam-gia', title: 'Thêm đợt giảm giá' },
+      },
+      {
+        path: 'dot-giam-gia/:id(\\d+)',
+        name: 'dot-giam-gia-chi-tiet',
+        component: () => import('../components/dotGiamGia/DotGiamGiaFormPage.vue'),
+        meta: { parent: 'Đợt giảm giá', parentTo: '/dot-giam-gia', title: 'Chi tiết đợt giảm giá' },
+      },
+      {
         path: 'phieu-giam-gia',
         name: 'phieu-giam-gia',
         component: () => import('../components/PhieuGiamGiaManager.vue'),
         meta: { parent: 'Quản lý giảm giá', title: 'Phiếu giảm giá' },
+      },
+      {
+        path: 'phieu-giam-gia/them',
+        name: 'phieu-giam-gia-them',
+        component: () => import('../components/phieuGiamGia/PhieuGiamGiaFormPage.vue'),
+        meta: { parent: 'Phiếu giảm giá', parentTo: '/phieu-giam-gia', title: 'Thêm phiếu giảm giá' },
+      },
+      {
+        path: 'phieu-giam-gia/:id(\\d+)/sua',
+        name: 'phieu-giam-gia-sua',
+        component: () => import('../components/phieuGiamGia/PhieuGiamGiaFormPage.vue'),
+        meta: { parent: 'Phiếu giảm giá', parentTo: '/phieu-giam-gia', title: 'Chỉnh sửa phiếu giảm giá' },
       },
       {
         path: 'nhan-vien',

@@ -1,466 +1,320 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import api from '../services/api';
-import { useRouter } from 'vue-router';
-import Header from './Header.vue';
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import api from '../services/api'
+import FilterCard from './common/FilterCard.vue'
+import BasePagination from './common/BasePagination.vue'
+import { useToast } from '../composables/useToast'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
+import { formatMoney, todayIso } from '../utils/format'
+import { exportExcel } from '../utils/exportExcel'
 
-const router = useRouter();
+const router = useRouter()
+const toast = useToast()
 
-const danhSachHoaDon = ref([]);
-const currentPage = ref(0); 
-const totalPages = ref(1);  
+/* ----- Trạng thái hóa đơn: nhãn + màu nhãn (khớp trang chi tiết) ----- */
+const TRANG_THAI = {
+  0: { label: 'Đã hủy', pill: 'ad-pill-red' },
+  1: { label: 'Chờ xác nhận', pill: 'ad-pill-amber' },
+  2: { label: 'Đã xác nhận', pill: 'ad-pill-blue' },
+  3: { label: 'Chờ giao hàng', pill: 'ad-pill-purple' },
+  4: { label: 'Đang giao hàng', pill: 'ad-pill-blue' },
+  5: { label: 'Đã giao hàng', pill: 'ad-pill-green' },
+  6: { label: 'Đã hoàn thành', pill: 'ad-pill-green' },
+  7: { label: 'Hoàn tiền', pill: 'ad-pill-gray' },
+}
+const trangThaiOf = (v) => TRANG_THAI[v] ?? { label: 'Không xác định', pill: 'ad-pill-gray' }
 
-const currentTab = ref(null);
+// Thứ tự các tab giống thiết kế
+const TABS = [
+  { value: null, label: 'Tất cả' },
+  { value: 1, label: 'Chờ xác nhận' },
+  { value: 2, label: 'Đã xác nhận' },
+  { value: 3, label: 'Chờ giao hàng' },
+  { value: 4, label: 'Đang giao hàng' },
+  { value: 5, label: 'Đã giao hàng' },
+  { value: 6, label: 'Đã hoàn thành' },
+  { value: 0, label: 'Đã hủy' },
+  { value: 7, label: 'Hoàn tiền' },
+]
 
-const xemChiTiet = (idHoaDon) => {
-  router.push(`/hoa-don/${idHoaDon}`); 
-};
+/* ----- Bộ lọc: đổi là tự lọc, không cần bấm Tìm kiếm ----- */
+const defaultFilters = () => ({ maHoaDon: '', tuNgay: '', denNgay: '', loaiDon: '' })
+const filters = reactive(defaultFilters())
+const activeTab = ref(null)
 
-const formatCurrency = (value) => {
-  if (!value) return '0 ₫';
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
-};
+const list = ref([])
+const dem = ref({}) // số hóa đơn theo từng tab: { tatCa, 0..6 } (áp cùng bộ lọc, trừ tab trạng thái)
+const loading = ref(false)
+const page = ref(1)
+const pageSize = ref(5)
+const total = ref(0)
 
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  return date.toLocaleString('vi-VN');
-};
+function buildParams(pageIndex, size) {
+  return {
+    page: pageIndex,
+    size,
+    maHoaDon: filters.maHoaDon.trim() || null,
+    tuNgay: filters.tuNgay || null,
+    denNgay: filters.denNgay || null,
+    loaiDon: filters.loaiDon !== '' ? filters.loaiDon : null,
+    trangThai: activeTab.value,
+  }
+}
 
-
-const fetchHoaDon = async (page = 0) => {
+// Số hóa đơn hiện trên từng tab (lỗi thì giữ số cũ, không làm hỏng trang)
+let demSeq = 0
+async function loadDem() {
+  const seq = ++demSeq
   try {
-    const response = await api.get('/hoa-don', {
+    const { data } = await api.get('/hoa-don/dem-trang-thai', {
       params: {
-        page: page,
-        size: 5,
-        maHoaDon: filter.value.maHoaDon || null,
-        tuNgay: filter.value.tuNgay || null,
-        denNgay: filter.value.denNgay || null,
-        loaiDon: filter.value.loaiDon !== '' ? filter.value.loaiDon : null,
-        
-        trangThai: activeTab.value !== null ? activeTab.value : null
-      }
-    });
-    danhSachHoaDon.value = response.data.content;
-    totalPages.value = response.data.totalPages;
-    currentPage.value = response.data.number;
-  } catch (error) {
-    console.error("Lỗi khi load dữ liệu:", error);
+        maHoaDon: filters.maHoaDon.trim() || null,
+        tuNgay: filters.tuNgay || null,
+        denNgay: filters.denNgay || null,
+        loaiDon: filters.loaiDon !== '' ? filters.loaiDon : null,
+      },
+    })
+    if (seq === demSeq) dem.value = data || {}
+  } catch {
+    // bỏ qua
   }
-};
+}
+const demCua = (tab) => dem.value[tab.value === null ? 'tatCa' : String(tab.value)]
 
-
-const changePage = (page) => {
-  if (page >= 0 && page < totalPages.value) {
-    fetchHoaDon(page);
+// loadSeq: lần tải cũ về chậm không được ghi đè kết quả của lần tải mới hơn
+let loadSeq = 0
+async function load(quiet = false) {
+  const seq = ++loadSeq
+  if (!quiet) loading.value = true
+  loadDem()
+  try {
+    const { data } = await api.get('/hoa-don', { params: buildParams(page.value - 1, pageSize.value) })
+    if (seq !== loadSeq) return
+    list.value = data.content
+    total.value = data.totalElements
+    // Đang ở trang không còn dữ liệu (vd lọc ra ít hơn) thì lùi về trang cuối có dữ liệu
+    const trangCuoi = Math.max(1, Math.ceil(data.totalElements / pageSize.value))
+    if (page.value > trangCuoi) page.value = trangCuoi
+  } catch {
+    if (seq === loadSeq && !quiet) toast.error('Không tải được danh sách hóa đơn. Vui lòng thử lại.')
+  } finally {
+    if (seq === loadSeq) loading.value = false
   }
-};
+}
 
+// Đổi bộ lọc / tab: về trang 1 rồi tải lại. Ô mã hóa đơn chờ 300ms sau khi ngừng gõ.
+let timer = null
+watch(
+  () => [filters.maHoaDon, filters.tuNgay, filters.denNgay, filters.loaiDon, activeTab.value],
+  (moi, cu) => {
+    clearTimeout(timer)
+    const chiDoiMa = moi[0] !== cu[0] && moi.slice(1).every((v, i) => v === cu[i + 1])
+    const chay = () => {
+      if (page.value !== 1) page.value = 1 // đổi trang sẽ tự tải lại
+      else load()
+    }
+    if (chiDoiMa) timer = setTimeout(chay, 300)
+    else chay()
+  },
+)
+watch([page, pageSize], () => load())
+onBeforeUnmount(() => clearTimeout(timer))
+onMounted(() => load())
+useAutoRefresh(() => load(true))
 
-const filter = ref({
-  maHoaDon: '',
-  tuNgay: '',
-  denNgay: '',
-  loaiDon: ''
-});
+const resetFilters = () => Object.assign(filters, defaultFilters())
 
-const activeTab = ref(null);
+const xemChiTiet = (id) => router.push(`/hoa-don/${id}`)
 
-const changeTab = (status) => {
-  activeTab.value = status;
-  fetchHoaDon(0);
-};
+/* ----- Hiển thị ----- */
+const formatNgay = (v) => {
+  if (!v) return ''
+  const d = new Date(v)
+  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`
+}
+const tenKhach = (hd) => hd.tenKhachHang || 'Khách vãng lai'
 
-
-const tuNgayInput = ref(null);
-const denNgayInput = ref(null);
-
-
-const openDatePicker = (element) => {
-  if (element && typeof element.showPicker === 'function') {
-    element.showPicker();
+/* ----- Xuất Excel: toàn bộ hóa đơn khớp bộ lọc hiện tại (không chỉ trang đang xem) ----- */
+const exporting = ref(false)
+async function exportFile() {
+  if (!total.value) {
+    toast.error('Không có hóa đơn nào để xuất.')
+    return
   }
-};
-
-
-const handleSearch = () => {
-  fetchHoaDon(0); 
-};
-
-
-const handleReset = () => {
-  filter.value = { maHoaDon: '', tuNgay: '', denNgay: '', loaiDon: '' };
-  fetchHoaDon(0); 
-};
-
-
-const handleExport = () => {
-  if (danhSachHoaDon.value.length === 0) {
-    alert("Không có dữ liệu để xuất file!");
-    return;
+  exporting.value = true
+  try {
+    const rows = []
+    const size = 100 // backend cho tối đa 100 dòng mỗi lần
+    const soTrang = Math.ceil(total.value / size)
+    for (let p = 0; p < soTrang; p++) {
+      const { data } = await api.get('/hoa-don', { params: buildParams(p, size) })
+      rows.push(...data.content)
+    }
+    exportExcel({
+      filename: `hoa_don_${todayIso()}.xlsx`,
+      sheetName: 'Hóa đơn',
+      columns: [
+        { header: 'STT', key: 'stt', width: 6 },
+        { header: 'Mã HD', key: 'ma', width: 14 },
+        { header: 'Mã NV', key: 'maNv', width: 12 },
+        { header: 'Tên KH', key: 'tenKh', width: 24 },
+        { header: 'SĐT KH', key: 'sdt', width: 14 },
+        { header: 'Tổng tiền TT', key: 'tien', width: 16 },
+        { header: 'Loại đơn', key: 'loai', width: 12 },
+        { header: 'Ngày tạo', key: 'ngay', width: 12 },
+        { header: 'Trạng thái', key: 'trangThai', width: 16 },
+      ],
+      rows: rows.map((hd, i) => ({
+        stt: i + 1,
+        ma: hd.maHoaDon,
+        maNv: hd.maNhanVien || '',
+        tenKh: tenKhach(hd),
+        sdt: hd.sdtKhachHang || '',
+        tien: formatMoney(hd.tongTien),
+        loai: hd.loaiDon,
+        ngay: formatNgay(hd.ngayTao),
+        trangThai: trangThaiOf(hd.trangThai).label,
+      })),
+    })
+    toast.success(`Đã xuất ${rows.length} hóa đơn ra file Excel.`)
+  } catch {
+    toast.error('Không thể xuất file. Vui lòng thử lại.')
+  } finally {
+    exporting.value = false
   }
-  
-  
-  let csvContent = "\uFEFFSTT,Mã Hóa Đơn,Tên Khách Hàng,Tên Nhân Viên,Tổng Tiền,Ngày Tạo,Loại Đơn\n";
-
-  
-  danhSachHoaDon.value.forEach((hd, index) => {
-    let row = [
-      index + 1,
-      hd.maHoaDon,
-      hd.tenKhachHang,
-      hd.tenNhanVien,
-      hd.tongTien,
-      formatDate(hd.ngayTao).replace(',', ''), 
-      hd.loaiDon
-    ].join(",");
-    csvContent += row + "\n";
-  });
-
-  
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.setAttribute("download", "DanhSachHoaDon.csv");
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
-onMounted(() => {
-  fetchHoaDon(0); 
-});
+}
 </script>
+
 <template>
-  <div class="d-flex" style="min-height: 100vh; background-color: #f4f7f6;">
-
-    
-
-
-    <div class="flex-grow-1 d-flex flex-column">
-
-      
-      <Header />
-
-      
-      <main class="p-4">
-
-        <div class="bg-white border rounded-3 shadow-sm py-3 px-4 mb-4">
-          <h5 class="fw-bold text-primary m-0">Quản lý hóa đơn</h5>
+  <div class="ad-page">
+    <FilterCard title="Bộ lọc">
+      <div class="ad-filter-grid ad-filter-grid--hd">
+        <div>
+          <label class="ad-label" for="hd-ma">Mã hóa đơn</label>
+          <input id="hd-ma" v-model="filters.maHoaDon" type="text" class="form-control ad-control" autocomplete="off" />
         </div>
-
-        <div class="card border-0 shadow-sm rounded-4 mb-4">
-          <div class="card-body p-4">
-            <h6 class="fw-bold mb-3 d-flex align-items-center"><i class="bi bi-funnel text-muted me-2 fs-5"></i> Bộ Lọc</h6>
-            <div class="row g-3">
-              <div class="col-md-3">
-                <label class="form-label small text-dark fw-medium">Mã hóa đơn</label>
-                
-                <input type="text" class="form-control" placeholder="Nhập mã hóa đơn" v-model="filter.maHoaDon">
-              </div>
-              
-              <div class="col-md-3">
-                <label class="form-label small text-dark fw-medium">Ngày Bắt Đầu</label>
-                <div class="input-group shadow-sm">
-                  
-                  <input type="date" class="form-control border-end-0 text-dark" 
-                         v-model="filter.tuNgay" 
-                         ref="tuNgayInput"
-                         @click="openDatePicker(tuNgayInput)"
-                         style="cursor: pointer; box-shadow: none;">
-                  
-                  <span class="input-group-text bg-white text-primary border-start-0" 
-                        @click="openDatePicker(tuNgayInput)"
-                        style="cursor: pointer;">
-                    <i class="bi bi-calendar-event"></i>
-                  </span>
-                </div>
-              </div>
-
-              
-              <div class="col-md-3">
-                <label class="form-label small text-dark fw-medium">Ngày Kết Thúc</label>
-                <div class="input-group shadow-sm">
-                  <input type="date" class="form-control border-end-0 text-dark" 
-                         v-model="filter.denNgay" 
-                         ref="denNgayInput"
-                         @click="openDatePicker(denNgayInput)"
-                         style="cursor: pointer; box-shadow: none;">
-                  <span class="input-group-text bg-white text-primary border-start-0" 
-                        @click="openDatePicker(denNgayInput)"
-                        style="cursor: pointer;">
-                    <i class="bi bi-calendar-event"></i>
-                  </span>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label small text-dark fw-medium">Loại Đơn</label>
-                <select class="form-select text-muted" v-model="filter.loaiDon">
-                  <option value="">Tất cả Loại Đơn</option>
-                  <option value="1">Tại quầy</option>
-                  <option value="2">Online</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="d-flex justify-content-end gap-3 mt-4">
-              
-              <button class="btn btn-primary px-4 shadow-sm" @click="handleSearch">Tìm kiếm</button>
-              <button class="btn btn-danger px-4 shadow-sm" @click="handleReset">Làm mới</button>
-              <button class="btn btn-success px-4 shadow-sm" @click="handleExport">
-                <i class="bi bi-file-earmark-arrow-down me-1"></i> Xuất File
-              </button>
-            </div>
-          </div>
+        <div>
+          <label class="ad-label" for="hd-tu-ngay">Từ ngày</label>
+          <input id="hd-tu-ngay" v-model="filters.tuNgay" type="date" class="form-control ad-control" :max="filters.denNgay || undefined" />
         </div>
+        <div>
+          <label class="ad-label" for="hd-den-ngay">Đến ngày</label>
+          <input id="hd-den-ngay" v-model="filters.denNgay" type="date" class="form-control ad-control" :min="filters.tuNgay || undefined" />
+        </div>
+        <div>
+          <label class="ad-label" for="hd-loai">Loại đơn</label>
+          <select id="hd-loai" v-model="filters.loaiDon" class="form-select ad-control">
+            <option value="">Tất cả</option>
+            <option value="1">Tại quầy</option>
+            <option value="2">Trực tuyến</option>
+          </select>
+        </div>
+        <div class="ad-filter-reset">
+          <button type="button" class="ad-btn" @click="resetFilters">
+            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại bộ lọc
+          </button>
+        </div>
+      </div>
+    </FilterCard>
 
-        <div class="card rounded-3 shadow-sm bg-white" style="border: 2px solid #5b8deb;">
-          <div class="card-body p-0">
+    <section class="ad-card">
+      <header class="ad-list-head">
+        <h2 class="ad-card-title">Danh sách hóa đơn</h2>
+        <button type="button" class="ad-btn ad-btn-primary" :disabled="exporting" @click="exportFile">
+          <span v-if="exporting" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <i v-else class="bi bi-box-arrow-up" aria-hidden="true"></i>
+          Xuất Excel
+        </button>
+      </header>
 
-            <div class="d-flex align-items-center px-4 pt-4 pb-3">
-              <div class="bg-secondary bg-opacity-25 text-primary rounded-3 d-flex align-items-center justify-content-center me-3" style="width: 45px; height: 45px;">
-                <i class="bi bi-file-earmark-text fs-4 text-secondary"></i>
-              </div>
-              <h4 class="fw-bold m-0 text-dark" style="font-size: 1.25rem;">Danh Sách Hóa Đơn</h4>
-            </div>
+      <div class="ad-status-tabs" role="tablist" aria-label="Lọc theo trạng thái hóa đơn">
+        <button
+          v-for="t in TABS"
+          :key="String(t.value)"
+          type="button"
+          role="tab"
+          class="ad-status-tab"
+          :class="{ active: activeTab === t.value }"
+          :aria-selected="activeTab === t.value"
+          @click="activeTab = t.value"
+        >
+          {{ t.label }}
+          <span v-if="demCua(t) !== undefined" class="ad-status-tab-count">{{ demCua(t) }}</span>
+        </button>
+      </div>
 
-
-            <ul class="nav custom-tabs d-flex justify-content-between flex-nowrap overflow-auto px-4 w-100" style="border-bottom: 1px solid #e9ecef;">
-              <li class="nav-item">
-                <a class="nav-link text-center px-2" :class="{ active: activeTab === null }" href="#" @click.prevent="changeTab(null)">Tất Cả</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link text-center px-2" :class="{ active: activeTab === 1 }" href="#" @click.prevent="changeTab(1)">Chờ Xác Nhận</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link text-center px-2" :class="{ active: activeTab === 2 }" href="#" @click.prevent="changeTab(2)">Đã Xác Nhận</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link text-center px-2" :class="{ active: activeTab === 3 }" href="#" @click.prevent="changeTab(3)">Chờ Vận Chuyển</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link text-center px-2" :class="{ active: activeTab === 4 }" href="#" @click.prevent="changeTab(4)">Vận Chuyển</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link text-center px-2" :class="{ active: activeTab === 5 }" href="#" @click.prevent="changeTab(5)">Đã Giao Hàng</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link text-center px-2" :class="{ active: activeTab === 6 }" href="#" @click.prevent="changeTab(6)">Đã Hoàn Thành</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link text-center px-2" :class="{ active: activeTab === 0 }" href="#" @click.prevent="changeTab(0)">Hủy</a>
-              </li>
-            </ul>
-
-            <div class="table-responsive">
-              <table class="table align-middle m-0 text-start">
-                <thead style="background-color: #f4f6f9;">
-                <tr>
-                  <th class="py-3 text-center fw-bold text-dark border-0" style="width: 80px;">STT</th>
-                  <th class="py-3 fw-bold text-dark border-0">Mã Hóa Đơn</th>
-                  <th class="py-3 fw-bold text-dark border-0">Tên Khách Hàng</th>
-                  <th class="py-3 fw-bold text-dark border-0">Tên Nhân Viên</th>
-                  <th class="py-3 fw-bold text-dark border-0">Tổng Tiền</th>
-                  <th class="py-3 fw-bold text-dark border-0">Ngày Tạo</th>
-                  <th class="py-3 fw-bold text-dark border-0">Loại Đơn</th>
-                  <th class="py-3 text-center fw-bold text-dark border-0" style="width: 120px;">Hành Động</th>
-                </tr>
-                </thead>
-                <tbody class="text-dark">
-                
-                <tr v-if="danhSachHoaDon.length === 0">
-                    
-                    <td colspan="8" class="text-center py-4 text-danger fw-medium">
-                       Không tìm thấy hóa đơn nào phù hợp với điều kiện lọc!
-                    </td>
-                  </tr>
-
-                
-                <tr v-for="(hd, index) in danhSachHoaDon" :key="hd.id">
-                  <td class="py-4 text-center" style="border-bottom: 1px solid #f0f0f0;">{{ index + 1 }}</td>
-
-                  <td class="py-4 fw-medium" style="border-bottom: 1px solid #f0f0f0;">{{ hd.maHoaDon }}</td>
-
-                  
-                  <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ hd.tenKhachHang }}</td>
-
-                  
-                  <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ hd.tenNhanVien }}</td>
-
-                  
-                  <td class="py-4 fw-medium text-danger" style="border-bottom: 1px solid #f0f0f0;">{{ formatCurrency(hd.tongTien) }}</td>
-
-                  
-                  <td class="py-4" style="border-bottom: 1px solid #f0f0f0;" v-html="formatDate(hd.ngayTao).replace(' ', '<br>')"></td>
-
-                  <td class="py-4" style="border-bottom: 1px solid #f0f0f0;">{{ hd.loaiDon }}</td>
-
-                  
-                  <td class="align-middle">
-                    <button class="btn btn-sm btn-outline-primary border-0" 
-                            title="Xem chi tiết" 
-                            @click="xemChiTiet(hd.id)">
-                      <i class="bi bi-eye fs-5"></i>
-                    </button>
+      <div class="ad-table-wrap">
+        <div class="ad-table-scroll">
+          <table class="ad-table">
+            <thead>
+              <tr>
+                <th class="ad-col-stt">STT</th>
+                <th>Mã HD</th>
+                <th>Mã NV</th>
+                <th>Tên KH</th>
+                <th>SĐT KH</th>
+                <th>Tổng tiền TT</th>
+                <th>Loại đơn</th>
+                <th>Ngày tạo</th>
+                <th>Trạng thái</th>
+                <th class="ad-col-actions">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading">
+                <td colspan="10">
+                  <div class="ad-empty">
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Đang tải dữ liệu...
+                  </div>
+                </td>
+              </tr>
+              <tr v-else-if="!list.length">
+                <td colspan="10">
+                  <div class="ad-empty">Không tìm thấy hóa đơn nào phù hợp với điều kiện lọc.</div>
+                </td>
+              </tr>
+              <template v-else>
+                <tr v-for="(hd, i) in list" :key="hd.id">
+                  <td class="ad-col-stt">{{ (page - 1) * pageSize + i + 1 }}</td>
+                  <td><span class="ad-code ad-nowrap">{{ hd.maHoaDon }}</span></td>
+                  <td class="ad-nowrap">{{ hd.maNhanVien || '—' }}</td>
+                  <td class="ad-cell-wrap">{{ tenKhach(hd) }}</td>
+                  <td class="ad-nowrap">{{ hd.sdtKhachHang || '—' }}</td>
+                  <td class="ad-nowrap hd-money">{{ formatMoney(hd.tongTien) }}</td>
+                  <td class="ad-nowrap">{{ hd.loaiDon }}</td>
+                  <td class="ad-nowrap">{{ formatNgay(hd.ngayTao) }}</td>
+                  <td>
+                    <span class="ad-pill" :class="trangThaiOf(hd.trangThai).pill">{{ trangThaiOf(hd.trangThai).label }}</span>
+                  </td>
+                  <td class="ad-col-actions">
+                    <div class="ad-actions">
+                      <button
+                        type="button"
+                        class="ad-icon-btn"
+                        title="Xem chi tiết"
+                        :aria-label="`Xem chi tiết hóa đơn ${hd.maHoaDon}`"
+                        @click="xemChiTiet(hd.id)"
+                      >
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                      </button>
+                    </div>
                   </td>
                 </tr>
-                </tbody>
-              </table>
-            </div>
-
-            
-            <div class="d-flex justify-content-end px-4 py-4 mt-2">
-              <nav v-if="totalPages > 0">
-                <ul class="pagination custom-pagination m-0 gap-2 align-items-center">
-                  
-                  
-                  <li class="page-item" :class="{ disabled: currentPage === 0 }">
-                    <a class="page-link rounded-2 bg-white text-dark" href="#" @click.prevent="changePage(currentPage - 1)">
-                      <i class="bi bi-chevron-left"></i>
-                    </a>
-                  </li>
-
-                  
-                  <li class="page-item">
-                    <div class="page-link rounded-2 bg-white text-dark fw-bold d-flex align-items-center justify-content-center shadow-sm" 
-                         style="border: 2px solid #a3c5ff; min-width: 40px; height: 40px; cursor: default; user-select: none;">
-                      {{ currentPage + 1 }}
-                    </div>
-                  </li>
-
-                  
-                  <li class="page-item" :class="{ disabled: currentPage === totalPages - 1 }">
-                    <a class="page-link rounded-2 bg-white text-dark" href="#" @click.prevent="changePage(currentPage + 1)">
-                      <i class="bi bi-chevron-right"></i>
-                    </a>
-                  </li>
-                  
-                </ul>
-              </nav>
-            </div>
-
-          </div>
+              </template>
+            </tbody>
+          </table>
         </div>
+      </div>
 
-      </main>
-    </div>
-
-
+      <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
+    </section>
   </div>
 </template>
 
 <style scoped>
-
-.sidebar-menu .sidebar-link {
-  color: #495057;
-  padding: 0.7rem 1rem;
-  border-radius: 0.5rem;
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-  transition: all 0.2s ease-in-out;
-}
-
-.sidebar-menu .sidebar-link .icon {
-  font-size: 1.15rem;
-  margin-right: 0.8rem;
-  color: #6c757d;
-  width: 24px;
-  text-align: center;
-}
-
-
-.sidebar-menu .sidebar-link:hover:not(.active) {
-  background-color: #f8f9fa;
-  color: #0d6efd;
-}
-
-.sidebar-menu .sidebar-link:hover:not(.active) .icon,
-.sidebar-menu .sidebar-link:hover:not(.active) .chevron {
-  color: #0d6efd;
-}
-
-
-.sidebar-menu .sidebar-link.active {
-  background-color: #0d6efd !important;
-  color: white !important;
-  font-weight: 600;
-  box-shadow: 0 0.125rem 0.25rem rgba(13, 110, 253, 0.2);
-}
-
-.sidebar-menu .sidebar-link.active .icon {
-  color: white !important;
-}
-
-
-.submenu .sidebar-link {
-  padding: 0.6rem 1rem 0.6rem 2.8rem; 
-  font-size: 0.9rem;
-  color: #6c757d;
-}
-
-.submenu .sidebar-link .icon {
-  font-size: 1rem;
-  margin-right: 0.6rem;
-  color: #adb5bd;
-}
-
-
-.sidebar-menu .sidebar-link .chevron {
-  transition: transform 0.3s ease;
-  font-size: 0.75rem;
-  color: #6c757d;
-}
-
-
-.sidebar-menu .sidebar-link:not(.collapsed) .chevron {
-  transform: rotate(180deg);
-  color: #0d6efd;
-}
-
-
-.form-control::placeholder {
-  color: #ced4da;
-}
-
-
-.custom-tabs .nav-link {
-  color: #858796;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 1rem 0.5rem;
-  font-weight: 500;
-  font-size: 0.95rem;
-}
-.custom-tabs .nav-link.active {
-  color: #0d6efd !important;
-  border-bottom: 2px solid #0d6efd;
-  font-weight: 600;
-}
-.custom-tabs .nav-link:hover {
-  color: #0d6efd;
-}
-
-
-.custom-pagination .page-link {
-  color: #495057;
-  border: 1px solid #e9ecef;
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
-}
-.custom-pagination .page-item.disabled .page-link {
-  color: #adb5bd;
-  background-color: #fff;
-}
-
-
-input[type="date"]::-webkit-calendar-picker-indicator {
-    display: none;
-    -webkit-appearance: none;
+.hd-money {
+  color: #c62836;
+  font-weight: 700;
 }
 </style>

@@ -32,8 +32,8 @@ const emit = defineEmits(['close', 'edit'])
       <div><dt>Thương hiệu</dt><dd>{{ layTen(thuocTinh['thuong-hieu'], item.idThuongHieu) }}</dd></div>
       <div><dt>Xuất xứ</dt><dd>{{ layTen(thuocTinh['xuat-xu'], item.idXuatXu) }}</dd></div>
       <div><dt>Chất liệu</dt><dd>{{ layTen(thuocTinh['chat-lieu'], item.idChatLieu) }}</dd></div>
-      <div><dt>Độ cứng</dt><dd>{{ layTen(thuocTinh['do-cung'], item.idDoCung) }}</dd></div>
-      <div><dt>Điểm cân bằng</dt><dd>{{ layTen(thuocTinh['diem-can-bang'], item.idDiemCanBang) }}</dd></div>
+      <div v-if="layTen(thuocTinh['do-cung'], item.idDoCung) !== '—'"><dt>Độ cứng</dt><dd>{{ layTen(thuocTinh['do-cung'], item.idDoCung) }}</dd></div>
+      <div v-if="layTen(thuocTinh['diem-can-bang'], item.idDiemCanBang) !== '—'"><dt>Điểm cân bằng</dt><dd>{{ layTen(thuocTinh['diem-can-bang'], item.idDiemCanBang) }}</dd></div>
       <div><dt>Ngày tạo</dt><dd>{{ formatDate(item.ngayTao) }}</dd></div>
       <div><dt>Cập nhật gần nhất</dt><dd>{{ formatDate(item.ngayCapNhat) }}</dd></div>
       <div class="ad-dl-full"><dt>Mô tả</dt><dd>{{ item.moTa || 'Chưa có mô tả.' }}</dd></div>

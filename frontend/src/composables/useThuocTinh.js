@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import { thuocTinhService } from '../services/thuocTinhService'
+import { layLuaChon, layTen } from '../utils/text'
 
 /**
  * Tải các bảng thuộc tính cần dùng cho dropdown và tra tên theo id.
@@ -14,13 +15,13 @@ export function useThuocTinh(types) {
   }
 
   /** Tên theo id; không thấy thì trả '—'. */
-  const tenOf = (type, id) => data[type].find((x) => x.id === id)?.ten ?? '—'
+  const tenOf = (type, id) => layTen(data[type], id)
 
   /**
    * Danh sách cho dropdown: chỉ các mục đang hoạt động,
    * cộng thêm mục đang được chọn (kể cả đã ngưng) để khi sửa không bị mất giá trị.
    */
-  const optionsOf = (type, currentId = null) => data[type].filter((x) => x.hoatDong || x.id === currentId)
+  const optionsOf = (type, currentId = null) => layLuaChon(data[type], currentId)
 
   return { data, loadThuocTinh, tenOf, optionsOf }
 }

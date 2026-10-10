@@ -18,8 +18,8 @@
                       <label class="form-label small text-dark fw-medium">Chọn sản phẩm <span class="text-danger">*</span></label>
                       <select class="form-select" v-model="selectedProduct" required>
                         <option value="">-- Chọn sản phẩm --</option>
-                        <option v-for="sp in products" :key="sp.id" :value="sp.id">
-                          [{{ sp.maSpct }}] - Giá: {{ sp.giaBan }}đ
+                        <option v-for="sp in selectableProducts" :key="sp.id" :value="sp.id">
+                          [{{ sp.ma }}] - Giá: {{ formatCurrency(sp.giaBan) }}
                         </option>
                       </select>
                     </div>
@@ -75,8 +75,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, defineProps, defineEmits } from 'vue'
-import api from '../services/api'
+import { ref, computed, onMounted } from 'vue'
+import api from '../../services/api'
 
 const props = defineProps({
   campaign: Object
@@ -92,22 +92,14 @@ const errorMsg = ref('')
 const fetchData = async () => {
   try {
     const [prodRes, detailRes] = await Promise.all([
-
-      api.get('/san-pham-chi-tiet'),
-      api.get(`/dot-giam-gia-chi-tiet/campaign/${props.campaign.id}`)
-    ])
-    products.value = prodRes.data
-
-      // API biến thể sản phẩm thật của nhóm (BienTheController)
       api.get('/bien-the-san-pham'),
       api.get(`/dot-giam-gia-chi-tiet/campaign/${props.campaign.id}`)
     ])
-    products.value = (prodRes.data || [])
-      .map(bt => ({ id: bt.id, maSpct: bt.ma, giaBan: bt.giaBan }))
-
+    products.value = prodRes.data
     details.value = detailRes.data
   } catch (error) {
     console.error(error)
+    errorMsg.value = error.message || 'Không tải được dữ liệu.'
   }
 }
 
@@ -115,11 +107,16 @@ onMounted(() => {
   fetchData()
 })
 
+// Chỉ cho chọn biến thể đang hoạt động và chưa nằm trong đợt này
+const selectableProducts = computed(() =>
+  products.value.filter(p => p.hoatDong && !details.value.some(d => d.idSanPhamChiTiet === p.id))
+)
+
 const getProduct = (id) => products.value.find(p => p.id === id)
 
 const getProductCode = (id) => {
   const p = getProduct(id)
-  return p ? p.maSpct : 'Unknown'
+  return p ? p.ma : 'Không xác định'
 }
 
 const getProductPrice = (id) => {
@@ -146,7 +143,7 @@ const addProduct = async () => {
     selectedProduct.value = ''
     fetchData()
   } catch (error) {
-    errorMsg.value = error.response?.data?.message || 'Có lỗi xảy ra'
+    errorMsg.value = error.message || 'Có lỗi xảy ra'
   }
 }
 
@@ -156,6 +153,7 @@ const removeProduct = async (id) => {
     fetchData()
   } catch (error) {
     console.error(error)
+    errorMsg.value = error.message || 'Không gỡ được sản phẩm khỏi đợt.'
   }
 }
 </script>

@@ -9,6 +9,8 @@ public class HoaDonRequest {
     private Integer id;
     private String maHoaDon;
     private String tenKhachHang;
+    private String sdtKhachHang;
+    private String maNhanVien;
     private String tenNhanVien;
     private BigDecimal tongTien;
     private LocalDateTime ngayTao;

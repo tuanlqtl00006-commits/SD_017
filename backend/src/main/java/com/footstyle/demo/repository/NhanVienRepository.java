@@ -13,6 +13,8 @@ public interface NhanVienRepository extends JpaRepository<NhanVien, Integer> {
 
     boolean existsBySdtAndIdNot(String sdt, Integer id);
 
+    boolean existsByCccdAndIdNot(String cccd, Integer id);
+
     /** Số nhân viên đang hoạt động thuộc một vai trò (dùng để giữ lại ít nhất một quản lý). */
     long countByVaiTroIdAndTrangThai(Integer idVaiTro, Integer trangThai);
 

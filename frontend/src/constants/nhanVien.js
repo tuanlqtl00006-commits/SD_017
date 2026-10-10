@@ -9,13 +9,41 @@ export const TRANG_THAI = {
   false: { label: 'Ngưng hoạt động', cls: 'ad-pill-red' },
 }
 
-/** Mã NV kế tiếp: NV0001, NV0002, ... (chỉ để hiển thị trước, mã thật do backend cấp) */
-export function taoMaNhanVien(list = []) {
-  const max = list.reduce((m, nv) => {
-    const n = Number(String(nv.ma).replace(/\D/g, ''))
-    return Number.isNaN(n) ? m : Math.max(m, n)
-  }, 0)
-  return 'NV' + String(max + 1).padStart(4, '0')
+/** Bỏ dấu tiếng Việt (đ -> d) và mọi ký tự không phải chữ cái. Khớp MaNhanVienUtil.boDau ở backend. */
+function boDau(s = '') {
+  return String(s)
+    .normalize('NFD')
+    .replace(/\p{M}+/gu, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/[^A-Za-z\s]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+/** Phần chữ của mã: Tên + chữ cái đầu của họ và tên đệm. 'Nguyễn Văn An' -> 'AnNV'. Chưa có chữ cái nào -> ''. */
+export function tienToMaNhanVien(hoTen = '') {
+  const sach = boDau(hoTen)
+  if (!sach) return ''
+  const tu = sach.split(' ')
+  const ten = tu[tu.length - 1]
+  return ten[0].toUpperCase() + ten.slice(1).toLowerCase() + tu.slice(0, -1).map((t) => t[0].toUpperCase()).join('')
+}
+
+/**
+ * Mã nhân viên theo HỌ TÊN ĐẦY ĐỦ: Tên + chữ cái đầu của họ & tên đệm + số thứ tự 2 chữ số.
+ *   Nguyễn Văn An -> AnNV01 (người tiếp theo trùng tiền tố -> AnNV02), Trần Thị Mai Lan -> LanTTM01.
+ * Chỉ để hiển thị trước; mã thật do backend cấp (MaNhanVienUtil) theo cùng quy tắc.
+ */
+export function taoMaTheoTen(hoTen, maDangCo = []) {
+  const tienTo = tienToMaNhanVien(hoTen) || 'NV'
+  const key = tienTo.toLowerCase()
+  let max = 0
+  for (const ma of maDangCo) {
+    const m = String(ma ?? '').trim().toLowerCase()
+    if (m.startsWith(key) && /^\d{1,9}$/.test(m.slice(key.length))) max = Math.max(max, Number(m.slice(key.length)))
+  }
+  return tienTo + String(max + 1).padStart(2, '0')
 }
 
 /** Số tuổi tính từ 'yyyy-mm-dd'. */

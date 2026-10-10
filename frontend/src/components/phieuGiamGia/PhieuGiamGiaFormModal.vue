@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
+import FormPageShell from '../common/FormPageShell.vue'
 import { HINH_THUC, LOAI_GIAM, taoMaPhieu } from '../../constants/phieuGiamGia'
 import { phieuGiamGiaService } from '../../services/phieuGiamGiaService'
 import { includesText } from '../../utils/text'
@@ -10,10 +11,12 @@ const props = defineProps({
   item: { type: Object, default: null }, // null: tạo mới; khi sửa có kèm khachHangs (lấy từ API chi tiết)
   all: { type: Array, default: () => [] }, // toàn bộ phiếu, dùng để kiểm tra trùng mã
   saving: { type: Boolean, default: false },
+  asPage: { type: Boolean, default: false }, // true: hiển thị như một trang (không phải cửa sổ nổi)
 })
 const emit = defineEmits(['save', 'close'])
 
 const isEdit = computed(() => !!props.item)
+const titleText = computed(() => (isEdit.value ? 'Chỉnh sửa phiếu giảm giá' : props.asPage ? 'Thông tin phiếu' : 'Tạo phiếu giảm giá'))
 // Phiếu đã có người dùng thì không đổi hình thức (công khai / cá nhân) và không bỏ được khách đã dùng.
 const daCoNguoiDung = computed(
   () => (props.item?.soLuongDaDung ?? 0) > 0 || (props.item?.khachHangs ?? []).some((k) => k.daDung),
@@ -91,6 +94,30 @@ function boChonDangLoc() {
   const giuLai = new Set(khachFiltered.value.filter((k) => khachDaDung.value.has(k.id)).map((k) => k.id))
   const dangLoc = new Set(khachFiltered.value.map((k) => k.id))
   form.khachHangIds = form.khachHangIds.filter((id) => !dangLoc.has(id) || giuLai.has(id))
+}
+
+// Ô chọn ở tiêu đề bảng: tick khi tất cả khách đang hiển thị đều đã được chọn
+const tatCaDangLocDaChon = computed(
+  () => khachFiltered.value.length > 0 && khachFiltered.value.every((k) => form.khachHangIds.includes(k.id)),
+)
+const motPhanDangLocDaChon = computed(
+  () => !tatCaDangLocDaChon.value && khachFiltered.value.some((k) => form.khachHangIds.includes(k.id)),
+)
+function toggleTatCaDangLoc() {
+  if (tatCaDangLocDaChon.value) boChonDangLoc()
+  else chonTatCaDangLoc()
+}
+
+/** '2000-01-15' -> '15/01/2000' */
+function hienNgay(iso) {
+  if (!iso) return ''
+  const [y, m, d] = String(iso).slice(0, 10).split('-')
+  return `${d}/${m}/${y}`
+}
+/** '2026-08-12T17:07:30' -> '12/08/2026 17:07' */
+function hienNgayGio(iso) {
+  if (!iso) return ''
+  return `${hienNgay(iso)} ${String(iso).slice(11, 16)}`
 }
 
 // Phiếu cá nhân: mỗi khách được tặng 1 phiếu nên số lượng = số khách được chọn.
@@ -214,7 +241,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <BaseModal :title="isEdit ? 'Chỉnh sửa phiếu giảm giá' : 'Tạo phiếu giảm giá'" size="lg" static-backdrop @close="emit('close')">
+  <component
+    :is="asPage ? FormPageShell : BaseModal"
+    v-bind="asPage ? { title: titleText } : { title: titleText, size: isCaNhan ? 'xl' : 'lg', staticBackdrop: true, onClose: () => emit('close') }"
+  >
     <form id="pgg-form" novalidate @submit.prevent="submit">
       <div class="row g-3">
         <div class="col-md-5">
@@ -408,50 +438,97 @@ onMounted(() => {
         </div>
 
         <div v-if="isCaNhan" class="col-12">
-          <span id="pgg-khach-label" class="ad-label">
-            Khách hàng được tặng <span class="ad-required">*</span>
-            <span class="pgg-count">Đã chọn {{ form.khachHangIds.length }}</span>
-          </span>
-          <div class="pgg-picker" :class="{ 'is-invalid': errors.khachHang }" role="group" aria-labelledby="pgg-khach-label">
-            <div class="pgg-picker-tools">
-              <div class="ad-affix pgg-search">
-                <i class="bi bi-search" aria-hidden="true"></i>
-                <input
-                  v-model.trim="khachKeyword"
-                  type="text"
-                  class="form-control ad-control"
-                  placeholder="Tìm theo mã, tên, SĐT, email"
-                  autocomplete="off"
-                  aria-label="Tìm khách hàng"
-                />
-              </div>
-              <button type="button" class="ad-btn" @click="chonTatCaDangLoc">Chọn tất cả</button>
-              <button type="button" class="ad-btn" @click="boChonDangLoc">Bỏ chọn</button>
+          <section class="pgg-kh" :class="{ 'is-invalid': errors.khachHang }" aria-labelledby="pgg-khach-label">
+            <header class="pgg-kh-head">
+              <h3 id="pgg-khach-label" class="pgg-kh-title">
+                Danh sách khách hàng nhận phiếu <span class="ad-required">*</span>
+              </h3>
+              <span class="pgg-kh-badge">Đã chọn {{ form.khachHangIds.length }}</span>
+            </header>
+
+            <div class="ad-affix pgg-kh-search">
+              <i class="bi bi-search" aria-hidden="true"></i>
+              <input
+                v-model.trim="khachKeyword"
+                type="text"
+                class="form-control ad-control"
+                placeholder="Tìm kiếm theo mã, tên, SĐT…"
+                autocomplete="off"
+                aria-label="Tìm khách hàng"
+              />
             </div>
-            <div class="pgg-picker-list">
-              <p v-if="khachLoading" class="pgg-picker-note">Đang tải danh sách khách hàng…</p>
-              <p v-else-if="khachError" class="pgg-picker-note text-danger" role="alert">{{ khachError }}</p>
-              <p v-else-if="!khachHangAll.length" class="pgg-picker-note">Chưa có khách hàng nào đang hoạt động.</p>
-              <p v-else-if="!khachFiltered.length" class="pgg-picker-note">Không tìm thấy khách hàng phù hợp.</p>
-              <label
-                v-for="k in khachFiltered"
-                :key="k.id"
-                class="pgg-picker-item"
-                :class="{ 'is-locked': khachDaDung.has(k.id) }"
-              >
-                <input
-                  type="checkbox"
-                  :checked="form.khachHangIds.includes(k.id)"
-                  :disabled="khachDaDung.has(k.id)"
-                  @change="toggleKhach(k.id)"
-                />
-                <span class="pgg-picker-name">{{ k.hoTen }}</span>
-                <span class="ad-code">{{ k.ma }}</span>
-                <span class="pgg-picker-sub">{{ k.soDienThoai || k.email || '' }}</span>
-                <span v-if="khachDaDung.has(k.id)" class="ad-pill ad-pill-gray">Đã dùng</span>
-              </label>
+
+            <div class="pgg-kh-table-wrap">
+              <table class="pgg-kh-table">
+                <thead>
+                  <tr>
+                    <th class="pgg-kh-check">
+                      <input
+                        type="checkbox"
+                        class="form-check-input"
+                        :checked="tatCaDangLocDaChon"
+                        :indeterminate="motPhanDangLocDaChon"
+                        :disabled="!khachFiltered.length"
+                        aria-label="Chọn tất cả khách hàng đang hiển thị"
+                        @change="toggleTatCaDangLoc"
+                      />
+                    </th>
+                    <th>Mã KH</th>
+                    <th>Tên khách hàng</th>
+                    <th>Ngày sinh</th>
+                    <th>Số điện thoại</th>
+                    <th>Email</th>
+                    <th class="text-center">Đã mua</th>
+                    <th class="text-center">Gần nhất</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="khachLoading">
+                    <td colspan="8" class="pgg-kh-note">Đang tải danh sách khách hàng…</td>
+                  </tr>
+                  <tr v-else-if="khachError">
+                    <td colspan="8" class="pgg-kh-note text-danger" role="alert">{{ khachError }}</td>
+                  </tr>
+                  <tr v-else-if="!khachHangAll.length">
+                    <td colspan="8" class="pgg-kh-note">Chưa có khách hàng nào đang hoạt động.</td>
+                  </tr>
+                  <tr v-else-if="!khachFiltered.length">
+                    <td colspan="8" class="pgg-kh-note">Không tìm thấy khách hàng phù hợp.</td>
+                  </tr>
+                  <template v-else>
+                    <tr
+                      v-for="k in khachFiltered"
+                      :key="k.id"
+                      :class="{ 'is-selected': form.khachHangIds.includes(k.id), 'is-locked': khachDaDung.has(k.id) }"
+                      @click="toggleKhach(k.id)"
+                    >
+                      <td class="pgg-kh-check">
+                        <input
+                          type="checkbox"
+                          class="form-check-input"
+                          :checked="form.khachHangIds.includes(k.id)"
+                          :disabled="khachDaDung.has(k.id)"
+                          :aria-label="`Chọn ${k.hoTen}`"
+                          @click.stop
+                          @change="toggleKhach(k.id)"
+                        />
+                      </td>
+                      <td class="pgg-kh-muted">{{ k.ma }}</td>
+                      <td class="pgg-kh-name">
+                        {{ k.hoTen }}
+                        <span v-if="khachDaDung.has(k.id)" class="ad-pill ad-pill-gray ms-1">Đã dùng</span>
+                      </td>
+                      <td class="pgg-kh-muted">{{ hienNgay(k.ngaySinh) || '—' }}</td>
+                      <td>{{ k.soDienThoai || '—' }}</td>
+                      <td class="pgg-kh-email">{{ k.email || '—' }}</td>
+                      <td class="text-center pgg-kh-strong">{{ k.soDonDaMua ?? 0 }} đơn</td>
+                      <td class="text-center pgg-kh-muted">{{ hienNgayGio(k.lanMuaGanNhat) || '---' }}</td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
             </div>
-          </div>
+          </section>
           <p v-if="errors.khachHang" class="ad-error">{{ errors.khachHang }}</p>
         </div>
       </div>
@@ -464,72 +541,116 @@ onMounted(() => {
         {{ isEdit ? 'Lưu thay đổi' : 'Tạo phiếu' }}
       </button>
     </template>
-  </BaseModal>
+  </component>
 </template>
 
 <style scoped>
-.pgg-count {
-  margin-left: 0.5rem;
-  font-weight: 500;
-  color: var(--fs-text-2);
-}
-.pgg-picker {
-  border: 1px solid #dfe5ec;
+/* ---------- Bảng chọn khách hàng nhận phiếu (phiếu cá nhân) ---------- */
+.pgg-kh {
+  padding: 1rem;
+  border: 1px solid var(--fs-line);
   border-radius: 12px;
-  overflow: hidden;
+  background: #fff;
 }
-.pgg-picker.is-invalid {
-  border-color: #dc3545;
+.pgg-kh.is-invalid {
+  border-color: var(--fs-danger);
 }
-.pgg-picker-tools {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.6rem;
-  background: #f7f9fb;
-  border-bottom: 1px solid #dfe5ec;
-}
-.pgg-search {
-  flex: 1;
-  min-width: 0;
-}
-.pgg-picker-list {
-  max-height: 220px;
-  overflow-y: auto;
-}
-.pgg-picker-item {
+.pgg-kh-head {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.pgg-kh-title {
   margin: 0;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-  border-bottom: 1px solid #eef1f5;
-}
-.pgg-picker-item:last-child {
-  border-bottom: 0;
-}
-.pgg-picker-item:hover {
-  background: var(--fs-hover-bg);
-}
-.pgg-picker-item.is-locked {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-.pgg-picker-name {
+  font-size: 0.95rem;
   font-weight: 600;
-  flex: 1;
-  min-width: 0;
+  color: var(--fs-text);
 }
-.pgg-picker-sub {
-  color: var(--fs-text-2);
+.pgg-kh-badge {
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: var(--fs-primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
   white-space: nowrap;
 }
-.pgg-picker-note {
+.pgg-kh-search {
+  max-width: 420px;
+  margin-bottom: 0.75rem;
+}
+.pgg-kh-search .ad-control {
+  border-radius: 999px;
+}
+.pgg-kh-table-wrap {
+  min-height: 200px;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--fs-line);
+  border-radius: 10px;
+}
+.pgg-kh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.pgg-kh-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.75rem;
+  background: #fff;
+  border-bottom: 1px solid var(--fs-line);
+  color: var(--fs-text-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.pgg-kh-table td {
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid var(--fs-line-soft);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.pgg-kh-table tbody tr {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.pgg-kh-table tbody tr:hover {
+  background: var(--fs-hover-row);
+}
+.pgg-kh-table tbody tr.is-selected {
+  background: var(--fs-primary-soft);
+}
+.pgg-kh-table tbody tr.is-locked {
+  cursor: not-allowed;
+}
+.pgg-kh-check {
+  width: 44px;
+  text-align: center;
+}
+.pgg-kh-check .form-check-input {
   margin: 0;
-  padding: 1rem;
+  cursor: pointer;
+}
+.pgg-kh-name {
+  font-weight: 600;
+  color: var(--fs-text);
+}
+.pgg-kh-strong {
+  font-weight: 500;
+}
+.pgg-kh-muted {
+  color: var(--fs-muted);
+}
+.pgg-kh-email {
+  color: var(--fs-text-2);
+}
+.pgg-kh-note {
+  padding: 2rem 1rem !important;
   text-align: center;
   color: var(--fs-text-2);
-  font-size: 0.85rem;
+  cursor: default;
 }
 </style>

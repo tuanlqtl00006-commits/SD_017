@@ -33,7 +33,7 @@ export function matchesWords(haystack, needle) {
 /** Tìm tên trong một danh sách theo id. Không thấy thì trả '—'. */
 export function layTen(danhSach, id) {
   const found = danhSach.find((x) => x.id === id)
-  if (found) return found.ten
+  if (found && normalizeText(found.ten ?? '') !== 'khong ap dung') return found.ten
   return '—'
 }
 
@@ -42,5 +42,6 @@ export function layTen(danhSach, id) {
  * Nếu đang sửa mà giá trị cũ đã bị ngưng thì vẫn giữ lại để không bị mất giá trị.
  */
 export function layLuaChon(danhSach, idDangChon) {
-  return danhSach.filter((x) => x.hoatDong || x.id === idDangChon)
+  // Mục "Không áp dụng" do hệ thống tự gán cho danh mục không phải vợt, không cho chọn tay
+  return danhSach.filter((x) => (x.hoatDong || x.id === idDangChon) && normalizeText(x.ten ?? '') !== 'khong ap dung')
 }

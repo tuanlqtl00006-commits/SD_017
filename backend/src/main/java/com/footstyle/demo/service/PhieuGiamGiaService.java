@@ -3,10 +3,12 @@ package com.footstyle.demo.service;
 import com.footstyle.demo.dto.KhachHangTomTatResponse;
 import com.footstyle.demo.dto.PhieuGiamGiaRequest;
 import com.footstyle.demo.dto.PhieuGiamGiaResponse;
+import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.PhieuGiamGia;
 import com.footstyle.demo.entity.PhieuGiamGiaKhachHang;
 import com.footstyle.demo.exception.ApiException;
+import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.KhachHangRepository;
 import com.footstyle.demo.repository.PhieuGiamGiaKhachHangRepository;
 import com.footstyle.demo.repository.PhieuGiamGiaRepository;
@@ -14,10 +16,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +38,8 @@ public class PhieuGiamGiaService {
     private final PhieuGiamGiaRepository phieuRepo;
     private final PhieuGiamGiaKhachHangRepository phieuKhRepo;
     private final KhachHangRepository khachHangRepo;
+    private final MailService mailService;
+    private final HoaDonRepository hoaDonRepo; // thống kê số đơn đã mua của khách (bảng chọn khách nhận phiếu)
 
     /* ===================== Đọc ===================== */
 
@@ -54,9 +62,10 @@ public class PhieuGiamGiaService {
     // Khách hàng đang hoạt động, dùng cho ô chọn khi tặng phiếu cá nhân
     @Transactional(readOnly = true)
     public List<KhachHangTomTatResponse> getKhachHangCoTheChon() {
+        Map<Integer, ThongKeMua> thongKe = layThongKeMuaHang(); // 1 câu truy vấn cho tất cả khách
         List<KhachHangTomTatResponse> ketQua = new ArrayList<>();
         for (KhachHang k : khachHangRepo.findByTrangThaiOrderByHoTenAsc(1)) {
-            ketQua.add(toKhachHang(k, false));
+            ketQua.add(toKhachHang(k, false, thongKe));
         }
         return ketQua;
     }
@@ -77,18 +86,25 @@ public class PhieuGiamGiaService {
         p = phieuRepo.save(p);
 
         // Phiếu cá nhân: mỗi khách được tặng là 1 dòng trong bảng phieu_giam_gia_khach_hang
+        String ketQuaMail = null;
         if (CA_NHAN.equals(req.hinhThuc())) {
-            for (Integer idKh : layDanhSachKhachHang(req)) {
+            List<Integer> idKhachHang = layDanhSachKhachHang(req);
+            for (Integer idKh : idKhachHang) {
                 phieuKhRepo.save(taoLienKet(p.getId(), idKh));
             }
+            // Tạo phiếu cá nhân: mọi khách được tặng đều nhận "mail phiếu mới"
+            ketQuaMail = guiMail(p, idKhachHang, new ArrayList<>(), new ArrayList<>());
         }
-        return toResponse(p, getKhachHangDuocTang(p.getId()));
+        return toResponse(p, getKhachHangDuocTang(p.getId())).voiKetQuaMail(ketQuaMail);
     }
 
     @Transactional
     public PhieuGiamGiaResponse sua(Integer id, PhieuGiamGiaRequest req) {
         PhieuGiamGia p = timPhieu(id);
         List<PhieuGiamGiaKhachHang> lienKetCu = phieuKhRepo.findByIdPhieuGiamGia(id);
+
+        // Chỉ phiếu còn "Sắp diễn ra" (chưa tới ngày bắt đầu) mới gửi mail khi sửa; xét TRƯỚC khi nạp dữ liệu mới
+        boolean sapDienRa = p.getNgayBatDau() != null && p.getNgayBatDau().isAfter(LocalDateTime.now());
 
         // Phiếu đã có người dùng thì không được đổi giữa công khai <-> cá nhân
         boolean daCoNguoiDung = soLuongDaDung(p) > 0;
@@ -102,11 +118,34 @@ public class PhieuGiamGiaService {
             throw ApiException.conflict("Phiếu đã được sử dụng nên không thể đổi hình thức (công khai / cá nhân).");
         }
 
+        // Chụp lại thông tin phiếu TRƯỚC khi sửa để biết sau đó thông tin có thật sự đổi không
+        String thongTinTruoc = chuKyThongTin(p);
+        List<Integer> idCu = new ArrayList<>();
+        for (PhieuGiamGiaKhachHang l : lienKetCu) {
+            idCu.add(l.getIdKhachHang());
+        }
+
         // Mã không đổi sau khi tạo nên bỏ qua req.ma()
         napDuLieu(p, req, false);
         phieuRepo.save(p);
         capNhatKhachHang(p, req, lienKetCu);
-        return toResponse(p, getKhachHangDuocTang(p.getId()));
+        boolean doiThongTin = !thongTinTruoc.equals(chuKyThongTin(p));
+
+        /*
+         * Gửi mail khi sửa phiếu cá nhân còn "Sắp diễn ra" (xem PhieuMailKeHoach):
+         *  TH1 - đổi thông tin phiếu, danh sách khách giữ nguyên      -> mọi khách nhận "mail cập nhật"
+         *  TH2 - thông tin giữ nguyên, danh sách khách thay đổi       -> khách giữ lại: KHÔNG gửi;
+         *                                                                khách mới: "mail phiếu mới"; khách bị bỏ: "mail hủy"
+         *  TH3 - đổi cả hai                                            -> khách giữ lại: "mail cập nhật"; khách mới: "mail mới"; khách bị bỏ: "mail hủy"
+         * Phiếu đã / đang diễn ra thì không gửi mail.
+         */
+        String ketQuaMail = null;
+        if (sapDienRa) {
+            List<Integer> idMoiDanhSach = CA_NHAN.equals(req.hinhThuc()) ? layDanhSachKhachHang(req) : new ArrayList<>();
+            PhieuMailKeHoach.KeHoach keHoach = PhieuMailKeHoach.lap(idCu, idMoiDanhSach, doiThongTin);
+            ketQuaMail = guiMail(p, keHoach.moi(), keHoach.capNhat(), keHoach.huy());
+        }
+        return toResponse(p, getKhachHangDuocTang(p.getId())).voiKetQuaMail(ketQuaMail);
     }
 
     // Không xóa phiếu, chỉ ẩn / hiện bằng cột trạng thái. Phiếu đã hết hạn thì không đổi nữa.
@@ -220,6 +259,70 @@ public class PhieuGiamGiaService {
         p.setNgayKetThuc(ketThuc.atTime(LocalTime.of(23, 59, 59)));  // hết ngày kết thúc
     }
 
+    // Gộp các thông tin khách hàng nhìn thấy trong mail thành 1 chuỗi, để so sánh trước / sau khi sửa
+    private String chuKyThongTin(PhieuGiamGia p) {
+        return p.getTenPhieu() + "|" + p.getLoaiGiam() + "|" + p.getGiaTriGiam() + "|" + p.getGiamToiDa() + "|"
+                + p.getGiaTriDonHangToiThieu() + "|" + p.getNgayBatDau() + "|" + p.getNgayKetThuc();
+    }
+
+    // Xếp mail cho 3 nhóm khách (mới / cập nhật / hủy). Mail chỉ thật sự gửi SAU KHI lưu DB thành công.
+    // Trả về câu tóm tắt cho giao diện (null nếu không có mail nào).
+    private String guiMail(PhieuGiamGia p, List<Integer> idMoi, List<Integer> idCapNhat, List<Integer> idHuy) {
+        List<Integer> tatCa = new ArrayList<>();
+        tatCa.addAll(idMoi);
+        tatCa.addAll(idCapNhat);
+        tatCa.addAll(idHuy);
+        if (tatCa.isEmpty()) {
+            return null;
+        }
+        Map<Integer, KhachHang> khachTheoId = new HashMap<>();
+        for (KhachHang k : khachHangRepo.findAllById(tatCa)) {
+            khachTheoId.put(k.getId(), k);
+        }
+
+        List<Runnable> viec = new ArrayList<>();
+        int[] daXep = new int[3];      // số mail mới / cập nhật / hủy sẽ gửi
+        int khongCoEmail = 0;
+        MailService.Loai[] loai = {MailService.Loai.MOI, MailService.Loai.CAP_NHAT, MailService.Loai.HUY};
+        List<List<Integer>> nhom = List.of(idMoi, idCapNhat, idHuy);
+        for (int i = 0; i < 3; i++) {
+            for (Integer idKh : nhom.get(i)) {
+                KhachHang k = khachTheoId.get(idKh);
+                if (!MailService.coEmail(k)) {
+                    khongCoEmail++;
+                    continue;
+                }
+                final MailService.Loai loaiMail = loai[i];
+                viec.add(() -> mailService.guiPhieuGiamGia(loaiMail, p, k));
+                daXep[i]++;
+            }
+        }
+
+        if (!viec.isEmpty()) {
+            Runnable chay = () -> viec.forEach(Runnable::run);
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        chay.run();
+                    }
+                });
+            } else {
+                chay.run();
+            }
+        }
+
+        List<String> phan = new ArrayList<>();
+        if (daXep[0] > 0) phan.add(daXep[0] + " mail phiếu mới");
+        if (daXep[1] > 0) phan.add(daXep[1] + " mail cập nhật");
+        if (daXep[2] > 0) phan.add(daXep[2] + " mail hủy phiếu");
+        String ketQua = phan.isEmpty() ? "Không gửi được mail nào" : "Đã gửi " + String.join(", ", phan);
+        if (khongCoEmail > 0) {
+            ketQua += " (" + khongCoEmail + " khách chưa có email nên không gửi được)";
+        }
+        return ketQua + ".";
+    }
+
     // Danh sách id khách hàng của phiếu cá nhân: không rỗng, không trùng, phải tồn tại
     private List<Integer> layDanhSachKhachHang(PhieuGiamGiaRequest req) {
         List<Integer> ids = new ArrayList<>();
@@ -275,18 +378,47 @@ public class PhieuGiamGiaService {
 
     // Khách hàng được tặng phiếu (kèm cờ đã dùng hay chưa)
     private List<KhachHangTomTatResponse> getKhachHangDuocTang(Integer idPhieu) {
+        List<PhieuGiamGiaKhachHang> lienKet = phieuKhRepo.findByIdPhieuGiamGia(idPhieu);
         List<KhachHangTomTatResponse> ketQua = new ArrayList<>();
-        for (PhieuGiamGiaKhachHang l : phieuKhRepo.findByIdPhieuGiamGia(idPhieu)) {
+        if (lienKet.isEmpty()) return ketQua; // phiếu công khai: không cần truy vấn thống kê
+        Map<Integer, ThongKeMua> thongKe = layThongKeMuaHang();
+        for (PhieuGiamGiaKhachHang l : lienKet) {
             KhachHang k = khachHangRepo.findById(l.getIdKhachHang()).orElse(null);
             if (k != null) {
-                ketQua.add(toKhachHang(k, l.getNgaySuDung() != null));
+                ketQua.add(toKhachHang(k, l.getNgaySuDung() != null, thongKe));
             }
         }
         return ketQua;
     }
 
-    private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung) {
-        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), daDung);
+    /** Số đơn đã mua và lần mua gần nhất của 1 khách. */
+    private record ThongKeMua(long soDon, LocalDateTime ganNhat) {
+    }
+
+    // Đếm hóa đơn của từng khách (bỏ đơn đã hủy) bằng 1 câu GROUP BY, tránh truy vấn lặp theo từng khách
+    private Map<Integer, ThongKeMua> layThongKeMuaHang() {
+        Map<Integer, ThongKeMua> ketQua = new HashMap<>();
+        for (Object[] dong : hoaDonRepo.thongKeMuaHangTheoKhach(HoaDon.DA_HUY)) {
+            Integer idKhachHang = (Integer) dong[0];
+            long soDon = ((Number) dong[1]).longValue();
+            LocalDateTime ganNhat = (LocalDateTime) dong[2];
+            ketQua.put(idKhachHang, new ThongKeMua(soDon, ganNhat));
+        }
+        return ketQua;
+    }
+
+    private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung, Map<Integer, ThongKeMua> thongKe) {
+        ThongKeMua tk = thongKe.getOrDefault(k.getId(), new ThongKeMua(0, null));
+        return new KhachHangTomTatResponse(
+                k.getId(),
+                k.getMaKhachHang(),
+                k.getHoTen(),
+                k.getSdt(),
+                k.getEmail(),
+                k.getNgaySinh(),
+                tk.soDon(),
+                tk.ganNhat(),
+                daDung);
     }
 
     // Đổi entity thành dữ liệu trả về cho frontend (số trong DB -> chữ)
@@ -308,6 +440,7 @@ public class PhieuGiamGiaService {
                 p.getNgayBatDau() == null ? null : p.getNgayBatDau().toLocalDate(),
                 p.getNgayKetThuc() == null ? null : p.getNgayKetThuc().toLocalDate(),
                 dangHoatDong(p),
-                khachHangs);
+                khachHangs,
+                null);
     }
 }

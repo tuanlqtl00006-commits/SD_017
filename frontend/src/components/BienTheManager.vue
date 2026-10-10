@@ -3,8 +3,10 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
+import ConfirmQuestion from './common/ConfirmQuestion.vue'
 import BienTheFormModal from './sanPham/BienTheFormModal.vue'
 import { sanPhamService, bienTheService } from '../services/sanPhamService'
+import { useGiamGiaBienThe } from '../composables/useGiamGiaBienThe'
 import { TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
 import { useThuocTinh } from '../composables/useThuocTinh'
 import { usePagination } from '../composables/usePagination'
@@ -12,11 +14,12 @@ import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatMoney, todayIso } from '../utils/format'
 import { includesText } from '../utils/text'
+import { idKhongApDung, laDanhMucVot } from '../utils/danhMuc'
 import { exportExcel } from '../utils/exportExcel'
 
 const toast = useToast()
 const today = todayIso()
-const { data: tt, loadThuocTinh, tenOf, optionsOf } = useThuocTinh(['mau-sac', 'trong-luong', 'chu-vi'])
+const { data: tt, loadThuocTinh, tenOf, optionsOf } = useThuocTinh(['mau-sac', 'trong-luong', 'chu-vi', 'danh-muc'])
 
 const list = ref([])
 const sanPhams = ref([])
@@ -24,6 +27,13 @@ const loading = ref(false)
 const saving = ref(false)
 
 const spOf = (id) => sanPhams.value.find((p) => p.id === id)
+
+// Sản phẩm thuộc danh mục vợt mới có trọng lượng + chu vi; danh mục khác chỉ có màu sắc (trọng lượng, chu vi = "Không áp dụng")
+const laVotCuaSp = (idSanPham) => {
+  const sp = spOf(idSanPham)
+  return sp ? laDanhMucVot(tenOf('danh-muc', sp.idDanhMuc)) : true
+}
+const idKadOf = (slug) => idKhongApDung(tt[slug])
 
 /* ----- Bộ lọc ----- */
 const defaultFilters = () => ({ keyword: '', idSanPham: '', idMauSac: '', trangThai: '', conHang: '' })
@@ -51,7 +61,10 @@ watch(filters, () => { page.value = 1 })
 // quiet = true: tải nền (không hiện "Đang tải…", lỗi mạng thì im lặng vì danh sách đang hiển thị vẫn dùng được).
 // Tải nền chỉ lấy lại biến thể + sản phẩm (2 lời gọi), không tải lại các bảng thuộc tính.
 let loadSeq = 0
+const { loadGiamGia, pctOf, giaSauGiam } = useGiamGiaBienThe()
+
 async function load(showLoading = true, quiet = false) {
+  loadGiamGia()
   const seq = ++loadSeq
   if (showLoading) loading.value = true
   try {
@@ -81,7 +94,10 @@ function patchRow(daDoi) {
 
 /* ----- Thêm / sửa ----- */
 const formState = ref(null)
-async function save(payload) {
+// Thêm mà biến thể (cùng sản phẩm + màu + trọng lượng + chu vi) đã tồn tại: backend trả 409 mã BIEN_THE_DA_TON_TAI,
+// hỏi người dùng có muốn cập nhật không rồi gửi lại với xacNhanCapNhat = true.
+const hoiCapNhat = ref(null) // { message, payload }
+async function save(payload, xacNhanCapNhat = false) {
   const editing = formState.value?.item
   saving.value = true
   try {
@@ -89,13 +105,19 @@ async function save(payload) {
       await bienTheService.update(editing.id, payload)
       toast.success('Đã lưu thay đổi biến thể.')
     } else {
-      await bienTheService.create(payload)
-      toast.success('Đã thêm biến thể.')
+      await bienTheService.create({ ...payload, xacNhanCapNhat })
+      toast.success(xacNhanCapNhat ? 'Đã cập nhật biến thể.' : 'Đã thêm biến thể.')
     }
+    hoiCapNhat.value = null
     formState.value = null
     await load(false)
   } catch (e) {
-    toast.error(e.message || 'Không thể lưu biến thể. Vui lòng thử lại.')
+    if (!editing && e.response?.status === 409 && e.response?.data?.code === 'BIEN_THE_DA_TON_TAI') {
+      hoiCapNhat.value = { message: e.message, payload }
+    } else {
+      hoiCapNhat.value = null
+      toast.error(e.message || 'Không thể lưu biến thể. Vui lòng thử lại.')
+    }
   } finally {
     saving.value = false
   }
@@ -230,15 +252,16 @@ function exportFile() {
                 <th>Trọng lượng</th>
                 <th>Chu vi</th>
                 <th>Giá bán</th>
+                <th>Giảm</th>
                 <th>Tồn kho</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td colspan="10"><div class="ad-empty">Đang tải dữ liệu…</div></td></tr>
+              <tr v-if="loading"><td colspan="11"><div class="ad-empty">Đang tải dữ liệu…</div></td></tr>
               <tr v-else-if="!pageItems.length">
-                <td colspan="10">
+                <td colspan="11">
                   <div class="ad-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
                     <strong>Không tìm thấy biến thể</strong>
@@ -254,7 +277,17 @@ function exportFile() {
                   <td>{{ tenOf('mau-sac', b.idMauSac) }}</td>
                   <td class="ad-nowrap">{{ tenOf('trong-luong', b.idTrongLuong) }}</td>
                   <td>{{ tenOf('chu-vi', b.idChuVi) }}</td>
-                  <td class="ad-nowrap">{{ formatMoney(b.giaBan) }}</td>
+                  <td class="ad-nowrap">
+                    <template v-if="pctOf(b.id)">
+                      <div class="fw-bold ad-price-sale">{{ formatMoney(giaSauGiam(b)) }}</div>
+                      <div class="text-muted small text-decoration-line-through">{{ formatMoney(b.giaBan) }}</div>
+                    </template>
+                    <template v-else>{{ formatMoney(b.giaBan) }}</template>
+                  </td>
+                  <td>
+                    <span v-if="pctOf(b.id)" class="ad-pill ad-pill-blue">-{{ pctOf(b.id) }}%</span>
+                    <span v-else class="text-muted">—</span>
+                  </td>
                   <td>
                     <span v-if="b.soLuongTon === 0" class="ad-pill ad-pill-amber">Hết hàng</span>
                     <span v-else>{{ b.soLuongTon }}</span>
@@ -284,10 +317,19 @@ function exportFile() {
         </div>
       </div>
 
-      <BasePagination v-if="total" v-model:page="page" v-model:pageSize="pageSize" :total="total" />
+      <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
     </section>
 
-    <BienTheFormModal v-if="formState" :item="formState.item" :all="list" :san-phams="sanPhams" :options="optionsOf" :saving="saving" @save="save" @close="formState = null" />
+    <BienTheFormModal v-if="formState" :item="formState.item" :all="list" :san-phams="sanPhams" :options="optionsOf" :la-vot-fn="laVotCuaSp" :id-kad-fn="idKadOf" :saving="saving" @save="save" @close="formState = null" />
+    <ConfirmQuestion
+      v-if="hoiCapNhat"
+      title="Biến thể đã tồn tại"
+      :message="hoiCapNhat.message"
+      confirm-text="Cập nhật"
+      :loading="saving"
+      @confirm="save(hoiCapNhat.payload, true)"
+      @cancel="hoiCapNhat = null"
+    />
     <ConfirmDialog v-if="confirmItem" v-bind="confirmContent" :loading="confirmLoading" @confirm="confirmToggle" @cancel="confirmItem = null" />
   </div>
 </template>

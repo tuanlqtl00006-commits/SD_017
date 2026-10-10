@@ -1,8 +1,9 @@
 package com.footstyle.demo.dto;
 
 import java.time.LocalDate;
+import java.util.List;
 
-/** Không bao giờ trả mật khẩu về frontend. */
+/** Không bao giờ trả mật khẩu về frontend. diaChi = địa chỉ chính ghép thành một dòng (dùng cho danh sách). */
 public record NhanVienResponse(
         Integer id,
         String ma,
@@ -15,5 +16,8 @@ public record NhanVienResponse(
         LocalDate ngayVaoLam,
         Integer idVaiTro,
         String vaiTro,
-        boolean hoatDong) {
+        boolean hoatDong,
+        String cccd,
+        List<ViTriResponse> viTri,
+        List<DiaChiNhanVienDto> diaChis) {
 }

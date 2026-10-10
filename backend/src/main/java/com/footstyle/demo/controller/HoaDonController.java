@@ -42,6 +42,16 @@ public class HoaDonController {
         return responseMap;
     }
 
+    /** Số hóa đơn theo từng trạng thái (các tab của trang danh sách), áp cùng bộ lọc mã / ngày / loại đơn. */
+    @GetMapping("/dem-trang-thai")
+    public Map<String, Long> demTheoTrangThai(
+            @RequestParam(required = false) String maHoaDon,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tuNgay,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate denNgay,
+            @RequestParam(required = false) Integer loaiDon) {
+        return hoaDonService.demTheoTrangThai(maHoaDon, tuNgay, denNgay, loaiDon);
+    }
+
     /** Toàn bộ dữ liệu cho trang chi tiết: thông tin, khách, giao hàng, sản phẩm, thanh toán, lịch sử. */
     @GetMapping("/{id}")
     public Map<String, Object> getChiTietHoaDon(@PathVariable Integer id) {
