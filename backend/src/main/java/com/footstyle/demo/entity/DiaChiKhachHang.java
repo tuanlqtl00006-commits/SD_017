@@ -16,7 +16,7 @@ public class DiaChiKhachHang {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_khach_hang")
@@ -47,10 +47,23 @@ public class DiaChiKhachHang {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    // Optional: Keep ngayTao/ngayCapNhat if we want, or remove them if they aren't in the DB natively. 
-    // Wait, the DB didn't originally have ngay_tao and ngay_cap_nhat!
-    // Let's remove them to prevent issues, or leave them since Hibernate already added them.
-    // I will leave them mapped to the new columns Hibernate just added.
-    public Integer getTrangThai() { return trangThai; }
-    public void setTrangThai(Integer trangThai) { this.trangThai = trangThai; }
+    @Column(name = "ngay_tao")
+    private LocalDateTime ngayTao;
+
+    @Column(name = "ngay_cap_nhat")
+    private LocalDateTime ngayCapNhat;
+
+
+    @PrePersist
+    protected void onCreate() {
+        ngayTao = LocalDateTime.now();
+        ngayCapNhat = LocalDateTime.now();
+        if (trangThai == null) trangThai = 1;
+        if (laDiaChiMacDinh == null) laDiaChiMacDinh = false;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        ngayCapNhat = LocalDateTime.now();
+    }
 }

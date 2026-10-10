@@ -7,6 +7,8 @@ const props = defineProps({
   all: { type: Array, default: () => [] }, // toàn bộ biến thể, để kiểm tra trùng mã / tổ hợp
   sanPhams: { type: Array, default: () => [] },
   options: { type: Function, required: true }, // (slug, idDangChon) => danh sách cho dropdown
+  laVotFn: { type: Function, default: () => true }, // (idSanPham) => sản phẩm thuộc danh mục vợt (có trọng lượng + chu vi)?
+  idKadFn: { type: Function, default: () => null }, // (slug) => id mục "Không áp dụng" của bảng thuộc tính
   saving: { type: Boolean, default: false },
 })
 const emit = defineEmits(['save', 'close'])
@@ -24,6 +26,20 @@ const form = reactive({
 })
 const errors = reactive({})
 const submitted = ref(false)
+
+// Danh mục vợt: chọn màu sắc + trọng lượng + chu vi. Danh mục khác (phụ kiện, túi - balo...): chỉ màu sắc,
+// trọng lượng và chu vi tự là "Không áp dụng".
+const laVot = computed(() => (form.idSanPham === '' ? true : props.laVotFn(form.idSanPham)))
+const idTl = () => (laVot.value ? form.idTrongLuong : props.idKadFn('trong-luong') ?? '')
+const idCv = () => (laVot.value ? form.idChuVi : props.idKadFn('chu-vi') ?? '')
+// Chuyển sang sản phẩm là vợt mà đang giữ "Không áp dụng" thì bắt chọn lại
+function lamSachTheoDanhMuc() {
+  if (!laVot.value) return
+  if (form.idTrongLuong === props.idKadFn('trong-luong')) form.idTrongLuong = ''
+  if (form.idChuVi === props.idKadFn('chu-vi')) form.idChuVi = ''
+}
+lamSachTheoDanhMuc()
+watch(laVot, lamSachTheoDanhMuc)
 
 const sanPhamOptions = computed(() => props.sanPhams.filter((p) => p.hoatDong || p.id === props.item?.idSanPham))
 
@@ -49,7 +65,7 @@ const codeTouched = ref(isEdit.value)
 const nameOf = (slug, id) => props.options(slug, id).find((o) => o.id === id)?.ten ?? ''
 const slugify = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').replace(/[^A-Za-z0-9]+/g, '').toUpperCase()
 watch(
-  () => [form.idSanPham, form.idMauSac, form.idTrongLuong, form.idChuVi],
+  () => [form.idSanPham, form.idMauSac, form.idTrongLuong, form.idChuVi, laVot.value],
   () => {
     if (codeTouched.value) return
     const sp = props.sanPhams.find((p) => p.id === form.idSanPham)
@@ -63,13 +79,22 @@ function validate() {
   const e = {}
   if (form.idSanPham === '') e.idSanPham = 'Chọn sản phẩm.'
   if (form.idMauSac === '') e.idMauSac = 'Chọn màu sắc.'
-  if (form.idTrongLuong === '') e.idTrongLuong = 'Chọn trọng lượng.'
-  if (form.idChuVi === '') e.idChuVi = 'Chọn chu vi.'
+  if (laVot.value && form.idTrongLuong === '') e.idTrongLuong = 'Chọn trọng lượng.'
+  if (laVot.value && form.idChuVi === '') e.idChuVi = 'Chọn chu vi.'
+  if (!laVot.value && (idTl() === '' || idCv() === '')) e.idSanPham = 'CSDL chưa có mục "Không áp dụng". Hãy khởi động lại backend rồi tải lại trang.'
+
+  // Thêm mới mà sản phẩm đã có biến thể cùng màu + trọng lượng + chu vi: KHÔNG chặn, trang cha sẽ hỏi "bạn muốn cập nhật?"
+  // (khi đó mã gợi ý trùng mã biến thể đã có là bình thường nên cũng không báo lỗi trùng mã)
+  const trungBoBa =
+    !e.idSanPham && !e.idMauSac && !e.idTrongLuong && !e.idChuVi &&
+    props.all.some(
+      (b) => b.id !== props.item?.id && b.idSanPham === form.idSanPham && b.idMauSac === form.idMauSac && b.idTrongLuong === idTl() && b.idChuVi === idCv(),
+    )
 
   const ma = String(form.ma).trim().toUpperCase()
   if (!ma) e.ma = 'Nhập mã biến thể.'
   else if (!/^[A-Z0-9-]{3,50}$/.test(ma)) e.ma = 'Mã gồm 3-50 ký tự chữ, số hoặc dấu gạch ngang, không dấu, không khoảng trắng.'
-  else if (props.all.some((b) => b.id !== props.item?.id && b.ma === ma)) e.ma = 'Mã biến thể đã tồn tại.' // khi sửa thì bỏ qua chính nó
+  else if (!(trungBoBa && !isEdit.value) && props.all.some((b) => b.id !== props.item?.id && b.ma === ma)) e.ma = 'Mã biến thể đã tồn tại.' // khi sửa thì bỏ qua chính nó
 
   const gia = Number(form.giaBan)
   if (form.giaBan === '' || Number.isNaN(gia)) e.giaBan = 'Nhập giá bán.'
@@ -78,12 +103,7 @@ function validate() {
   const ton = Number(form.soLuongTon)
   if (form.soLuongTon === '' || !Number.isInteger(ton) || ton < 0) e.soLuongTon = 'Số lượng tồn là số nguyên từ 0 trở lên.'
 
-  if (!e.idSanPham && !e.idMauSac && !e.idTrongLuong && !e.idChuVi) {
-    const trung = props.all.some(
-      (b) => b.id !== props.item?.id && b.idSanPham === form.idSanPham && b.idMauSac === form.idMauSac && b.idTrongLuong === form.idTrongLuong && b.idChuVi === form.idChuVi,
-    )
-    if (trung) e.idMauSac = 'Sản phẩm đã có biến thể với màu sắc, trọng lượng và chu vi này.'
-  }
+  if (trungBoBa && isEdit.value) e.idMauSac = laVot.value ? 'Sản phẩm đã có biến thể với màu sắc, trọng lượng và chu vi này.' : 'Sản phẩm đã có biến thể với màu sắc này.'
   return e
 }
 
@@ -107,8 +127,8 @@ function submit() {
   emit('save', {
     idSanPham: Number(form.idSanPham),
     idMauSac: Number(form.idMauSac),
-    idTrongLuong: Number(form.idTrongLuong),
-    idChuVi: Number(form.idChuVi),
+    idTrongLuong: Number(idTl()),
+    idChuVi: Number(idCv()),
     ma: String(form.ma).trim().toUpperCase(),
     giaBan: Number(form.giaBan),
     soLuongTon: Number(form.soLuongTon),
@@ -133,7 +153,7 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
         </div>
 
         <div class="col-12"><h3 class="ad-form-section">Thuộc tính biến thể</h3></div>
-        <div class="col-md-4">
+        <div :class="laVot ? 'col-md-4' : 'col-md-12'">
           <label class="ad-label" for="bt-mau">Màu sắc <span class="ad-required">*</span></label>
           <select id="bt-mau" v-model="form.idMauSac" class="form-select ad-control" :class="{ 'is-invalid': errors.idMauSac }" :aria-invalid="!!errors.idMauSac">
             <option value="">Chọn màu sắc</option>
@@ -141,7 +161,7 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
           </select>
           <p v-if="errors.idMauSac" class="ad-error">{{ errors.idMauSac }}</p>
         </div>
-        <div class="col-md-4">
+        <div v-if="laVot" class="col-md-4">
           <label class="ad-label" for="bt-tl">Trọng lượng <span class="ad-required">*</span></label>
           <select id="bt-tl" v-model="form.idTrongLuong" class="form-select ad-control" :class="{ 'is-invalid': errors.idTrongLuong }" :aria-invalid="!!errors.idTrongLuong">
             <option value="">Chọn trọng lượng</option>
@@ -149,7 +169,7 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
           </select>
           <p v-if="errors.idTrongLuong" class="ad-error">{{ errors.idTrongLuong }}</p>
         </div>
-        <div class="col-md-4">
+        <div v-if="laVot" class="col-md-4">
           <label class="ad-label" for="bt-cv">Chu vi <span class="ad-required">*</span></label>
           <select id="bt-cv" v-model="form.idChuVi" class="form-select ad-control" :class="{ 'is-invalid': errors.idChuVi }" :aria-invalid="!!errors.idChuVi">
             <option value="">Chọn chu vi</option>

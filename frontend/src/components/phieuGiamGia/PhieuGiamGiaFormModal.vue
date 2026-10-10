@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
+import FormPageShell from '../common/FormPageShell.vue'
 import { HINH_THUC, LOAI_GIAM, taoMaPhieu } from '../../constants/phieuGiamGia'
 import { phieuGiamGiaService } from '../../services/phieuGiamGiaService'
 import { includesText } from '../../utils/text'
@@ -10,10 +11,12 @@ const props = defineProps({
   item: { type: Object, default: null }, // null: tạo mới; khi sửa có kèm khachHangs (lấy từ API chi tiết)
   all: { type: Array, default: () => [] }, // toàn bộ phiếu, dùng để kiểm tra trùng mã
   saving: { type: Boolean, default: false },
+  asPage: { type: Boolean, default: false }, // true: hiển thị như một trang (không phải cửa sổ nổi)
 })
 const emit = defineEmits(['save', 'close'])
 
 const isEdit = computed(() => !!props.item)
+const titleText = computed(() => (isEdit.value ? 'Chỉnh sửa phiếu giảm giá' : props.asPage ? 'Thông tin phiếu' : 'Tạo phiếu giảm giá'))
 // Phiếu đã có người dùng thì không đổi hình thức (công khai / cá nhân) và không bỏ được khách đã dùng.
 const daCoNguoiDung = computed(
   () => (props.item?.soLuongDaDung ?? 0) > 0 || (props.item?.khachHangs ?? []).some((k) => k.daDung),
@@ -214,7 +217,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <BaseModal :title="isEdit ? 'Chỉnh sửa phiếu giảm giá' : 'Tạo phiếu giảm giá'" size="lg" static-backdrop @close="emit('close')">
+  <component
+    :is="asPage ? FormPageShell : BaseModal"
+    v-bind="asPage ? { title: titleText } : { title: titleText, size: 'lg', staticBackdrop: true, onClose: () => emit('close') }"
+  >
     <form id="pgg-form" novalidate @submit.prevent="submit">
       <div class="row g-3">
         <div class="col-md-5">
@@ -464,7 +470,7 @@ onMounted(() => {
         {{ isEdit ? 'Lưu thay đổi' : 'Tạo phiếu' }}
       </button>
     </template>
-  </BaseModal>
+  </component>
 </template>
 
 <style scoped>

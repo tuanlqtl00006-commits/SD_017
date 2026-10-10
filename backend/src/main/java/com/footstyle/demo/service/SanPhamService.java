@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +43,7 @@ public class SanPhamService {
     private final ChatLieuRepository chatLieuRepo;
     private final DoCungRepository doCungRepo;
     private final DiemCanBangRepository diemCanBangRepo;
+    private final BienTheService bienTheService;
 
     /* ===================== Đọc ===================== */
 
@@ -68,9 +70,36 @@ public class SanPhamService {
 
     /* ===================== Thêm / sửa / đổi trạng thái ===================== */
 
+    /*
+     * Thêm sản phẩm (kèm các biến thể nếu có). Sản phẩm "đã tồn tại" = cùng TÊN + DANH MỤC + THƯƠNG HIỆU với một sản phẩm đã có.
+     *  - Chưa tồn tại: tạo sản phẩm mới + tạo các biến thể.
+     *  - Đã tồn tại, chưa xác nhận: trả 409 mã SAN_PHAM_DA_TON_TAI (kèm số biến thể mới / số biến thể trùng) để giao diện hỏi
+     *    "Sản phẩm đã tồn tại, bạn muốn cập nhật?". Chưa ghi gì xuống DB.
+     *  - Đã tồn tại, đã xác nhận (xacNhanCapNhat = true): CẬP NHẬT sản phẩm cũ (thuộc tính, mô tả, ảnh) và với từng biến thể:
+     *    chưa có thì thêm mới, đã có (cùng màu + trọng lượng + chu vi) thì cập nhật giá bán + số lượng tồn.
+     */
     @Transactional
     public SanPhamResponse them(SanPhamRequest req) {
         List<String> anh = layDanhSachAnh(req); // kiểm tra ảnh trước khi lưu bất cứ thứ gì
+
+        SanPham daCo = timSanPhamTrung(req);
+        if (daCo != null) {
+            int tongBienThe = req.bienThes() == null ? 0 : req.bienThes().size();
+            int bienTheTrung = bienTheService.demTrung(daCo.getId(), req.bienThes());
+            if (!Boolean.TRUE.equals(req.xacNhanCapNhat())) {
+                Map<String, Object> chiTiet = new LinkedHashMap<>();
+                chiTiet.put("id", daCo.getId());
+                chiTiet.put("ma", daCo.getMaSanPham());
+                chiTiet.put("ten", daCo.getTenSanPham());
+                chiTiet.put("soBienTheMoi", tongBienThe - bienTheTrung);
+                chiTiet.put("soBienTheCapNhat", bienTheTrung);
+                throw ApiException.daTonTai("SAN_PHAM_DA_TON_TAI",
+                        "Sản phẩm \"" + daCo.getTenSanPham() + "\" (" + daCo.getMaSanPham() + ") đã tồn tại. Bạn có muốn cập nhật không?",
+                        chiTiet);
+            }
+            return capNhatSanPhamDaCo(daCo, req, anh);
+        }
+
         SanPham sp = new SanPham();
         sp.setTrangThai(SanPham.HOAT_DONG);
         sp.setNgayTao(LocalDateTime.now());
@@ -78,7 +107,45 @@ public class SanPhamService {
         sp.setNgayCapNhat(LocalDateTime.now());
         sp = sanPhamRepo.save(sp);
         dongBoAnh(sp, anh);
+        bienTheService.luuNhieu(sp, req.bienThes());
         return toResponse(sp, anhDangDung(sp.getId()));
+    }
+
+    // Người dùng đã đồng ý cập nhật sản phẩm đã có: ghi thông tin mới vào sản phẩm cũ (giữ mã), rồi thêm / cập nhật biến thể
+    private SanPhamResponse capNhatSanPhamDaCo(SanPham sp, SanPhamRequest req, List<String> anh) {
+        String moTaCu = sp.getMoTa();
+        napDuLieu(sp, req, false);
+        if (sp.getMoTa() == null) {
+            sp.setMoTa(moTaCu); // form để trống mô tả thì giữ mô tả cũ, không xóa
+        }
+        sp.setNgayCapNhat(LocalDateTime.now());
+        sp = sanPhamRepo.save(sp);
+        if (!anh.isEmpty()) {
+            dongBoAnh(sp, anh); // không gửi ảnh nào thì giữ ảnh cũ
+        }
+        bienTheService.luuNhieu(sp, req.bienThes());
+        return toResponse(sp, anhDangDung(sp.getId()));
+    }
+
+    // Tìm sản phẩm đã có cùng tên (bỏ qua hoa thường, khoảng trắng thừa) + danh mục + thương hiệu; không có thì null
+    private SanPham timSanPhamTrung(SanPhamRequest req) {
+        if (req.idDanhMuc() == null || req.idThuongHieu() == null) {
+            return null; // thiếu thì để napDuLieu báo lỗi "Chọn danh mục / thương hiệu"
+        }
+        String ten = chuanHoaTen(req.ten());
+        if (ten.isEmpty()) {
+            return null;
+        }
+        for (SanPham sp : sanPhamRepo.findByDanhMucIdAndThuongHieuId(req.idDanhMuc(), req.idThuongHieu())) {
+            if (chuanHoaTen(sp.getTenSanPham()).equalsIgnoreCase(ten)) {
+                return sp;
+            }
+        }
+        return null;
+    }
+
+    private String chuanHoaTen(String ten) {
+        return ten == null ? "" : ten.trim().replaceAll("\\s+", " ");
     }
 
     @Transactional

@@ -66,10 +66,10 @@ const TRANG_THAI = {
   0: { label: 'Đã hủy', pill: 'ad-pill-red' },
   1: { label: 'Chờ xác nhận', pill: 'ad-pill-amber' },
   2: { label: 'Đã xác nhận', pill: 'ad-pill-blue' },
-  3: { label: 'Chờ lấy hàng', pill: 'ad-pill-purple' },
+  3: { label: 'Chờ giao hàng', pill: 'ad-pill-purple' },
   4: { label: 'Đang giao hàng', pill: 'ad-pill-blue' },
   5: { label: 'Đã giao hàng', pill: 'ad-pill-green' },
-  6: { label: 'Hoàn thành', pill: 'ad-pill-green' },
+  6: { label: 'Đã hoàn thành', pill: 'ad-pill-green' },
 }
 const trangThaiHienTai = computed(() => TRANG_THAI[hd.value.trangThai] ?? { label: 'Không xác định', pill: 'ad-pill-gray' })
 
@@ -77,14 +77,14 @@ const trangThaiHienTai = computed(() => TRANG_THAI[hd.value.trangThai] ?? { labe
 const FLOW_GIAO_HANG = [
   { code: 1, label: 'Chờ xác nhận', icon: 'bi-hourglass-split' },
   { code: 2, label: 'Đã xác nhận', icon: 'bi-clipboard-check' },
-  { code: 3, label: 'Chờ lấy hàng', icon: 'bi-box-seam' },
+  { code: 3, label: 'Chờ giao hàng', icon: 'bi-box-seam' },
   { code: 4, label: 'Đang giao hàng', icon: 'bi-truck' },
   { code: 5, label: 'Đã giao hàng', icon: 'bi-house-check' },
-  { code: 6, label: 'Hoàn thành', icon: 'bi-patch-check' },
+  { code: 6, label: 'Đã hoàn thành', icon: 'bi-patch-check' },
 ]
 const FLOW_TAI_QUAY = [
   { code: 1, label: 'Tạo đơn hàng', icon: 'bi-receipt' },
-  { code: 6, label: 'Hoàn thành', icon: 'bi-patch-check' },
+  { code: 6, label: 'Đã hoàn thành', icon: 'bi-patch-check' },
 ]
 
 const timeline = computed(() => {

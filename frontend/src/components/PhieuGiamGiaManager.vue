@@ -3,7 +3,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
-import PhieuGiamGiaFormModal from './phieuGiamGia/PhieuGiamGiaFormModal.vue'
+import StatusSwitch from './common/StatusSwitch.vue'
+import { useRouter } from 'vue-router'
 import PhieuGiamGiaDetailModal from './phieuGiamGia/PhieuGiamGiaDetailModal.vue'
 import { phieuGiamGiaService } from '../services/phieuGiamGiaService'
 import { HINH_THUC, LOAI_GIAM, TRANG_THAI, tinhTrangThai, isExpired, formatGiaTri } from '../constants/phieuGiamGia'
@@ -15,6 +16,7 @@ import { includesText } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
 
 const toast = useToast()
+const router = useRouter()
 const today = todayIso()
 
 const list = ref([])
@@ -90,11 +92,10 @@ function patchRow(daDoi) {
 }
 
 /* ----- Tạo / sửa / xem chi tiết ----- */
-const formState = ref(null) // null: đóng | { item: null }: tạo mới | { item }: chỉnh sửa
 const detailItem = ref(null)
 
 function openCreate() {
-  formState.value = { item: null }
+  router.push('/phieu-giam-gia/them')
 }
 // Danh sách không kèm khách hàng được tặng nên lấy chi tiết từ API trước khi mở.
 async function openDetail(row) {
@@ -105,29 +106,11 @@ async function openDetail(row) {
   }
 }
 function editFromDetail() {
-  formState.value = { item: detailItem.value }
+  const id = detailItem.value.id
   detailItem.value = null
+  router.push(`/phieu-giam-gia/${id}/sua`)
 }
 
-async function save(payload) {
-  const editing = formState.value?.item
-  saving.value = true
-  try {
-    if (editing) {
-      await phieuGiamGiaService.update(editing.id, payload)
-      toast.success('Đã lưu thay đổi phiếu giảm giá.')
-    } else {
-      await phieuGiamGiaService.create(payload)
-      toast.success('Đã tạo phiếu giảm giá.')
-    }
-    formState.value = null
-    await load(false)
-  } catch (e) {
-    toast.error(e.message || 'Không thể lưu phiếu giảm giá. Vui lòng thử lại.')
-  } finally {
-    saving.value = false
-  }
-}
 
 /* ----- Xuất Excel (đúng theo danh sách đang lọc) ----- */
 function exportFile() {
@@ -194,9 +177,9 @@ const confirmContent = computed(() => {
       }
 })
 
+// Công tắc chỉ hiện khi phiếu chưa kết thúc (hôm nay <= ngày kết thúc). Sang ngày hôm sau của ngày kết thúc thì công tắc biến mất.
 function toggleTitle(p) {
-  if (isExpired(p, today)) return 'Phiếu đã kết thúc'
-  return p.hoatDong ? 'Ẩn phiếu' : 'Hiện lại phiếu'
+  return p.hoatDong ? 'Đang bật - bấm để ngưng hoạt động' : 'Đang tắt - bấm để bật hoạt động'
 }
 
 async function confirmToggle() {
@@ -337,17 +320,14 @@ async function confirmToggle() {
                   </td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
-                      <button
-                        type="button"
-                        class="ad-icon-btn"
-                        :class="p.hoatDong ? 'is-danger' : 'is-success'"
-                        :disabled="isExpired(p, today)"
-                        :title="toggleTitle(p)"
-                        :aria-label="`${toggleTitle(p)} phiếu ${p.ma}`"
-                        @click="confirmItem = p"
-                      >
-                        <i class="bi" :class="p.hoatDong ? 'bi-eye-slash' : 'bi-arrow-counterclockwise'" aria-hidden="true"></i>
-                      </button>
+                      <span class="ad-switch-slot">
+                        <StatusSwitch
+                          v-if="!isExpired(p, today)"
+                          :on="p.hoatDong"
+                          :label="toggleTitle(p)"
+                          @toggle="confirmItem = p"
+                        />
+                      </span>
                       <button
                         type="button"
                         class="ad-icon-btn"
@@ -366,17 +346,9 @@ async function confirmToggle() {
         </div>
       </div>
 
-      <BasePagination v-if="total" v-model:page="page" v-model:pageSize="pageSize" :total="total" />
+      <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
     </section>
 
-    <PhieuGiamGiaFormModal
-      v-if="formState"
-      :item="formState.item"
-      :all="list"
-      :saving="saving"
-      @save="save"
-      @close="formState = null"
-    />
     <PhieuGiamGiaDetailModal v-if="detailItem" :item="detailItem" @edit="editFromDetail" @close="detailItem = null" />
     <ConfirmDialog
       v-if="confirmItem"

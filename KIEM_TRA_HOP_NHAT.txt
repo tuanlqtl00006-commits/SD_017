@@ -1,0 +1,100 @@
+BIEN BAN GOP 2 BAN SD_017-main (gop ngay 10/10/2026)
+====================================================
+
+Hai file zip gui len:
+  Ban 1 = SD_017-main_1.zip (de60e45e-...)  - nhanh: nhan vien co NHIEU DIA CHI + so CCCD + quet QR + ma theo ten (MaNhanVienUtil),
+          dia chi khach hang qua o chon dung chung DiaChiHanhChinhSelect, bo test giao dien (vitest)
+  Ban 2 = SD_017-main.zip (c4d33d3e-...)    - nhanh: hoa don theo thiet ke, chong dot giam gia MAX / TRUNG_BINH, mail phieu chi khi "Sap dien ra",
+          nhan vien co VI TRI LAM VIEC + cot cccd, SchemaUpgradeRunner (tu nang cap CSDL cu), thuoc tinh theo danh muc ("Khong ap dung")
+
+Hai ban la hai nhanh cung phat trien tu mot ban gop truoc do. Lay Ban 2 lam goc (no moi hon o hoa don, dot giam gia, san pham, SQL),
+roi dua phan con thieu cua Ban 1 vao. Phan nao ca hai deu co (ma nhan vien theo ten, quet CCCD, dia chi sau sap nhap) chi giu MOT cach lam.
+
+LAY TU DAU
+----------
+Giu nguyen tu Ban 2:
+  - Hoa don (cot Ma NV / SDT KH, tab trang thai co so, tab Hoan tien, 5 dong co dinh), chong dot MAX / TRUNG_BINH, mail phieu chi khi sap dien ra,
+    thuoc tinh theo danh muc, SchemaUpgradeRunner, GlobalExceptionHandler (khong tra cau SQL ra man hinh), dot giam gia "Dang dien ra"
+Lay tu Ban 1:
+  - Nhan vien: NHIEU DIA CHI (bang dia_chi_nhan_vien, chon 1 dia chi chinh, khong co nut xoa) -> DiaChiNhanVien, DiaChiNhanVienRepository,
+    DiaChiNhanVienDto; ma nhan vien MaNhanVienUtil; man hinh quet CCCD CccdScannerModal + utils/cccd.js (da co anh QR mau de test)
+  - Khach hang: KhachHangAdd / KhachHangManager / KhachHangAddressModal + DiaChiHanhChinhSelect + diaChiHanhChinhService + utils/diaChi
+    (xu ly dung dia chi cu truoc sap nhap)
+  - Bo test: frontend/tests (vitest) + cau hinh vitest trong package.json / vite.config.js
+Gop tay (co ca hai):
+  - NhanVien (entity), NhanVienRequest / Response, NhanVienService, NhanVienFormPage.vue, NhanVienManager.vue, nhanVienService.js:
+    dia chi nhieu noi + cccd + vi tri lam viec cung ton tai. Tim kiem nhan vien theo ma / ten / email / SDT / CCCD, Excel co cot Vi tri + So CCCD.
+  - SQL: SD_17.sql, SD_17_nang_cap.sql, SD_17_du_lieu_mau.sql, SchemaUpgradeRunner them bang dia_chi_nhan_vien; database.sql noi lai tu cac file le.
+  - HUONG_DAN_CHAY.md
+
+THONG NHAT TEN
+--------------
+  - So can cuoc: dung MOT ten cot la `cccd` (entity NhanVien.cccd, API: cccd). Ban 1 tung dung `can_cuoc_cong_dan` / canCuoc.
+    CSDL nao da co cot cu thi script nang cap / SchemaUpgradeRunner chep so sang cot cccd (cot cu duoc giu, khong xoa du lieu) va dung lai chi muc chong trung.
+  - Ma nhan vien: dung MaNhanVienUtil (bo NhanVienService.tachGocMa va NhanVienMaTest cua Ban 2). Quy tac giong nhau: Nguyen Hoang Long -> LongNH01.
+    Khac duy nhat: ho ten khong co chu cai nao thi tien to la "NV" (Ban 2 la "NhanVien").
+  - Dia chi dia gioi: dung DiaChiHanhChinhSelect (Ban 1), bo composable useDiaChiVN (Ban 2). Quet CCCD: dung CccdScannerModal (Ban 1), bo CccdScanModal (Ban 2).
+    utils/cccd.js duoc bo sung doc duoc ca ma QR khong co o CMND cu (dang cua Ban 2).
+
+DA KIEM TRA GI (trong moi truong nay)
+-------------------------------------
+Moi truong kiem tra bi chan tai thu vien tu npm va Maven (chinh sach mang), nen KHONG chay duoc npm run build, vitest, mvn, Spring Boot, SQL Server.
+Da lam thay the:
+  1. Backend nhan vien (17 file Java: entity, dto, repository, service, tien ich ma): bien dich bang javac, dung ban gia toi thieu cua Spring / jakarta.persistence
+     va tu sinh getter / setter thay Lombok. 0 loi.
+  2. Chay logic that cua NhanVienService voi kho gia trong bo nho: 64/64 phep kiem tra dat - them nhan vien (ma AnNV01 / AnNV02, 2 dia chi 1 chinh,
+     cccd, vi tri, mat khau bam, gui kieu cu chi co chuoi dia chi), kiem tra loi (khong co dia chi, cccd sai / trung, SDT / email trung, vi tri khong ton tai /
+     ngung dung, dia chi thieu chi tiet, loi thi khong luu), sua (ma / email / ngay vao lam / mat khau giu nguyen, cccd cua chinh minh giu duoc, cua nguoi khac bi chan,
+     doi dia chi chinh, them dia chi, dia chi vang mat van duoc giu, dia chi khong thuoc nhan vien bi chan), quan ly cuoi cung, them vi tri (trung ten bi chan).
+     Co thu pha co y 3 cho trong service: bo test bao do 9 phep kiem tra dung cho bi pha.
+  3. Frontend: 218/218 import tuong doi tro toi file co that; 68/68 doan <script> dung cu phap (node --check); 0 loi dong / mo the trong <template>;
+     54/54 loi goi API cua giao dien co route tuong ung o backend (backend co 59 route). Da thu pha co y 3 loi: bo kiem tra bao dung ca 3.
+  4. Logic thuan JS (utils/cccd.js, constants/nhanVien.js, utils/diaChi.js): 15 nhom kiem tra chay bang node dat (doc ma QR co / khong co o CMND cu, ma nhan vien theo ten, ghep dia chi).
+  5. Doi chieu entity <-> SQL: 29 bang, 169 cot @Column / @JoinColumn deu co trong SD_17.sql (them dia_chi_nhan_vien).
+
+CHUA KIEM TRA DUOC - can chay tren may ban
+-------------------------------------------
+  - frontend: `npm install` roi `npm run build` va `npm test` (bo test vitest cua Ban 1 da duoc cap nhat cho ban gop: doi canCuoc -> cccd, them 4 test vi tri lam viec,
+    thay phan test trang hoa don cu bang 3 test cho trang hoa don moi, them 1 test doc QR khong co o CMND). Cac test nay CHUA duoc chay.
+  - Cac file .vue chua duoc bien dich bang Vue that (chi kiem tra cu phap script va can bang the).
+  - backend: `./mvnw spring-boot:run` (chua chay Spring / Hibernate / SQL Server that; cac cau truy van JPA va quan he nhieu-nhieu nhan_vien_vi_tri chua chay voi Hibernate).
+    Ban chua test @Transactional (rollback).
+  - Cac script SQL (dac biet khoi chuyen can_cuoc_cong_dan -> cccd va tao dia_chi_nhan_vien) chua chay tren SQL Server that.
+  - Quet QR bang camera, goi API dia gioi hanh chinh (can internet), gui mail SMTP that.
+Cach thu nhanh: chay database/SD_17_nang_cap.sql (hoac database.sql neu tao CSDL moi), khoi dong backend, frontend `npm install && npm run dev`.
+  Thu: /nhan-vien/them (go ten -> ma hien ngay, them 2 dia chi chon 1 chinh, chon vi tri, quet can cuoc), /hoa-don, /dot-giam-gia/them, /khach-hang/them.
+
+
+GỘP THÊM NGÀY 10/10/2026 (bản "SD_017-main.zip" mới gửi + bản vừa sửa SD_017-main (1).zip)
+====================================================================================
+Bản mới gửi đã có sẵn toàn bộ phần sửa của lần trước (kiểm tra từng file: giống hệt) và có thêm phần nhân viên nhiều địa chỉ, quét căn cước,
+địa chỉ khách hàng dùng ô chọn chung, bộ test giao diện. Nên lấy bản mới gửi làm gốc; các file chỉ có ở bản cũ (CccdScanModal.vue,
+useDiaChiVN.js, NhanVienMaTest.java) là cách làm cũ đã được bản mới thay bằng CccdScannerModal.vue, DiaChiHanhChinhSelect.vue, MaNhanVienUtil.java nên bỏ.
+Phần đưa thêm vào: toàn bộ ghi chú sửa bên dưới và 4 file test mới (frontend/tests/*DanhMuc*, *hoaDonBienThe*, *dotGiamGiaChiTiet*, helpersDanhMuc.js).
+
+LẦN SỬA: mã đợt giảm giá, thuộc tính theo danh mục, SĐT KH ở hóa đơn
+-------------------------------------------------------------------
+1. Mã đợt giảm giá: "DGG" + số thứ tự 3 chữ số (DGG009, lấy số lớn nhất đang có + 1) thay cho mã ngẫu nhiên dài. Đợt đã có giữ nguyên mã.
+2. Sản phẩm / biến thể đổi thuộc tính theo Danh mục:
+   - Vợt cầu lông, Vợt cầu lông người mới: đủ Độ cứng, Điểm cân bằng; biến thể Màu sắc + Trọng lượng + Chu vi cán.
+   - Danh mục khác (Phụ kiện, Túi - balo, Quần áo thể thao, Quả cầu lông): ẩn 4 mục trên, biến thể chỉ theo Màu sắc.
+   - CSDL vẫn bắt buộc 4 cột này nên có mục "Không áp dụng" (DC000, CB000, TL000, CV000), tự thêm khi backend khởi động hoặc chạy SD_17_nang_cap.sql.
+     Mục này ẩn khỏi ô chọn, trang thuộc tính, trang chi tiết; mã biến thể của danh mục không phải vợt chỉ gồm mã SP + màu (SP007-DEN).
+3. Hóa đơn: cột SĐT KH lấy SĐT khách; thiếu thì lấy SĐT người nhận trên hóa đơn; vẫn không có (khách vãng lai) hiện "—".
+ĐÃ KIỂM TRA TRÊN BẢN GỘP: npm ci + npm run build sạch; npm test 84/84 đạt (57 test của bản mới gửi + 27 test mới cho 3 việc trên); toàn bộ file Java qua kiểm tra
+cú pháp. CHƯA kiểm tra được: biên dịch Maven và chạy với SQL Server thật; sau khi chạy backend hãy thử thêm 1 sản phẩm Phụ kiện và 1 đợt giảm giá mới.
+
+
+GỘP FILE SQL (10/10/2026)
+-------------------------
+6 file SQL (SD_17.sql, SD_17_du_lieu_mau.sql, SD_17_du_lieu_san_pham.sql, SD_17_du_lieu_khach_hang_dot_giam_gia.sql, SD_17_du_lieu_hoa_don.sql,
+SD_17_nang_cap.sql) và database.sql cũ được gộp thành MỘT file: database/SD_17_tong.sql (nội dung từng file giữ nguyên, nối đúng thứ tự chạy, có tiêu đề
+từng phần). Các dòng ghi chú ở trên nhắc tên file cũ là lịch sử, hiện chỉ dùng SD_17_tong.sql. Đã kiểm tra: đủ 72 lệnh GO, mỗi file nguồn nằm trọn
+và đúng thứ tự, mọi lệnh đọc được theo cú pháp T-SQL, mọi INSERT dùng đúng bảng / cột đã tạo và không có INSERT nào đứng trước CREATE TABLE, 26 bảng entity của
+backend đều có trong file. CHƯA chạy thử trên SQL Server thật (môi trường này không có SQL Server).
+
+TÁCH FILE SQL THÀNH 2 (10/10/2026)
+----------------------------------
+database/SD_17_tong.sql: giữ nguyên, không sửa (cấu trúc + toàn bộ dữ liệu mẫu + nâng cấp).
+database/SD_17_du_lieu.sql: MỚI, chỉ phần dữ liệu (phần 2 đến 5 của file tổng, giữ nguyên từng dòng, 43 lệnh GO), không CREATE DATABASE, chạy lại nhiều lần được,
+có mục "THÊM DỮ LIỆU MỚI Ở ĐÂY" ở cuối. Đã kiểm tra: mọi lệnh đọc được theo cú pháp T-SQL, mọi INSERT dùng đúng bảng / cột của file tổng. Chưa chạy trên SQL Server thật.

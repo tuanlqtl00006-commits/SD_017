@@ -5,7 +5,7 @@ defineProps({
   title: { type: String, required: true },
   message: { type: String, required: true },
   confirmText: { type: String, default: 'Xác nhận' },
-  variant: { type: String, default: 'primary' },
+  variant: { type: String, default: 'primary' }, // primary | danger
   loading: { type: Boolean, default: false },
 })
 const emit = defineEmits(['confirm', 'cancel'])

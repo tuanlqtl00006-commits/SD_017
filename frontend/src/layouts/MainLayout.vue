@@ -18,21 +18,28 @@ const pageParentTo = computed(() => route.meta.parentTo || '')
 const NV = ['nhan-vien', 'quan-ly']
 const QL = ['quan-ly']
 const menuAll = [
-  { key: 'thong-ke', label: 'Thống kê', icon: 'bi-grid', to: null, roles: QL },
+  { key: 'thong-ke', label: 'Thống kê', icon: 'bi-grid', to: '/thong-ke', roles: QL },
   { key: 'ban-hang', label: 'Bán hàng tại quầy', icon: 'bi-shop', to: null, roles: NV },
   { key: 'hoa-don', label: 'Quản lý hóa đơn', icon: 'bi-receipt', to: '/hoa-don', roles: NV },
   {
-    // Gộp cả các bảng thuộc tính (danh_muc, thuong_hieu, xuat_xu, chat_lieu, do_cung, diem_can_bang, mau_sac, trong_luong, chu_vi)
-    // vào Quản lý sản phẩm cho đúng use case "Quản lý sản phẩm".
     key: 'san-pham', label: 'Quản lý sản phẩm', icon: 'bi-box-seam', roles: QL,
     children: [
       { label: 'Sản phẩm', icon: 'bi-box', to: '/san-pham', exact: true },
       { label: 'Biến thể sản phẩm', icon: 'bi-layers', to: '/san-pham/bien-the' },
-      ...THUOC_TINH_LIST.map((t) => ({ label: t.label, icon: t.icon, to: `/san-pham/${t.slug}` })),
     ],
   },
-  { key: 'phieu-giam-gia', label: 'Quản lý phiếu giảm giá', icon: 'bi-ticket-detailed', to: '/phieu-giam-gia', roles: QL },
-  { key: 'dot-giam-gia', label: 'Quản lý đợt giảm giá', icon: 'bi-tag', to: '/dot-giam-gia', roles: QL },
+  {
+    // 9 bảng thuộc tính (danh_muc, thuong_hieu, xuat_xu, chat_lieu, do_cung, diem_can_bang, mau_sac, trong_luong, chu_vi)
+    key: 'thuoc-tinh', label: 'Danh sách thuộc tính', icon: 'bi-box-seam', roles: QL,
+    children: THUOC_TINH_LIST.map((t) => ({ label: t.label, icon: t.icon, to: `/san-pham/${t.slug}` })),
+  },
+  {
+    key: 'giam-gia', label: 'Quản lý giảm giá', icon: 'bi-percent', roles: QL,
+    children: [
+      { label: 'Phiếu giảm giá', icon: 'bi-ticket-detailed', to: '/phieu-giam-gia' },
+      { label: 'Đợt giảm giá', icon: 'bi-tag', to: '/dot-giam-gia' },
+    ],
+  },
   { key: 'khach-hang', label: 'Quản lý khách hàng', icon: 'bi-people', to: '/khach-hang', roles: NV },
   { key: 'nhan-vien', label: 'Quản lý nhân viên', icon: 'bi-person', to: '/nhan-vien', roles: QL },
   // Chưa có trong sơ đồ use case nên tạm ẩn khỏi menu (bỏ chú thích nếu muốn hiện lại / vẽ thêm vào sơ đồ):
@@ -65,7 +72,7 @@ watch(zoomPct, (v) => { writeLS('fs-zoom', String(v)); applyZoom() })
 const zoomBy = (d) => { zoomPct.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomPct.value + d)) }
 
 // Nhóm có menu con mặc định đóng cho gọn; bấm vào nhóm để mở/đóng.
-const open = reactive({ 'san-pham': false })
+const open = reactive({ 'san-pham': false, 'thuoc-tinh': false, 'giam-gia': false })
 for (const g of menuAll) {
   if (g.children?.some((c) => isActive(c.to, c.exact))) open[g.key] = true
 }
@@ -140,8 +147,8 @@ const toggle = (key) => { open[key] = !open[key] }
           <option value="quan-ly">Quản Lý</option>
           <option value="nhan-vien">Nhân Viên</option>
         </select>
-        <button class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-medium">
-          <i class="bi bi-clock me-1"></i> Ca làm việc
+        <button class="btn btn-light btn-sm border rounded-3 px-3 fw-medium d-flex align-items-center gap-2">
+          <i class="bi bi-arrow-left-right text-secondary"></i> Ca làm việc <span class="ad-live-dot" aria-hidden="true"></span>
         </button>
         <button class="btn btn-light rounded-circle p-2 lh-1 text-muted" aria-label="Đổi giao diện sáng/tối">
           <i class="bi bi-moon"></i>

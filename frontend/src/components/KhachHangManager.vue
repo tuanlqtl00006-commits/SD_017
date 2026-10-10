@@ -16,7 +16,7 @@
             
             <div class="input-group" style="flex: 1; min-width: 250px;">
               <span class="input-group-text border-end-0 text-muted rounded-start-pill bg-light" style="padding-left: 1rem;"><i class="bi bi-search"></i></span>
-              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" autocomplete="off" @keyup.enter="search">
+              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" @keyup.enter="search">
             </div>
             
             <select class="form-select bg-light text-secondary rounded-pill" style="width: 200px;" v-model="statusFilter" @change="currentPage = 1">
@@ -29,11 +29,11 @@
               <i class="bi bi-arrow-counterclockwise me-2"></i> Đặt lại bộ lọc
             </button>
             
-            <button type="button" @click="exportExcel" class="btn btn-outline-secondary d-flex align-items-center rounded-pill fw-medium custom-outline-btn text-muted">
+            <button type="button" @click="exportFile" class="btn btn-outline-secondary d-flex align-items-center rounded-pill fw-medium custom-outline-btn text-muted">
               <i class="bi bi-file-earmark-excel me-2"></i> Xuất Excel
             </button>
             
-            <router-link to="/khach-hang/them" class="btn btn-primary d-flex align-items-center rounded-pill fw-medium shadow-sm custom-solid-btn text-decoration-none text-white" style="background-color: #0d6efd; border-color: #0d6efd;">
+            <router-link to="/khach-hang/them" class="btn btn-primary d-flex align-items-center rounded-pill fw-medium shadow-sm custom-solid-btn text-decoration-none text-white" style="background-color: #0977ec; border-color: #0977ec;">
               <i class="bi bi-plus-lg me-2"></i> Thêm khách hàng
             </router-link>
           </div>
@@ -47,16 +47,17 @@
                <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 45px; height: 45px;">
                  <i class="bi bi-people-fill fs-4"></i>
                </div>
-               <h4 class="fw-bold m-0 text-dark" style="font-size: 1.25rem;">Danh sách khách hàng</h4>
+               <h4 class="fw-bold m-0 text-dark me-auto" style="font-size: 1.25rem;">Danh sách khách hàng</h4>
+               <span class="ad-count">{{ filteredCustomers.length }} khách hàng.</span>
             </div>
             
-            <div class="table-responsive ad-grid-table">
+            <div class="table-responsive">
               <table class="table align-middle text-start">
                 <thead style="background-color: #f8f9fa;">
                   <tr>
                     <th class="py-3 fw-bold text-dark border-0" style="width: 60px;">STT</th>
-                    <th class="py-3 fw-bold text-dark border-0 text-center" style="width: 80px;">Ảnh</th>
-                      <th class="py-3 fw-bold text-dark border-0">Họ tên</th>
+                    <th class="py-3 fw-bold text-dark border-0" style="width: 70px;">Ảnh</th>
+                    <th class="py-3 fw-bold text-dark border-0">Họ tên</th>
                     <th class="py-3 fw-bold text-dark border-0">Email</th>
                     <th class="py-3 fw-bold text-dark border-0" style="width: 250px;">Địa chỉ</th>
                     <th class="py-3 fw-bold text-dark border-0">Số điện thoại</th>
@@ -75,18 +76,13 @@
                     </td>
                   </tr>
                   <tr v-for="(kh, index) in paginatedCustomers" :key="kh.id">
-                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.id }}</td>
-                    <td class="py-3 text-center" style="border-bottom: 1px solid #f0f0f0;">
-                        <img v-if="kh.anhDaiDien" :src="kh.anhDaiDien" class="rounded-circle object-fit-cover shadow-sm" style="width: 45px; height: 45px; border: 2px solid #fff;" />
-                        <div v-else class="rounded-circle d-flex align-items-center justify-content-center bg-light text-secondary mx-auto shadow-sm" style="width: 45px; height: 45px; border: 2px solid #fff;">
-                            <i class="bi bi-person fs-5"></i>
-                        </div>
-                      </td>
-                      <td class="py-3 fw-medium" style="border-bottom: 1px solid #f0f0f0;">{{ kh.hoTen || kh.ten }}</td>
+                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
+                    <td class="py-2" style="border-bottom: 1px solid #f0f0f0;"><span class="ad-avatar ad-avatar-soft">{{ initials(kh.hoTen) }}</span></td>
+                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.hoTen }}</td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.email }}</td>
                     <td class="py-3 small" style="border-bottom: 1px solid #f0f0f0; white-space: normal;">
                       <span v-if="kh.diaChiList && kh.diaChiList.length > 0">
-                        {{ getDefaultAddress(kh).diaChiCuThe ? getDefaultAddress(kh).diaChiCuThe + ', ' : '' }}{{ getDefaultAddress(kh).phuongXa }}, {{ getDefaultAddress(kh).quanHuyen }}, {{ getDefaultAddress(kh).tinhThanhPho }}
+                        {{ ghepDiaChi(getDefaultAddress(kh)) }}
                       </span>
                       <span v-else>
                         Chưa cập nhật địa chỉ
@@ -152,7 +148,7 @@
         </div>
 
         <!-- Modal Sửa Khách Hàng -->
-        <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: calc(100vw / var(--ui-zoom, 1)); height: calc(100vh / var(--ui-zoom, 1)); background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
+        <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: calc(100vw / var(--ui-zoom)); height: calc(100vh / var(--ui-zoom)); background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
           <div class="modal-dialog bg-white rounded-4 shadow-lg" style="width: 750px; max-width: 95vw; pointer-events: auto; animation: slideDown 0.3s ease-out;">
             <div class="modal-header d-flex justify-content-between align-items-center px-4 pt-4 pb-2 border-bottom-0">
               <h4 class="modal-title fw-bold text-dark m-0">{{ isView ? 'Chi Tiết Khách Hàng' : 'Cập Nhật Khách Hàng' }}</h4>
@@ -187,27 +183,15 @@
                     <h6 class="fw-bold text-dark border-bottom pb-2 mb-0">Địa chỉ giao hàng</h6>
                   </div>
                   
-                  <div class="col-md-4">
-                    <label class="form-label text-dark fw-medium mb-1">Tỉnh/Thành phố</label>
-                    <select class="form-select bg-light border-0" v-model="formData.tinhThanh" :disabled="isView">
-                      <option value="">Chọn Tỉnh/Thành phố</option>
-                      <option v-for="t in provinces" :key="t.id" :value="t.full_name">{{ t.full_name }}</option>
-                    </select>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-dark fw-medium mb-1">Quận/Huyện</label>
-                    <select class="form-select bg-light border-0" v-model="formData.quanHuyen" :disabled="!formData.tinhThanh || isView">
-                      <option value="">Chọn Quận/Huyện</option>
-                      <option v-for="q in districts" :key="q.id" :value="q.full_name">{{ q.full_name }}</option>
-                    </select>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label text-dark fw-medium mb-1">Phường/Xã</label>
-                    <select class="form-select bg-light border-0" v-model="formData.phuongXa" :disabled="!formData.quanHuyen || isView">
-                      <option value="">Chọn Phường/Xã</option>
-                      <option v-for="p in wards" :key="p.id" :value="p.full_name">{{ p.full_name }}</option>
-                    </select>
-                  </div>
+                  <DiaChiHanhChinhSelect
+                    v-model:tinh-thanh="formData.tinhThanh"
+                    v-model:phuong-xa="formData.phuongXa"
+                    id-prefix="kh-view"
+                    col-class="col-md-6"
+                    select-class="form-select bg-light border-0"
+                    label-class="form-label text-dark fw-medium mb-1"
+                    :disabled="isView"
+                  />
                   <div class="col-12">
                     <label class="form-label text-dark fw-medium mb-1">Địa chỉ cụ thể</label>
                     <textarea class="form-control bg-light border-0" v-model="formData.diaChiCuThe" rows="2" placeholder="Số nhà, tên đường..." :disabled="isView"></textarea>
@@ -233,13 +217,26 @@
                   </div>
                 </div>
                 <div class="d-flex justify-content-end gap-3 mt-4">
-                  <button type="button" class="btn px-4 py-2 rounded-pill fw-bold border-0" :class="isView ? 'btn-primary text-white' : 'bg-light text-dark'" @click="closeModal" :style="isView ? 'background-color: #0d6efd;' : 'background-color: #f1f3f5 !important;'">{{ isView ? 'Đóng' : 'Quay lại' }}</button>
-                  <button v-if="!isView" type="submit" class="btn btn-primary px-5 py-2 rounded-pill fw-bold shadow-sm" style="background-color: #0d6efd; border-color: #0d6efd;">Lưu thông tin</button>
+                  <button type="button" class="btn px-4 py-2 rounded-pill fw-bold border-0" :class="isView ? 'btn-primary text-white' : 'bg-light text-dark'" @click="closeModal" :style="isView ? 'background-color: #0977ec;' : 'background-color: #f1f3f5 !important;'">{{ isView ? 'Đóng' : 'Quay lại' }}</button>
+                  <button v-if="!isView" type="submit" class="btn btn-primary px-5 py-2 rounded-pill fw-bold shadow-sm" style="background-color: #0977ec; border-color: #0977ec;">Lưu thông tin</button>
                 </div>
               </form>
             </div>
           </div>
         </div>
+
+        <ConfirmDialog
+          v-if="confirmItem"
+          :title="confirmItem.trangThai === 1 ? 'Ngừng hoạt động khách hàng' : 'Kích hoạt khách hàng'"
+          :message="confirmItem.trangThai === 1
+            ? `Bạn có chắc chắn muốn ngừng hoạt động khách hàng ${confirmItem.hoTen}?`
+            : `Bạn có chắc chắn muốn kích hoạt lại khách hàng ${confirmItem.hoTen}?`"
+          :confirm-text="confirmItem.trangThai === 1 ? 'Ngừng hoạt động' : 'Kích hoạt'"
+          :variant="confirmItem.trangThai === 1 ? 'danger' : 'primary'"
+          :loading="confirmLoading"
+          @confirm="confirmToggle"
+          @cancel="confirmItem = null"
+        />
 
         <!-- Address Management Modal -->
         <KhachHangAddressModal 
@@ -253,14 +250,16 @@
 </template>
 
 <script setup>
-import Swal from 'sweetalert2';
-const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
 import { ref, onMounted } from 'vue'
-import { utils, writeFile } from 'xlsx'
-import Sidebar from './Sidebar.vue'
-import Header from './Header.vue'
+import ConfirmDialog from './common/ConfirmDialog.vue'
 import KhachHangAddressModal from './KhachHangAddressModal.vue'
 import api from '../services/api' // sử dụng cấu hình axios có sẵn
+import DiaChiHanhChinhSelect from './common/DiaChiHanhChinhSelect.vue'
+import { ghepDiaChi } from '../utils/diaChi'
+import { useToast } from '../composables/useToast'
+import { exportExcel } from '../utils/exportExcel'
+
+const toast = useToast()
 
 const showModal = ref(false)
 const showAddressModal = ref(false)
@@ -275,7 +274,6 @@ const formData = ref({
   gioiTinh: 1,
   trangThai: 1,
   tinhThanh: '',
-  quanHuyen: '',
   phuongXa: '',
   diaChiCuThe: ''
 })
@@ -283,47 +281,12 @@ const formData = ref({
 const customers = ref([])
 const searchQuery = ref('')
 
-// Dữ liệu địa chỉ
-const provinces = ref([])
-const districts = ref([])
-const wards = ref([])
-const allLocations = ref([])
-
-// Fetch địa chỉ từ ESGOO
-const fetchLocations = async () => {
-  try {
-    const res = await api.get('https://esgoo.net/api-tinhthanh/4/0.htm')
-    if (res.data.error === 0) {
-      allLocations.value = res.data.data
-      provinces.value = allLocations.value
-    }
-  } catch (error) {
-    console.error('Lỗi khi tải dữ liệu địa chỉ:', error)
-  }
+// Chữ cái đầu của họ tên (ký tự đầu + ký tự đầu của tên) để làm avatar
+const initials = (name) => {
+  const w = (name || '').trim().split(/\s+/).filter(Boolean)
+  if (!w.length) return 'KH'
+  return (w[0][0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase()
 }
-
-// Watchers để cập nhật dropdown Quận/Huyện và Phường/Xã
-import { watch } from 'vue'
-
-watch(() => formData.value.tinhThanh, (newVal) => {
-  if (newVal) {
-    const selectedProv = allLocations.value.find(p => p.full_name === newVal)
-    districts.value = selectedProv ? selectedProv.data2 : []
-    // Không reset nếu đang load dữ liệu sửa (sẽ xử lý logic reset cẩn thận)
-  } else {
-    districts.value = []
-    wards.value = []
-  }
-})
-
-watch(() => formData.value.quanHuyen, (newVal) => {
-  if (newVal) {
-    const selectedDist = districts.value.find(d => d.full_name === newVal)
-    wards.value = selectedDist ? selectedDist.data3 : []
-  } else {
-    wards.value = []
-  }
-})
 
 const fetchCustomers = async (resetPage = false) => {
   try {
@@ -341,6 +304,7 @@ const fetchCustomers = async (resetPage = false) => {
     }
   } catch (error) {
     console.error("Lỗi khi tải danh sách khách hàng:", error)
+    toast.error(error.message || 'Không tải được danh sách khách hàng.')
   }
 }
 
@@ -389,7 +353,6 @@ const nextPage = () => {
 
 onMounted(() => {
   fetchCustomers()
-  fetchLocations()
 })
 
 const search = () => {
@@ -409,90 +372,50 @@ const reset = () => {
 }
 
 
-const exportExcel = () => {
-  if (customers.value.length === 0) {
-    Toast.fire({ icon: 'warning', title: 'Không có dữ liệu để xuất!' })
+const exportFile = () => {
+  if (filteredCustomers.value.length === 0) {
+    toast.error('Không có khách hàng nào để xuất.')
     return
   }
-
-  // Chuẩn bị dữ liệu xuất
-  const dataToExport = customers.value.map((kh, index) => {
-    let diachi = ''
-    if (kh.diaChiList && kh.diaChiList.length > 0) {
+  const fmtNgaySinh = (v) => {
+    if (!v) return ''
+    if (Array.isArray(v)) return `${String(v[2]).padStart(2, '0')}/${String(v[1]).padStart(2, '0')}/${v[0]}`
+    const parts = String(v).substring(0, 10).split('-')
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : String(v)
+  }
+  exportExcel({
+    filename: 'danh_sach_khach_hang.xlsx',
+    sheetName: 'Khách hàng',
+    columns: [
+      { header: 'STT', key: 'stt', width: 6 },
+      { header: 'Mã khách hàng', key: 'ma', width: 16 },
+      { header: 'Họ và tên', key: 'ten', width: 26 },
+      { header: 'Số điện thoại', key: 'sdt', width: 16 },
+      { header: 'Email', key: 'email', width: 28 },
+      { header: 'Ngày sinh', key: 'ngaySinh', width: 14 },
+      { header: 'Giới tính', key: 'gioiTinh', width: 10 },
+      { header: 'Địa chỉ', key: 'diaChi', width: 50 },
+      { header: 'Trạng thái', key: 'trangThai', width: 16 },
+    ],
+    rows: filteredCustomers.value.map((kh, index) => {
       const dc = getDefaultAddress(kh)
-      diachi = [dc.diaChiCuThe, dc.phuongXa, dc.quanHuyen, dc.tinhThanhPho].filter(Boolean).join(', ')
-    }
-    
-    let parsedNgaySinh = '';
-    if (kh.ngaySinh) {
-      if (Array.isArray(kh.ngaySinh)) {
-        parsedNgaySinh = `${String(kh.ngaySinh[2]).padStart(2, '0')}/${String(kh.ngaySinh[1]).padStart(2, '0')}/${kh.ngaySinh[0]}`;
-      } else {
-        const parts = String(kh.ngaySinh).substring(0, 10).split('-');
-        if (parts.length === 3) {
-          parsedNgaySinh = `${parts[2]}/${parts[1]}/${parts[0]}`;
-        }
+      return {
+        stt: index + 1,
+        ma: kh.maKhachHang || '',
+        ten: kh.hoTen || '',
+        sdt: kh.sdt || '',
+        email: kh.email || '',
+        ngaySinh: fmtNgaySinh(kh.ngaySinh),
+        gioiTinh: kh.gioiTinh === 1 ? 'Nam' : 'Nữ',
+        diaChi: dc ? ghepDiaChi(dc) : '',
+        trangThai: kh.trangThai === 1 ? 'Hoạt động' : 'Ngừng hoạt động',
       }
-    }
-
-    return {
-      'STT': index + 1,
-      'Mã Khách Hàng': kh.maKhachHang || kh.maKH || '',
-      'Họ và Tên': kh.hoTen || kh.ten || '',
-      'Số Điện Thoại': kh.sdt || '',
-      'Email': kh.email || '',
-      'Ngày Sinh': parsedNgaySinh,
-      'Giới Tính': kh.gioiTinh === 1 ? 'Nam' : 'Nữ',
-      'Địa Chỉ': diachi,
-      'Trạng Thái': kh.trangThai === 1 ? 'Hoạt động' : 'Ngừng hoạt động'
-    }
+    }),
   })
-
-  // Tạo worksheet
-  const worksheet = utils.json_to_sheet(dataToExport)
-
-  // Auto-size các cột cho đẹp
-  const wscols = [
-    { wch: 5 }, // STT
-    { wch: 20 }, // Mã KH
-    { wch: 25 }, // Tên
-    { wch: 15 }, // SĐT
-    { wch: 25 }, // Email
-    { wch: 12 }, // Ngày Sinh
-    { wch: 10 }, // Giới Tính
-    { wch: 50 }, // Địa Chỉ
-    { wch: 15 }  // Trạng Thái
-  ];
-  worksheet['!cols'] = wscols;
-
-  // Tạo workbook và xuất file
-  const workbook = utils.book_new()
-  utils.book_append_sheet(workbook, worksheet, "DanhSachKhachHang")
-  writeFile(workbook, "DanhSachKhachHang.xlsx")
-  
-  Toast.fire({ icon: 'success', title: 'Xuất file Excel thành công!' })
+  toast.success(`Đã xuất ${filteredCustomers.value.length} khách hàng ra file Excel.`)
 }
 
 const isView = ref(false)
-
-const openAddModal = () => {
-  isEdit.value = false
-  isView.value = false
-  formData.value = {
-    maKH: '',
-    ten: '',
-    sdt: '',
-    email: '',
-    ngaySinh: '',
-    gioiTinh: 1,
-    trangThai: 1,
-    tinhThanh: '',
-    quanHuyen: '',
-    phuongXa: '',
-    diaChiCuThe: ''
-  }
-  showModal.value = true
-}
 
 const openEditModal = (kh) => {
   selectedCustomerForAddress.value = kh;
@@ -502,84 +425,56 @@ const openEditModal = (kh) => {
 
 const populateForm = (kh) => {
   phoneErrorMsg.value = ''
-  
+
   let tinhThanh = ''
-  let quanHuyen = ''
   let phuongXa = ''
   let diaChiCuThe = ''
 
   if (kh.diaChiList && kh.diaChiList.length > 0) {
     const dc = getDefaultAddress(kh) || kh.diaChiList[0]
     tinhThanh = dc.tinhThanhPho || ''
-    quanHuyen = dc.quanHuyen || ''
     phuongXa = dc.phuongXa || ''
     diaChiCuThe = dc.diaChiCuThe || ''
   }
 
-  if (tinhThanh) {
-    const selectedProv = allLocations.value.find(p => p.full_name === tinhThanh)
-    districts.value = selectedProv ? selectedProv.data2 : []
-  }
-  if (quanHuyen) {
-    const selectedDist = districts.value.find(d => d.full_name === quanHuyen)
-    wards.value = selectedDist ? selectedDist.data3 : []
-  }
-
   formData.value = {
     id: kh.id,
-    maKH: kh.maKhachHang || kh.maKH || '',
-    ten: kh.hoTen || kh.ten || '',
+    maKH: kh.maKhachHang || '',
+    ten: kh.hoTen || '',
     sdt: kh.sdt || '',
     email: kh.email || '',
     ngaySinh: kh.ngaySinh || '',
     gioiTinh: kh.gioiTinh !== undefined ? kh.gioiTinh : 1,
     trangThai: kh.trangThai !== undefined ? kh.trangThai : 1,
     tinhThanh,
-    quanHuyen,
     phuongXa,
     diaChiCuThe
   }
 }
 
 
-const toggleStatus = async (kh) => {
-  const isActivating = kh.trangThai == 0;
-  const actionText = isActivating ? 'kích hoạt' : 'ngừng';
-  
-  const result = await Swal.fire({
-    title: 'Xác nhận',
-    text: `Bạn có chắc chắn muốn ${actionText} hoạt động khách hàng này không?`,
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonColor: '#0d6efd',
-    cancelButtonColor: '#6c757d',
-    confirmButtonText: 'Đồng ý',
-    cancelButtonText: 'Hủy',
-    reverseButtons: true
-  });
+const confirmItem = ref(null)
+const confirmLoading = ref(false)
 
-  if (result.isConfirmed) {
-    try {
-      populateForm(kh);
+const toggleStatus = (kh) => {
+  confirmItem.value = kh
+}
 
-      const payload = {
-        ...formData.value,
-        hoTen: formData.value.ten,          // backend đọc "hoTen", không phải "ten"
-        maKhachHang: formData.value.maKH,
-        ngaySinh: formData.value.ngaySinh || null,
-        trangThai: isActivating ? 1 : 0
-      };
-
-      await api.put(`/khach-hang/${kh.id}`, payload);
-      fetchCustomers();
-      Toast.fire({
-        icon: 'success',
-        title: `Đã ${actionText} hoạt động thành công!`
-      });
-    } catch (error) {
-      console.error(error);
-      Swal.fire('Lỗi', 'Không thể thay đổi trạng thái', 'error');
-    }
+const confirmToggle = async () => {
+  const kh = confirmItem.value
+  if (!kh) return
+  const dangHoatDong = kh.trangThai === 1
+  confirmLoading.value = true
+  try {
+    await api.put(`/khach-hang/${kh.id}/trang-thai`)
+    await fetchCustomers()
+    toast.success(dangHoatDong ? 'Đã ngừng hoạt động khách hàng.' : 'Đã kích hoạt lại khách hàng.')
+    confirmItem.value = null
+  } catch (error) {
+    console.error(error)
+    toast.error(error.message || 'Không thể thay đổi trạng thái khách hàng.')
+  } finally {
+    confirmLoading.value = false
   }
 }
 
@@ -598,48 +493,30 @@ const phoneErrorMsg = ref('')
 
 const saveCustomer = async () => {
   phoneErrorMsg.value = ''
-  try {
-    if (formData.value.sdt && !/^[0-9]{10,11}$/.test(formData.value.sdt)) {
-      phoneErrorMsg.value = 'Số điện thoại không hợp lệ (chỉ gồm 10-11 chữ số).'
-      return
-    }
-
-    const payload = { ...formData.value }
-    payload.maKhachHang = payload.maKH;
-    payload.hoTen = payload.ten;
-    if (!payload.ngaySinh) {
-      payload.ngaySinh = null
-    } else {
-      if (payload.ngaySinh.length > 10) {
-        alert("Vui lòng nhập Ngày Sinh hợp lệ (năm không quá 4 chữ số).")
-        return
-      }
-    }
-    
-    if (isEdit.value) {
-      await api.put(`/khach-hang/${payload.id}`, payload)
-    } else {
-      await api.post('/khach-hang', payload)
-    }
-    closeModal()
-    fetchCustomers(); Toast.fire({ icon: 'success', title: isEdit.value ? 'Cập nhật khách hàng thành công!' : 'Tạo khách hàng mới thành công!' })
-  } catch (error) {
-    console.error("Lỗi khi lưu khách hàng:", error)
-    if (error.response && error.response.data && error.response.data.message) {
-      Toast.fire({ icon: 'error', title: error.response.data.message })
-    } else {
-      Toast.fire({ icon: 'error', title: 'Có lỗi xảy ra khi lưu khách hàng! Vui lòng kiểm tra lại dữ liệu.' })
-    }
+  if (formData.value.sdt && !/^[0-9]{10,11}$/.test(formData.value.sdt)) {
+    phoneErrorMsg.value = 'Số điện thoại không hợp lệ (chỉ gồm 10-11 chữ số).'
+    return
   }
-}
-
-const deleteCustomer = async (kh) => {
+  if (formData.value.ngaySinh && formData.value.ngaySinh.length > 10) {
+    toast.error('Vui lòng nhập Ngày Sinh hợp lệ (năm không quá 4 chữ số).')
+    return
+  }
+  const payload = {
+    hoTen: formData.value.ten,
+    sdt: formData.value.sdt,
+    email: formData.value.email,
+    ngaySinh: formData.value.ngaySinh || null,
+    gioiTinh: formData.value.gioiTinh,
+    trangThai: formData.value.trangThai,
+  }
   try {
-    await api.delete(`/khach-hang/${kh.id}`)
-    fetchCustomers(); Toast.fire({ icon: 'success', title: 'Xóa khách hàng thành công!' })
+    await api.put(`/khach-hang/${formData.value.id}`, payload)
+    closeModal()
+    fetchCustomers()
+    toast.success('Đã cập nhật khách hàng.')
   } catch (error) {
-    console.error("Lỗi khi xóa khách hàng:", error)
-    alert("Có lỗi xảy ra khi xóa khách hàng!")
+    console.error('Lỗi khi lưu khách hàng:', error)
+    toast.error(error.message || 'Có lỗi xảy ra khi lưu khách hàng. Vui lòng kiểm tra lại dữ liệu.')
   }
 }
 
@@ -692,8 +569,8 @@ const formatDate = (dateString) => {
   padding: 0.5rem 1.25rem;
 }
 .custom-solid-btn:hover {
-  background-color: #0b5ed7 !important;
-  border-color: #0a58ca !important;
+  background-color: #075fc0 !important;
+  border-color: #075fc0 !important;
 }
 
 /* Pagination */

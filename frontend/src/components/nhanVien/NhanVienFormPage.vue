@@ -2,7 +2,10 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
-import { GIOI_TINH, TRANG_THAI, taoMaNhanVien, tinhTuoi } from '../../constants/nhanVien'
+import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
+import CccdScannerModal from './CccdScannerModal.vue'
+import { GIOI_TINH, TRANG_THAI, taoMaTheoTen, tienToMaNhanVien, tinhTuoi } from '../../constants/nhanVien'
+import { ghepDiaChi } from '../../utils/diaChi'
 import { nhanVienService } from '../../services/nhanVienService'
 import { useToast } from '../../composables/useToast'
 import { avatarColors, formatDate, getInitials, toIso, todayIso } from '../../utils/format'
@@ -11,8 +14,14 @@ import { avatarColors, formatDate, getInitials, toIso, todayIso } from '../../ut
  * Trang THÊM nhân viên (/nhan-vien/them) và CHI TIẾT / SỬA nhân viên (/nhan-vien/:id), giống video:
  * nút quay lại, thẻ hồ sơ bên trái, các ô nhập bên phải, nút lưu ở cuối.
  *
+ * MÃ NHÂN VIÊN: tạo theo HỌ TÊN ĐẦY ĐỦ (Nguyễn Văn An -> AnNV01). Trang này hiện mã dự kiến ngay khi nhập tên;
+ *   mã chính thức do backend cấp khi bấm "Tạo nhân viên".
+ * VỊ TRÍ LÀM VIỆC: chọn nhiều vị trí đã thêm, hoặc thêm vị trí mới; không có chức năng xóa vị trí.
+ * QUÉT CĂN CƯỚC (chỉ khi thêm mới): quét mã QR trên thẻ CCCD để điền sẵn họ tên, ngày sinh, giới tính, số CCCD.
+ * ĐỊA CHỈ: nhiều địa chỉ (Tỉnh/Thành phố -> Phường/Xã sau sáp nhập), chọn 1 địa chỉ chính. Chỉ thêm / sửa / chọn lại, KHÔNG có nút xóa.
+ *
  * QUY ĐỊNH KHI SỬA NHÂN VIÊN
- *  - Được sửa : họ tên, giới tính, ngày sinh, số điện thoại, địa chỉ, vai trò.
+ *  - Được sửa : họ tên, giới tính, ngày sinh, số điện thoại, số CCCD, các địa chỉ, vai trò, vị trí làm việc.
  *  - Không sửa: mã nhân viên (hệ thống cấp), email (là tài khoản đăng nhập),
  *               ngày vào làm (mốc tuyển dụng), mật khẩu (nhập lúc thêm mới, không hiện ở trang sửa).
  *  - Khóa / mở khóa tài khoản: nút ở thẻ "Trạng thái tài khoản" (đổi cột trạng thái, không xóa dữ liệu).
@@ -28,6 +37,7 @@ const isEdit = idXem !== null
 const tatCa = ref([]) // toàn bộ nhân viên, dùng để kiểm tra trùng và sinh mã
 const vaiTro = ref([]) // [{ id, ten }] lấy từ bảng vai_tro
 const item = ref(null) // nhân viên đang xem / sửa (null khi thêm mới)
+const viTriList = ref([]) // [{ id, ten }] các vị trí làm việc đã thêm
 
 const dangTai = ref(true)
 const loiTai = ref('') // có chữ: tải lỗi hoặc không thấy nhân viên
@@ -37,33 +47,94 @@ const form = reactive({
   hoTen: '',
   email: '',
   soDienThoai: '',
+  cccd: '',
   gioiTinh: 'Nam',
   ngaySinh: '',
-  diaChi: '',
   ngayVaoLam: todayIso(),
   idVaiTro: null,
   matKhau: '',
+  idViTri: [], // các vị trí làm việc đang chọn
+  diaChis: [], // [{ key, id (null = mới thêm), tinhThanh, phuongXa, diaChiCuThe }]
+  chinhKey: null, // key của địa chỉ chính
 })
 
-const maNhanVien = computed(() => (item.value ? item.value.ma : taoMaNhanVien(tatCa.value)))
+// Mã nhân viên: sửa -> mã đã cấp; thêm mới -> mã dự kiến theo họ tên đầy đủ (trống khi chưa nhập tên)
+const maNhanVien = computed(() => {
+  if (item.value) return item.value.ma
+  if (!tienToMaNhanVien(form.hoTen)) return ''
+  return taoMaTheoTen(form.hoTen, tatCa.value.map((e) => e.ma))
+})
+
+/* ----- Nhiều địa chỉ ----- */
+let keySeq = 0
+const taoKey = () => `n${++keySeq}`
+const hienDiaChi = (d) => ghepDiaChi(d)
+const diaChiChinh = computed(() => form.diaChis.find((d) => d.key === form.chinhKey) ?? form.diaChis[0] ?? null)
+
+const dcForm = reactive({ mo: false, key: null, tinhThanh: '', phuongXa: '', diaChiCuThe: '', loi: {} })
+const diaChiTrenCccd = ref('') // địa chỉ ghi trên thẻ CCCD vừa quét (để tham khảo khi nhập địa chỉ cụ thể)
+
+function moFormDiaChi(d = null) {
+  dcForm.mo = true
+  dcForm.key = d ? d.key : null
+  dcForm.tinhThanh = d?.tinhThanh ?? ''
+  dcForm.phuongXa = d?.phuongXa ?? ''
+  dcForm.diaChiCuThe = d?.diaChiCuThe ?? ''
+  dcForm.loi = {}
+  nextTick(() => document.getElementById('nv-dc-chi-tiet')?.focus())
+}
+function huyFormDiaChi() {
+  dcForm.mo = false
+  dcForm.key = null
+  dcForm.loi = {}
+}
+function luuFormDiaChi() {
+  const loi = {}
+  const chiTiet = String(dcForm.diaChiCuThe).trim().replace(/\s+/g, ' ')
+  if (!dcForm.tinhThanh) loi.tinhThanh = 'Chọn Tỉnh/Thành phố.'
+  if (!dcForm.phuongXa) loi.phuongXa = 'Chọn Phường/Xã.'
+  if (!chiTiet) loi.diaChiCuThe = 'Nhập số nhà, tên đường...'
+  else if (chiTiet.length > 255) loi.diaChiCuThe = 'Địa chỉ cụ thể tối đa 255 ký tự.'
+  dcForm.loi = loi
+  if (Object.keys(loi).length) return
+  const du = { tinhThanh: dcForm.tinhThanh, phuongXa: dcForm.phuongXa, diaChiCuThe: chiTiet }
+  if (dcForm.key) {
+    const d = form.diaChis.find((x) => x.key === dcForm.key)
+    if (d) Object.assign(d, du)
+  } else {
+    const moi = { key: taoKey(), id: null, ...du }
+    form.diaChis.push(moi)
+    if (!form.chinhKey) form.chinhKey = moi.key // địa chỉ đầu tiên tự là địa chỉ chính
+  }
+  huyFormDiaChi()
+}
+function dungDiaChiTrenCccd() {
+  dcForm.diaChiCuThe = diaChiTrenCccd.value
+}
 
 // Chép dữ liệu nhân viên vào form (dùng lúc mở trang và sau khi khóa / mở khóa)
 function napForm(nv) {
   form.hoTen = nv.hoTen
   form.email = nv.email
   form.soDienThoai = nv.soDienThoai
+  form.cccd = nv.cccd ?? ''
   form.gioiTinh = nv.gioiTinh ?? 'Nam'
   form.ngaySinh = nv.ngaySinh ?? ''
-  form.diaChi = nv.diaChi
   form.ngayVaoLam = nv.ngayVaoLam ?? ''
   form.idVaiTro = nv.idVaiTro
+  form.idViTri = (nv.viTri ?? []).map((v) => v.id)
+  // Nhân viên cũ chưa có danh sách địa chỉ thì dùng chuỗi địa chỉ cũ làm một địa chỉ chính
+  const ds = nv.diaChis?.length ? nv.diaChis : nv.diaChi ? [{ id: null, tinhThanh: '', phuongXa: '', diaChiCuThe: nv.diaChi, macDinh: true }] : []
+  form.diaChis = ds.map((d) => ({ key: d.id ? `d${d.id}` : taoKey(), id: d.id ?? null, tinhThanh: d.tinhThanh ?? '', phuongXa: d.phuongXa ?? '', diaChiCuThe: d.diaChiCuThe ?? '' }))
+  form.chinhKey = (ds.findIndex((d) => d.macDinh) >= 0 ? form.diaChis[ds.findIndex((d) => d.macDinh)] : form.diaChis[0])?.key ?? null
 }
 
 async function taiDuLieu() {
   try {
-    const [ds, dsVaiTro] = await Promise.all([nhanVienService.getAll(), nhanVienService.getVaiTro()])
+    const [ds, dsVaiTro, dsViTri] = await Promise.all([nhanVienService.getAll(), nhanVienService.getVaiTro(), nhanVienService.getViTri()])
     tatCa.value = ds
     vaiTro.value = dsVaiTro
+    viTriList.value = dsViTri
     if (isEdit) {
       const nv = ds.find((x) => x.id === idXem)
       if (!nv) {
@@ -88,6 +159,23 @@ onMounted(async () => {
   await nextTick()
   document.getElementById('nv-ho-ten')?.focus()
 })
+
+/* ----- Quét căn cước công dân ----- */
+const hienQuet = ref(false)
+
+// Điền các ô từ mã QR trên thẻ. Người dùng vẫn xem lại / sửa được trước khi lưu.
+function apDungCccd(info) {
+  form.cccd = info.soCccd
+  if (info.hoTen) form.hoTen = info.hoTen
+  if (info.gioiTinh) form.gioiTinh = info.gioiTinh
+  if (info.ngaySinh) form.ngaySinh = info.ngaySinh
+  diaChiTrenCccd.value = info.diaChi
+  const trung = tatCa.value.find((e) => e.cccd === info.soCccd)
+  if (trung) toast.error(`Số CCCD này đã thuộc nhân viên ${trung.hoTen} (${trung.ma}).`)
+  else toast.success(`Đã điền thông tin từ căn cước của ${info.hoTen || 'nhân viên'}. Hãy kiểm tra lại rồi nhập email, mật khẩu, số điện thoại và địa chỉ.`)
+  if (info.diaChi && !form.diaChis.length && !dcForm.mo) moFormDiaChi() // mở sẵn ô nhập địa chỉ, có gợi ý từ thẻ
+  nextTick(() => document.getElementById('nv-email')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }))
+}
 
 /* ----- Kiểm tra dữ liệu (validate) ----- */
 
@@ -122,6 +210,10 @@ function kiemTraForm() {
     else if (daDung('email', email)) e.email = 'Email đã được sử dụng.'
   }
 
+  const cccd = String(form.cccd).trim()
+  if (cccd && !/^\d{12}$/.test(cccd)) e.cccd = 'Số căn cước công dân gồm đúng 12 chữ số.'
+  else if (cccd && daDung('cccd', cccd)) e.cccd = 'Số căn cước công dân đã được sử dụng.'
+
   const sdt = String(form.soDienThoai).trim()
   if (!sdt) e.soDienThoai = 'Nhập số điện thoại.'
   else if (!/^0[35789]\d{8}$/.test(sdt)) e.soDienThoai = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.'
@@ -142,9 +234,8 @@ function kiemTraForm() {
     }
   }
 
-  const diaChi = String(form.diaChi).trim()
-  if (!diaChi) e.diaChi = 'Nhập địa chỉ.'
-  else if (diaChi.length > 255) e.diaChi = 'Địa chỉ tối đa 255 ký tự.'
+  if (dcForm.mo) e.diaChis = 'Bấm “Lưu địa chỉ” hoặc “Hủy” để hoàn tất địa chỉ đang nhập.'
+  else if (!form.diaChis.length) e.diaChis = 'Thêm ít nhất một địa chỉ.'
 
   // Mật khẩu chỉ nhập lúc thêm mới (khi sửa không có ô mật khẩu).
   if (!isEdit) {
@@ -167,6 +258,51 @@ watch(form, () => {
   if (daBamLuu.value) capNhatLoi()
 })
 
+/* ----- Vị trí làm việc: chọn nhiều, thêm mới, không xóa ----- */
+
+const tenViTriMoi = ref('')
+const dangThemViTri = ref(false)
+const loiViTri = ref('')
+
+const daChonViTri = (id) => form.idViTri.includes(id)
+function chonViTri(id) {
+  const i = form.idViTri.indexOf(id)
+  if (i >= 0) form.idViTri.splice(i, 1)
+  else form.idViTri.push(id)
+}
+
+async function themViTri() {
+  loiViTri.value = ''
+  const ten = tenViTriMoi.value.trim().replace(/\s+/g, ' ')
+  if (!ten) {
+    loiViTri.value = 'Nhập tên vị trí.'
+    return
+  }
+  if (ten.length < 2 || ten.length > 50) {
+    loiViTri.value = 'Tên vị trí từ 2 đến 50 ký tự.'
+    return
+  }
+  // Đã có sẵn trong danh sách thì chỉ cần chọn lại
+  const coSan = viTriList.value.find((v) => v.ten.toLowerCase() === ten.toLowerCase())
+  if (coSan) {
+    if (!daChonViTri(coSan.id)) form.idViTri.push(coSan.id)
+    tenViTriMoi.value = ''
+    return
+  }
+  dangThemViTri.value = true
+  try {
+    const moi = await nhanVienService.themViTri(ten)
+    viTriList.value.push(moi)
+    form.idViTri.push(moi.id)
+    tenViTriMoi.value = ''
+    toast.success(`Đã thêm vị trí "${moi.ten}".`)
+  } catch (loi) {
+    loiViTri.value = loi.message || 'Không thể thêm vị trí. Vui lòng thử lại.'
+  } finally {
+    dangThemViTri.value = false
+  }
+}
+
 /* ----- Lưu ----- */
 
 async function guiForm() {
@@ -174,7 +310,11 @@ async function guiForm() {
   daBamLuu.value = true
   const e = capNhatLoi()
   if (Object.keys(e).length) {
-    nextTick(() => document.querySelector('#nv-form .is-invalid')?.focus())
+    nextTick(() => {
+      const o = document.querySelector('#nv-form .is-invalid')
+      if (o) o.focus()
+      else document.getElementById('nv-dia-chi-card')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+    })
     return
   }
   const payload = {
@@ -182,8 +322,17 @@ async function guiForm() {
     soDienThoai: String(form.soDienThoai).trim(),
     gioiTinh: form.gioiTinh,
     ngaySinh: form.ngaySinh || null,
-    diaChi: String(form.diaChi).trim(),
+    cccd: String(form.cccd).trim() || null,
     idVaiTro: form.idVaiTro,
+    idViTri: [...form.idViTri],
+    // Địa chỉ không có nút xóa; gửi cả danh sách, id = null là địa chỉ mới thêm
+    diaChis: form.diaChis.map((d) => ({
+      id: d.id,
+      tinhThanh: d.tinhThanh || null,
+      phuongXa: d.phuongXa || null,
+      diaChiCuThe: d.diaChiCuThe,
+      macDinh: d.key === (diaChiChinh.value?.key ?? null),
+    })),
   }
   // Email, ngày vào làm, mật khẩu: chỉ gửi khi THÊM MỚI. Khi sửa thì không gửi (giữ nguyên giá trị cũ).
   if (!isEdit) {
@@ -197,8 +346,8 @@ async function guiForm() {
       await nhanVienService.update(idXem, payload)
       toast.success('Đã lưu thay đổi nhân viên.')
     } else {
-      await nhanVienService.create(payload)
-      toast.success('Đã thêm nhân viên.')
+      const moi = await nhanVienService.create(payload)
+      toast.success(moi?.ma ? `Đã thêm nhân viên ${moi.hoTen} với mã ${moi.ma}.` : 'Đã thêm nhân viên.')
     }
     router.push('/nhan-vien') // về danh sách, nhân viên mới nằm ở đầu danh sách
   } catch (loi) {
@@ -298,18 +447,30 @@ async function doiTrangThai() {
                 <h2 class="ad-card-title">Thông tin cơ bản</h2>
                 <p class="ad-card-sub">Họ tên, email, liên hệ và tài khoản.</p>
               </div>
+              <button v-if="!isEdit" type="button" class="ad-btn ms-auto" @click="hienQuet = true">
+                <i class="bi bi-qr-code-scan" aria-hidden="true"></i> Quét căn cước
+              </button>
             </header>
 
             <p v-if="isEdit" class="ad-hint mt-3 mb-0">
               <i class="bi bi-info-circle" aria-hidden="true"></i>
-              Có thể sửa: họ tên, số điện thoại, vai trò, ngày sinh, giới tính, địa chỉ. Các ô màu xám (mã nhân viên, email, ngày vào làm) không thể sửa.
+              Có thể sửa: họ tên, số điện thoại, số căn cước, vai trò, vị trí làm việc, ngày sinh, giới tính, địa chỉ. Các ô màu xám (mã nhân viên, email, ngày vào làm) không thể sửa.
             </p>
 
             <div class="row g-3 mt-1">
               <div class="col-md-6">
                 <label class="ad-label" for="nv-ma">Mã nhân viên</label>
-                <input id="nv-ma" type="text" class="form-control ad-control" :value="maNhanVien" readonly />
-                <p class="ad-hint">{{ isEdit ? 'Không thể đổi mã sau khi tạo.' : 'Hệ thống tự cấp mã.' }}</p>
+                <input
+                  id="nv-ma"
+                  type="text"
+                  class="form-control ad-control"
+                  :value="maNhanVien"
+                  :placeholder="isEdit ? '' : 'Tự tạo sau khi nhập họ tên'"
+                  readonly
+                />
+                <p v-if="isEdit" class="ad-hint">Không thể đổi mã sau khi tạo.</p>
+                <p v-else-if="maNhanVien" class="ad-hint">Mã dự kiến theo họ tên đầy đủ; hệ thống cấp mã chính thức khi bạn bấm “Tạo nhân viên”.</p>
+                <p v-else class="ad-hint">Mã được tạo theo họ tên đầy đủ, ví dụ Nguyễn Văn An → AnNV01.</p>
               </div>
 
               <div class="col-md-6">
@@ -326,6 +487,23 @@ async function doiTrangThai() {
                   :aria-invalid="!!errors.hoTen"
                 />
                 <p v-if="errors.hoTen" class="ad-error">{{ errors.hoTen }}</p>
+              </div>
+
+              <div class="col-md-6">
+                <label class="ad-label" for="nv-cccd">Số căn cước công dân</label>
+                <input
+                  id="nv-cccd"
+                  v-model="form.cccd"
+                  type="text"
+                  inputmode="numeric"
+                  class="form-control ad-control"
+                  :class="{ 'is-invalid': errors.cccd }"
+                  maxlength="12"
+                  placeholder="12 chữ số hoặc bấm “Quét căn cước”"
+                  autocomplete="off"
+                  :aria-invalid="!!errors.cccd"
+                />
+                <p v-if="errors.cccd" class="ad-error">{{ errors.cccd }}</p>
               </div>
 
               <div class="col-md-6">
@@ -445,26 +623,121 @@ async function doiTrangThai() {
             </div>
           </section>
 
-          <section class="ad-card mt-4">
+          <section id="nv-dia-chi-card" class="ad-card mt-4">
             <header class="ad-card-head">
               <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
               <div>
                 <h2 class="ad-card-title">Địa chỉ</h2>
+                <p class="ad-card-sub">Thêm nhiều địa chỉ, chọn một địa chỉ chính.</p>
+              </div>
+              <button type="button" class="ad-btn ms-auto" :disabled="dcForm.mo" @click="moFormDiaChi()">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm địa chỉ
+              </button>
+            </header>
+
+            <div v-if="form.diaChis.length" class="nv-dc-list" role="radiogroup" aria-label="Chọn địa chỉ chính">
+              <label v-for="d in form.diaChis" :key="d.key" class="nv-dc" :class="{ active: form.chinhKey === d.key }">
+                <input v-model="form.chinhKey" type="radio" class="nv-dc-radio" name="nv-dia-chi-chinh" :value="d.key" />
+                <span class="nv-dc-body">
+                  <span class="nv-dc-text">{{ hienDiaChi(d) }}</span>
+                  <span v-if="form.chinhKey === d.key" class="ad-pill ad-pill-green nv-dc-tag">Địa chỉ chính</span>
+                </span>
+                <button type="button" class="ad-icon-btn nv-dc-edit" title="Sửa địa chỉ" aria-label="Sửa địa chỉ này" :disabled="dcForm.mo" @click.prevent="moFormDiaChi(d)">
+                  <i class="bi bi-pencil" aria-hidden="true"></i>
+                </button>
+              </label>
+            </div>
+            <p v-else-if="!dcForm.mo" class="ad-hint mt-2">Chưa có địa chỉ nào. Bấm “Thêm địa chỉ”.</p>
+
+            <!-- Ô nhập địa chỉ (thêm mới hoặc sửa một địa chỉ) -->
+            <div v-if="dcForm.mo" class="nv-dc-form">
+              <h3 class="nv-dc-form-title">{{ dcForm.key ? 'Sửa địa chỉ' : 'Thêm địa chỉ mới' }}</h3>
+              <div class="row g-3">
+                <DiaChiHanhChinhSelect
+                  v-model:tinh-thanh="dcForm.tinhThanh"
+                  v-model:phuong-xa="dcForm.phuongXa"
+                  id-prefix="nv-dc"
+                  required
+                  col-class="col-md-6"
+                  select-class="form-select ad-control"
+                  label-class="ad-label"
+                  :invalid-tinh="!!dcForm.loi.tinhThanh"
+                  :invalid-phuong="!!dcForm.loi.phuongXa"
+                />
+                <div class="col-12">
+                  <label class="ad-label" for="nv-dc-chi-tiet">Địa chỉ cụ thể <span class="ad-required">*</span></label>
+                  <input
+                    id="nv-dc-chi-tiet"
+                    v-model="dcForm.diaChiCuThe"
+                    type="text"
+                    maxlength="255"
+                    class="form-control ad-control"
+                    :class="{ 'is-invalid': dcForm.loi.diaChiCuThe }"
+                    placeholder="Số nhà, tên đường, thôn / tổ..."
+                    autocomplete="off"
+                    @keydown.enter.prevent="luuFormDiaChi"
+                  />
+                  <p v-if="dcForm.loi.tinhThanh || dcForm.loi.phuongXa" class="ad-error">{{ dcForm.loi.tinhThanh || dcForm.loi.phuongXa }}</p>
+                  <p v-if="dcForm.loi.diaChiCuThe" class="ad-error">{{ dcForm.loi.diaChiCuThe }}</p>
+                  <p v-if="diaChiTrenCccd" class="ad-hint">
+                    Địa chỉ trên căn cước: <strong>{{ diaChiTrenCccd }}</strong>
+                    <button type="button" class="btn btn-link btn-sm py-0" @click="dungDiaChiTrenCccd">Dùng làm địa chỉ cụ thể</button>
+                  </p>
+                </div>
+              </div>
+              <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" class="ad-btn" @click="huyFormDiaChi">Hủy</button>
+                <button type="button" class="ad-btn ad-btn-primary" @click="luuFormDiaChi">Lưu địa chỉ</button>
+              </div>
+            </div>
+
+            <p v-if="errors.diaChis" class="ad-error mt-2">{{ errors.diaChis }}</p>
+          </section>
+
+          <section class="ad-card mt-4">
+            <header class="ad-card-head">
+              <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-briefcase"></i></span>
+              <div>
+                <h2 class="ad-card-title">Vị trí làm việc</h2>
+                <p class="ad-card-sub">Chọn một hoặc nhiều vị trí đã thêm, hoặc thêm vị trí mới.</p>
               </div>
             </header>
-            <div class="mt-3">
-              <label class="ad-label" for="nv-dia-chi">Địa chỉ <span class="ad-required">*</span></label>
-              <textarea
-                id="nv-dia-chi"
-                v-model="form.diaChi"
-                rows="2"
-                maxlength="255"
-                class="form-control ad-control"
-                :class="{ 'is-invalid': errors.diaChi }"
-                placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố"
-                :aria-invalid="!!errors.diaChi"
-              ></textarea>
-              <p v-if="errors.diaChi" class="ad-error">{{ errors.diaChi }}</p>
+            <div class="nv-chips mt-3" role="group" aria-label="Các vị trí làm việc">
+              <button
+                v-for="v in viTriList"
+                :key="v.id"
+                type="button"
+                class="nv-chip"
+                :class="{ active: daChonViTri(v.id) }"
+                :aria-pressed="daChonViTri(v.id)"
+                @click="chonViTri(v.id)"
+              >
+                <i class="bi" :class="daChonViTri(v.id) ? 'bi-check-circle-fill' : 'bi-circle'" aria-hidden="true"></i>
+                {{ v.ten }}
+              </button>
+              <span v-if="!viTriList.length" class="ad-hint m-0">Chưa có vị trí nào, hãy thêm vị trí mới ở bên dưới.</span>
+            </div>
+            <p class="ad-hint mt-2 mb-0">Đã chọn {{ form.idViTri.length }} vị trí. Bấm vào vị trí để chọn hoặc bỏ chọn cho nhân viên này.</p>
+            <div class="nv-add mt-3">
+              <label class="ad-label" for="nv-vi-tri-moi">Thêm vị trí mới</label>
+              <div class="d-flex gap-2">
+                <input
+                  id="nv-vi-tri-moi"
+                  v-model="tenViTriMoi"
+                  type="text"
+                  class="form-control ad-control"
+                  :class="{ 'is-invalid': loiViTri }"
+                  maxlength="50"
+                  placeholder="Ví dụ: Thu ngân"
+                  autocomplete="off"
+                  @keydown.enter.prevent="themViTri"
+                />
+                <button type="button" class="ad-btn ad-btn-primary flex-shrink-0" :disabled="dangThemViTri" @click="themViTri">
+                  <span v-if="dangThemViTri" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                  <i v-else class="bi bi-plus-lg" aria-hidden="true"></i> Thêm
+                </button>
+              </div>
+              <p v-if="loiViTri" class="ad-error">{{ loiViTri }}</p>
             </div>
           </section>
 
@@ -479,6 +752,112 @@ async function doiTrangThai() {
       </div>
     </form>
 
+    <!-- Quét mã QR trên căn cước công dân -->
+    <CccdScannerModal v-if="hienQuet" @scanned="apDungCccd" @close="hienQuet = false" />
+
     <ConfirmDialog v-if="hoiKhoa" v-bind="noiDungXacNhan" :loading="dangDoiTrangThai" @confirm="doiTrangThai" @cancel="hoiKhoa = false" />
   </div>
 </template>
+
+<style scoped>
+/* Chọn nhiều vị trí làm việc */
+.nv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.nv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--fs-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--fs-text-2);
+  font-weight: 500;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.nv-chip:hover {
+  border-color: var(--fs-primary);
+  color: var(--fs-primary-dark);
+}
+.nv-chip.active {
+  border-color: var(--fs-primary);
+  background: var(--fs-hover-bg);
+  color: var(--fs-primary);
+  font-weight: 700;
+}
+.nv-chip:focus-visible {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+
+/* Danh sách địa chỉ: mỗi địa chỉ là một thẻ chọn được (chọn = địa chỉ chính) */
+.nv-dc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.nv-dc {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--fs-line);
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.nv-dc:hover {
+  background: var(--fs-hover-bg);
+}
+.nv-dc.active {
+  border-color: var(--fs-primary);
+  background: var(--fs-primary-soft);
+}
+.nv-dc:has(.nv-dc-radio:focus-visible) {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+.nv-dc-radio {
+  flex: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--fs-primary);
+}
+.nv-dc-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+}
+.nv-dc-text {
+  font-size: 0.9rem;
+  color: var(--fs-text);
+  overflow-wrap: anywhere;
+}
+.nv-dc-tag {
+  flex: none;
+}
+.nv-dc-edit {
+  flex: none;
+}
+.nv-dc-form {
+  margin-top: 0.9rem;
+  padding: 1rem;
+  border: 1px dashed var(--fs-primary);
+  border-radius: 14px;
+  background: #fbfdff;
+}
+.nv-dc-form-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--fs-text);
+}
+</style>

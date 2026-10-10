@@ -12,6 +12,10 @@ public interface SanPhamChiTietRepository extends JpaRepository<SanPhamChiTiet, 
 
     boolean existsByMaSpctIgnoreCase(String maSpct);
 
+    /** Biến thể đã có của sản phẩm với đúng bộ màu + trọng lượng + chu vi (dùng khi thêm: trùng thì hỏi cập nhật). */
+    List<SanPhamChiTiet> findBySanPhamIdAndMauSacIdAndTrongLuongIdAndChuViId(
+            Integer idSanPham, Integer idMauSac, Integer idTrongLuong, Integer idChuVi);
+
     /** Dùng khi sửa (đổi sản phẩm làm đổi mã): có biến thể KHÁC (id khác) đang dùng mã này chưa. */
     boolean existsByMaSpctIgnoreCaseAndIdNot(String maSpct, Integer id);
 

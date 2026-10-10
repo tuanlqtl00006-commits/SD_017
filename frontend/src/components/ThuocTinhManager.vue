@@ -13,6 +13,7 @@ import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { includesText } from '../utils/text'
+import { laKhongApDung } from '../utils/danhMuc'
 import { exportExcel } from '../utils/exportExcel'
 import { todayIso } from '../utils/format'
 
@@ -50,7 +51,7 @@ async function load(showLoading = true, quiet = false) {
   try {
     const ds = await thuocTinhService.getAll(type)
     if (seq !== loadSeq) return
-    list.value = ds
+    list.value = ds.filter((x) => !laKhongApDung(x)) // mục "Không áp dụng" do hệ thống quản lý, không cho sửa / ẩn
   } catch {
     if (seq === loadSeq && !(quiet && list.value.length)) toast.error(`Không tải được danh sách ${lower}. Vui lòng thử lại.`)
   } finally {
@@ -242,7 +243,7 @@ function exportFile() {
         </div>
       </div>
 
-      <BasePagination v-if="total" v-model:page="page" v-model:pageSize="pageSize" :total="total" />
+      <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
     </section>
 
     <ThuocTinhFormModal v-if="formState" :cfg="cfg" :item="formState.item" :all="list" :saving="saving" @save="save" @close="formState = null" />

@@ -4,6 +4,7 @@ import { HINH_THUC, LOAI_GIAM, TRANG_THAI, formatGiaTri } from '../../constants/
 import { formatDate, formatMoney } from '../../utils/format'
 
 defineProps({
+  // Phiếu kèm trường trangThai đã được tính sẵn ở trang danh sách
   item: { type: Object, required: true },
 })
 const emit = defineEmits(['close', 'edit'])

@@ -7,7 +7,5 @@ import java.util.List;
 
 @Repository
 public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Integer> {
-    List<HoaDonChiTiet> findByHoaDon_Id(Integer idHoaDon);
-
     List<HoaDonChiTiet> findByHoaDon_IdOrderByIdAsc(Integer idHoaDon);
 }

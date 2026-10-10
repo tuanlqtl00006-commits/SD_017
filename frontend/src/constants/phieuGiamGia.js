@@ -17,11 +17,17 @@ export const TRANG_THAI = {
   NGUNG_HOAT_DONG: { label: 'Ngưng hoạt động', cls: 'ad-pill-red' },
 }
 
-
+/**
+ * Trạng thái hiển thị được tính từ khoảng ngày áp dụng và cờ hoatDong (công tắc bật/tắt):
+ *  - quá ngày kết thúc            -> "Đã kết thúc" (không phụ thuộc công tắc, công tắc cũng biến mất)
+ *  - còn hạn nhưng công tắc đang tắt -> "Ngưng hoạt động"
+ *  - chưa tới ngày bắt đầu         -> "Sắp diễn ra"
+ *  - đang trong khoảng ngày        -> "Đang hoạt động"
+ */
 export function tinhTrangThai(p, today = todayIso()) {
+  if (today > p.ngayKetThuc) return 'DA_KET_THUC'
   if (!p.hoatDong) return 'NGUNG_HOAT_DONG'
   if (today < p.ngayBatDau) return 'SAP_DIEN_RA'
-  if (today > p.ngayKetThuc) return 'DA_KET_THUC'
   return 'DANG_HOAT_DONG'
 }
 
@@ -29,14 +35,14 @@ export function isExpired(p, today = todayIso()) {
   return p.ngayKetThuc < today
 }
 
-
+/** 60 -> '60%', 50000 -> '50.000 ₫' */
 export function formatGiaTri(p) {
   return p.loaiGiam === 'PHAN_TRAM' ? `${p.giaTri}%` : formatMoney(p.giaTri)
 }
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
-
+/** Sinh mã dạng VCH + 6 ký tự, không trùng với các mã đã có. */
 export function taoMaPhieu(existing = []) {
   let code
   do {

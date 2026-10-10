@@ -8,18 +8,19 @@ function remove(id) {
   if (index !== -1) toasts.splice(index, 1)
 }
 
-function push(message, type = 'success', timeout = 3500) {
+function push(message, type = 'success', timeout = 3500, title = '') {
   const id = ++seq
-  toasts.push({ id, message, type })
+  toasts.push({ id, message, type, title })
   if (timeout) setTimeout(() => remove(id), timeout)
 }
 
-
+/** Thông báo nổi dùng chung. Hiển thị bởi <ToastHost /> trong MainLayout. */
 export function useToast() {
   return {
     toasts,
     remove,
-    success: (message) => push(message, 'success'),
-    error: (message) => push(message, 'error', 5500),
+    // title (tùy chọn): dòng đậm phía trên nội dung, vd "Thành công!"
+    success: (message, title = '') => push(message, 'success', 3500, title),
+    error: (message, title = '') => push(message, 'error', 5500, title),
   }
 }

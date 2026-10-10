@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Bảng hoa_don. Tên cột khớp với database/SD_17.sql (ddl-auto=none nên phải khớp đúng). */
+/** Bảng hoa_don. Tên cột khớp với database/SD_17_tong.sql (ddl-auto=none nên phải khớp đúng). */
 @Entity
 @Table(name = "hoa_don")
 @Getter @Setter
@@ -93,7 +93,7 @@ public class HoaDon {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    @OneToMany(mappedBy = "hoaDon", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "hoaDon")
     @com.fasterxml.jackson.annotation.JsonIgnore
     private List<HoaDonChiTiet> danhSachChiTiet;
 }

@@ -50,13 +50,13 @@
   color: var(--fs-primary);
 }
 .nav-link.side-link.active {
-  background-color: var(--fs-primary);
-  color: #fff;
+  background-color: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
   font-weight: 600;
-  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  box-shadow: none;
 }
 .nav-link.side-link.active .bi {
-  color: #fff;
+  color: var(--fs-primary);
 }
 .nav-link.side-link:focus-visible {
   outline: 2px solid var(--fs-primary);
@@ -231,54 +231,6 @@ textarea.form-control.ad-control {
   border-color: var(--fs-primary);
   box-shadow: 0 0 0 4px rgba(9, 119, 236, 0.14);
 }
-
-/* Chrome tô nền xanh/xám cho ô đã "tự động điền" (chọn gợi ý, dán giá trị đã lưu...).
-   Trì hoãn đổi màu nền gần như vô hạn để ô giữ nguyên nền gốc của giao diện. */
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:active,
-textarea:-webkit-autofill,
-select:-webkit-autofill {
-  -webkit-text-fill-color: #212529 !important;
-  caret-color: #212529;
-  transition: background-color 600000s 0s, color 600000s 0s;
-}
-
-/* Ô chọn ngày: icon tờ lịch (đầu xanh, 2 khoen treo, các ô ngày, 1 ngày tô cam) để người dùng biết bấm vào được */
-input[type='date'],
-input[type='datetime-local'] {
-  cursor: pointer;
-  /* Luôn hiện bảng lịch màu trắng, kể cả khi Windows đang bật chế độ tối */
-  color-scheme: light;
-}
-input[type='date']::-webkit-calendar-picker-indicator,
-input[type='datetime-local']::-webkit-calendar-picker-indicator {
-  opacity: 1;
-  width: 20px;
-  height: 20px;
-  margin-left: 6px;
-  padding: 0;
-  cursor: pointer;
-  color: transparent;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='3' fill='%23fff' stroke='%230977ec' stroke-width='1.6'/%3E%3Cpath d='M3 7.5a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3V10H3z' fill='%230977ec'/%3E%3Crect x='7' y='2' width='2.2' height='5' rx='1.1' fill='%23084fa0'/%3E%3Crect x='14.8' y='2' width='2.2' height='5' rx='1.1' fill='%23084fa0'/%3E%3Cg fill='%23b9d6fb'%3E%3Crect x='6' y='12.3' width='2.8' height='2.6' rx='.6'/%3E%3Crect x='10.6' y='12.3' width='2.8' height='2.6' rx='.6'/%3E%3Crect x='15.2' y='12.3' width='2.8' height='2.6' rx='.6'/%3E%3Crect x='6' y='16.3' width='2.8' height='2.6' rx='.6'/%3E%3Crect x='10.6' y='16.3' width='2.8' height='2.6' rx='.6'/%3E%3C/g%3E%3Crect x='15.2' y='16.3' width='2.8' height='2.6' rx='.6' fill='%23f97316'/%3E%3C/svg%3E") center / 20px 20px no-repeat;
-  transition: transform 0.15s ease, filter 0.15s ease;
-}
-input[type='date']:not(:disabled):hover::-webkit-calendar-picker-indicator,
-input[type='datetime-local']:not(:disabled):hover::-webkit-calendar-picker-indicator {
-  transform: scale(1.15);
-  filter: drop-shadow(0 1px 2px rgba(9, 119, 236, 0.35));
-}
-input[type='date']:disabled,
-input[type='datetime-local']:disabled {
-  cursor: not-allowed;
-}
-input[type='date']:disabled::-webkit-calendar-picker-indicator,
-input[type='datetime-local']:disabled::-webkit-calendar-picker-indicator {
-  opacity: 0.45;
-  filter: grayscale(1);
-  cursor: not-allowed;
-}
 .form-control.ad-control:disabled,
 .form-control.ad-control[readonly],
 .form-select.ad-control:disabled {
@@ -300,12 +252,6 @@ input[type='datetime-local']:disabled::-webkit-calendar-picker-indicator {
 .form-control.ad-control.is-invalid:focus,
 .form-select.ad-control.is-invalid:focus {
   box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.15);
-}
-.form-select.ad-control-sm {
-  width: auto;
-  min-width: 76px;
-  height: 38px;
-  border-radius: 10px;
 }
 
 .ad-error {
@@ -579,38 +525,6 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   right: 0;
   background: #fff;
 }
-
-/* Bảng có viền + thanh tiêu đề (dùng cho Khách hàng, Đợt giảm giá).
-   Gắn class này vào thẻ .table-responsive bọc ngoài <table class="table">. */
-.ad-grid-table {
-  border: 1px solid var(--fs-line);
-  border-radius: 12px;
-  background: #fff;
-}
-.ad-grid-table > .table {
-  margin-bottom: 0 !important;
-}
-.ad-grid-table > .table > thead > tr > th {
-  --bs-table-bg: #eaf3fe;
-  background-color: #eaf3fe !important;
-  color: #1f2d3d !important;
-  font-weight: 700;
-  border-top: 0 !important;
-  border-bottom: 1px solid #d3e4fa !important;
-}
-.ad-grid-table > .table > tbody > tr > td {
-  border-bottom: 1px solid var(--fs-line) !important;
-}
-.ad-grid-table > .table > tbody > tr:last-child > td {
-  border-bottom: 0 !important;
-}
-/* Đường kẻ dọc giữa các cột */
-.ad-grid-table > .table > thead > tr > th + th {
-  border-left: 1px solid #d3e4fa !important;
-}
-.ad-grid-table > .table > tbody > tr > td + td {
-  border-left: 1px solid var(--fs-line-soft) !important;
-}
 .ad-code {
   font-weight: 600;
   letter-spacing: 0.2px;
@@ -726,13 +640,10 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
 .ad-pager {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: 1.1rem;
-}
-.ad-pager-size {
-  margin: 0;
 }
 .ad-pager-list {
   display: flex;
@@ -941,6 +852,16 @@ h3.ad-detail-name {
 }
 .ad-toast-text {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.ad-toast-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+.ad-toast-msg {
+  color: var(--fs-text-2);
 }
 .ad-toast-close {
   width: 28px;
@@ -1303,4 +1224,281 @@ a.ad-crumb-parent:hover {
   .ad-page-btn:hover:not(:disabled):not(.active) {
     transform: none;
   }
+}
+
+/* ---------- Bổ sung theo mẫu giao diện mới ---------- */
+
+/* Chấm xanh "đang trong ca" cạnh nút Ca làm việc */
+.ad-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+/* Avatar chữ cái đầu (khách hàng) */
+.ad-avatar-soft {
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+}
+.ad-avatar-xl {
+  width: 110px;
+  height: 110px;
+  font-size: 2.2rem;
+}
+.ad-profile-card {
+  position: sticky;
+  top: 1rem;
+  padding-block: 2rem;
+}
+
+/* Nút mũi tên quay lại ở đầu các trang thêm / sửa */
+.ad-back {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--fs-border, #e3eaf3);
+  background: #fff;
+  color: #1c2530;
+  display: inline-grid;
+  place-items: center;
+  margin-bottom: 1rem;
+}
+.ad-back:hover {
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+}
+
+/* Giá sau giảm (đậm, màu chủ đạo) */
+.ad-price-sale {
+  color: var(--fs-primary-dark);
+}
+
+/* ==========================================================================
+   Hộp xác nhận "?" dùng khi thêm mới / cập nhật (ConfirmQuestion.vue)
+   ========================================================================== */
+
+/* Hộp xác nhận giữa màn hình: vòng tròn dấu "?", Hủy / Đồng ý dạng viên thuốc */
+.ad-q-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: calc(100vw / var(--ui-zoom, 1));
+  height: calc(100vh / var(--ui-zoom, 1));
+  z-index: 1060;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.ad-q-box {
+  width: min(400px, 100%);
+  padding: 1.9rem 1.75rem 1.6rem;
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+  animation: ad-pop 0.18s ease-out;
+}
+
+.ad-q-icon {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 1rem;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--fs-primary);
+  border-radius: 50%;
+  color: var(--fs-primary);
+  font-size: 2rem;
+}
+
+h2.ad-q-title {
+  margin: 0 0 0.6rem;
+  font-size: 1.5rem;
+  line-height: 1.3;
+  letter-spacing: 0;
+  font-weight: 700;
+  color: var(--fs-navy);
+}
+
+.ad-q-text {
+  margin: 0 0 1.4rem;
+  color: var(--fs-text-2);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.ad-q-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.ad-q-btn {
+  min-width: 84px;
+  height: 40px;
+  padding: 0 1.2rem;
+  border: 1px solid var(--fs-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--fs-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(31, 45, 61, 0.08);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.ad-q-btn:hover:not(:disabled) {
+  background: var(--fs-hover-bg);
+  color: var(--fs-primary-dark);
+}
+
+.ad-q-btn-ok {
+  border-color: var(--fs-primary);
+  background: var(--fs-primary);
+  color: #fff;
+}
+
+.ad-q-btn-ok:hover:not(:disabled) {
+  background: var(--fs-primary-dark);
+  color: #fff;
+}
+
+.ad-q-btn:disabled {
+  opacity: 0.6;
+}
+
+.ad-q-btn:focus-visible {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Công tắc bật / tắt (switch) ---------- */
+/* Dùng ở danh sách phiếu giảm giá / đợt giảm giá. Bật = đang hoạt động, tắt = ngưng hoạt động. */
+.ad-switch-slot {
+  width: 44px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ad-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #c5ccd6;
+  cursor: pointer;
+  transition: background-color 0.18s ease;
+}
+.ad-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(24, 36, 47, 0.3);
+  transition: transform 0.18s ease;
+}
+.ad-switch.is-on {
+  background: var(--fs-primary);
+}
+.ad-switch.is-on::after {
+  transform: translateX(18px);
+}
+.ad-switch:hover:not(:disabled) {
+  background: #aab4c2;
+}
+.ad-switch.is-on:hover:not(:disabled) {
+  background: var(--fs-primary-dark);
+}
+.ad-switch:focus-visible {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+.ad-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- Trang Hóa đơn: bộ lọc 1 hàng + tab trạng thái dạng viên thuốc ---------- */
+.ad-filter-grid--hd {
+  grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+}
+.ad-filter-grid--hd .ad-filter-reset .ad-btn {
+  width: 100%;
+  justify-content: center;
+  white-space: nowrap;
+}
+@media (max-width: 1199.98px) {
+  .ad-filter-grid--hd {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ad-filter-grid--hd .ad-filter-reset {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 575.98px) {
+  .ad-filter-grid--hd {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ad-status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1.1rem;
+}
+.ad-status-tab {
+  border: 1px solid var(--fs-line-soft);
+  background: #fff;
+  color: var(--fs-muted);
+  border-radius: 999px;
+  padding: 0.45rem 1.05rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.ad-status-tab:hover:not(.active) {
+  border-color: var(--fs-primary);
+  color: var(--fs-primary-dark);
+}
+.ad-status-tab.active {
+  background: var(--fs-primary-soft);
+  border-color: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+  font-weight: 700;
+}
+.ad-status-tab:focus-visible {
+  outline: 2px solid var(--fs-primary);
+  outline-offset: 2px;
+}
+
+/* Số hóa đơn hiện cạnh tên tab trạng thái */
+.ad-status-tab-count {
+  display: inline-block;
+  min-width: 1.45rem;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(24, 36, 47, 0.08);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
+.ad-status-tab.active .ad-status-tab-count {
+  background: rgba(255, 255, 255, 0.7);
 }

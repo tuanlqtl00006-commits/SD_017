@@ -1,5 +1,6 @@
 package com.footstyle.demo.service;
 
+import com.footstyle.demo.dto.BienTheMoiRequest;
 import com.footstyle.demo.dto.BienTheRequest;
 import com.footstyle.demo.dto.BienTheResponse;
 import com.footstyle.demo.entity.ChuVi;
@@ -13,9 +14,14 @@ import com.footstyle.demo.repository.MauSacRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import com.footstyle.demo.repository.SanPhamRepository;
 import com.footstyle.demo.repository.TrongLuongRepository;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,16 +59,32 @@ public class BienTheService {
 
     @Transactional
     public BienTheResponse them(BienTheRequest req) {
-        SanPhamChiTiet b = new SanPhamChiTiet();
-        b.setTrangThai(SanPhamChiTiet.HOAT_DONG);
-        b.setNgayTao(LocalDateTime.now());
-
         // Sản phẩm của biến thể: phải tồn tại và đang hoạt động
         loi(req.idSanPham() == null, "Chọn sản phẩm.");
         SanPham sp = sanPhamRepo.findById(req.idSanPham())
                 .orElseThrow(() -> ApiException.badRequest("Sản phẩm không tồn tại."));
         loi(sp.getTrangThai() == null || sp.getTrangThai() != SanPham.HOAT_DONG,
                 "Sản phẩm đã ngưng hoạt động, không thể thêm biến thể mới.");
+
+        // Sản phẩm đã có biến thể cùng màu + trọng lượng + chu vi: không tạo trùng mà hỏi người dùng có muốn cập nhật không
+        SanPhamChiTiet daCo = timBienTheTrung(sp.getId(), req.idMauSac(), req.idTrongLuong(), req.idChuVi());
+        if (daCo != null) {
+            if (!Boolean.TRUE.equals(req.xacNhanCapNhat())) {
+                Map<String, Object> chiTiet = new LinkedHashMap<>();
+                chiTiet.put("id", daCo.getId());
+                chiTiet.put("ma", daCo.getMaSpct());
+                chiTiet.put("giaBan", daCo.getGiaBan());
+                chiTiet.put("soLuongTon", daCo.getSoLuongTon());
+                throw ApiException.daTonTai("BIEN_THE_DA_TON_TAI",
+                        "Biến thể " + daCo.getMaSpct() + " đã tồn tại (cùng màu sắc, trọng lượng, chu vi). Bạn có muốn cập nhật giá bán và số lượng tồn không?",
+                        chiTiet);
+            }
+            return toResponse(capNhatBienTheDaCo(daCo, sp, req));
+        }
+
+        SanPhamChiTiet b = new SanPhamChiTiet();
+        b.setTrangThai(SanPhamChiTiet.HOAT_DONG);
+        b.setNgayTao(LocalDateTime.now());
 
         // Mã biến thể: đúng định dạng và chưa ai dùng
         String ma = docMa(req);
@@ -74,6 +96,70 @@ public class BienTheService {
         napDuLieu(b, sp, req);
         b.setNgayCapNhat(LocalDateTime.now());
         return toResponse(bienTheRepo.save(b));
+    }
+
+    /* ===================== Thêm nhiều biến thể cùng sản phẩm ===================== */
+
+    /** Kết quả lưu nhiều biến thể: moi = số biến thể tạo mới, capNhat = số biến thể đã có được cập nhật giá / tồn. */
+    public record KetQuaLuu(int moi, int capNhat) {
+    }
+
+    /** Có bao nhiêu biến thể trong danh sách TRÙNG (cùng màu + trọng lượng + chu vi) với biến thể đã có của sản phẩm. */
+    @Transactional(readOnly = true)
+    public int demTrung(Integer idSanPham, List<BienTheMoiRequest> ds) {
+        int dem = 0;
+        if (ds != null) {
+            for (BienTheMoiRequest x : ds) {
+                if (timBienTheTrung(idSanPham, x.idMauSac(), x.idTrongLuong(), x.idChuVi()) != null) {
+                    dem++;
+                }
+            }
+        }
+        return dem;
+    }
+
+    /**
+     * Lưu danh sách biến thể của một sản phẩm: bộ (màu + trọng lượng + chu vi) chưa có thì tạo mới (mã tự sinh),
+     * đã có thì CẬP NHẬT giá bán + số lượng tồn (và bật lại nếu đang ngưng). Cùng thành công hoặc cùng hủy.
+     */
+    @Transactional
+    public KetQuaLuu luuNhieu(SanPham sp, List<BienTheMoiRequest> ds) {
+        if (ds == null || ds.isEmpty()) {
+            return new KetQuaLuu(0, 0);
+        }
+        loi(sp.getTrangThai() == null || sp.getTrangThai() != SanPham.HOAT_DONG,
+                "Sản phẩm đang ngưng hoạt động, hãy kích hoạt sản phẩm trước khi thêm biến thể.");
+
+        // Một danh sách không được có 2 dòng cùng màu + trọng lượng + chu vi
+        Set<String> daThay = new HashSet<>();
+        for (BienTheMoiRequest x : ds) {
+            loi(x == null || x.idMauSac() == null || x.idTrongLuong() == null || x.idChuVi() == null,
+                    "Mỗi biến thể cần chọn đủ màu sắc, trọng lượng và chu vi.");
+            loi(!daThay.add(x.idMauSac() + "-" + x.idTrongLuong() + "-" + x.idChuVi()),
+                    "Danh sách biến thể có hai dòng cùng màu sắc, trọng lượng và chu vi.");
+        }
+
+        int moi = 0;
+        int capNhat = 0;
+        for (BienTheMoiRequest x : ds) {
+            BienTheRequest req = new BienTheRequest(sp.getId(), x.idMauSac(), x.idTrongLuong(), x.idChuVi(), null,
+                    x.giaBan(), x.soLuongTon(), true);
+            SanPhamChiTiet daCo = timBienTheTrung(sp.getId(), x.idMauSac(), x.idTrongLuong(), x.idChuVi());
+            if (daCo != null) {
+                capNhatBienTheDaCo(daCo, sp, req);
+                capNhat++;
+            } else {
+                SanPhamChiTiet b = new SanPhamChiTiet();
+                b.setTrangThai(SanPhamChiTiet.HOAT_DONG);
+                b.setNgayTao(LocalDateTime.now());
+                napDuLieu(b, sp, req);
+                b.setMaSpct(taoMaBienThe(sp, b));
+                b.setNgayCapNhat(LocalDateTime.now());
+                bienTheRepo.save(b);
+                moi++;
+            }
+        }
+        return new KetQuaLuu(moi, capNhat);
     }
 
     // Sửa: được đổi sản phẩm (vd SP008 -> SP007), mã biến thể không sửa tay (chỉ đổi phần đầu theo sản phẩm mới)
@@ -181,6 +267,53 @@ public class BienTheService {
         loi(req.soLuongTon() < 0, "Số lượng tồn là số nguyên từ 0 trở lên.");
         loi(req.soLuongTon() > 1_000_000, "Số lượng tồn tối đa 1.000.000.");
         b.setSoLuongTon(req.soLuongTon());
+    }
+
+    private SanPhamChiTiet timBienTheTrung(Integer idSanPham, Integer idMau, Integer idTl, Integer idCv) {
+        if (idSanPham == null || idMau == null || idTl == null || idCv == null) {
+            return null;
+        }
+        List<SanPhamChiTiet> ds = bienTheRepo.findBySanPhamIdAndMauSacIdAndTrongLuongIdAndChuViId(idSanPham, idMau, idTl, idCv);
+        return ds.isEmpty() ? null : ds.get(0);
+    }
+
+    // Cập nhật biến thể đã có theo dữ liệu mới (giá bán, số lượng tồn); biến thể đang ngưng thì bật lại vì người dùng vừa chủ động thêm nó
+    private SanPhamChiTiet capNhatBienTheDaCo(SanPhamChiTiet b, SanPham sp, BienTheRequest req) {
+        napDuLieu(b, sp, req);
+        b.setTrangThai(SanPhamChiTiet.HOAT_DONG);
+        b.setNgayCapNhat(LocalDateTime.now());
+        return bienTheRepo.save(b);
+    }
+
+    private static boolean laKhongApDung(String ten) {
+        return ten != null && "Không áp dụng".equalsIgnoreCase(ten.trim());
+    }
+
+    // Mã tự sinh: <MÃ SP>-<MÀU>-<TRỌNG LƯỢNG>-<CHU VI>, thêm -2, -3... nếu bị trùng; tối đa 50 ký tự
+    private String taoMaBienThe(SanPham sp, SanPhamChiTiet b) {
+        String tl = b.getTrongLuong().getTen() == null ? "" : b.getTrongLuong().getTen().trim().split("\\s+")[0];
+        String goc = sp.getMaSanPham().toUpperCase() + "-" + slug(b.getMauSac().getTen());
+        // Danh mục không phải vợt không có trọng lượng / chu vi (được gán "Không áp dụng") nên không đưa vào mã
+        if (!laKhongApDung(b.getTrongLuong().getTen())) goc += "-" + slug(tl);
+        if (!laKhongApDung(b.getChuVi().getTen())) goc += "-" + slug(b.getChuVi().getTen());
+        if (goc.length() > 46) {
+            goc = goc.substring(0, 46);
+        }
+        String ma = goc;
+        int so = 2;
+        while (bienTheRepo.existsByMaSpctIgnoreCase(ma)) {
+            ma = goc + "-" + so++;
+        }
+        return ma;
+    }
+
+    // "Xanh dương" -> "XANHDUONG" (bỏ dấu, chỉ giữ chữ và số)
+    private static String slug(String s) {
+        if (s == null) {
+            return "";
+        }
+        String x = Normalizer.normalize(s, Normalizer.Form.NFD).replaceAll("\\p{M}", "").replace('đ', 'd').replace('Đ', 'D');
+        return x.replaceAll("[^A-Za-z0-9]+", "").toUpperCase();
     }
 
     private BienTheResponse toResponse(SanPhamChiTiet b) {

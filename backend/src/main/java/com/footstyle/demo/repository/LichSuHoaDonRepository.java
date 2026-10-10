@@ -8,8 +8,6 @@ import java.util.List;
 
 @Repository
 public interface LichSuHoaDonRepository extends JpaRepository<LichSuHoaDon, Integer> {
-    List<LichSuHoaDon> findByHoaDon_Id(Integer idHoaDon);
-
     /** Lịch sử của một hóa đơn, cũ trước mới sau (đúng thứ tự trên dòng thời gian). */
-    List<LichSuHoaDon> findByHoaDon_IdOrderByNgayTaoAscIdAsc(Integer idHoaDon);
+    List<LichSuHoaDon> findByHoaDon_IdOrderByThoiGianAscIdAsc(Integer idHoaDon);
 }

@@ -14,7 +14,10 @@ const { toasts, remove } = useToast()
       :role="t.type === 'error' ? 'alert' : 'status'"
     >
       <i class="bi" :class="t.type === 'error' ? 'bi-exclamation-triangle-fill' : 'bi-check-circle-fill'" aria-hidden="true"></i>
-      <span class="ad-toast-text">{{ t.message }}</span>
+      <span class="ad-toast-text">
+        <strong class="ad-toast-title">{{ t.title || (t.type === 'error' ? 'Thất bại!' : 'Thành công!') }}</strong>
+        <span class="ad-toast-msg">{{ t.message }}</span>
+      </span>
       <button type="button" class="ad-toast-close" aria-label="Đóng thông báo" @click="remove(t.id)">
         <i class="bi bi-x-lg" aria-hidden="true"></i>
       </button>
