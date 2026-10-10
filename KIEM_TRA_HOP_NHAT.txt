@@ -98,3 +98,43 @@ TÁCH FILE SQL THÀNH 2 (10/10/2026)
 database/SD_17_tong.sql: giữ nguyên, không sửa (cấu trúc + toàn bộ dữ liệu mẫu + nâng cấp).
 database/SD_17_du_lieu.sql: MỚI, chỉ phần dữ liệu (phần 2 đến 5 của file tổng, giữ nguyên từng dòng, 43 lệnh GO), không CREATE DATABASE, chạy lại nhiều lần được,
 có mục "THÊM DỮ LIỆU MỚI Ở ĐÂY" ở cuối. Đã kiểm tra: mọi lệnh đọc được theo cú pháp T-SQL, mọi INSERT dùng đúng bảng / cột của file tổng. Chưa chạy trên SQL Server thật.
+
+
+
+GỘP THÊM NGÀY 10/10/2026 (tối) - SD_017-main_1.zip + SD_017-main_2.zip
+=======================================================================
+Bản 1 (SD_017-main_1.zip) = bản gộp mới nhất của nhóm (có toàn bộ phần ghi ở trên).
+Bản 2 (SD_017-main_2.zip) = bản cũ ngày 06/10 trên máy Hiếu, cộng thêm các phần sửa phiếu giảm giá làm trong ngày 10/10.
+=> Lấy Bản 1 làm gốc, chỉ đưa vào những phần Bản 2 có mà Bản 1 chưa có. Các file khác của Bản 2 là bản cũ hơn nên bỏ.
+
+ĐƯA VÀO TỪ BẢN 2
+  1. Mail phiếu giảm giá dạng HTML có logo FootStyle, màu xanh của shop (thay mail chữ thường của Bản 1):
+     - backend/src/main/resources/templates/mail/: fragments.html (logo, lời chào, khung thông tin phiếu, khung phiếu hủy, nút bấm, chân thư),
+       pgg-moi.html, pgg-cap-nhat.html, pgg-huy.html; logo: backend/src/main/resources/mail/logo.png (16 KB, gắn thẳng vào mail bằng cid).
+     - MailService.java: GIỮ NGUYÊN cách gọi, hàng đợi gửi ở luồng riêng và chế độ "MAIL GIẢ LẬP"; chỉ đổi nội dung sang HTML (kèm bản chữ thường
+       cho ứng dụng mail không hiện HTML), tiêu đề mới. Dựng mẫu lỗi thì tự gửi bản chữ thường.
+     - pom.xml: thêm spring-boot-starter-thymeleaf. application.properties: cấu hình Gmail sẵn, chỉ cần MAIL_USERNAME / MAIL_PASSWORD
+       (SPRING_MAIL_* kiểu cũ vẫn chạy), app.shop-url (nút "Mua sắm ngay").
+  2. Bảng "Danh sách khách hàng nhận phiếu" (phiếu cá nhân) đủ cột: Mã KH, Tên khách hàng, Ngày sinh, Số điện thoại, Email, Đã mua, Gần nhất;
+     ô chọn tất cả ở tiêu đề bảng, nhãn "Đã chọn N", bấm cả dòng để chọn, tìm theo mã / tên / SĐT.
+     - KhachHangTomTatResponse: thêm ngaySinh, soDonDaMua, lanMuaGanNhat.
+     - HoaDonRepository.thongKeMuaHangTheoKhach: 1 câu GROUP BY đếm hóa đơn mỗi khách (KHÔNG tính đơn đã hủy) + ngày tạo đơn gần nhất.
+     - PhieuGiamGiaService: getKhachHangCoTheChon / getKhachHangDuocTang trả thêm 3 thông tin trên.
+     - PhieuGiamGiaFormModal.vue (dùng cho trang /phieu-giam-gia/them và /{id}/sua): thay danh sách chọn khách bằng bảng.
+     - BaseModal.vue: thêm cỡ "xl" (không ảnh hưởng các cửa sổ khác).
+     - Test mới: frontend/tests/phieuGiamGiaKhachHang.test.js (4 test).
+
+KHÔNG ĐƯA VÀO (Bản 1 đã có cách làm riêng / mới hơn)
+  - Bộ gửi mail riêng của Bản 2 (mail/PhieuGiamGiaMailEvent, PhieuGiamGiaMailListener, config/AsyncConfig) và phần so khách cũ / mới trong
+    PhieuGiamGiaService của Bản 2: Bản 1 đã có PhieuMailKeHoach + MailService làm đúng TH1 / TH2 / TH3. Giữ cả hai sẽ GỬI MAIL 2 LẦN.
+  - Công tắc bật / tắt phiếu của Bản 2: Bản 1 đã có StatusSwitch (cùng màu xanh).
+  - SecurityConfig, MockSanPhamChiTietController, NhanVienFormModal / NhanVienDetailModal, DotGiamGiaChiTietModal (thư mục gốc),
+    các file SQL lẻ cũ (SD_17.sql, SD_17_du_lieu_*.sql, SD_17_nang_cap.sql): Bản 1 đã bỏ / thay bằng SD_17_tong.sql, trang thêm sửa mới.
+
+ĐÃ KIỂM TRA
+  - Frontend: npm ci + npm run build: thành công. npm test: 88/88 test đạt (84 test có sẵn + 4 test mới của bảng khách hàng).
+  - MailService.java: biên dịch bằng javac với lớp giả tối thiểu của Spring / Jakarta Mail / Thymeleaf: 0 lỗi.
+CHƯA KIỂM TRA ĐƯỢC (môi trường bị chặn tải thư viện Maven)
+  - mvn / Spring Boot chạy thật, câu truy vấn thongKeMuaHangTheoKhach trên SQL Server, gửi mail Gmail thật.
+=======
+

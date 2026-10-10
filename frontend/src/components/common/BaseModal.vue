@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 
 const props = defineProps({
   title: { type: String, required: true },
-  size: { type: String, default: 'md' }, // sm | md | lg
+  size: { type: String, default: 'md' }, // sm | md | lg | xl
   // true: không đóng khi bấm nền mờ hoặc nhấn Esc (dùng cho form để tránh mất dữ liệu)
   staticBackdrop: { type: Boolean, default: false },
 })
@@ -14,7 +14,7 @@ const dialogRef = ref(null)
 let previousFocus = null
 let previousOverflow = ''
 
-const sizeClass = computed(() => ({ sm: 'modal-sm', lg: 'modal-lg' })[props.size] ?? '')
+const sizeClass = computed(() => ({ sm: 'modal-sm', lg: 'modal-lg', xl: 'modal-xl' })[props.size] ?? '')
 
 function onKeydown(e) {
   if (e.key === 'Escape' && !props.staticBackdrop) emit('close')

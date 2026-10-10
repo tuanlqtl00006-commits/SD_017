@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Phiếu giảm giá đã được cập nhật</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f6f9;">
+    <tr>
+        <td align="center" style="padding:24px 12px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="max-width:560px;background:#ffffff;border:1px solid #e6eaf0;border-radius:12px;">
+                <tr th:replace="~{mail/fragments :: dauThu}"></tr>
+                <tr th:replace="~{mail/fragments :: loiChao}"></tr>
+                <tr>
+                    <td style="padding:12px 32px 8px 32px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#4b5563;">
+                        Phiếu giảm giá <b style="color:#18242f;">FootStyle</b> dành tặng bạn vừa được
+                        <b style="color:#0977ec;">cập nhật</b>. Dưới đây là thông tin mới nhất:
+                    </td>
+                </tr>
+                <tr th:replace="~{mail/fragments :: theVoucher}"></tr>
+                <tr>
+                    <td style="padding:12px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#4b5563;">
+                        Mã sử dụng không đổi, bạn vẫn nhập mã trên khi thanh toán để được giảm giá nhé!
+                    </td>
+                </tr>
+                <tr th:replace="~{mail/fragments :: nutBam('Mua sắm ngay')}"></tr>
+                <tr th:replace="~{mail/fragments :: chanThu}"></tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

@@ -3,10 +3,12 @@ package com.footstyle.demo.service;
 import com.footstyle.demo.dto.KhachHangTomTatResponse;
 import com.footstyle.demo.dto.PhieuGiamGiaRequest;
 import com.footstyle.demo.dto.PhieuGiamGiaResponse;
+import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.PhieuGiamGia;
 import com.footstyle.demo.entity.PhieuGiamGiaKhachHang;
 import com.footstyle.demo.exception.ApiException;
+import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.KhachHangRepository;
 import com.footstyle.demo.repository.PhieuGiamGiaKhachHangRepository;
 import com.footstyle.demo.repository.PhieuGiamGiaRepository;
@@ -37,6 +39,10 @@ public class PhieuGiamGiaService {
     private final PhieuGiamGiaKhachHangRepository phieuKhRepo;
     private final KhachHangRepository khachHangRepo;
     private final MailService mailService;
+ Hieu
+    private final HoaDonRepository hoaDonRepo; // thống kê số đơn đã mua của khách (bảng chọn khách nhận phiếu)
+=======
+
 
     /* ===================== Đọc ===================== */
 
@@ -59,9 +65,10 @@ public class PhieuGiamGiaService {
     // Khách hàng đang hoạt động, dùng cho ô chọn khi tặng phiếu cá nhân
     @Transactional(readOnly = true)
     public List<KhachHangTomTatResponse> getKhachHangCoTheChon() {
+        Map<Integer, ThongKeMua> thongKe = layThongKeMuaHang(); // 1 câu truy vấn cho tất cả khách
         List<KhachHangTomTatResponse> ketQua = new ArrayList<>();
         for (KhachHang k : khachHangRepo.findByTrangThaiOrderByHoTenAsc(1)) {
-            ketQua.add(toKhachHang(k, false));
+            ketQua.add(toKhachHang(k, false, thongKe));
         }
         return ketQua;
     }
@@ -374,18 +381,47 @@ public class PhieuGiamGiaService {
 
     // Khách hàng được tặng phiếu (kèm cờ đã dùng hay chưa)
     private List<KhachHangTomTatResponse> getKhachHangDuocTang(Integer idPhieu) {
+        List<PhieuGiamGiaKhachHang> lienKet = phieuKhRepo.findByIdPhieuGiamGia(idPhieu);
         List<KhachHangTomTatResponse> ketQua = new ArrayList<>();
-        for (PhieuGiamGiaKhachHang l : phieuKhRepo.findByIdPhieuGiamGia(idPhieu)) {
+        if (lienKet.isEmpty()) return ketQua; // phiếu công khai: không cần truy vấn thống kê
+        Map<Integer, ThongKeMua> thongKe = layThongKeMuaHang();
+        for (PhieuGiamGiaKhachHang l : lienKet) {
             KhachHang k = khachHangRepo.findById(l.getIdKhachHang()).orElse(null);
             if (k != null) {
-                ketQua.add(toKhachHang(k, l.getNgaySuDung() != null));
+                ketQua.add(toKhachHang(k, l.getNgaySuDung() != null, thongKe));
             }
         }
         return ketQua;
     }
 
-    private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung) {
-        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), daDung);
+    /** Số đơn đã mua và lần mua gần nhất của 1 khách. */
+    private record ThongKeMua(long soDon, LocalDateTime ganNhat) {
+    }
+
+    // Đếm hóa đơn của từng khách (bỏ đơn đã hủy) bằng 1 câu GROUP BY, tránh truy vấn lặp theo từng khách
+    private Map<Integer, ThongKeMua> layThongKeMuaHang() {
+        Map<Integer, ThongKeMua> ketQua = new HashMap<>();
+        for (Object[] dong : hoaDonRepo.thongKeMuaHangTheoKhach(HoaDon.DA_HUY)) {
+            Integer idKhachHang = (Integer) dong[0];
+            long soDon = ((Number) dong[1]).longValue();
+            LocalDateTime ganNhat = (LocalDateTime) dong[2];
+            ketQua.put(idKhachHang, new ThongKeMua(soDon, ganNhat));
+        }
+        return ketQua;
+    }
+
+    private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung, Map<Integer, ThongKeMua> thongKe) {
+        ThongKeMua tk = thongKe.getOrDefault(k.getId(), new ThongKeMua(0, null));
+        return new KhachHangTomTatResponse(
+                k.getId(),
+                k.getMaKhachHang(),
+                k.getHoTen(),
+                k.getSdt(),
+                k.getEmail(),
+                k.getNgaySinh(),
+                tk.soDon(),
+                tk.ganNhat(),
+                daDung);
     }
 
     // Đổi entity thành dữ liệu trả về cho frontend (số trong DB -> chữ)

@@ -12,10 +12,20 @@
    **Gặp lỗi "Invalid column name 'cccd'" / "Invalid object name 'vi_tri'" / trang Hóa đơn báo "Không tải được danh sách hóa đơn"?** Nghĩa là CSDL được tạo từ bản SQL cũ (thiếu cột `nhan_vien.cccd` và bảng `vi_tri`, `nhan_vien_vi_tri`, `dia_chi_nhan_vien`). Cách xử lý: khởi động lại backend (backend tự bổ sung phần còn thiếu khi chạy và ghi dòng "Đã kiểm tra / nâng cấp cấu trúc CSDL" vào log), hoặc chạy phần 6 "Nâng cấp CSDL cũ" của `database/SD_17_tong.sql`. Phần dữ liệu mẫu trong file tổng cũng tự bổ sung phần thiếu trước khi chèn dữ liệu nên chạy trên CSDL cũ không còn báo lỗi.
 2. Backend (Java 17, cổng 8081): sửa user/mật khẩu SQL Server trong `backend/src/main/resources/application.properties`
    (hoặc đặt biến môi trường `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`), rồi `cd backend && ./mvnw spring-boot:run`.
+   **Gửi mail phiếu giảm giá cá nhân (không bắt buộc):** mặc định dùng Gmail (đã cấu hình sẵn host / cổng / TLS), chỉ cần đặt 2 biến môi trường
+   `MAIL_USERNAME` (Gmail của shop) và `MAIL_PASSWORD` ("Mật khẩu ứng dụng" 16 ký tự: Tài khoản Google > Bảo mật > Xác minh 2 bước > Mật khẩu ứng dụng).
+   IntelliJ: Run > Edit Configurations > Environment variables: `MAIL_USERNAME=email@gmail.com;MAIL_PASSWORD=xxxxxxxxxxxxxxxx`.
+   (Kiểu cũ `SPRING_MAIL_HOST` / `SPRING_MAIL_USERNAME` / `SPRING_MAIL_PASSWORD` vẫn dùng được.) Chưa đặt `MAIL_USERNAME` thì hệ thống KHÔNG gửi mail thật,
+   chỉ ghi nội dung mail vào log của backend (dòng `[MAIL GIẢ LẬP ...]`) để thử chức năng; khách chưa có email thì bị bỏ qua.
+   Mail là HTML có logo FootStyle, dựng từ mẫu trong `backend/src/main/resources/templates/mail` (`pgg-moi`, `pgg-cap-nhat`, `pgg-huy`; phần dùng chung
+   như logo, khung thông tin phiếu, nút bấm, chân thư nằm ở `fragments.html`), logo ở `backend/src/main/resources/mail/logo.png`.
+   Nút "Mua sắm ngay" trong mail trỏ tới `app.shop-url` (mặc định `http://localhost:5173`, đổi bằng biến môi trường `SHOP_URL`).
+
    **Gửi mail phiếu giảm giá cá nhân (không bắt buộc):** muốn gửi mail thật thì đặt biến môi trường `SPRING_MAIL_HOST` (vd `smtp.gmail.com`),
    `SPRING_MAIL_PORT` (587), `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` (Gmail: dùng "Mật khẩu ứng dụng"), rồi bật
    `SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true` và `SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true`. Chưa cấu hình thì hệ thống KHÔNG gửi mail thật,
    chỉ ghi nội dung mail vào log của backend (dòng `[MAIL GIẢ LẬP ...]`) để thử chức năng; khách chưa có email thì bị bỏ qua.
+
    **Đợt giảm giá chồng nhau:** một biến thể nằm trong nhiều đợt chạy cùng ngày thì mặc định lấy mức giảm CAO NHẤT (vd 10% và 15% → 15%).
    Muốn lấy TRUNG BÌNH CỘNG (10% và 15% → 12,5%) thì đặt `app.giam-gia.che-do-chong-dot=TRUNG_BINH` trong `application.properties`
    (hoặc biến môi trường `GIAM_GIA_CHE_DO=TRUNG_BINH`). Cả giá hiển thị ở danh sách sản phẩm / biến thể lẫn khung lịch giảm giá đều theo cấu hình này.
@@ -38,7 +48,11 @@ Vai trò chọn ở đầu trang (nhớ lại sau khi tải lại): **Quản lý
 | /san-pham/{danh-muc, thuong-hieu, xuat-xu, chat-lieu, do-cung, diem-can-bang, mau-sac, trong-luong, chu-vi} | 9 bảng thuộc tính (menu "Danh sách thuộc tính") |
 | /khach-hang, /khach-hang/them | Khách hàng (kèm địa chỉ). Chọn địa chỉ theo **địa giới sau sáp nhập 07/2025** (API v2 của provinces.open-api.vn: Tỉnh/Thành phố -> Phường/Xã, không còn Quận/Huyện), dùng cho trang Thêm khách hàng và cửa sổ Địa chỉ (cần có mạng internet). Địa chỉ cũ trước sáp nhập vẫn hiện đủ, khi sửa thì nhắc chọn lại |
 | /dot-giam-gia, /dot-giam-gia/them, /dot-giam-gia/{id} | Đợt giảm giá: danh sách (lọc, xuất Excel, công tắc bật/tắt, xem chi tiết, nút "Sản phẩm áp dụng" để thêm / gỡ nhanh từng biến thể). Trạng thái hiển thị tính theo khoảng ngày: Sắp diễn ra / Đang diễn ra / Đã kết thúc / Ngừng hoạt động; công tắc còn hiện khi đợt chưa quá ngày kết thúc (đúng ngày kết thúc vẫn bật / tắt được), sang ngày hôm sau là "Đã kết thúc" và công tắc biến mất. Khi soạn đợt (thêm / sửa) có khung "Lịch giảm giá khi đợt chồng nhau" xem trước theo dữ liệu đang nhập: biến thể nằm trong đợt khác cùng thời gian thì liệt kê từng khoảng ngày kèm mức Cao nhất / Trung bình, ô xanh là mức đang áp dụng. Trang xem / sửa còn có khung "Lịch giảm giá theo ngày" lấy từ backend (đã lưu), tính cả các đợt khác chồng lên (chế độ MAX hoặc TRUNG_BINH theo cấu hình). Trang thêm / xem / sửa: mã tự sinh dạng ngắn theo số thứ tự (DGG009, nút làm mới), tên, %, từ ngày - đến ngày, mô tả, chọn sản phẩm - biến thể áp dụng (lọc theo màu, trọng lượng, chu vi cán), hộp xác nhận trước khi lưu |
+
+| /phieu-giam-gia, /phieu-giam-gia/them, /phieu-giam-gia/{id}/sua | Phiếu giảm giá: công tắc bật/tắt (hiện khi phiếu chưa quá ngày kết thúc). Phiếu cá nhân gửi mail khi tạo (mail phiếu mới) và khi sửa phiếu còn "Sắp diễn ra" (phiếu đã / đang diễn ra thì sửa không gửi mail): đổi thông tin phiếu → khách giữ lại nhận mail cập nhật; thêm khách → mail phiếu mới; bỏ khách → mail hủy; chỉ đổi danh sách khách (thông tin phiếu giữ nguyên) → khách giữ lại không nhận mail. Phiếu cá nhân chọn khách trong bảng "Danh sách khách hàng nhận phiếu" (Mã KH, Tên, Ngày sinh, SĐT, Email, Đã mua = số đơn không tính đơn hủy, Gần nhất = lần mua gần nhất; ô chọn tất cả ở tiêu đề, nhãn "Đã chọn N") |
+=======
 | /phieu-giam-gia, /phieu-giam-gia/them, /phieu-giam-gia/{id}/sua | Phiếu giảm giá: công tắc bật/tắt (hiện khi phiếu chưa quá ngày kết thúc). Phiếu cá nhân gửi mail khi tạo (mail phiếu mới) và khi sửa phiếu còn "Sắp diễn ra" (phiếu đã / đang diễn ra thì sửa không gửi mail): đổi thông tin phiếu → khách giữ lại nhận mail cập nhật; thêm khách → mail phiếu mới; bỏ khách → mail hủy; chỉ đổi danh sách khách (thông tin phiếu giữ nguyên) → khách giữ lại không nhận mail |
+
 | /nhan-vien, /nhan-vien/them, /nhan-vien/{id} | Nhân viên. Thêm nhân viên: **mã tự tạo theo tên** (Nguyễn Hoàng Long -> `LongNH01`, trùng dạng mã thì `LongNH02`...), hiện ngay khi nhập họ tên; nút **Quét căn cước** đọc mã QR trên thẻ CCCD (camera / chọn ảnh / máy quét mã vạch) và điền họ tên, ngày sinh, giới tính, số CCCD (địa chỉ trên thẻ hiện làm gợi ý khi nhập địa chỉ cụ thể); **nhiều địa chỉ** (Tỉnh/Thành phố → Phường/Xã), chọn 1 địa chỉ chính, chỉ thêm / sửa / chọn lại, **không có nút xóa địa chỉ**; **Vị trí làm việc**: chọn nhiều vị trí đã thêm hoặc thêm vị trí mới (không có chức năng xóa vị trí). Sửa nhân viên được đổi: họ tên, giới tính, ngày sinh, SĐT, số CCCD, địa chỉ, vai trò, vị trí; không đổi: mã, email, ngày vào làm, mật khẩu. Danh sách nhân viên có cột Vị trí, tìm theo mã / tên / email / SĐT / CCCD |
 
 ## API
