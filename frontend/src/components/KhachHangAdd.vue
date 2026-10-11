@@ -10,7 +10,23 @@
           <!-- Thẻ hồ sơ: avatar chữ cái đầu + tên, email đang nhập -->
           <div class="col-12 col-xl-3">
             <div class="ad-card text-center ad-profile-card">
-              <span class="ad-avatar ad-avatar-xl ad-avatar-soft">{{ avatarText }}</span>
+              <div class="position-relative d-inline-block">
+                <label for="avatar-upload" class="d-inline-block position-relative rounded-circle overflow-hidden shadow-sm" style="width: 120px; height: 120px; cursor: pointer; border: 3px solid #f1f3f5;">
+                  <input type="file" id="avatar-upload" class="d-none" accept="image/*" @change="handleFileUpload" >
+                  <img v-if="formData.anhDaiDien" :src="formData.anhDaiDien" class="w-100 h-100" style="object-fit: cover;">
+                  <span v-else class="ad-avatar w-100 h-100 ad-avatar-soft d-flex align-items-center justify-content-center" style="font-size: 2.5rem; background-color: #f1f3f5; color: #adb5bd;">
+                    <i class="bi bi-camera"></i>
+                  </span>
+                  
+                  <!-- Overlay lúc đang tải -->
+                  <div v-if="isUploading" class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                  </div>
+                </label>
+                <div  class="position-absolute bottom-0 end-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; transform: translate(-10px, -10px); pointer-events: none;">
+                  <i class="bi bi-pencil-fill small"></i>
+                </div>
+              </div>
               <h2 class="ad-card-title mt-3">{{ formData.ten?.trim() || 'Khách hàng mới' }}</h2>
               <p class="ad-card-sub">{{ formData.email?.trim() || 'Chưa cập nhật email' }}</p>
               <p class="ad-card-sub mt-3">Mã khách hàng do hệ thống tự sinh.</p>
@@ -130,6 +146,31 @@ const toast = useToast()
 
 const errorMessage = ref('')
 const phoneErrorMsg = ref('')
+
+const isUploading = ref(false)
+
+const handleFileUpload = async (e) => {
+  
+  const file = e.target.files[0]
+  if (!file) return
+  
+  isUploading.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const { data } = await api.post('/hinh-anh/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    formData.value.anhDaiDien = data.duongDan
+    toast.success('Tải ảnh lên thành công!')
+  } catch (err) {
+    toast.error('Lỗi khi tải ảnh lên.')
+  } finally {
+    isUploading.value = false
+    e.target.value = ''
+  }
+}
+
 const emailErrorMsg = ref('')
 
 const avatarText = computed(() => {
@@ -144,7 +185,8 @@ const formData = ref({
   email: '',
   ngaySinh: '',
   gioiTinh: 1,
-  trangThai: 1
+  trangThai: 1,
+    anhDaiDien: ''
 })
 
 const addressData = ref({
@@ -200,7 +242,16 @@ const createCustomer = async () => {
     return
   }
 
+  if (addressData.value.sdtNguoiNhan && !vnPhoneRegex.test(addressData.value.sdtNguoiNhan.trim())) {
+
+    errorMessage.value = 'Số điện thoại người nhận không hợp lệ (phải là SĐT Việt Nam 10 số).'
+
+    return
+
+  }
+
   try {
+
     // Địa chỉ giao hàng nhập ở form này sẽ được backend lưu thành địa chỉ mặc định của khách hàng
     const payload = {
       hoTen: formData.value.ten.trim(),
@@ -208,6 +259,7 @@ const createCustomer = async () => {
       sdt: formData.value.sdt.trim(),
       gioiTinh: formData.value.gioiTinh,
       trangThai: 1,
+    anhDaiDien: formData.value.anhDaiDien,
       ngaySinh: formData.value.ngaySinh || null,
       tenNguoiNhan: addressData.value.hoTenNguoiNhan,
       sdtNguoiNhan: addressData.value.sdtNguoiNhan,

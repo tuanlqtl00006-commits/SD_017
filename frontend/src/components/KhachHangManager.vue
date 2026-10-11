@@ -58,6 +58,7 @@
                     <th class="py-3 fw-bold text-dark border-0" style="width: 60px;">STT</th>
                     <th class="py-3 fw-bold text-dark border-0" style="width: 70px;">Ảnh</th>
                     <th class="py-3 fw-bold text-dark border-0">Họ tên</th>
+                    <th class="py-3 fw-bold text-dark border-0">Tên người nhận</th>
                     <th class="py-3 fw-bold text-dark border-0">Email</th>
                     <th class="py-3 fw-bold text-dark border-0" style="width: 250px;">Địa chỉ</th>
                     <th class="py-3 fw-bold text-dark border-0">Số điện thoại</th>
@@ -77,8 +78,12 @@
                   </tr>
                   <tr v-for="(kh, index) in paginatedCustomers" :key="kh.id">
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
-                    <td class="py-2" style="border-bottom: 1px solid #f0f0f0;"><span class="ad-avatar ad-avatar-soft">{{ initials(kh.hoTen) }}</span></td>
+                    <td class="py-2" style="border-bottom: 1px solid #f0f0f0;">
+                      <img v-if="kh.anhDaiDien" :src="kh.anhDaiDien" class="rounded-circle shadow-sm" style="width: 38px; height: 38px; object-fit: cover;">
+                      <span v-else class="ad-avatar ad-avatar-soft">{{ initials(kh.hoTen) }}</span>
+                    </td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.hoTen }}</td>
+                    <td class="py-3 text-muted fw-medium" style="border-bottom: 1px solid #f0f0f0;">{{ getDefaultAddress(kh)?.tenNguoiNhan || "Chưa cập nhật" }}</td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.email }}</td>
                     <td class="py-3 small" style="border-bottom: 1px solid #f0f0f0; white-space: normal;">
                       <span v-if="kh.diaChiList && kh.diaChiList.length > 0">
@@ -216,7 +221,7 @@
             ? `Bạn có chắc chắn muốn ngừng hoạt động khách hàng ${confirmItem.hoTen}?`
             : `Bạn có chắc chắn muốn kích hoạt lại khách hàng ${confirmItem.hoTen}?`"
           :confirm-text="confirmItem.trangThai === 1 ? 'Ngừng hoạt động' : 'Kích hoạt'"
-          :variant="confirmItem.trangThai === 1 ? 'danger' : 'primary'"
+          :variant="'primary'"
           :loading="confirmLoading"
           @confirm="confirmToggle"
           @cancel="confirmItem = null"

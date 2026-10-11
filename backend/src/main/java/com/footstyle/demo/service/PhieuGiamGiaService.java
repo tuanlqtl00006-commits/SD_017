@@ -385,7 +385,7 @@ public class PhieuGiamGiaService {
     }
 
     private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung) {
-        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), daDung);
+        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), k.getAnhDaiDien(), null, 0L, null, daDung);
     }
 
     // Đổi entity thành dữ liệu trả về cho frontend (số trong DB -> chữ)

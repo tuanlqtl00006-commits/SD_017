@@ -15,6 +15,7 @@ public record KhachHangTomTatResponse(
         String hoTen,
         String soDienThoai,
         String email,
+        String anhDaiDien,
         LocalDate ngaySinh,
         long soDonDaMua,
         LocalDateTime lanMuaGanNhat,

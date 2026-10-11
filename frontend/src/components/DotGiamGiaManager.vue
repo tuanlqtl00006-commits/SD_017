@@ -135,7 +135,7 @@ const confirmContent = computed(() => {
         title: 'Ngừng hoạt động đợt giảm giá?',
         message: `Đợt ${d.maDot} (${d.tenDot}) sẽ ngừng áp dụng giảm giá cho các sản phẩm. Dữ liệu vẫn được giữ lại, bạn có thể bật lại bất cứ lúc nào.`,
         confirmText: 'Ngừng hoạt động',
-        variant: 'danger',
+        variant: 'primary',
       }
     : {
         title: 'Bật hoạt động đợt giảm giá?',

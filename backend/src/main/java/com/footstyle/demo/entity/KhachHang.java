@@ -51,6 +51,9 @@ public class KhachHang {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
+    @Column(name = "anh_dai_dien")
+    private String anhDaiDien;
+
     @OneToMany(mappedBy = "khachHang", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private java.util.List<DiaChiKhachHang> diaChiList = new java.util.ArrayList<>();
 
