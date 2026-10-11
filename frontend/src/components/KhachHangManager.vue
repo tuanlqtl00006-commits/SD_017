@@ -179,23 +179,7 @@
                     <input type="date" class="form-control bg-light border-0 text-muted" v-model="formData.ngaySinh" :disabled="isView" min="1900-01-01" max="9999-12-31">
                   </div>
                   
-                  <div class="col-12 mt-3">
-                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-0">Địa chỉ giao hàng</h6>
-                  </div>
-                  
-                  <DiaChiHanhChinhSelect
-                    v-model:tinh-thanh="formData.tinhThanh"
-                    v-model:phuong-xa="formData.phuongXa"
-                    id-prefix="kh-view"
-                    col-class="col-md-6"
-                    select-class="form-select bg-light border-0"
-                    label-class="form-label text-dark fw-medium mb-1"
-                    :disabled="isView"
-                  />
-                  <div class="col-12">
-                    <label class="form-label text-dark fw-medium mb-1">Địa chỉ cụ thể</label>
-                    <textarea class="form-control bg-light border-0" v-model="formData.diaChiCuThe" rows="2" placeholder="Số nhà, tên đường..." :disabled="isView"></textarea>
-                  </div>
+                  <!-- Địa chỉ giao hàng đã được gỡ bỏ -->
                   
                   <div class="col-12 mt-3">
                     <h6 class="fw-bold text-dark border-bottom pb-2 mb-0">Thông tin bổ sung</h6>
@@ -481,7 +465,7 @@ const confirmToggle = async () => {
 const openViewModal = (kh) => {
   populateForm(kh)
   isEdit.value = true
-  isView.value = true
+  isView.value = false
   showModal.value = true
 }
 
@@ -493,18 +477,42 @@ const phoneErrorMsg = ref('')
 
 const saveCustomer = async () => {
   phoneErrorMsg.value = ''
-  if (formData.value.sdt && !/^[0-9]{10,11}$/.test(formData.value.sdt)) {
-    phoneErrorMsg.value = 'Số điện thoại không hợp lệ (chỉ gồm 10-11 chữ số).'
+
+  if (!formData.value.ten || formData.value.ten.trim() === '') {
+    toast.error('Họ tên không được để trống hoặc chỉ chứa khoảng trắng.')
     return
   }
+
+  if (formData.value.sdt) {
+    // Regex SĐT Việt Nam: bắt đầu bằng 0, theo sau là 3,5,7,8,9 và đúng 8 số nữa (tổng 10 số)
+    const vnPhoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
+    if (!vnPhoneRegex.test(formData.value.sdt.trim())) {
+      phoneErrorMsg.value = 'Số điện thoại không hợp lệ (phải là SĐT Việt Nam 10 số).'
+      return
+    }
+  } else {
+    phoneErrorMsg.value = 'Số điện thoại không được để trống.'
+    return
+  }
+
   if (formData.value.ngaySinh && formData.value.ngaySinh.length > 10) {
     toast.error('Vui lòng nhập Ngày Sinh hợp lệ (năm không quá 4 chữ số).')
     return
   }
+
+  if (formData.value.ngaySinh) {
+    const selectedDate = new Date(formData.value.ngaySinh)
+    const today = new Date()
+    if (selectedDate > today) {
+      toast.error('Ngày sinh không được lớn hơn ngày hiện tại.')
+      return
+    }
+  }
+
   const payload = {
-    hoTen: formData.value.ten,
-    sdt: formData.value.sdt,
-    email: formData.value.email,
+    hoTen: formData.value.ten.trim(),
+    sdt: formData.value.sdt.trim(),
+    email: formData.value.email ? formData.value.email.trim() : null,
     ngaySinh: formData.value.ngaySinh || null,
     gioiTinh: formData.value.gioiTinh,
     trangThai: formData.value.trangThai,

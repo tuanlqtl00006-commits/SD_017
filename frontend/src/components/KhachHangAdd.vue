@@ -170,8 +170,8 @@ const createCustomer = async () => {
   emailErrorMsg.value = ''
 
   // Validate cơ bản
-  if (!formData.value.ten || !formData.value.email) {
-    errorMessage.value = 'Không thể tạo khách hàng: Vui lòng nhập đầy đủ thông tin.'
+  if (!formData.value.ten || formData.value.ten.trim() === '') {
+    errorMessage.value = 'Không thể tạo khách hàng: Họ tên không được để trống.'
     return
   }
   
@@ -180,9 +180,19 @@ const createCustomer = async () => {
     return
   }
 
-  if (!/^[0-9]{10,11}$/.test(formData.value.sdt)) {
-    phoneErrorMsg.value = 'Số điện thoại không hợp lệ (chỉ gồm 10-11 chữ số).'
+  const vnPhoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
+  if (!vnPhoneRegex.test(formData.value.sdt.trim())) {
+    phoneErrorMsg.value = 'Số điện thoại không hợp lệ (phải là SĐT Việt Nam 10 số).'
     return
+  }
+
+  if (formData.value.ngaySinh) {
+    const selectedDate = new Date(formData.value.ngaySinh)
+    const today = new Date()
+    if (selectedDate > today) {
+      errorMessage.value = 'Ngày sinh không được lớn hơn ngày hiện tại.'
+      return
+    }
   }
 
   if (!addressData.value.hoTenNguoiNhan || !addressData.value.sdtNguoiNhan || !addressData.value.diaChiChiTiet || !addressData.value.tinhThanh || !addressData.value.phuongXa) {

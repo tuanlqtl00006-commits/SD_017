@@ -124,7 +124,4 @@ function taiLai() {
     <small class="text-danger">{{ loiTai }}</small>
     <button type="button" class="btn btn-link btn-sm py-0" @click="taiLai">Tải lại</button>
   </div>
-  <div v-else-if="(tinhLaDiaChiCu || phuongLaDiaChiCu) && !disabled" class="col-12">
-    <small class="text-warning-emphasis">Địa chỉ này theo đơn vị hành chính cũ (trước sáp nhập). Hãy chọn lại {{ tinhLaDiaChiCu ? 'Tỉnh/Thành phố và ' : '' }}Phường/Xã theo danh sách mới.</small>
-  </div>
 </template>

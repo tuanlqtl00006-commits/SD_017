@@ -4,8 +4,7 @@ import { todayIso } from '../utils/format'
 export const TRANG_THAI = {
   DANG_DIEN_RA: { label: 'Đang diễn ra', cls: 'ad-pill-green' },
   SAP_DIEN_RA: { label: 'Sắp diễn ra', cls: 'ad-pill-amber' },
-  DA_KET_THUC: { label: 'Đã kết thúc', cls: 'ad-pill-gray' },
-  NGUNG_HOAT_DONG: { label: 'Ngừng hoạt động', cls: 'ad-pill-red' },
+  NGUNG_HOAT_DONG: { label: 'Ngừng diễn ra / Kết thúc', cls: 'ad-pill-red' },
 }
 
 /** Công tắc đang bật (cột trang_thai = 1). Chưa xét ngày. */
@@ -25,8 +24,7 @@ export const daKetThuc = (d, today = todayIso()) => today > ngayIso(d.ngayKetThu
  *  - đang trong khoảng ngày           -> Đang diễn ra
  */
 export function tinhTrangThai(d, today = todayIso()) {
-  if (daKetThuc(d, today)) return 'DA_KET_THUC'
-  if (!dangHoatDong(d)) return 'NGUNG_HOAT_DONG'
+  if (daKetThuc(d, today) || !dangHoatDong(d)) return 'NGUNG_HOAT_DONG'
   if (today < ngayIso(d.ngayBatDau)) return 'SAP_DIEN_RA'
   return 'DANG_DIEN_RA'
 }

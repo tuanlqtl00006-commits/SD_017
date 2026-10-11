@@ -135,6 +135,14 @@ const formatCurrency = (val) => {
 
 const addProduct = async () => {
   errorMsg.value = ''
+  if (!selectedProduct.value) {
+    errorMsg.value = 'Vui lòng chọn một sản phẩm.'
+    return
+  }
+  if (!percent.value || percent.value < 1 || percent.value > 100 || !Number.isInteger(percent.value)) {
+    errorMsg.value = 'Mức giảm phải là số nguyên từ 1 đến 100.'
+    return
+  }
   try {
     await api.post(`/dot-giam-gia-chi-tiet/campaign/${props.campaign.id}`, {
       idSanPhamChiTiet: selectedProduct.value,

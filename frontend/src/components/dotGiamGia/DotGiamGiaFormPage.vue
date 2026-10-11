@@ -335,6 +335,12 @@ function kiemTra() {
   if (!form.tuNgay) {
     errors.tuNgay = 'Vui lòng chọn từ ngày.'
     ok = false
+  } else if (!isEdit) {
+    const today = new Date().toISOString().split('T')[0]
+    if (form.tuNgay < today) {
+      errors.tuNgay = 'Từ ngày không được ở trong quá khứ.'
+      ok = false
+    }
   }
   if (!form.denNgay) {
     errors.denNgay = 'Vui lòng chọn đến ngày.'
