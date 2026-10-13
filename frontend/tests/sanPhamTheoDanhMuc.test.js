@@ -64,10 +64,18 @@ describe('Form sản phẩm theo danh mục', () => {
     // chọn 2 màu rồi tạo biến thể
     const chips = w.findAll('.ad-gen-chip'); expect(chips.length).toBe(2)
     await chips[0].trigger('click'); await chips[1].trigger('click')
-    await w.findAll('button').find((b) => b.text().includes('Tạo biến thể tự động')).trigger('click'); await flushPromises()
+    await w.findAll('button').find((b) => b.text().trim() === 'Tạo biến thể').trigger('click'); await flushPromises()
     expect(w.findAll('tbody tr').length).toBe(2)
+    // Mặc định nhóm theo màu như 2 video mẫu (sửa 12/10: trước đây là một bảng chung): 2 màu -> 2 nhóm, mỗi nhóm 1 dòng
+    expect(w.findAll('.ad-gen-group').length).toBe(2)
     expect(w.find('thead').text()).not.toContain('Trọng lượng')
-    for (const input of w.findAll('tbody input[type=number]')) await input.setValue(input.attributes('aria-label') === 'Giá bán' ? '50000' : '5')
+    // Chuyển sang "Bảng chung": một bảng phẳng có cột Màu sắc
+    await w.findAll('input[name=bt-che-do]').find((i) => i.element.value === 'chung').setValue(true)
+    expect(w.find('.ad-gen-group').exists()).toBe(false)
+    expect(w.findAll('tbody tr').length).toBe(2)
+    expect(w.find('thead').text()).toContain('Màu sắc')
+    expect(w.find('thead').text()).not.toContain('Trọng lượng')
+    for (const input of w.findAll('tbody input[type=number], tbody input[inputmode=numeric]')) await input.setValue(input.attributes('aria-label') === 'Giá bán' ? '50000' : '5')
     await w.get('form').trigger('submit'); await flushPromises()
     expect(document.body.textContent).toContain('Bạn có muốn lưu sản phẩm không?')
     const nutLuu = [...document.body.querySelectorAll('button')].find((b) => b.textContent.includes('Xác nhận lưu'))
@@ -89,7 +97,7 @@ describe('Form sản phẩm theo danh mục', () => {
   })
   it('Vợt: tạo biến thể cần cả 3 nhóm; đủ thì ra tổ hợp màu x trọng lượng x chu vi', async () => {
     const { w } = await montar(); await chonDanhMuc(w, 1)
-    const btn = () => w.findAll('button').find((b) => b.text().includes('Tạo biến thể tự động'))
+    const btn = () => w.findAll('button').find((b) => b.text().trim() === 'Tạo biến thể')
     const rows = w.findAll('.ad-gen-row')
     await rows[0].findAll('.ad-gen-chip')[0].trigger('click')
     await btn().trigger('click'); await flushPromises()
@@ -103,7 +111,7 @@ describe('Form sản phẩm theo danh mục', () => {
     const { w } = await montar(); await chonDanhMuc(w, 1)
     const rows = w.findAll('.ad-gen-row')
     for (const r of rows) await r.findAll('.ad-gen-chip')[0].trigger('click')
-    await w.findAll('button').find((b) => b.text().includes('Tạo biến thể tự động')).trigger('click'); await flushPromises()
+    await w.findAll('button').find((b) => b.text().trim() === 'Tạo biến thể').trigger('click'); await flushPromises()
     expect(w.findAll('tbody tr').length).toBe(1)
     await chonDanhMuc(w, 5)
     expect(w.findAll('tbody tr').length).toBe(0)

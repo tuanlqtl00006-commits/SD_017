@@ -22,6 +22,18 @@ const veNgay = (n) => new Date(n * MOT_NGAY).toISOString().slice(0, 10)
 
 const lamTron = (x) => Math.round(x * 100) / 100
 
+/**
+ * Giá sau giảm của một biến thể: làm tròn tới đồng (vd 2.500.000 giảm 15% -> 2.125.000; giảm 12,5% -> 2.187.500).
+ * Dùng chung cho danh sách sản phẩm / biến thể, trang soạn đợt giảm giá (khớp cách backend tính trong LichGiamGiaService).
+ */
+export function tinhGiaSauGiam(giaBan, phanTram) {
+  const gia = Number(giaBan) || 0
+  const pct = Number(phanTram) || 0
+  if (pct <= 0) return gia
+  if (pct >= 100) return 0
+  return Math.round((gia * (100 - pct)) / 100)
+}
+
 /** 12.5 -> '12,5%', 15 -> '15%' */
 export function formatPhanTram(x) {
   if (x === null || x === undefined) return ''

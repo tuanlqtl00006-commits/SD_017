@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { taoMa } from '../../constants/thuocTinh'
+import { NHOM_DANH_MUC } from '../../utils/danhMuc'
 
 const props = defineProps({
   cfg: { type: Object, required: true }, // cấu hình trong THUOC_TINH
@@ -12,9 +13,18 @@ const props = defineProps({
 const emit = defineEmits(['save', 'close'])
 
 const isEdit = computed(() => !!props.item)
+// Chất liệu được gắn với các nhóm danh mục (vợt, quần áo, túi - balo...) để form sản phẩm chỉ hiện chất liệu hợp với danh mục đã chọn.
+const laChatLieu = props.cfg.slug === 'chat-lieu'
 const form = reactive({
   ten: props.item?.ten ?? '',
+  // Chất liệu cũ chưa gắn nhóm nào = dùng cho mọi danh mục -> mở sửa thì tích sẵn tất cả
+  nhom: laChatLieu ? (props.item ? (props.item.nhom?.length ? [...props.item.nhom] : NHOM_DANH_MUC.map((n) => n.ma)) : []) : [],
 })
+const baNhom = (ma) => {
+  const i = form.nhom.indexOf(ma)
+  if (i === -1) form.nhom.push(ma)
+  else form.nhom.splice(i, 1)
+}
 // Mã do hệ thống tự cấp: thêm mới chỉ hiển thị mã dự kiến, sửa thì giữ mã cũ (không cho nhập).
 const maHienThi = computed(() => (props.item ? props.item.ma : taoMa(props.cfg.prefix, props.all.map((x) => x.ma))))
 const errors = reactive({})
@@ -26,6 +36,7 @@ function validate() {
   if (!ten) e.ten = `Nhập tên ${props.cfg.label.toLowerCase()}.`
   else if (ten.length > 100) e.ten = 'Tên tối đa 100 ký tự.'
   else if (props.all.some((x) => x.id !== props.item?.id && x.ten.toLowerCase() === ten.toLowerCase())) e.ten = 'Tên đã tồn tại.'
+  if (laChatLieu && !form.nhom.length) e.nhom = 'Chọn ít nhất một danh mục sử dụng chất liệu này.'
   return e
 }
 
@@ -46,7 +57,7 @@ function submit() {
     nextTick(() => document.querySelector('#tt-form .is-invalid')?.focus())
     return
   }
-  emit('save', { ten: String(form.ten).trim() })
+  emit('save', laChatLieu ? { ten: String(form.ten).trim(), nhom: [...form.nhom] } : { ten: String(form.ten).trim() })
 }
 
 onMounted(() => document.getElementById('tt-ten')?.focus())
@@ -75,6 +86,24 @@ onMounted(() => document.getElementById('tt-ten')?.focus())
             :aria-invalid="!!errors.ten"
           />
           <p v-if="errors.ten" class="ad-error">{{ errors.ten }}</p>
+        </div>
+        <div v-if="laChatLieu" class="col-12">
+          <span class="ad-label">Dùng cho danh mục <span class="ad-required">*</span></span>
+          <div class="d-flex flex-wrap gap-2" role="group" aria-label="Danh mục sử dụng chất liệu">
+            <button
+              v-for="n in NHOM_DANH_MUC"
+              :key="n.ma"
+              type="button"
+              class="ad-btn"
+              :class="{ 'ad-btn-primary': form.nhom.includes(n.ma) }"
+              :aria-pressed="form.nhom.includes(n.ma)"
+              @click="baNhom(n.ma)"
+            >
+              <i v-if="form.nhom.includes(n.ma)" class="bi bi-check2" aria-hidden="true"></i> {{ n.ten }}
+            </button>
+          </div>
+          <p v-if="errors.nhom" class="ad-error">{{ errors.nhom }}</p>
+          <p v-else class="ad-hint">Khi tạo sản phẩm, chọn danh mục nào thì chỉ hiện chất liệu được gắn với danh mục đó.</p>
         </div>
       </div>
     </form>

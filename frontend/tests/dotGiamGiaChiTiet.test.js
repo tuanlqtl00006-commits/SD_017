@@ -8,7 +8,7 @@ let mock
 vi.mock('../src/services/api', () => ({ default: new Proxy({}, { get: (_, k) => (...a) => mock.api[k](...a) }) }))
 beforeEach(() => { document.body.innerHTML = '' })
 
-const DOTS = [{ id: 1, maDot: 'DGG008', tenDot: 'A', phanTramGiamDot: 10, ngayBatDau: '2026-10-01T00:00:00', ngayKetThuc: '2026-10-30T00:00:00', trangThai: 1 }, { id: 2, maDot: 'DGG007', tenDot: 'B', phanTramGiamDot: 5, ngayBatDau: '2026-09-01T00:00:00', ngayKetThuc: '2026-09-30T00:00:00', trangThai: 0 }]
+const DOTS = [{ id: 1, maDot: 'DGG08', tenDot: 'A', phanTramGiamDot: 10, ngayBatDau: '2026-10-01T00:00:00', ngayKetThuc: '2026-10-30T00:00:00', trangThai: 1 }, { id: 2, maDot: 'DGG07', tenDot: 'B', phanTramGiamDot: 5, ngayBatDau: '2026-09-01T00:00:00', ngayKetThuc: '2026-09-30T00:00:00', trangThai: 0 }]
 async function montar(get) {
   mock = mockApi({ get })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/dot-giam-gia', component: { template: '<div/>' } }, { path: '/dot-giam-gia/them', component: { template: '<div/>' } }] })
@@ -17,13 +17,13 @@ async function montar(get) {
   const w = mount(Comp, { global: { plugins: [router] } }); await flushPromises(); return w
 }
 describe('Trang thêm đợt giảm giá', () => {
-  it('mã lấy từ backend, ngắn (DGG009)', async () => {
-    const w = await montar((url) => (url === '/dot-giam-gia' ? DOTS : url === '/dot-giam-gia/ma-moi' ? { ma: 'DGG009' } : undefined))
-    expect(w.get('#dgg-ma').element.value).toBe('DGG009')
+  it('mã lấy từ backend, ngắn (DGG09)', async () => {
+    const w = await montar((url) => (url === '/dot-giam-gia' ? DOTS : url === '/dot-giam-gia/ma-moi' ? { ma: 'DGG09' } : undefined))
+    expect(w.get('#dgg-ma').element.value).toBe('DGG09')
   })
-  it('backend lỗi: dùng mã dự phòng DGG009 từ các mã đã có', async () => {
+  it('backend lỗi: dùng mã dự phòng DGG09 từ các mã đã có', async () => {
     const w = await montar((url) => { if (url === '/dot-giam-gia/ma-moi') throw new Error('x'); return url === '/dot-giam-gia' ? DOTS : undefined })
-    expect(w.get('#dgg-ma').element.value).toBe('DGG009')
+    expect(w.get('#dgg-ma').element.value).toBe('DGG09')
   })
 })
 describe('Chi tiết sản phẩm', () => {

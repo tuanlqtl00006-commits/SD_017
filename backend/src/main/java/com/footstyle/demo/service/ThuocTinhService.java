@@ -45,7 +45,7 @@ public class ThuocTinhService {
     private final Map<String, Supplier<? extends ThuocTinh>> taoMoi = new HashMap<>();
     // loai -> tên tiếng Việt, dùng trong câu thông báo lỗi
     private final Map<String, String> nhan = new HashMap<>();
-    // loai -> tiền tố mã tự cấp (DM001, TH001, ...)
+    // loai -> tiền tố mã tự cấp (DM01, TH01, ...)
     private final Map<String, String> tienTo = new HashMap<>();
 
     public ThuocTinhService(DanhMucRepository danhMuc, ThuongHieuRepository thuongHieu, XuatXuRepository xuatXu,
@@ -91,11 +91,14 @@ public class ThuocTinhService {
         ThuocTinhRepository<ThuocTinh> repo = repo(loai);
         String ten = kiemTraTen(loai, req.ten(), -1);
 
-        // Mã do hệ thống tự cấp (DM001, TH002, ...), không nhận mã từ người dùng
+        // Mã do hệ thống tự cấp (DM01, TH02, ...), không nhận mã từ người dùng
         ThuocTinh t = taoMoi.get(loai).get();
         t.setMa(taoMaMoi(loai));
         t.setTen(ten);
         t.setTrangThai(ThuocTinh.HOAT_DONG);
+        if (t instanceof ChatLieu cl) {
+            cl.setNhomApDung(kiemTraNhom(req.nhom(), true));
+        }
         return toResponse(repo.save(t));
     }
 
@@ -105,6 +108,10 @@ public class ThuocTinhService {
         ThuocTinhRepository<ThuocTinh> repo = repo(loai);
         ThuocTinh t = tim(loai, id);
         t.setTen(kiemTraTen(loai, req.ten(), id));
+        // Chất liệu: có gửi nhóm danh mục thì cập nhật; không gửi thì giữ nguyên nhóm cũ
+        if (t instanceof ChatLieu cl && req.nhom() != null) {
+            cl.setNhomApDung(kiemTraNhom(req.nhom(), true));
+        }
         return toResponse(repo.save(t));
     }
 
@@ -151,7 +158,24 @@ public class ThuocTinhService {
         return ten;
     }
 
-    // Mã kế tiếp của từng loại: tiền tố + số lớn nhất hiện có + 1, ví dụ CB003 -> CB004
+    // Nhóm danh mục của chất liệu: mỗi nhóm phải hợp lệ, không trùng; thêm mới thì bắt buộc chọn ít nhất một nhóm.
+    // Trả về chuỗi lưu DB, ví dụ "VOT,QUAN_AO".
+    private String kiemTraNhom(List<String> nhom, boolean batBuoc) {
+        List<String> ds = new ArrayList<>();
+        if (nhom != null) {
+            for (String n : nhom) {
+                String v = n == null ? "" : n.trim().toUpperCase();
+                loi(!NhomDanhMuc.TAT_CA.contains(v), "Danh mục sử dụng chất liệu không hợp lệ.");
+                if (!ds.contains(v)) {
+                    ds.add(v);
+                }
+            }
+        }
+        loi(batBuoc && ds.isEmpty(), "Chọn ít nhất một danh mục sử dụng chất liệu này.");
+        return String.join(",", ds);
+    }
+
+    // Mã kế tiếp của từng loại: tiền tố + số lớn nhất hiện có + 1, ví dụ CB03 -> CB04 (đọc cả mã cũ CB003)
     private String taoMaMoi(String loai) {
         int max = 0;
         for (ThuocTinh t : repo(loai).findAll()) {
@@ -160,7 +184,7 @@ public class ThuocTinhService {
                 max = Math.max(max, Integer.parseInt(so));
             }
         }
-        return String.format("%s%03d", tienTo.get(loai), max + 1);
+        return MaUtil.dinhDang(tienTo.get(loai), max + 1L);
     }
 
     // Nếu điều kiện đúng thì báo lỗi 400 kèm câu thông báo
@@ -171,6 +195,7 @@ public class ThuocTinhService {
     }
 
     private ThuocTinhResponse toResponse(ThuocTinh t) {
-        return new ThuocTinhResponse(t.getId(), t.getMa(), t.getTen(), dangHoatDong(t));
+        List<String> nhom = t instanceof ChatLieu cl ? NhomDanhMuc.tach(cl.getNhomApDung()) : null;
+        return new ThuocTinhResponse(t.getId(), t.getMa(), t.getTen(), dangHoatDong(t), nhom);
     }
 }

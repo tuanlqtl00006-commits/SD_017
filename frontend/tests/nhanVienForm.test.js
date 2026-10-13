@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const { svc, push, state } = vi.hoisted(() => ({
-  svc: { getAll: vi.fn(), getVaiTro: vi.fn(), getViTri: vi.fn(), themViTri: vi.fn(), create: vi.fn(), update: vi.fn(), toggleActive: vi.fn() },
+  svc: { getAll: vi.fn(), getVaiTro: vi.fn(), create: vi.fn(), update: vi.fn(), toggleActive: vi.fn() },
   push: vi.fn(),
   state: { params: {} },
 }))
@@ -32,9 +32,8 @@ import { useToast } from '../src/composables/useToast'
 
 const QR = '001099012345|123456789|NGUYỄN VĂN AN|20051999|Nam|Thôn Cầu, Xã Đông Quý, Huyện Tiền Hải, Tỉnh Thái Bình|15032021'
 const VAI_TRO = [{ id: 1, ten: 'Quản lý' }, { id: 2, ten: 'Nhân viên' }]
-const VI_TRI = [{ id: 1, ten: 'Bán hàng tại quầy' }, { id: 2, ten: 'Thu ngân' }, { id: 3, ten: 'Kho' }]
 const NV_CO_SAN = [
-  { id: 1, ma: 'NV0001', hoTen: 'Nguyễn Hoàng Long', email: 'long@footstyle.vn', soDienThoai: '0912000001', cccd: '079203001234', idVaiTro: 1, vaiTro: 'Quản lý', hoatDong: true, gioiTinh: 'Nam', ngayVaoLam: '2022-01-10', diaChi: 'x', diaChis: [] },
+  { id: 1, ma: 'NV01', hoTen: 'Nguyễn Hoàng Long', email: 'long@footstyle.vn', soDienThoai: '0912000001', canCuoc: '079203001234', idVaiTro: 1, vaiTro: 'Quản lý', hoatDong: true, gioiTinh: 'Nam', ngayVaoLam: '2022-01-10', diaChi: 'x', diaChis: [] },
 ]
 
 const set = async (w, sel, v) => {
@@ -45,7 +44,6 @@ const dom = (sel) => document.body.querySelector(sel)
 async function moForm(ds = NV_CO_SAN) {
   svc.getAll.mockResolvedValue(ds)
   svc.getVaiTro.mockResolvedValue(VAI_TRO)
-  svc.getViTri.mockResolvedValue(VI_TRI.map((v) => ({ ...v })))
   const w = mount(NhanVienFormPage, { attachTo: document.body })
   await flushPromises()
   return w
@@ -72,21 +70,44 @@ beforeEach(() => {
 })
 
 describe('Thêm nhân viên', () => {
-  it('mã nhân viên tạo theo họ tên đầy đủ, hiện ngay khi nhập tên', async () => {
+  it('mã nhân viên = chữ cái đầu của họ tên + số thứ tự, hiện ngay khi nhập tên', async () => {
     const w = await moForm()
     expect(w.find('#nv-ma').element.value).toBe('')
     expect(w.find('#nv-ma').attributes('placeholder')).toMatch(/Tự tạo sau khi nhập họ tên/)
+    await set(w, '#nv-ho-ten', 'Lê Quốc Tuấn')
+    expect(w.find('#nv-ma').element.value).toBe('LQT01')
     await set(w, '#nv-ho-ten', 'Nguyễn Văn An')
-    expect(w.find('#nv-ma').element.value).toBe('AnNV01')
+    expect(w.find('#nv-ma').element.value).toBe('NVA01')
     await set(w, '#nv-ho-ten', 'Trần Thị Mai Lan')
-    expect(w.find('#nv-ma').element.value).toBe('LanTTM01')
+    expect(w.find('#nv-ma').element.value).toBe('TTML01')
     w.unmount()
   })
 
   it('mã không trùng với nhân viên đã có cùng tiền tố', async () => {
-    const w = await moForm([...NV_CO_SAN, { ...NV_CO_SAN[0], id: 2, ma: 'AnNV01', email: 'a@x.vn', soDienThoai: '0911111111', cccd: null }])
-    await set(w, '#nv-ho-ten', 'Ngô Văn An')
-    expect(w.find('#nv-ma').element.value).toBe('AnNV02')
+    const w = await moForm([...NV_CO_SAN, { ...NV_CO_SAN[0], id: 2, ma: 'LQT01', email: 'a@x.vn', soDienThoai: '0911111111', canCuoc: null }])
+    await set(w, '#nv-ho-ten', 'Lê Quang Tú')
+    expect(w.find('#nv-ma').element.value).toBe('LQT02')
+    w.unmount()
+  })
+
+  it('mã gọn: dưới 10 có 1 số 0 (LQT09 -> LQT10), quá 99 viết thẳng (LQT99 -> LQT100), không đệm số 0 dài', async () => {
+    const co = (ma, id) => ({ ...NV_CO_SAN[0], id, ma, email: `u${id}@x.vn`, soDienThoai: `09${String(id).padStart(8, '0')}`, canCuoc: null })
+    let w = await moForm([...NV_CO_SAN, co('LQT09', 2)])
+    await set(w, '#nv-ho-ten', 'Lê Quốc Tuấn')
+    expect(w.find('#nv-ma').element.value).toBe('LQT10')
+    w.unmount()
+    w = await moForm([...NV_CO_SAN, co('LQT99', 2)])
+    await set(w, '#nv-ho-ten', 'Lê Quốc Tuấn')
+    expect(w.find('#nv-ma').element.value).toBe('LQT100')
+    w.unmount()
+  })
+
+  it('CSDL cũ còn mã nhiều số 0 (LQT0001, NV0001): vẫn tính đúng số tiếp theo và cho ra mã gọn', async () => {
+    const w = await moForm([{ ...NV_CO_SAN[0], ma: 'NV0001' }, { ...NV_CO_SAN[0], id: 2, ma: 'LQT0001', email: 'a@x.vn', soDienThoai: '0911111111', canCuoc: null }])
+    await set(w, '#nv-ho-ten', 'Lê Quốc Tuấn')
+    expect(w.find('#nv-ma').element.value).toBe('LQT02')
+    await set(w, '#nv-ho-ten', 'Ngô Vinh')
+    expect(w.find('#nv-ma').element.value).toBe('NV02')
     w.unmount()
   })
 
@@ -149,7 +170,7 @@ describe('Thêm nhân viên', () => {
     await flushPromises()
     expect(w.text()).toContain('Số căn cước công dân gồm đúng 12 chữ số.')
     expect(w.text()).toContain('Thêm ít nhất một địa chỉ.')
-    await set(w, '#nv-cccd', '079203001234') // trùng với NV0001
+    await set(w, '#nv-cccd', '079203001234') // trùng với NV01
     await w.find('form').trigger('submit')
     await flushPromises()
     expect(w.text()).toContain('Số căn cước công dân đã được sử dụng.')
@@ -167,7 +188,7 @@ describe('Thêm nhân viên', () => {
   })
 
   it('tạo thành công: gửi CCCD + nhiều địa chỉ (đúng 1 chính), không gửi mã, rồi về danh sách', async () => {
-    svc.create.mockResolvedValue({ id: 9, ma: 'AnNV01', hoTen: 'Nguyễn Văn An' })
+    svc.create.mockResolvedValue({ id: 9, ma: 'NVA01', hoTen: 'Nguyễn Văn An' })
     const w = await moForm()
     await set(w, '#nv-ho-ten', 'Nguyễn  Văn An ')
     await set(w, '#nv-cccd', '001099012345')
@@ -183,7 +204,7 @@ describe('Thêm nhân viên', () => {
     expect(svc.create).toHaveBeenCalledTimes(1)
     const p = svc.create.mock.calls[0][0]
     expect(p.hoTen).toBe('Nguyễn Văn An')
-    expect(p.cccd).toBe('001099012345')
+    expect(p.canCuoc).toBe('001099012345')
     expect(p.email).toBe('an@footstyle.vn')
     expect(p).not.toHaveProperty('ma')
     expect(p).not.toHaveProperty('diaChi')
@@ -192,7 +213,7 @@ describe('Thêm nhân viên', () => {
       { id: null, tinhThanh: 'Tỉnh Hưng Yên', phuongXa: 'Phường Thái Bình', diaChiCuThe: 'Số 3 Lý Bôn', macDinh: true },
     ])
     expect(push).toHaveBeenCalledWith('/nhan-vien')
-    expect(useToast().toasts.at(-1).message).toContain('AnNV01') // báo mã chính thức do hệ thống cấp
+    expect(useToast().toasts.at(-1).message).toContain('NVA01') // báo mã chính thức do hệ thống cấp
     w.unmount()
   })
 
@@ -208,65 +229,6 @@ describe('Thêm nhân viên', () => {
     await flushPromises()
     expect(push).not.toHaveBeenCalled()
     expect(useToast().toasts.at(-1).message).toBe('Email đã được sử dụng.')
-    w.unmount()
-  })
-})
-
-describe('Vị trí làm việc', () => {
-  const chip = (w, ten) => w.findAll('.nv-chip').find((c) => c.text().includes(ten))
-
-  it('hiện các vị trí đã thêm, chọn nhiều vị trí và gửi idViTri khi tạo', async () => {
-    svc.create.mockResolvedValue({ id: 9, ma: 'AnNV01', hoTen: 'Nguyễn Văn An' })
-    const w = await moForm()
-    expect(w.findAll('.nv-chip').map((c) => c.text())).toEqual(['Bán hàng tại quầy', 'Thu ngân', 'Kho'])
-    await chip(w, 'Thu ngân').trigger('click')
-    await chip(w, 'Kho').trigger('click')
-    expect(chip(w, 'Thu ngân').classes()).toContain('active')
-    expect(w.text()).toContain('Đã chọn 2 vị trí')
-    await chip(w, 'Kho').trigger('click') // bấm lại để bỏ chọn
-    expect(w.text()).toContain('Đã chọn 1 vị trí')
-    await chip(w, 'Kho').trigger('click')
-
-    await set(w, '#nv-ho-ten', 'Nguyễn Văn An')
-    await set(w, '#nv-email', 'an@footstyle.vn')
-    await set(w, '#nv-sdt', '0987654321')
-    await set(w, '#nv-mat-khau', 'Footstyle@123')
-    await themDiaChi(w, 'Thành phố Hà Nội', 'Phường Hà Đông', 'Số 1')
-    await w.find('form').trigger('submit')
-    await flushPromises()
-    expect(svc.create).toHaveBeenCalledTimes(1)
-    expect(svc.create.mock.calls[0][0].idViTri).toEqual([2, 3])
-    w.unmount()
-  })
-
-  it('thêm vị trí mới: gọi API rồi tự chọn; không có nút xóa vị trí', async () => {
-    svc.themViTri.mockResolvedValue({ id: 4, ten: 'Chăm sóc khách hàng' })
-    const w = await moForm()
-    await set(w, '#nv-vi-tri-moi', 'Chăm sóc khách hàng')
-    await w.findAll('button').find((b) => b.text().includes('Thêm') && b.classes().includes('flex-shrink-0')).trigger('click')
-    await flushPromises()
-    expect(svc.themViTri).toHaveBeenCalledWith('Chăm sóc khách hàng')
-    expect(chip(w, 'Chăm sóc khách hàng').classes()).toContain('active')
-    expect(w.find('.bi-trash').exists()).toBe(false)
-    w.unmount()
-  })
-
-  it('gõ lại tên vị trí đã có thì chỉ chọn lại, không gọi API thêm', async () => {
-    const w = await moForm()
-    await set(w, '#nv-vi-tri-moi', 'kho')
-    await w.findAll('button').find((b) => b.text().includes('Thêm') && b.classes().includes('flex-shrink-0')).trigger('click')
-    await flushPromises()
-    expect(svc.themViTri).not.toHaveBeenCalled()
-    expect(chip(w, 'Kho').classes()).toContain('active')
-    w.unmount()
-  })
-
-  it('sửa nhân viên: các vị trí đang có được chọn sẵn', async () => {
-    state.params = { id: '1' }
-    const w = await moForm([{ ...NV_CO_SAN[0], viTri: [{ id: 1, ten: 'Bán hàng tại quầy' }, { id: 3, ten: 'Kho' }] }])
-    expect(chip(w, 'Bán hàng tại quầy').classes()).toContain('active')
-    expect(chip(w, 'Thu ngân').classes()).not.toContain('active')
-    expect(chip(w, 'Kho').classes()).toContain('active')
     w.unmount()
   })
 })
@@ -287,18 +249,73 @@ describe('Quét căn cước công dân', () => {
     await flushPromises()
   }
 
-  it('quét QR hợp lệ -> điền họ tên, số CCCD, giới tính, ngày sinh, mã dự kiến và mở ô nhập địa chỉ kèm gợi ý', async () => {
+  it('quét QR hợp lệ -> điền họ tên, số CCCD, giới tính, ngày sinh, mã dự kiến và TỰ THÊM địa chỉ trên thẻ', async () => {
     const w = await moForm()
     await quet(w, QR)
     expect(dom('.modal')).toBeNull() // modal tự đóng
     expect(w.find('#nv-ho-ten').element.value).toBe('Nguyễn Văn An')
     expect(w.find('#nv-cccd').element.value).toBe('001099012345')
     expect(w.find('#nv-ngay-sinh').element.value).toBe('1999-05-20')
-    expect(w.find('#nv-ma').element.value).toBe('AnNV01')
+    expect(w.find('#nv-ma').element.value).toBe('NVA01')
+    // địa chỉ trên thẻ đã nằm sẵn trong danh sách địa chỉ (không cần bấm nút gợi ý)
+    expect(w.findAll('.nv-dc')).toHaveLength(1)
+    expect(w.find('.nv-dc-form').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('địa chỉ thẻ ghi tỉnh đã sáp nhập (Thái Bình) -> tự đổi sang tỉnh mới (Hưng Yên); phường cũ giữ lại để chọn lại, quận/huyện cũ nằm ở địa chỉ cụ thể', async () => {
+    svc.create.mockResolvedValue({ id: 9, ma: 'NVA01', hoTen: 'Nguyễn Văn An' })
+    const w = await moForm()
+    await quet(w, QR)
+    const dc = w.find('.nv-dc').text()
+    expect(dc).toContain('Tỉnh Hưng Yên')
+    expect(dc).not.toContain('Thái Bình')
+    expect(dc).toContain('Xã Đông Quý')
+    expect(dc).toContain('Thôn Cầu, Huyện Tiền Hải')
+    expect(w.find('.nv-dc input[type=radio]').element.checked).toBe(true) // địa chỉ đầu tiên là địa chỉ chính
+    expect(useToast().toasts.at(-1).message).toContain('tỉnh đã sáp nhập')
+    // điền nốt các ô còn thiếu rồi lưu: địa chỉ được gửi lên đúng
+    await set(w, '#nv-email', 'an@footstyle.vn')
+    await set(w, '#nv-sdt', '0987654321')
+    await set(w, '#nv-mat-khau', 'Footstyle@123')
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    expect(svc.create).toHaveBeenCalledTimes(1)
+    expect(svc.create.mock.calls[0][0].diaChis).toEqual([
+      { id: null, tinhThanh: 'Tỉnh Hưng Yên', phuongXa: 'Xã Đông Quý', diaChiCuThe: 'Thôn Cầu, Huyện Tiền Hải', macDinh: true },
+    ])
+    w.unmount()
+  })
+
+  it('địa chỉ thẻ khớp đơn vị mới (Hà Nội / Phường Hà Đông) -> dùng đúng tên mới, bỏ Quận/Huyện cũ', async () => {
+    const w = await moForm()
+    await quet(w, QR.replace(/\|[^|]*\|15032021$/, '|Số 15 ngõ 120 Trần Phú, Phường Hà Đông, Quận Hà Đông, Thành phố Hà Nội|15032021'))
+    const dc = w.find('.nv-dc').text()
+    expect(dc).toContain('Thành phố Hà Nội')
+    expect(dc).toContain('Phường Hà Đông')
+    expect(dc).toContain('Số 15 ngõ 120 Trần Phú')
+    expect(dc).not.toContain('Quận Hà Đông')
+    expect(useToast().toasts.at(-1).message).toContain('theo đơn vị hành chính mới')
+    w.unmount()
+  })
+
+  it('quét lại cùng một thẻ không thêm địa chỉ trùng', async () => {
+    const w = await moForm()
+    await quet(w, QR)
+    await quet(w, QR)
+    expect(w.findAll('.nv-dc')).toHaveLength(1)
+    expect(useToast().toasts.at(-1).message).toContain('đã có trong danh sách địa chỉ')
+    w.unmount()
+  })
+
+  it('thẻ thiếu số nhà / đường -> mở sẵn ô nhập địa chỉ với Tỉnh, Phường đã điền', async () => {
+    const w = await moForm()
+    await quet(w, QR.replace(/\|[^|]*\|15032021$/, '|Phường Hà Đông, Thành phố Hà Nội|15032021'))
+    expect(w.findAll('.nv-dc')).toHaveLength(0)
     expect(w.find('.nv-dc-form').exists()).toBe(true)
-    expect(w.find('.nv-dc-form').text()).toContain('Địa chỉ trên căn cước')
-    await w.find('.nv-dc-form .btn-link').trigger('click')
-    expect(w.find('#nv-dc-chi-tiet').element.value).toContain('Tiền Hải')
+    expect(w.find('#nv-dc-tinh').element.value).toBe('Thành phố Hà Nội')
+    expect(w.find('#nv-dc-phuong').element.value).toBe('Phường Hà Đông')
+    expect(w.find('#nv-dc-chi-tiet').element.value).toBe('')
     w.unmount()
   })
 
@@ -312,7 +329,7 @@ describe('Quét căn cước công dân', () => {
   })
 
   it('quét ra số CCCD đã thuộc nhân viên khác -> báo trùng', async () => {
-    const w = await moForm([{ ...NV_CO_SAN[0], cccd: '001099012345' }])
+    const w = await moForm([{ ...NV_CO_SAN[0], canCuoc: '001099012345' }])
     await quet(w, QR)
     expect(useToast().toasts.at(-1).message).toContain('đã thuộc nhân viên Nguyễn Hoàng Long')
     w.unmount()
@@ -321,7 +338,7 @@ describe('Quét căn cước công dân', () => {
 
 describe('Sửa nhân viên', () => {
   const NV = {
-    id: 5, ma: 'AnNV01', hoTen: 'Nguyễn Văn An', email: 'an@footstyle.vn', soDienThoai: '0987654321', cccd: '001099012345', idVaiTro: 2, vaiTro: 'Nhân viên', hoatDong: true, gioiTinh: 'Nam',
+    id: 5, ma: 'NVA01', hoTen: 'Nguyễn Văn An', email: 'an@footstyle.vn', soDienThoai: '0987654321', canCuoc: '001099012345', idVaiTro: 2, vaiTro: 'Nhân viên', hoatDong: true, gioiTinh: 'Nam',
     ngaySinh: '1999-05-20', ngayVaoLam: '2024-01-01', diaChi: 'Số 3 Lý Bôn, Phường Thái Bình, Tỉnh Hưng Yên',
     diaChis: [
       { id: 11, tinhThanh: 'Tỉnh Hưng Yên', phuongXa: 'Phường Thái Bình', diaChiCuThe: 'Số 3 Lý Bôn', macDinh: true },
@@ -334,7 +351,7 @@ describe('Sửa nhân viên', () => {
     svc.update.mockResolvedValue({})
     const w = await moForm([...NV_CO_SAN, NV])
     expect(w.find('#nv-ho-ten').element.value).toBe('Nguyễn Văn An')
-    expect(w.find('#nv-ma').element.value).toBe('AnNV01')
+    expect(w.find('#nv-ma').element.value).toBe('NVA01')
     expect(w.find('#nv-cccd').element.value).toBe('001099012345')
     expect(w.findAll('button').some((b) => b.text().includes('Quét căn cước'))).toBe(false)
     expect(w.findAll('.nv-dc')).toHaveLength(2)
@@ -364,6 +381,42 @@ describe('Sửa nhân viên', () => {
     await flushPromises()
     expect(svc.update).toHaveBeenCalled()
     expect(svc.update.mock.calls[0][1].diaChis).toEqual([{ id: null, tinhThanh: null, phuongXa: null, diaChiCuThe: 'Số 8 đường Lê Văn Lương, quận Thanh Xuân, Hà Nội', macDinh: true }])
+    w.unmount()
+  })
+})
+
+describe('Đã bỏ vị trí làm việc', () => {
+  it('form thêm nhân viên không còn mục Vị trí làm việc; payload không gửi idViTri', async () => {
+    svc.create.mockResolvedValue({ id: 9, ma: 'NVT01', hoTen: 'Lê Quốc Tuấn' })
+    const w = await moForm()
+    expect(w.text()).not.toContain('Vị trí làm việc')
+    expect(w.find('#nv-vi-tri-moi').exists()).toBe(false)
+    await set(w, '#nv-ho-ten', 'Lê Quốc Tuấn')
+    await set(w, '#nv-email', 'tuan@footstyle.vn')
+    await set(w, '#nv-sdt', '0987654321')
+    await set(w, '#nv-mat-khau', 'Footstyle@123')
+    await themDiaChi(w, 'Thành phố Hà Nội', 'Phường Hà Đông', 'Số 1')
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    expect(svc.create).toHaveBeenCalledTimes(1)
+    expect(svc.create.mock.calls[0][0]).not.toHaveProperty('idViTri')
+    w.unmount()
+  })
+})
+
+describe('Trạng thái nhân viên: Còn làm / Đã nghỉ', () => {
+  it('trang chi tiết: nhân viên còn làm hiện nút "Cho nghỉ việc", đã nghỉ hiện "Cho làm lại"', async () => {
+    state.params = { id: '1' }
+    let w = await moForm()
+    expect(w.text()).toContain('Còn làm')
+    expect(w.text()).toContain('Cho nghỉ việc')
+    expect(w.text()).not.toContain('Khóa tài khoản')
+    w.unmount()
+    document.body.innerHTML = ''
+    w = await moForm([{ ...NV_CO_SAN[0], hoatDong: false }])
+    expect(w.text()).toContain('Đã nghỉ')
+    expect(w.text()).toContain('Cho làm lại')
+    expect(w.text()).not.toContain('Mở khóa')
     w.unmount()
   })
 })

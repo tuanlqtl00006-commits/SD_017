@@ -21,12 +21,9 @@ const vaiTroList = ref([]) // [{ id, ten }] từ bảng vai_tro
 const loading = ref(false)
 
 /* ----- Bộ lọc (lọc ngay khi thay đổi) ----- */
-// Một ô tìm kiếm chung: gõ mã, họ tên, email, số điện thoại hoặc số CCCD đều tìm được (không phân biệt hoa thường, dấu).
+// Một ô tìm kiếm chung: gõ mã, họ tên, email hoặc số điện thoại đều tìm được (không phân biệt hoa thường, dấu).
 const defaultFilters = () => ({ keyword: '', idVaiTro: '', trangThai: '' })
 const filters = reactive(defaultFilters())
-
-// Các vị trí làm việc của nhân viên, ngăn cách bằng dấu phẩy
-const tenViTri = (e) => (e.viTri ?? []).map((v) => v.ten).join(', ')
 
 function resetFilters() {
   Object.assign(filters, defaultFilters())
@@ -35,7 +32,7 @@ function resetFilters() {
 const filtered = computed(() =>
   list.value.filter((e) => {
     const f = filters
-    if (f.keyword && !matchesWords([e.ma, e.hoTen, e.email, e.soDienThoai, e.cccd].join(' '), f.keyword)) return false
+    if (f.keyword && !matchesWords([e.ma, e.hoTen, e.email, e.soDienThoai, e.canCuoc].join(' '), f.keyword)) return false
     if (f.idVaiTro && e.idVaiTro !== f.idVaiTro) return false
     if (f.trangThai && String(e.hoatDong) !== f.trangThai) return false
     return true
@@ -68,7 +65,7 @@ async function load(showLoading = true, quiet = false) {
 }
 onMounted(load)
 
-// Luôn lấy dữ liệu mới nhất từ server khi: đổi bộ lọc trạng thái (vd sang xem mục đã ẩn) và khi quay lại tab trình duyệt.
+// Luôn lấy dữ liệu mới nhất từ server khi: đổi bộ lọc trạng thái (vd sang xem nhân viên đã nghỉ) và khi quay lại tab trình duyệt.
 watch(() => filters.trangThai, () => load(false, true))
 useAutoRefresh(() => load(false, true))
 
@@ -105,12 +102,11 @@ function exportFile() {
       { header: 'Giới tính', key: 'gioiTinh', width: 10 },
       { header: 'Ngày sinh', key: 'ngaySinh', width: 14 },
       { header: 'SĐT', key: 'soDienThoai', width: 14 },
+      { header: 'Số CCCD', key: 'canCuoc', width: 16 },
       { header: 'Email', key: 'email', width: 30 },
       { header: 'Địa chỉ', key: 'diaChi', width: 40 },
       { header: 'Ngày vào làm', key: 'ngayVaoLam', width: 14 },
       { header: 'Vai trò', key: 'vaiTro', width: 16 },
-      { header: 'Vị trí', key: 'viTri', width: 30 },
-      { header: 'Số CCCD', key: 'cccd', width: 16 },
       { header: 'Trạng thái', key: 'trangThai', width: 18 },
     ],
     rows: filtered.value.map((e, i) => ({
@@ -120,12 +116,11 @@ function exportFile() {
       gioiTinh: e.gioiTinh || '',
       ngaySinh: e.ngaySinh ? formatDate(e.ngaySinh) : '',
       soDienThoai: e.soDienThoai,
+      canCuoc: e.canCuoc || '',
       email: e.email,
       diaChi: e.diaChi,
       ngayVaoLam: e.ngayVaoLam ? formatDate(e.ngayVaoLam) : '',
       vaiTro: e.vaiTro,
-      viTri: tenViTri(e),
-      cccd: e.cccd || '',
       trangThai: TRANG_THAI[e.hoatDong].label,
     })),
   })
@@ -141,22 +136,22 @@ const confirmContent = computed(() => {
   if (!e) return {}
   return e.hoatDong
     ? {
-        title: 'Ẩn nhân viên?',
-        message: `${e.hoTen} (${e.ma}) sẽ được ẩn và không thể đăng nhập vào hệ thống. Hồ sơ và lịch sử vẫn được giữ lại, bạn có thể hiện lại bất cứ lúc nào.`,
-        confirmText: 'Ẩn nhân viên',
+        title: 'Cho nhân viên nghỉ việc?',
+        message: `${e.hoTen} (${e.ma}) sẽ chuyển sang trạng thái "Đã nghỉ" và không thể đăng nhập vào hệ thống. Hồ sơ và lịch sử vẫn được giữ lại, bạn có thể cho làm lại bất cứ lúc nào.`,
+        confirmText: 'Cho nghỉ việc',
         variant: 'danger',
       }
     : {
-        title: 'Hiện lại nhân viên?',
-        message: `${e.hoTen} (${e.ma}) sẽ có thể đăng nhập và làm việc trở lại.`,
-        confirmText: 'Hiện lại',
+        title: 'Cho nhân viên làm lại?',
+        message: `${e.hoTen} (${e.ma}) sẽ chuyển sang trạng thái "Còn làm" và có thể đăng nhập, làm việc trở lại.`,
+        confirmText: 'Cho làm lại',
         variant: 'primary',
       }
 })
 
-// Backend chặn việc ẩn / đổi vai trò quản lý đang hoạt động cuối cùng và báo lỗi bằng toast.
+// Backend chặn việc cho nghỉ / đổi vai trò quản lý còn làm cuối cùng và báo lỗi bằng toast.
 function toggleTitle(e) {
-  return e.hoatDong ? 'Ẩn nhân viên' : 'Hiện lại nhân viên'
+  return e.hoatDong ? 'Cho nghỉ việc' : 'Cho làm lại'
 }
 
 async function confirmToggle() {
@@ -164,8 +159,8 @@ async function confirmToggle() {
   confirmLoading.value = true
   try {
     const daDoi = await nhanVienService.toggleActive(e.id)
-    patchRow(daDoi) // dòng này đổi trạng thái ngay: ẩn xong sang xem nhân viên đã ẩn là thấy luôn
-    toast.success(e.hoatDong ? `Đã ẩn nhân viên ${e.hoTen}.` : `Đã hiện lại nhân viên ${e.hoTen}.`)
+    patchRow(daDoi) // dòng này đổi trạng thái ngay: cho nghỉ xong sang lọc "Đã nghỉ" là thấy luôn
+    toast.success(e.hoatDong ? `Đã cho nhân viên ${e.hoTen} nghỉ việc.` : `Đã cho nhân viên ${e.hoTen} làm lại.`)
     confirmItem.value = null
     load(false, true) // đồng bộ lại với server ở nền
   } catch (err) {
@@ -207,8 +202,8 @@ async function confirmToggle() {
           <label class="ad-label" for="nv-trang-thai">Trạng thái</label>
           <select id="nv-trang-thai" v-model="filters.trangThai" class="form-select ad-control">
             <option value="">Tất cả trạng thái</option>
-            <option value="true">Hoạt động</option>
-            <option value="false">Ngưng hoạt động</option>
+            <option value="true">Còn làm</option>
+            <option value="false">Đã nghỉ</option>
           </select>
         </div>
       </div>
@@ -249,17 +244,16 @@ async function confirmToggle() {
                 <th>SĐT</th>
                 <th>Địa chỉ</th>
                 <th>Vai trò</th>
-                <th>Vị trí</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="12"><div class="ad-empty">Đang tải dữ liệu…</div></td>
+                <td colspan="11"><div class="ad-empty">Đang tải dữ liệu…</div></td>
               </tr>
               <tr v-else-if="!pageItems.length">
-                <td colspan="12">
+                <td colspan="11">
                   <div class="ad-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
                     <strong>Không tìm thấy nhân viên</strong>
@@ -280,7 +274,6 @@ async function confirmToggle() {
                   <td class="ad-nowrap">{{ e.soDienThoai }}</td>
                   <td><span class="ad-clamp-2" :title="e.diaChi">{{ e.diaChi }}</span></td>
                   <td class="ad-nowrap">{{ e.vaiTro }}</td>
-                  <td><span class="ad-clamp-2" :title="tenViTri(e)">{{ tenViTri(e) || '—' }}</span></td>
                   <td>
                     <span class="ad-pill" :class="TRANG_THAI[e.hoatDong].cls">{{ TRANG_THAI[e.hoatDong].label }}</span>
                   </td>

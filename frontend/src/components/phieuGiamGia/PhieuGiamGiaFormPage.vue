@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PhieuGiamGiaFormModal from './PhieuGiamGiaFormModal.vue'
-import { phieuGiamGiaService } from '../../services/phieuGiamGiaService'
+import { cauBaoKetQuaMail, phieuGiamGiaService, theoDoiKetQuaMail } from '../../services/phieuGiamGiaService'
 import { useToast } from '../../composables/useToast'
 
 // Trang riêng để thêm (/phieu-giam-gia/them) hoặc sửa (/phieu-giam-gia/:id/sua) phiếu giảm giá, giống video.
@@ -30,17 +30,41 @@ onMounted(async () => {
   }
 })
 
+// Câu tóm tắt của backend bắt đầu bằng "Chưa gửi" / "Không gửi được" nghĩa là KHÔNG có thư nào đi
+function mailChuaGui(ketQuaMail) {
+  return /^(Chưa gửi|Không gửi được)/.test(ketQuaMail || '')
+}
+
+// "Đang gửi N mail..." = thư đang gửi ở nền: hỏi lại backend vài giây sau để báo rõ ĐÃ GỬI hay GỬI LỖI (kèm lý do thật).
+// Chạy ngầm (không chặn việc quay về danh sách); thông báo hiện ở góc màn hình dù đang ở trang nào.
+async function baoKetQuaMail(phieu) {
+  const kq = await theoDoiKetQuaMail(phieu.id)
+  const bao = cauBaoKetQuaMail(kq, phieu.ma)
+  if (!bao) return
+  if (bao.loai === 'error') toast.error(bao.noiDung, bao.tieuDe)
+  else toast.success(bao.noiDung)
+}
+
 async function save(payload) {
   saving.value = true
   try {
-    // Phiếu cá nhân: backend gửi mail (phiếu mới / cập nhật / hủy) và trả về câu tóm tắt trong ketQuaMail
+    // Phiếu cá nhân: backend gửi mail (phiếu mới / cập nhật / hủy) và trả về câu tóm tắt trong ketQuaMail.
+    // Phiếu đã lưu thành công; nếu mail chưa gửi được (chưa cấu hình Gmail) thì báo bằng thông báo ĐỎ để không tưởng thư đã đi.
     let daLuu
+    let loiLuu
     if (id.value) {
       daLuu = await phieuGiamGiaService.update(id.value, payload)
-      toast.success(['Đã lưu thay đổi phiếu giảm giá.', daLuu?.ketQuaMail].filter(Boolean).join(' '))
+      loiLuu = 'Đã lưu thay đổi phiếu giảm giá.'
     } else {
       daLuu = await phieuGiamGiaService.create(payload)
-      toast.success(['Tạo phiếu giảm giá thành công.', daLuu?.ketQuaMail].filter(Boolean).join(' '))
+      loiLuu = 'Tạo phiếu giảm giá thành công.'
+    }
+    const ketQuaMail = daLuu?.ketQuaMail
+    if (mailChuaGui(ketQuaMail)) {
+      toast.error([loiLuu, ketQuaMail].join(' '), 'Phiếu đã lưu nhưng mail chưa gửi')
+    } else {
+      toast.success([loiLuu, ketQuaMail].filter(Boolean).join(' '))
+      if (daLuu?.id && /^Đang gửi/.test(ketQuaMail || '')) baoKetQuaMail(daLuu)
     }
     back()
   } catch (e) {

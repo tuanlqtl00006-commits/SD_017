@@ -5,6 +5,7 @@ import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
 import ConfirmQuestion from './common/ConfirmQuestion.vue'
 import BienTheFormModal from './sanPham/BienTheFormModal.vue'
+import QrModal from './common/QrModal.vue'
 import { sanPhamService, bienTheService } from '../services/sanPhamService'
 import { useGiamGiaBienThe } from '../composables/useGiamGiaBienThe'
 import { TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
@@ -12,9 +13,10 @@ import { useThuocTinh } from '../composables/useThuocTinh'
 import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
-import { formatMoney, todayIso } from '../utils/format'
+import { formatDate, formatMoney, todayIso } from '../utils/format'
 import { includesText } from '../utils/text'
-import { idKhongApDung, laDanhMucVot } from '../utils/danhMuc'
+import { idKhongApDung, laDanhMucVot, laKhongApDung } from '../utils/danhMuc'
+import { mauHex } from '../utils/mau'
 import { exportExcel } from '../utils/exportExcel'
 
 const toast = useToast()
@@ -36,7 +38,7 @@ const laVotCuaSp = (idSanPham) => {
 const idKadOf = (slug) => idKhongApDung(tt[slug])
 
 /* ----- Bộ lọc ----- */
-const defaultFilters = () => ({ keyword: '', idSanPham: '', idMauSac: '', trangThai: '', conHang: '' })
+const defaultFilters = () => ({ keyword: '', idSanPham: '', idMauSac: '', idTrongLuong: '', idChuVi: '', trangThai: '', conHang: '' })
 const filters = reactive(defaultFilters())
 const resetFilters = () => Object.assign(filters, defaultFilters())
 
@@ -46,6 +48,8 @@ const filtered = computed(() =>
     if (f.keyword && !includesText(`${b.ma} ${spOf(b.idSanPham)?.ten ?? ''}`, f.keyword)) return false
     if (f.idSanPham !== '' && b.idSanPham !== f.idSanPham) return false
     if (f.idMauSac !== '' && b.idMauSac !== f.idMauSac) return false
+    if (f.idTrongLuong !== '' && b.idTrongLuong !== f.idTrongLuong) return false
+    if (f.idChuVi !== '' && b.idChuVi !== f.idChuVi) return false
     if (f.trangThai && trangThaiOf(b) !== f.trangThai) return false
     if (f.conHang === 'CON' && b.soLuongTon <= 0) return false
     if (f.conHang === 'HET' && b.soLuongTon > 0) return false
@@ -55,16 +59,25 @@ const filtered = computed(() =>
 const { page, pageSize, total, items: pageItems } = usePagination(filtered, 5)
 watch(filters, () => { page.value = 1 })
 
+// Lựa chọn trọng lượng / chu vi cho bộ lọc: bỏ mục "Không áp dụng" (của danh mục không phải vợt)
+const luaChonLoc = (slug) => (tt[slug] || []).filter((x) => !laKhongApDung(x))
+// Tên hiển thị trong bảng: "Không áp dụng" hiện thành dấu gạch cho gọn
+const tenGon = (slug, id) => { const ten = tenOf(slug, id); return ten === 'Không áp dụng' ? '—' : ten }
+
+/* ----- Mã QR của biến thể (như video mẫu 1) ----- */
+const qrBienThe = ref(null)
+const moTaQr = (b) => [spOf(b.idSanPham)?.ten, tenOf('mau-sac', b.idMauSac), tenGon('trong-luong', b.idTrongLuong), tenGon('chu-vi', b.idChuVi)].filter((x) => x && x !== '—').join(' · ')
+
 /* ----- Tải dữ liệu ----- */
 // loadSeq: mỗi lần tải có một số thứ tự. Nếu đã có lần tải / cập nhật mới hơn thì bỏ kết quả của lần cũ,
 // để dữ liệu cũ về chậm không đè lên trạng thái ẩn / hiện vừa đổi.
 // quiet = true: tải nền (không hiện "Đang tải…", lỗi mạng thì im lặng vì danh sách đang hiển thị vẫn dùng được).
 // Tải nền chỉ lấy lại biến thể + sản phẩm (2 lời gọi), không tải lại các bảng thuộc tính.
 let loadSeq = 0
-const { loadGiamGia, pctOf, giaSauGiam } = useGiamGiaBienThe()
+const { loadGiamGia, pctOf, sapGiamOf, giaSauGiam } = useGiamGiaBienThe()
 
 async function load(showLoading = true, quiet = false) {
-  loadGiamGia()
+  loadGiamGia({ kemSapDienRa: true })
   const seq = ++loadSeq
   if (showLoading) loading.value = true
   try {
@@ -166,6 +179,7 @@ function exportFile() {
       { header: 'Trọng lượng', key: 'trongLuong', width: 16 },
       { header: 'Chu vi', key: 'chuVi', width: 10 },
       { header: 'Giá bán (₫)', key: 'giaBan', width: 14 },
+      { header: 'Giảm giá (%)', key: 'giam', width: 14 },
       { header: 'Tồn kho', key: 'soLuongTon', width: 10 },
       { header: 'Trạng thái', key: 'trangThai', width: 18 },
     ],
@@ -177,6 +191,7 @@ function exportFile() {
       trongLuong: tenOf('trong-luong', b.idTrongLuong),
       chuVi: tenOf('chu-vi', b.idChuVi),
       giaBan: b.giaBan,
+      giam: pctOf(b.id) || '',
       soLuongTon: b.soLuongTon,
       trangThai: TRANG_THAI[trangThaiOf(b)].label,
     })),
@@ -208,6 +223,20 @@ function exportFile() {
           <select id="bt-f-mau" v-model="filters.idMauSac" class="form-select ad-control">
             <option value="">Tất cả màu sắc</option>
             <option v-for="o in tt['mau-sac']" :key="o.id" :value="o.id">{{ o.ten }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="ad-label" for="bt-f-tl">Trọng lượng</label>
+          <select id="bt-f-tl" v-model="filters.idTrongLuong" class="form-select ad-control">
+            <option value="">Tất cả trọng lượng</option>
+            <option v-for="o in luaChonLoc('trong-luong')" :key="o.id" :value="o.id">{{ o.ten }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="ad-label" for="bt-f-cv">Chu vi cán</label>
+          <select id="bt-f-cv" v-model="filters.idChuVi" class="form-select ad-control">
+            <option value="">Tất cả chu vi</option>
+            <option v-for="o in luaChonLoc('chu-vi')" :key="o.id" :value="o.id">{{ o.ten }}</option>
           </select>
         </div>
         <div>
@@ -247,21 +276,22 @@ function exportFile() {
               <tr>
                 <th class="ad-col-stt">STT</th>
                 <th>Mã biến thể</th>
+                <th class="text-center">Ảnh</th>
                 <th>Sản phẩm</th>
                 <th>Màu sắc</th>
                 <th>Trọng lượng</th>
                 <th>Chu vi</th>
                 <th>Giá bán</th>
-                <th>Giảm</th>
+                <th title="% giảm của đợt giảm giá đang diễn ra hôm nay. Thêm biến thể vào một đợt ở trang Đợt giảm giá → Sản phẩm áp dụng thì cột này tự cập nhật.">Giảm giá</th>
                 <th>Tồn kho</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td colspan="11"><div class="ad-empty">Đang tải dữ liệu…</div></td></tr>
+              <tr v-if="loading"><td colspan="12"><div class="ad-empty">Đang tải dữ liệu…</div></td></tr>
               <tr v-else-if="!pageItems.length">
-                <td colspan="11">
+                <td colspan="12">
                   <div class="ad-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
                     <strong>Không tìm thấy biến thể</strong>
@@ -273,10 +303,16 @@ function exportFile() {
                 <tr v-for="(b, i) in pageItems" :key="b.id">
                   <td class="ad-col-stt">{{ (page - 1) * pageSize + i + 1 }}</td>
                   <td><span class="ad-code ad-nowrap">{{ b.ma }}</span></td>
+                  <td class="text-center">
+                    <span class="bt-thumb">
+                      <img v-if="b.hinhAnh" :src="b.hinhAnh" :alt="`Ảnh ${b.ma}`" loading="lazy" />
+                      <i v-else class="bi bi-image" aria-hidden="true"></i>
+                    </span>
+                  </td>
                   <td class="ad-cell-wrap">{{ spOf(b.idSanPham)?.ten ?? '—' }}</td>
-                  <td>{{ tenOf('mau-sac', b.idMauSac) }}</td>
-                  <td class="ad-nowrap">{{ tenOf('trong-luong', b.idTrongLuong) }}</td>
-                  <td>{{ tenOf('chu-vi', b.idChuVi) }}</td>
+                  <td class="ad-nowrap"><span class="bt-dot" :style="{ background: mauHex(tenOf('mau-sac', b.idMauSac)) }" aria-hidden="true"></span>{{ tenOf('mau-sac', b.idMauSac) }}</td>
+                  <td class="ad-nowrap">{{ tenGon('trong-luong', b.idTrongLuong) }}</td>
+                  <td>{{ tenGon('chu-vi', b.idChuVi) }}</td>
                   <td class="ad-nowrap">
                     <template v-if="pctOf(b.id)">
                       <div class="fw-bold ad-price-sale">{{ formatMoney(giaSauGiam(b)) }}</div>
@@ -285,8 +321,9 @@ function exportFile() {
                     <template v-else>{{ formatMoney(b.giaBan) }}</template>
                   </td>
                   <td>
-                    <span v-if="pctOf(b.id)" class="ad-pill ad-pill-blue">-{{ pctOf(b.id) }}%</span>
-                    <span v-else class="text-muted">—</span>
+                    <span v-if="pctOf(b.id)" class="ad-pill ad-pill-blue" data-testid="giam-hien-tai">-{{ pctOf(b.id) }}%</span>
+                    <span v-else-if="!sapGiamOf(b.id)" class="text-muted">—</span>
+                    <div v-if="sapGiamOf(b.id)" class="small text-muted ad-nowrap" data-testid="giam-sap-dien-ra">Sắp giảm -{{ sapGiamOf(b.id).phanTram }}% từ {{ formatDate(sapGiamOf(b.id).tuNgay) }}</div>
                   </td>
                   <td>
                     <span v-if="b.soLuongTon === 0" class="ad-pill ad-pill-amber">Hết hàng</span>
@@ -307,6 +344,9 @@ function exportFile() {
                       </button>
                       <button type="button" class="ad-icon-btn" title="Chỉnh sửa" :aria-label="`Chỉnh sửa biến thể ${b.ma}`" @click="formState = { item: b }">
                         <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                      </button>
+                      <button type="button" class="ad-icon-btn" title="Mã QR" :aria-label="`Mã QR biến thể ${b.ma}`" @click="qrBienThe = b">
+                        <i class="bi bi-qr-code" aria-hidden="true"></i>
                       </button>
                     </div>
                   </td>
@@ -331,5 +371,12 @@ function exportFile() {
       @cancel="hoiCapNhat = null"
     />
     <ConfirmDialog v-if="confirmItem" v-bind="confirmContent" :loading="confirmLoading" @confirm="confirmToggle" @cancel="confirmItem = null" />
+    <QrModal v-if="qrBienThe" :gia-tri="qrBienThe.ma" :tieu-de="`Mã QR biến thể ${qrBienThe.ma}`" :mo-ta="moTaQr(qrBienThe)" :anh="qrBienThe.hinhAnh || ''" @close="qrBienThe = null" />
   </div>
 </template>
+
+<style scoped>
+.bt-thumb { width: 44px; height: 44px; display: inline-grid; place-items: center; overflow: hidden; border-radius: 10px; border: 1px solid var(--fs-line-soft, #eef1f5); background: var(--fs-surface, #f5f8fc); color: #b8c0cc; }
+.bt-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.bt-dot { display: inline-block; width: 12px; height: 12px; margin-right: 0.4rem; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.18); vertical-align: -1px; }
+</style>

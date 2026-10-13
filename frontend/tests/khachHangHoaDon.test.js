@@ -152,12 +152,12 @@ describe('Địa chỉ khách hàng (modal)', () => {
     api.put.mockResolvedValue({ data: {} })
     const w = mount(KhachHangAddressModal, { props: { customer: { id: 7, hoTen: 'Lan', sdt: '0901000001' } }, attachTo: document.body })
     await flushPromises()
-    await w.findAll('button').find((b) => b.text() === 'Sửa').trigger('click')
+    await w.findAll('button').find((b) => b.attributes('title') === 'Sửa địa chỉ').trigger('click')
     await flushPromises()
     await w.findAll('button').find((b) => b.text().includes('Lưu địa chỉ')).trigger('click')
     await flushPromises()
     expect(api.put.mock.calls[0][1].quanHuyen).toBe('Quận Thanh Xuân') // không đổi gì -> giữ nguyên
-    await w.findAll('button').find((b) => b.text() === 'Sửa').trigger('click')
+    await w.findAll('button').find((b) => b.attributes('title') === 'Sửa địa chỉ').trigger('click')
     await flushPromises()
     await w.find('#kh-dc-phuong').setValue('Phường Hà Đông') // chọn phường mới theo danh sách sau sáp nhập
     await w.findAll('button').find((b) => b.text().includes('Lưu địa chỉ')).trigger('click')
@@ -167,64 +167,224 @@ describe('Địa chỉ khách hàng (modal)', () => {
   })
 })
 
-describe('Hóa đơn: trang danh sách theo thiết kế', () => {
-  const HD = (id) => ({ id, maHoaDon: 'HD' + String(id).padStart(4, '0'), maNhanVien: 'LongNH01', tenKhachHang: 'Nguyễn Thị Lan', sdtKhachHang: '0901000001', tongTien: 1500000, loaiDon: 'Trực tuyến', ngayTao: '2026-10-01T09:00:00', trangThai: 3 })
-  const DEM = { tatCa: 12, 0: 1, 1: 2, 2: 1, 3: 3, 4: 1, 5: 1, 6: 2, 7: 1 }
-  function dungApi() {
-    api.get.mockImplementation(async (url) => {
-      if (url === '/hoa-don/dem-trang-thai') return { data: DEM }
-      return { data: { content: [HD(1), HD(2)], totalElements: 12, totalPages: 3 } }
-    })
+describe('Cửa sổ địa chỉ khách hàng: nút dạng icon', () => {
+  const DC = { id: 1, tenNguoiNhan: 'Nguyễn Thị Lan', sdtNguoiNhan: '0901000001', tinhThanhPho: 'Thành phố Hà Nội', quanHuyen: '', phuongXa: 'Phường Hà Đông', diaChiCuThe: 'Số 12 Nguyễn Trãi', laDiaChiMacDinh: true }
+  const mo = async () => {
+    api.get.mockResolvedValue({ data: [DC] })
+    const w = mount(KhachHangAddressModal, { props: { customer: { id: 7, hoTen: 'Nguyễn Thị Lan', sdt: '0901000001' } }, attachTo: document.body })
+    await flushPromises()
+    return w
   }
+  const nut = (w, title) => w.findAll('button').find((b) => b.attributes('title') === title)
 
-  it('đủ cột, tên trạng thái mới, số hóa đơn trên từng tab và tab Hoàn tiền', async () => {
-    dungApi()
-    const w = mount(HoaDonManager, { global: { stubs: { RouterLink: true } } })
-    await flushPromises()
-    const cot = w.findAll('thead th').map((th) => th.text())
-    expect(cot).toEqual(['STT', 'Mã HD', 'Mã NV', 'Tên KH', 'SĐT KH', 'Tổng tiền TT', 'Loại đơn', 'Ngày tạo', 'Trạng thái', 'Hành động'])
-    const tab = w.findAll('.ad-status-tab').map((t) => t.text())
-    expect(tab).toEqual(['Tất cả 12', 'Chờ xác nhận 2', 'Đã xác nhận 1', 'Chờ giao hàng 3', 'Đang giao hàng 1', 'Đã giao hàng 1', 'Đã hoàn thành 2', 'Đã hủy 1', 'Hoàn tiền 1'])
-    expect(w.text()).toContain('Đặt lại bộ lọc')
-    expect(w.text()).toContain('Xuất Excel')
-    expect(w.text()).toContain('LongNH01')
-    expect(w.text()).toContain('0901000001')
+  it('không còn chữ Xóa / Sửa trên thẻ địa chỉ, có 3 icon: Xem chi tiết, Sửa, Xóa', async () => {
+    const w = await mo()
+    const chu = w.findAll('button').map((b) => b.text())
+    expect(chu).not.toContain('Xóa')
+    expect(chu).not.toContain('Sửa')
+    expect(nut(w, 'Xem chi tiết').find('i.bi-eye').exists()).toBe(true)
+    expect(nut(w, 'Sửa địa chỉ').find('i.bi-pencil-square').exists()).toBe(true)
+    expect(nut(w, 'Xóa địa chỉ').find('i.bi-trash').exists()).toBe(true)
     w.unmount()
   })
 
-  it('mỗi trang 5 dòng cố định, không có ô chọn số dòng', async () => {
-    dungApi()
-    const w = mount(HoaDonManager, { global: { stubs: { RouterLink: true } } })
-    await flushPromises()
-    expect(w.find('.ad-pager select').exists()).toBe(false)
-    const goiDs = api.get.mock.calls.find((c) => c[0] === '/hoa-don')
-    expect(goiDs[1].params).toMatchObject({ page: 0, size: 5, trangThai: null })
+  it('bấm icon Xem: hiện chi tiết chỉ đọc (không có ô nhập), Quay lại về danh sách', async () => {
+    const w = await mo()
+    await nut(w, 'Xem chi tiết').trigger('click')
+    const xem = w.find('[data-testid="xem-dia-chi"]')
+    expect(xem.exists()).toBe(true)
+    expect(xem.text()).toContain('Nguyễn Thị Lan')
+    expect(xem.text()).toContain('0901000001')
+    expect(xem.text()).toContain('Phường Hà Đông')
+    expect(xem.text()).toContain('Số 12 Nguyễn Trãi, Phường Hà Đông, Thành phố Hà Nội')
+    expect(w.find('input').exists()).toBe(false)
+    await w.findAll('button').find((b) => b.text() === 'Quay lại').trigger('click')
+    expect(w.find('[data-testid="xem-dia-chi"]').exists()).toBe(false)
+    expect(nut(w, 'Xem chi tiết').exists()).toBe(true)
     w.unmount()
   })
 
-  it('bấm tab "Đã hủy" thì gọi API với trangThai = 0', async () => {
-    dungApi()
-    const w = mount(HoaDonManager, { global: { stubs: { RouterLink: true } } })
+  it('icon Xóa vẫn hỏi xác nhận rồi gọi API xóa', async () => {
+    const w = await mo()
+    api.delete.mockResolvedValue({})
+    await nut(w, 'Xóa địa chỉ').trigger('click')
+    expect(api.delete).not.toHaveBeenCalled()
+    const xacNhan = [...document.body.querySelectorAll('button.ad-btn-danger')].find((x) => x.textContent.trim() === 'Xóa') // hộp thoại xác nhận render ra document.body
+    expect(xacNhan).toBeTruthy()
+    xacNhan.click()
     await flushPromises()
-    api.get.mockClear()
-    dungApi()
-    await w.findAll('.ad-status-tab').find((t) => t.text().startsWith('Đã hủy')).trigger('click')
-    await flushPromises()
-    const goiDs = api.get.mock.calls.filter((c) => c[0] === '/hoa-don').at(-1)
-    expect(goiDs[1].params.trangThai).toBe(0)
+    expect(api.delete).toHaveBeenCalledWith('/dia-chi/1')
     w.unmount()
   })
 })
 
-describe('Bản gộp không còn mã trùng chức năng', () => {
-  const duyet = (dir) => readdirSync(dir).flatMap((f) => {
-    const p = join(dir, f)
-    return statSync(p).isDirectory() ? duyet(p) : /\.(vue|js)$/.test(f) ? [p] : []
+describe('Hóa đơn: bố cục chuẩn của trang quản lý, tab trạng thái có số, 5 dòng mỗi trang', () => {
+  const DEM = { tatCa: 12, 0: 1, 1: 3, 2: 0, 3: 2, 4: 1, 5: 1, 6: 3, 7: 1 }
+  const traLoi = () => api.get.mockImplementation(async (url) => {
+    if (url === '/hoa-don/dem-trang-thai') return { data: DEM }
+    return { data: { content: [], totalElements: 0, totalPages: 0 } }
   })
-  it('không còn tham chiếu tên cũ của các nhánh (canCuoc, CccdScanModal, useDiaChiVN)', () => {
-    const noi = duyet(resolve(process.cwd(), 'src')).map((p) => [p, readFileSync(p, 'utf-8')])
-    for (const tu of ['canCuoc', 'CccdScanModal', 'useDiaChiVN', 'docQrCanCuoc']) {
-      expect(noi.filter(([, s]) => s.includes(tu)).map(([p]) => p)).toEqual([])
-    }
+
+  it('dùng bố cục chuẩn: bộ lọc một hàng, đủ nhãn, không còn kiểu thu gọn riêng', async () => {
+    traLoi()
+    const w = mount(HoaDonManager, { global: { stubs: { RouterLink: true } } })
+    await flushPromises()
+    const html = w.html()
+    expect(html).not.toContain('hd-compact')
+    expect(html).toContain('ad-filter-grid--hd')
+    expect(w.find('.ad-page').exists()).toBe(true)
+    expect(w.text()).toContain('Đặt lại bộ lọc')
+    expect(w.text()).toContain('Xuất Excel')
+    expect(w.text()).toContain('Loại đơn')
+    expect(w.text()).toContain('Mã NV')
+    expect(w.text()).toContain('SĐT KH')
+    w.unmount()
+  })
+
+  it('tab trạng thái hiện số hóa đơn, có tab Hoàn tiền; phân trang cố định 5 dòng và không có ô chọn số dòng', async () => {
+    traLoi()
+    const w = mount(HoaDonManager, { global: { stubs: { RouterLink: true } } })
+    await flushPromises()
+    const tabs = w.findAll('.ad-status-tab').map((t) => t.text().replace(/\s+/g, ' '))
+    expect(tabs[0]).toBe('Tất cả 12')
+    expect(tabs).toContain('Chờ xác nhận 3')
+    expect(tabs).toContain('Hoàn tiền 1')
+    expect(api.get.mock.calls.find((c) => c[0] === '/hoa-don')[1].params.size).toBe(5)
+    // chỉ còn ô chọn Loại đơn, không có <select> nào dành cho số dòng mỗi trang
+    expect(w.findAll('select').map((s) => s.attributes('id'))).toEqual(['hd-loai'])
+    w.unmount()
+  })
+
+  it('bấm tab "Đã hủy" thì tải lại danh sách với trangThai = 0', async () => {
+    traLoi()
+    const w = mount(HoaDonManager, { global: { stubs: { RouterLink: true } } })
+    await flushPromises()
+    await w.findAll('.ad-status-tab').find((t) => t.text().includes('Đã hủy')).trigger('click')
+    await flushPromises()
+    const lanCuoi = api.get.mock.calls.filter((c) => c[0] === '/hoa-don').at(-1)[1].params
+    expect(lanCuoi.trangThai).toBe(0)
+    w.unmount()
+  })
+
+  it('CSS của trang hóa đơn không ép lại cỡ chữ / chiều cao ô / bảng của trang chung', () => {
+    const src = readFileSync(resolve(process.cwd(), 'src/components/HoaDonManager.vue'), 'utf-8')
+    const style = src.slice(src.indexOf('<style'))
+    expect(style).not.toMatch(/font-size:\s*0\.8[0-9]rem;[\s\S]*\.ad-table/)
+    expect(style).not.toContain('hd-compact')
+    expect(style).not.toMatch(/height:\s*3\dpx/)
+  })
+})
+
+describe('Trang hóa đơn (thiết kế mới)', () => {
+  const HD = [
+    { id: 1, maHoaDon: 'HD001', maNhanVien: 'LQT0001', tenKhachHang: 'Nguyễn Thị Lan', sdtKhachHang: '0901000001', tongTien: 1500000, loaiDon: 'Tại quầy', ngayTao: '2026-10-09T08:00:00', trangThai: 6 },
+    { id: 2, maHoaDon: 'HD002', maNhanVien: null, tenKhachHang: null, sdtKhachHang: null, tongTien: 250000, loaiDon: 'Trực tuyến', ngayTao: '2026-10-10T09:30:00', trangThai: 3 },
+  ]
+  const DEM = { tatCa: 12, 0: 1, 1: 2, 2: 1, 3: 3, 4: 1, 5: 1, 6: 2, 7: 1 }
+
+  function moApi(content = HD, total = content.length) {
+    api.get.mockImplementation(async (url) => {
+      if (url === '/hoa-don/dem-trang-thai') return { data: DEM }
+      if (url === '/hoa-don') return { data: { content, totalElements: total, totalPages: Math.ceil(total / 5) } }
+      throw new Error('API không mong đợi: ' + url)
+    })
+  }
+  const goiDanhSach = () => api.get.mock.calls.filter((c) => c[0] === '/hoa-don')
+  async function moTrang() {
+    const w = mount(HoaDonManager, { global: { stubs: { RouterLink: true } } })
+    await flushPromises()
+    return w
+  }
+
+  it('đủ cột theo thiết kế: Mã NV, SĐT KH, Loại đơn, Trạng thái; có Đặt lại bộ lọc và Xuất Excel', async () => {
+    moApi()
+    const w = await moTrang()
+    expect(w.findAll('thead th').map((t) => t.text())).toEqual(['STT', 'Mã HD', 'Mã NV', 'Tên KH', 'SĐT KH', 'Tổng tiền TT', 'Loại đơn', 'Ngày tạo', 'Trạng thái', 'Hành động'])
+    expect(w.text()).toContain('Đặt lại bộ lọc')
+    expect(w.text()).toContain('Xuất Excel')
+    expect(w.text()).toContain('Loại đơn')
+    expect(w.find('.ad-page').exists()).toBe(true)
+    w.unmount()
+  })
+
+  it('hiện mã nhân viên, SĐT khách; khách trống thì ghi Khách vãng lai và dấu —', async () => {
+    moApi()
+    const w = await moTrang()
+    const dong = w.findAll('tbody tr')
+    expect(dong[0].text()).toContain('HD001')
+    expect(dong[0].text()).toContain('LQT0001')
+    expect(dong[0].text()).toContain('Nguyễn Thị Lan')
+    expect(dong[0].text()).toContain('0901000001')
+    expect(dong[0].text()).toContain('Đã hoàn thành')
+    expect(dong[1].text()).toContain('Khách vãng lai')
+    expect(dong[1].text()).toContain('Chờ giao hàng')
+    expect(dong[1].text()).toContain('Trực tuyến')
+    expect(dong[1].text()).toContain('—')
+    w.unmount()
+  })
+
+  it('9 tab trạng thái, mỗi tab có SỐ hóa đơn, có tab Hoàn tiền', async () => {
+    moApi()
+    const w = await moTrang()
+    const tabs = w.findAll('.ad-status-tab')
+    expect(tabs.map((t) => t.text().replace(/\s+/g, ' '))).toEqual([
+      'Tất cả 12', 'Chờ xác nhận 2', 'Đã xác nhận 1', 'Chờ giao hàng 3', 'Đang giao hàng 1', 'Đã giao hàng 1', 'Đã hoàn thành 2', 'Đã hủy 1', 'Hoàn tiền 1',
+    ])
+    expect(tabs[0].classes()).toContain('active')
+    w.unmount()
+  })
+
+  it('5 dòng mỗi trang cố định, không có ô chọn số dòng', async () => {
+    moApi(HD, 12)
+    const w = await moTrang()
+    expect(goiDanhSach()[0][1].params).toMatchObject({ page: 0, size: 5, trangThai: null })
+    expect(w.find('.ad-pagination select, select.ad-page-size').exists()).toBe(false)
+    const phanTrang = w.findComponent({ name: 'BasePagination' })
+    expect(phanTrang.exists()).toBe(true)
+    expect(phanTrang.find('select').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('bấm tab "Đã hủy" thì gọi API với trangThai = 0 và về trang 1', async () => {
+    moApi()
+    const w = await moTrang()
+    api.get.mockClear()
+    moApi([HD[1]], 1)
+    await w.findAll('.ad-status-tab').find((t) => t.text().includes('Đã hủy')).trigger('click')
+    await flushPromises()
+    const lanCuoi = goiDanhSach().at(-1)[1].params
+    expect(lanCuoi).toMatchObject({ page: 0, trangThai: 0 })
+    expect(w.findAll('.ad-status-tab').find((t) => t.text().includes('Đã hủy')).classes()).toContain('active')
+    w.unmount()
+  })
+
+  it('bấm tab "Hoàn tiền" gọi API với trangThai = 7; Đặt lại bộ lọc xóa mã hóa đơn đã gõ', async () => {
+    moApi()
+    const w = await moTrang()
+    await w.findAll('.ad-status-tab').find((t) => t.text().includes('Hoàn tiền')).trigger('click')
+    await flushPromises()
+    expect(goiDanhSach().at(-1)[1].params.trangThai).toBe(7)
+    await w.find('#hd-ma').setValue('HD00')
+    expect(w.find('#hd-ma').element.value).toBe('HD00')
+    await w.findAll('button').find((b) => b.text().includes('Đặt lại bộ lọc')).trigger('click')
+    expect(w.find('#hd-ma').element.value).toBe('')
+    w.unmount()
+  })
+
+  it('đổi loại đơn thì tự lọc, không cần bấm nút tìm', async () => {
+    moApi()
+    const w = await moTrang()
+    await w.find('#hd-loai').setValue('2')
+    await flushPromises()
+    expect(goiDanhSach().at(-1)[1].params.loaiDon).toBe('2')
+    w.unmount()
+  })
+
+  it('CSS trang hóa đơn không ép lại cỡ chữ / chiều cao ô / bảng của trang chung', () => {
+    const src = readFileSync(resolve(process.cwd(), 'src/components/HoaDonManager.vue'), 'utf-8')
+    const style = src.slice(src.indexOf('<style'))
+    expect(style).not.toMatch(/font-size:\s*0\.8[0-9]rem;[\s\S]*\.ad-table/)
+    expect(style).not.toContain('hd-compact')
+    expect(style).not.toMatch(/height:\s*3\dpx/)
   })
 })

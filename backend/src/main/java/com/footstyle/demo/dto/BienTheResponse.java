@@ -1,5 +1,6 @@
 package com.footstyle.demo.dto;
 
+/** hinhAnh: ảnh chính của MÀU của biến thể; màu chưa có ảnh thì lấy ảnh chính chung của sản phẩm (có thể rỗng). */
 public record BienTheResponse(
         Integer id,
         String ma,
@@ -9,5 +10,6 @@ public record BienTheResponse(
         Integer idChuVi,
         Long giaBan,
         Integer soLuongTon,
-        boolean hoatDong) {
+        boolean hoatDong,
+        String hinhAnh) {
 }

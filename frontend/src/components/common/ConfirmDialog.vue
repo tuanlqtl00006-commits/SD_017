@@ -12,7 +12,7 @@ const emit = defineEmits(['confirm', 'cancel'])
 </script>
 
 <template>
-  <BaseModal :title="title"  @close="emit('cancel')">
+  <BaseModal :title="title" size="sm" @close="emit('cancel')">
     <p class="ad-confirm-text">{{ message }}</p>
     <template #footer>
       <button type="button" class="ad-btn" :disabled="loading" @click="emit('cancel')">Hủy</button>

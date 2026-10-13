@@ -10,6 +10,9 @@ import java.util.List;
  * Nếu sản phẩm đã tồn tại (cùng tên + danh mục + thương hiệu) thì backend trả 409 mã SAN_PHAM_DA_TON_TAI;
  * frontend hỏi "bạn muốn cập nhật?" rồi gửi lại với xacNhanCapNhat = true để cập nhật sản phẩm cũ
  * (thêm biến thể mới, biến thể trùng thì cập nhật giá bán / số lượng tồn).
+ *
+ * anhTheoMau: ảnh riêng từng màu (áp dụng cho mọi biến thể cùng màu). null = không đổi ảnh theo màu (giữ nguyên);
+ * có gửi thì các màu có trong danh sách được đồng bộ theo danh sách gửi lên (gửi anh rỗng = bỏ hết ảnh của màu đó).
  */
 public record SanPhamRequest(
         String ma,
@@ -24,5 +27,6 @@ public record SanPhamRequest(
         String anhChinh,
         List<String> anhPhu,
         List<BienTheMoiRequest> bienThes,
-        Boolean xacNhanCapNhat) {
+        Boolean xacNhanCapNhat,
+        List<AnhTheoMauRequest> anhTheoMau) {
 }

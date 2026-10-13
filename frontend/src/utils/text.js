@@ -15,6 +15,21 @@ export function includesText(haystack, needle) {
 }
 
 /**
+ * Tìm CHÍNH XÁC từng chữ (dùng cho thương hiệu, xuất xứ - tên đã đăng ký phải gõ đúng):
+ *  - Phân biệt chữ HOA / thường: gõ "yonex" không ra "Yonex", phải gõ "Yonex" (hoặc "Y", "Yon"...).
+ *  - Phân biệt dấu: gõ "Nhat Ban" không ra "Nhật Bản".
+ *  - Chỉ bỏ khoảng trắng thừa ở đầu / cuối / giữa; riêng dấu tiếng Việt gõ kiểu nào (dựng sẵn hay tổ hợp) cũng
+ *    được coi là một (chuẩn hóa Unicode NFC) để không bị "gõ đúng mà không ra".
+ *  - Ô tìm trống -> khớp tất cả.
+ */
+const chuanHoaChinhXac = (v) => String(v ?? '').normalize('NFC').replace(/\s+/g, ' ').trim()
+export function includesExact(haystack, needle) {
+  const k = chuanHoaChinhXac(needle)
+  if (!k) return true
+  return chuanHoaChinhXac(haystack).includes(k)
+}
+
+/**
  * Tìm theo TỪ (không phân biệt hoa thường và dấu), dùng cho ô tìm kiếm người / mã:
  *  - Chữ (vd "anh", "nv0009"): phải là phần ĐẦU của một từ -> "Anh" ra "Hoàng Tuấn Anh", "Ánh", không ra "Mạnh" (manh có chứa anh).
  *  - Số điện thoại (toàn chữ số) hoặc có ký tự . @ - _ : tìm ở bất kỳ vị trí nào.

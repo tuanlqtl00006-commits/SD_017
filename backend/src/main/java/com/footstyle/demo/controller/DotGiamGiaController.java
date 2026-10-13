@@ -11,6 +11,7 @@ import com.footstyle.demo.repository.DotGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import com.footstyle.demo.service.GiamGiaApDungService;
 import com.footstyle.demo.service.LichGiamGiaService;
+import com.footstyle.demo.service.MaUtil;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -50,7 +51,7 @@ public class DotGiamGiaController {
         return dotGiamGiaRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
     }
 
-    /** Mã đợt do hệ thống sinh, dạng ngắn DGG + số thứ tự (DGG009), không trùng mã đã có. */
+    /** Mã đợt do hệ thống sinh, dạng ngắn DGG + số thứ tự (DGG09, DGG100), không trùng mã đã có. */
     @GetMapping("/ma-moi")
     public Map<String, String> maMoi() {
         return Map.of("ma", sinhMa());
@@ -149,15 +150,11 @@ public class DotGiamGiaController {
 
     /**
      * Bật / tắt hoạt động đợt giảm giá (1: đang hoạt động, 0: ngừng hoạt động). Không xóa dữ liệu.
-     * Giống phiếu giảm giá: đợt đã qua ngày kết thúc thì không đổi trạng thái nữa (công tắc ở giao diện cũng biến mất).
+     * Đợt đã qua ngày kết thúc vẫn bật / tắt được (công tắc ở giao diện luôn hiện; tắt = \"Ngừng hoạt động\").
      */
     @PutMapping("/{id}/trang-thai")
     public DotGiamGia toggleStatus(@PathVariable Long id) {
         DotGiamGia existing = getById(id);
-        // So theo NGÀY: ngày kết thúc vẫn còn bật / tắt được hết ngày đó, sang hôm sau mới là "Đã kết thúc"
-        if (existing.getNgayKetThuc() != null && existing.getNgayKetThuc().toLocalDate().isBefore(LocalDate.now())) {
-            throw ApiException.conflict("Đợt giảm giá đã kết thúc, không thể thay đổi trạng thái.");
-        }
         existing.setTrangThai(Integer.valueOf(1).equals(existing.getTrangThai()) ? 0 : 1);
         return dotGiamGiaRepository.save(existing);
     }
@@ -173,7 +170,7 @@ public class DotGiamGiaController {
     /* ---------------- hàm phụ ---------------- */
 
     private String sinhMa() {
-        // Mã ngắn theo số thứ tự: DGG001, DGG002... (lấy số lớn nhất đang có + 1), không trùng mã đã có
+        // Mã ngắn theo số thứ tự: DGG01, DGG02... (lấy số lớn nhất đang có + 1, đọc được cả mã cũ DGG001), không trùng mã đã có
         int max = 0;
         for (DotGiamGia d : dotGiamGiaRepository.findAll()) {
             String m = d.getMaDot() == null ? "" : d.getMaDot().trim().toUpperCase(Locale.ROOT);
@@ -182,7 +179,7 @@ public class DotGiamGiaController {
         String ma;
         do {
             max++;
-            ma = String.format("DGG%03d", max);
+            ma = MaUtil.dinhDang("DGG", max);
         } while (dotGiamGiaRepository.existsByMaDot(ma));
         return ma;
     }

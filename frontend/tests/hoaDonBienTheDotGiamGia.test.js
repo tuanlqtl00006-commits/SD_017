@@ -24,11 +24,13 @@ describe('utils', () => {
     expect(idKhongApDung(ds)).toBe(90); expect(idKhongApDung([])).toBe(null)
     expect(laKhongApDung({ ten: 'KHÔNG ÁP DỤNG' })).toBe(true)
   })
-  it('taoMaDot: ngắn, theo số thứ tự', () => {
-    expect(taoMaDot(['DGG001', 'DGG008'])).toBe('DGG009')
-    expect(taoMaDot([])).toBe('DGG001')
-    expect(taoMaDot(['DGG008', 'ABC', 'dgg012'])).toBe('DGG013')
-    expect(taoMaDot(['DGG008']).length).toBe(6)
+  it('taoMaDot: ngắn, theo số thứ tự (DGG01 ... DGG99, DGG100)', () => {
+    expect(taoMaDot(['DGG01', 'DGG08'])).toBe('DGG09')
+    expect(taoMaDot([])).toBe('DGG01')
+    expect(taoMaDot(['DGG08', 'ABC', 'dgg12'])).toBe('DGG13')
+    expect(taoMaDot(['DGG08']).length).toBe(5)
+    expect(taoMaDot(['DGG99'])).toBe('DGG100')
+    expect(taoMaDot(['DGG001', 'DGG008'])).toBe('DGG09') // CSDL cũ còn mã DGG001: vẫn đọc đúng, mã mới gọn
   })
 })
 

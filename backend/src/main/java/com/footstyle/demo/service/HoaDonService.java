@@ -99,11 +99,8 @@ public class HoaDonService {
             HoaDonRequest request = new HoaDonRequest();
             request.setId(hd.getId());
             request.setMaHoaDon(hd.getMaHoaDon());
-            request.setTenKhachHang(hd.getKhachHang() != null ? hd.getKhachHang().getHoTen() : "Khách vãng lai");
-            // SĐT khách: ưu tiên SĐT trong hồ sơ khách hàng; khách chưa có SĐT (hoặc khách vãng lai) thì lấy SĐT người nhận ghi trên hóa đơn
-            String sdtKhach = hd.getKhachHang() != null ? hd.getKhachHang().getSdt() : null;
-            if (sdtKhach == null || sdtKhach.trim().isEmpty()) sdtKhach = hd.getSdtNguoiNhan();
-            request.setSdtKhachHang(sdtKhach == null || sdtKhach.trim().isEmpty() ? null : sdtKhach.trim());
+            request.setTenKhachHang(tenKhach(hd));
+            request.setSdtKhachHang(sdtKhach(hd));
             request.setMaNhanVien(hd.getNhanVien() != null ? hd.getNhanVien().getMaNhanVien() : null);
             request.setTenNhanVien(hd.getNhanVien() != null ? hd.getNhanVien().getHoTen() : "Không xác định");
             // Số tiền khách phải trả (đã trừ giảm giá, cộng phí ship)
@@ -113,6 +110,27 @@ public class HoaDonService {
             request.setLoaiDon(tenLoaiDon(hd.getLoaiDon()));
             return request;
         });
+    }
+
+    /** Tên khách: tên trong hồ sơ khách hàng; hóa đơn không gắn khách thì lấy tên người nhận ghi trên hóa đơn, không có nữa thì "Khách vãng lai". */
+    private String tenKhach(HoaDon hd) {
+        if (hd.getKhachHang() != null && hd.getKhachHang().getHoTen() != null && !hd.getKhachHang().getHoTen().trim().isEmpty()) {
+            return hd.getKhachHang().getHoTen().trim();
+        }
+        String nguoiNhan = hd.getHoTenNguoiNhan();
+        return nguoiNhan == null || nguoiNhan.trim().isEmpty() ? "Khách vãng lai" : nguoiNhan.trim();
+    }
+
+    /**
+     * SĐT khách: ưu tiên SĐT trong hồ sơ khách hàng; khách chưa có SĐT (hoặc khách vãng lai) thì lấy SĐT người nhận ghi trên hóa đơn.
+     * Không có SĐT nào thì trả null (giao diện hiện "—").
+     */
+    private String sdtKhach(HoaDon hd) {
+        String sdt = hd.getKhachHang() != null ? hd.getKhachHang().getSdt() : null;
+        if (sdt == null || sdt.trim().isEmpty()) {
+            sdt = hd.getSdtNguoiNhan();
+        }
+        return sdt == null || sdt.trim().isEmpty() ? null : sdt.trim();
     }
 
     /* ===================== Chi tiết ===================== */
@@ -153,8 +171,8 @@ public class HoaDonService {
         KhachHang kh = hd.getKhachHang();
         Map<String, Object> khach = new LinkedHashMap<>();
         khach.put("maKhachHang", kh != null ? kh.getMaKhachHang() : null);
-        khach.put("ten", kh != null ? kh.getHoTen() : "Khách vãng lai");
-        khach.put("sdt", kh != null ? kh.getSdt() : null);
+        khach.put("ten", tenKhach(hd));
+        khach.put("sdt", sdtKhach(hd)); // cùng cách lấy với danh sách: hồ sơ khách, không có thì SĐT người nhận ghi trên hóa đơn
         khach.put("email", kh != null ? kh.getEmail() : null);
         response.put("khachHang", khach);
 
@@ -204,10 +222,11 @@ public class HoaDonService {
     }
 
     private List<Map<String, Object>> danhSachSanPham(Integer idHoaDon) {
-        // Ảnh chính của từng sản phẩm (1 câu truy vấn cho tất cả)
-        Map<Integer, String> anhChinh = new HashMap<>();
+        // Ảnh của từng sản phẩm (1 câu truy vấn cho tất cả), gom theo sản phẩm. Mỗi dòng hóa đơn lấy ảnh theo MÀU của biến thể,
+        // màu chưa có ảnh thì lấy ảnh chính chung của sản phẩm (xem AnhSanPham.anhCuaBienThe).
+        Map<Integer, List<HinhAnhSanPham>> anhTheoSp = new HashMap<>();
         for (HinhAnhSanPham a : hinhAnhRepository.findByTrangThaiOrderByLaAnhChinhDescIdAsc(1)) {
-            anhChinh.putIfAbsent(a.getSanPham().getId(), a.getDuongDanHinhAnh());
+            anhTheoSp.computeIfAbsent(a.getSanPham().getId(), k -> new ArrayList<>()).add(a);
         }
 
         List<Map<String, Object>> list = new ArrayList<>();
@@ -233,7 +252,9 @@ public class HoaDonService {
             item.put("mauSac", spct != null && spct.getMauSac() != null ? spct.getMauSac().getTen() : null);
             item.put("trongLuong", spct != null && spct.getTrongLuong() != null ? spct.getTrongLuong().getTen() : null);
             item.put("chuVi", spct != null && spct.getChuVi() != null ? spct.getChuVi().getTen() : null);
-            item.put("hinhAnh", sp != null ? anhChinh.get(sp.getId()) : null);
+            String anh = sp == null ? "" : AnhSanPham.anhCuaBienThe(anhTheoSp.getOrDefault(sp.getId(), List.of()),
+                    spct.getMauSac() != null ? spct.getMauSac().getId() : null);
+            item.put("hinhAnh", anh.isEmpty() ? null : anh);
             item.put("soLuong", soLuong);
             item.put("donGia", donGia);
             item.put("giaGoc", giaGoc);

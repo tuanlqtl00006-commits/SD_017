@@ -5,13 +5,19 @@ import java.util.Collection;
 import java.util.Locale;
 
 /**
- * Tạo mã nhân viên theo HỌ TÊN ĐẦY ĐỦ: Tên + chữ cái đầu của họ và tên đệm + số thứ tự (2 chữ số).
- * Ví dụ:  Nguyễn Văn An  -> AnNV01   (người thứ hai trùng tiền tố -> AnNV02)
- *         Trần Thị Mai Lan -> LanTTM01
- *         Lan -> Lan01
- * Bỏ dấu tiếng Việt, chỉ giữ chữ cái. Số thứ tự = số lớn nhất đang dùng cho cùng tiền tố + 1.
+ * Tạo mã nhân viên theo HỌ TÊN: chữ cái đầu của MỌI từ trong họ tên (viết hoa, bỏ dấu) + số thứ tự (tối thiểu 2 chữ số).
+ * Ví dụ:  Lê Quốc Tuấn      -> LQT01   (người thứ hai trùng chữ cái đầu -> LQT02)
+ *         Nguyễn Văn An     -> NVA01
+ *         Trần Thị Mai Lan  -> TTML01
+ *         Lan               -> L01
+ * Số thứ tự = số lớn nhất đang dùng cho cùng tiền tố + 1, nên mã không bao giờ trùng mã đã cấp.
+ * Quá 99 thì viết thẳng LQT100 (không đệm số 0). Mã mẫu NV01...NV10 giữ nguyên (người có tiền tố NV đánh số tiếp, ví dụ NV11).
+ * Mã cũ còn nhiều số 0 (NV0001, LQT0001) vẫn được đọc đúng khi tính số lớn nhất.
  */
 public final class MaNhanVienUtil {
+
+    /** Số chữ số tối thiểu của phần số thứ tự (xem MaUtil). */
+    public static final int SO_CHU_SO = MaUtil.SO_CHU_SO_TOI_THIEU;
 
     private MaNhanVienUtil() {
     }
@@ -26,17 +32,13 @@ public final class MaNhanVienUtil {
         return t.replaceAll("[^A-Za-z\\s]", " ").trim().replaceAll("\\s+", " ");
     }
 
-    /** Phần chữ của mã (chưa có số thứ tự): 'Nguyễn Văn An' -> 'AnNV'. Họ tên không có chữ cái nào -> chuỗi rỗng. */
+    /** Phần chữ của mã (chưa có số thứ tự): 'Lê Quốc Tuấn' -> 'LQT'. Họ tên không có chữ cái nào -> chuỗi rỗng. */
     public static String tienTo(String hoTen) {
         String sach = boDau(hoTen);
         if (sach.isEmpty()) return "";
-        String[] tu = sach.split(" ");
-        String ten = tu[tu.length - 1];
         StringBuilder sb = new StringBuilder();
-        sb.append(Character.toUpperCase(ten.charAt(0)));
-        sb.append(ten.substring(1).toLowerCase(Locale.ROOT));
-        for (int i = 0; i < tu.length - 1; i++) {
-            sb.append(Character.toUpperCase(tu[i].charAt(0)));
+        for (String tu : sach.split(" ")) {
+            sb.append(Character.toUpperCase(tu.charAt(0)));
         }
         return sb.toString();
     }
@@ -59,6 +61,6 @@ public final class MaNhanVienUtil {
                 }
             }
         }
-        return String.format("%s%02d", tienTo, max + 1);
+        return MaUtil.dinhDang(tienTo, max + 1L);
     }
 }

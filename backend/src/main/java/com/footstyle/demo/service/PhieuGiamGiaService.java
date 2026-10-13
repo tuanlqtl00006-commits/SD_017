@@ -18,6 +18,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -26,6 +28,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Service
 @RequiredArgsConstructor
 public class PhieuGiamGiaService {
+
+    private static final Logger log = LoggerFactory.getLogger(PhieuGiamGiaService.class);
 
     // Chữ mà frontend dùng, trong DB lưu bằng số (xem hằng số trong entity PhieuGiamGia)
     private static final String CONG_KHAI = "CONG_KHAI"; // doi_tuong_ap_dung = 1
@@ -48,6 +52,12 @@ public class PhieuGiamGiaService {
             ketQua.add(toResponse(p, new ArrayList<>()));
         }
         return ketQua;
+    }
+
+    /** Kết quả lô mail gần nhất của phiếu (để giao diện báo "đã gửi" / "gửi lỗi" sau khi lưu). */
+    @Transactional(readOnly = true)
+    public Map<String, Object> ketQuaMail(Integer id) {
+        return mailService.ketQuaLo(timPhieu(id).getMaPhieu());
     }
 
     @Transactional(readOnly = true)
@@ -144,13 +154,10 @@ public class PhieuGiamGiaService {
         return toResponse(p, getKhachHangDuocTang(p.getId())).voiKetQuaMail(ketQuaMail);
     }
 
-    // Không xóa phiếu, chỉ ẩn / hiện bằng cột trạng thái. Phiếu đã hết hạn thì không đổi nữa.
+    // Không xóa phiếu, chỉ ẩn / hiện bằng cột trạng thái. Phiếu đã hết hạn vẫn bật / tắt được (tắt = "Ngưng hoạt động").
     @Transactional
     public PhieuGiamGiaResponse doiTrangThai(Integer id) {
         PhieuGiamGia p = timPhieu(id);
-        if (p.getNgayKetThuc() != null && p.getNgayKetThuc().isBefore(LocalDateTime.now())) {
-            throw ApiException.conflict("Phiếu đã kết thúc, không thể thay đổi trạng thái.");
-        }
         if (dangHoatDong(p)) {
             p.setTrangThai(PhieuGiamGia.NGUNG_HOAT_DONG);
         } else {
@@ -279,7 +286,7 @@ public class PhieuGiamGiaService {
         List<Runnable> viec = new ArrayList<>();
         int[] daXep = new int[3];      // số mail mới / cập nhật / hủy sẽ gửi
         int khongCoEmail = 0;
-        MailService.Loai[] loai = {MailService.Loai.MOI, MailService.Loai.CAP_NHAT, MailService.Loai.HUY};
+        PhieuMailNoiDung.Loai[] loai = {PhieuMailNoiDung.Loai.MOI, PhieuMailNoiDung.Loai.CAP_NHAT, PhieuMailNoiDung.Loai.HUY};
         List<List<Integer>> nhom = List.of(idMoi, idCapNhat, idHuy);
         for (int i = 0; i < 3; i++) {
             for (Integer idKh : nhom.get(i)) {
@@ -288,14 +295,25 @@ public class PhieuGiamGiaService {
                     khongCoEmail++;
                     continue;
                 }
-                final MailService.Loai loaiMail = loai[i];
+                final PhieuMailNoiDung.Loai loaiMail = loai[i];
                 viec.add(() -> mailService.guiPhieuGiamGia(loaiMail, p, k));
                 daXep[i]++;
             }
         }
 
         if (!viec.isEmpty()) {
-            Runnable chay = () -> viec.forEach(Runnable::run);
+            // Mỗi thư chạy riêng trong try/catch: một thư lỗi không làm mất các thư còn lại, cũng không làm lỗi thao tác đã lưu
+            Runnable chay = () -> {
+                // Lô thư mới của phiếu: giao diện hỏi lại kết quả gửi theo lô này (xem MailService.ketQuaLo)
+                mailService.batDauLo(p.getMaPhieu(), viec.size());
+                viec.forEach(v -> {
+                    try {
+                        v.run();
+                    } catch (Exception e) {
+                        log.error("Không xếp được mail phiếu giảm giá: {}", e.toString(), e);
+                    }
+                });
+            };
             if (TransactionSynchronizationManager.isSynchronizationActive()) {
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override
@@ -312,7 +330,17 @@ public class PhieuGiamGiaService {
         if (daXep[0] > 0) phan.add(daXep[0] + " mail phiếu mới");
         if (daXep[1] > 0) phan.add(daXep[1] + " mail cập nhật");
         if (daXep[2] > 0) phan.add(daXep[2] + " mail hủy phiếu");
-        String ketQua = phan.isEmpty() ? "Không gửi được mail nào" : "Đã gửi " + String.join(", ", phan);
+        String ketQua;
+        if (phan.isEmpty()) {
+            ketQua = "Không gửi được mail nào";
+        } else if (!mailService.duocCauHinh()) {
+            // Chưa cấu hình Gmail: nói thẳng là CHƯA gửi, đừng báo "đã gửi" làm người dùng tưởng thư đã đi
+            ketQua = "Chưa gửi được mail thật vì chưa cấu hình Gmail (điền email + mật khẩu ứng dụng vào backend/src/main/resources/mail.properties "
+                    + "rồi chạy lại backend)";
+        } else {
+            // Thư gửi ở luồng nền nên chỉ nói "đang gửi"; nếu Gmail từ chối thì lý do nằm trong log backend
+            ketQua = "Đang gửi " + String.join(", ", phan);
+        }
         if (khongCoEmail > 0) {
             ketQua += " (" + khongCoEmail + " khách chưa có email nên không gửi được)";
         }
@@ -385,7 +413,7 @@ public class PhieuGiamGiaService {
     }
 
     private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung) {
-        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), k.getAnhDaiDien(), null, 0L, null, daDung);
+        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), daDung);
     }
 
     // Đổi entity thành dữ liệu trả về cho frontend (số trong DB -> chữ)

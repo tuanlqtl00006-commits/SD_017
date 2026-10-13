@@ -41,8 +41,9 @@ function sheetXml(columns, rows) {
           const value = row[c.key]
           if (value === null || value === undefined || value === '') return ''
           const ref = `${columnName(i)}${r + 2}`
+          // Cột tiền (money: true) dùng định dạng số có ngăn cách hàng nghìn (#,##0) nhưng vẫn là SỐ để Excel cộng được
           return typeof value === 'number'
-            ? `<c r="${ref}"><v>${value}</v></c>`
+            ? `<c r="${ref}"${c.money ? ' s="2"' : ''}><v>${value}</v></c>`
             : `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`
         })
         .join('')
@@ -69,8 +70,9 @@ const STYLES_XML =
   '<fill><patternFill patternType="solid"><fgColor rgb="FFE7F0FF"/><bgColor indexed="64"/></patternFill></fill></fills>' +
   '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
   '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-  '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
-  '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>' +
+  '<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+  '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
+  '<xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>' +
   '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
   '</styleSheet>'
 
@@ -149,7 +151,7 @@ function zipStore(files) {
 
 /**
  * Tạo Blob .xlsx.
- * columns: [{ header, key, width }]  rows: [{ [key]: string | number }]
+ * columns: [{ header, key, width, money }]  rows: [{ [key]: string | number }]  (money: true = cột tiền, hiện 3.861.000)
  */
 export function buildXlsx({ sheetName = 'Sheet1', columns, rows }) {
   const safeName = sheetName.replace(/[[\]:*?/\\]/g, ' ').slice(0, 31) || 'Sheet1'

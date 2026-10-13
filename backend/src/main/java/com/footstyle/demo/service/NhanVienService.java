@@ -4,23 +4,17 @@ import com.footstyle.demo.dto.DiaChiNhanVienDto;
 import com.footstyle.demo.dto.NhanVienRequest;
 import com.footstyle.demo.dto.NhanVienResponse;
 import com.footstyle.demo.dto.VaiTroResponse;
-import com.footstyle.demo.dto.ViTriRequest;
-import com.footstyle.demo.dto.ViTriResponse;
 import com.footstyle.demo.entity.DiaChiNhanVien;
 import com.footstyle.demo.entity.NhanVien;
 import com.footstyle.demo.entity.VaiTro;
-import com.footstyle.demo.entity.ViTri;
 import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.DiaChiNhanVienRepository;
 import com.footstyle.demo.repository.NhanVienRepository;
 import com.footstyle.demo.repository.VaiTroRepository;
-import com.footstyle.demo.repository.ViTriRepository;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -33,7 +27,6 @@ public class NhanVienService {
     private final NhanVienRepository nhanVienRepo;
     private final DiaChiNhanVienRepository diaChiRepo;
     private final VaiTroRepository vaiTroRepo;
-    private final ViTriRepository viTriRepo;
     private final BCryptPasswordEncoder passwordEncoder;
 
     /* ===================== Đọc ===================== */
@@ -63,32 +56,6 @@ public class NhanVienService {
         return ketQua;
     }
 
-    // Danh sách vị trí làm việc đã thêm, đổ vào ô chọn nhiều vị trí trên form
-    @Transactional(readOnly = true)
-    public List<ViTriResponse> getViTri() {
-        List<ViTriResponse> ketQua = new ArrayList<>();
-        for (ViTri v : viTriRepo.findByTrangThaiOrderByIdAsc(ViTri.DANG_DUNG)) {
-            ketQua.add(new ViTriResponse(v.getId(), v.getTenViTri()));
-        }
-        return ketQua;
-    }
-
-    // Thêm vị trí làm việc mới (không có chức năng xóa vị trí)
-    @Transactional
-    public ViTriResponse themViTri(ViTriRequest req) {
-        String ten = req == null || req.ten() == null ? "" : req.ten().trim().replaceAll("\\s+", " ");
-        loi(ten.isEmpty(), "Nhập tên vị trí.");
-        loi(ten.length() < 2 || ten.length() > 50, "Tên vị trí từ 2 đến 50 ký tự.");
-        if (viTriRepo.existsByTenViTriIgnoreCase(ten)) {
-            throw ApiException.conflict("Vị trí này đã được thêm, hãy chọn trong danh sách.");
-        }
-        ViTri v = new ViTri();
-        v.setTenViTri(ten);
-        v.setTrangThai(ViTri.DANG_DUNG);
-        v = viTriRepo.save(v);
-        return new ViTriResponse(v.getId(), v.getTenViTri());
-    }
-
     /* ===================== Thêm / sửa / đổi trạng thái ===================== */
 
     @Transactional
@@ -96,7 +63,7 @@ public class NhanVienService {
         NhanVien nv = new NhanVien();
         nv.setTrangThai(NhanVien.HOAT_DONG);
         List<DiaChiNhanVienDto> diaChis = napDuLieu(nv, req, true);
-        // Mã tạo SAU khi đã kiểm tra hết thông tin: theo họ tên đầy đủ (vd Nguyễn Văn An -> AnNV01)
+        // Mã tạo SAU khi đã kiểm tra hết thông tin: chữ cái đầu của họ tên + số thứ tự (vd Lê Quốc Tuấn -> LQT0001)
         nv.setMaNhanVien(MaNhanVienUtil.taoMa(nv.getHoTen(), nhanVienRepo.findAllMaNhanVien()));
         NhanVien daLuu = nhanVienRepo.save(nv);
         return toResponse(daLuu, luuDiaChi(daLuu, diaChis));
@@ -120,13 +87,13 @@ public class NhanVienService {
         return toResponse(daLuu, luuDiaChi(daLuu, diaChis));
     }
 
-    // Không xóa nhân viên, chỉ ẩn / hiện bằng cột trạng thái
+    // Không xóa nhân viên, chỉ đổi cột trạng thái: Còn làm (1) <-> Đã nghỉ (0)
     @Transactional
     public NhanVienResponse doiTrangThai(Integer id) {
         NhanVien nv = timNhanVien(id);
         if (dangHoatDong(nv)) {
             if (laQuanLy(nv.getVaiTro())) {
-                kiemTraConQuanLyKhac(nv.getVaiTro(), "Không thể ngưng hoạt động quản lý cuối cùng của hệ thống.");
+                kiemTraConQuanLyKhac(nv.getVaiTro(), "Không thể cho quản lý cuối cùng của hệ thống nghỉ việc.");
             }
             nv.setTrangThai(NhanVien.NGUNG_HOAT_DONG);
         } else {
@@ -150,7 +117,7 @@ public class NhanVienService {
         return v != null && VaiTro.TEN_QUAN_LY.equalsIgnoreCase(v.getTenVaiTro());
     }
 
-    // Phải còn ít nhất 1 quản lý khác đang hoạt động thì mới được ẩn / đổi vai trò quản lý này
+    // Phải còn ít nhất 1 quản lý khác còn làm thì mới được cho nghỉ / đổi vai trò quản lý này
     private void kiemTraConQuanLyKhac(VaiTro vaiTroQuanLy, String thongBao) {
         long soQuanLy = nhanVienRepo.countByVaiTroIdAndTrangThai(vaiTroQuanLy.getId(), NhanVien.HOAT_DONG);
         if (soQuanLy <= 1) {
@@ -167,7 +134,7 @@ public class NhanVienService {
 
     // Kiểm tra dữ liệu người dùng gửi lên, hợp lệ thì ghi vào nv (chưa lưu xuống DB)
     //  - THÊM MỚI (taoMoi = true): nhập đủ các trường.
-    //  - SỬA (taoMoi = false): chỉ sửa họ tên, giới tính, ngày sinh, số điện thoại, địa chỉ, vai trò, CCCD, vị trí.
+    //  - SỬA (taoMoi = false): chỉ sửa họ tên, giới tính, ngày sinh, số điện thoại, căn cước, địa chỉ, vai trò.
     //    Email, ngày vào làm, mật khẩu giữ nguyên, dù request có gửi lên cũng bỏ qua.
     // Trả về danh sách địa chỉ đã kiểm tra (đúng 1 địa chỉ chính) để lưu sau khi nhân viên đã có id.
     private List<DiaChiNhanVienDto> napDuLieu(NhanVien nv, NhanVienRequest req, boolean taoMoi) {
@@ -231,28 +198,17 @@ public class NhanVienService {
             throw ApiException.badRequest("Ngày sinh không hợp lệ: nhân viên phải đủ 18 tuổi vào ngày vào làm (" + ngay + ").");
         }
 
-        // Địa chỉ: nhiều địa chỉ, đúng 1 địa chỉ chính
-        List<DiaChiNhanVienDto> diaChis = chuanHoaDiaChi(req);
-
         // Số căn cước công dân (không bắt buộc): đúng 12 chữ số, không trùng người khác
-        String cccd = req.cccd() == null ? "" : req.cccd().trim();
-        if (!cccd.isEmpty()) {
-            loi(!cccd.matches("^\\d{12}$"), "Số căn cước công dân gồm đúng 12 chữ số.");
-            if (nhanVienRepo.existsByCccdAndIdNot(cccd, idHienTai)) {
+        String canCuoc = req.canCuoc() == null ? "" : req.canCuoc().trim();
+        if (!canCuoc.isEmpty()) {
+            loi(!canCuoc.matches("^\\d{12}$"), "Số căn cước công dân gồm đúng 12 chữ số.");
+            if (nhanVienRepo.existsByCanCuocCongDanAndIdNot(canCuoc, idHienTai)) {
                 throw ApiException.conflict("Số căn cước công dân đã được sử dụng.");
             }
         }
 
-        // Vị trí làm việc (không bắt buộc, chọn được nhiều): phải là vị trí đã thêm và đang dùng
-        Set<ViTri> viTriChon = new LinkedHashSet<>();
-        if (req.idViTri() != null) {
-            for (Integer idViTri : new LinkedHashSet<>(req.idViTri())) {
-                if (idViTri == null) continue;
-                ViTri v = viTriRepo.findById(idViTri).orElseThrow(() -> ApiException.badRequest("Vị trí không tồn tại."));
-                loi(v.getTrangThai() == null || v.getTrangThai() != ViTri.DANG_DUNG, "Vị trí \"" + v.getTenViTri() + "\" đang ngưng sử dụng.");
-                viTriChon.add(v);
-            }
-        }
+        // Địa chỉ: nhiều địa chỉ, đúng 1 địa chỉ chính
+        List<DiaChiNhanVienDto> diaChis = chuanHoaDiaChi(req);
 
         // Vai trò: phải tồn tại và đang được sử dụng
         loi(req.idVaiTro() == null, "Chọn vai trò.");
@@ -265,11 +221,9 @@ public class NhanVienService {
         nv.setSdt(sdt);
         nv.setGioiTinh(gioiTinh);
         nv.setNgaySinh(ngaySinh);
+        nv.setCanCuocCongDan(canCuoc.isEmpty() ? null : canCuoc);
         nv.setDiaChi(ghepDiaChi(diaChiChinh(diaChis)));
         nv.setVaiTro(vaiTro);
-        nv.setCccd(cccd.isEmpty() ? null : cccd);
-        nv.getViTriList().clear();
-        nv.getViTriList().addAll(viTriChon);
         if (taoMoi) { // chỉ thêm mới mới được ghi 3 trường này
             nv.setEmail(email);
             nv.setNgayVaoLam(ngayVaoLam);
@@ -376,10 +330,6 @@ public class NhanVienService {
             gioiTinh = nv.getGioiTinh() == NhanVien.GIOI_TINH_NAM ? "Nam" : "Nữ";
         }
         VaiTro v = nv.getVaiTro();
-        List<ViTriResponse> danhSachViTri = new ArrayList<>();
-        for (ViTri vt : nv.getViTriList()) {
-            danhSachViTri.add(new ViTriResponse(vt.getId(), vt.getTenViTri()));
-        }
         return new NhanVienResponse(
                 nv.getId(),
                 nv.getMaNhanVien(),
@@ -393,8 +343,7 @@ public class NhanVienService {
                 v == null ? null : v.getId(),
                 v == null ? null : v.getTenVaiTro(),
                 dangHoatDong(nv),
-                nv.getCccd(),
-                danhSachViTri,
+                nv.getCanCuocCongDan(),
                 toDiaChiDto(diaChis));
     }
 

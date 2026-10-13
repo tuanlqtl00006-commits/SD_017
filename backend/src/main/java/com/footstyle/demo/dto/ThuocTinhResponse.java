@@ -1,4 +1,7 @@
 package com.footstyle.demo.dto;
 
-public record ThuocTinhResponse(Integer id, String ma, String ten, boolean hoatDong) {
+import java.util.List;
+
+/** "nhom" chỉ có ở chất liệu (các nhóm danh mục dùng chất liệu này); các thuộc tính khác để null. */
+public record ThuocTinhResponse(Integer id, String ma, String ten, boolean hoatDong, List<String> nhom) {
 }

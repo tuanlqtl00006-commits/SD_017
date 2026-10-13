@@ -1,5 +1,6 @@
 package com.footstyle.demo.service;
 
+import com.footstyle.demo.dto.AnhTheoMauRequest;
 import com.footstyle.demo.dto.SanPhamRequest;
 import com.footstyle.demo.dto.SanPhamResponse;
 import com.footstyle.demo.entity.HinhAnhSanPham;
@@ -10,17 +11,16 @@ import com.footstyle.demo.repository.DanhMucRepository;
 import com.footstyle.demo.repository.DiemCanBangRepository;
 import com.footstyle.demo.repository.DoCungRepository;
 import com.footstyle.demo.repository.HinhAnhSanPhamRepository;
+import com.footstyle.demo.repository.MauSacRepository;
 import com.footstyle.demo.repository.SanPhamRepository;
 import com.footstyle.demo.repository.ThuongHieuRepository;
 import com.footstyle.demo.repository.XuatXuRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SanPhamService {
 
     private static final int TOI_DA_ANH = 10;
+    private static final int TOI_DA_ANH_MOI_MAU = 6;
 
     private final SanPhamRepository sanPhamRepo;
     private final HinhAnhSanPhamRepository hinhAnhRepo;
@@ -43,6 +44,7 @@ public class SanPhamService {
     private final ChatLieuRepository chatLieuRepo;
     private final DoCungRepository doCungRepo;
     private final DiemCanBangRepository diemCanBangRepo;
+    private final MauSacRepository mauSacRepo;
     private final BienTheService bienTheService;
 
     /* ===================== Đọc ===================== */
@@ -65,7 +67,7 @@ public class SanPhamService {
     @Transactional(readOnly = true)
     public SanPhamResponse getById(Integer id) {
         SanPham sp = timSanPham(id);
-        return toResponse(sp, anhDangDung(id));
+        return toResponse(sp, hinhAnhRepo.findBySanPhamId(id));
     }
 
     /* ===================== Thêm / sửa / đổi trạng thái ===================== */
@@ -81,6 +83,7 @@ public class SanPhamService {
     @Transactional
     public SanPhamResponse them(SanPhamRequest req) {
         List<String> anh = layDanhSachAnh(req); // kiểm tra ảnh trước khi lưu bất cứ thứ gì
+        Map<Integer, List<String>> anhMau = layAnhTheoMau(req);
 
         SanPham daCo = timSanPhamTrung(req);
         if (daCo != null) {
@@ -97,7 +100,7 @@ public class SanPhamService {
                         "Sản phẩm \"" + daCo.getTenSanPham() + "\" (" + daCo.getMaSanPham() + ") đã tồn tại. Bạn có muốn cập nhật không?",
                         chiTiet);
             }
-            return capNhatSanPhamDaCo(daCo, req, anh);
+            return capNhatSanPhamDaCo(daCo, req, anh, anhMau);
         }
 
         SanPham sp = new SanPham();
@@ -107,12 +110,13 @@ public class SanPhamService {
         sp.setNgayCapNhat(LocalDateTime.now());
         sp = sanPhamRepo.save(sp);
         dongBoAnh(sp, anh);
+        dongBoAnhTheoMau(sp, anhMau);
         bienTheService.luuNhieu(sp, req.bienThes());
-        return toResponse(sp, anhDangDung(sp.getId()));
+        return toResponse(sp, hinhAnhRepo.findBySanPhamId(sp.getId()));
     }
 
     // Người dùng đã đồng ý cập nhật sản phẩm đã có: ghi thông tin mới vào sản phẩm cũ (giữ mã), rồi thêm / cập nhật biến thể
-    private SanPhamResponse capNhatSanPhamDaCo(SanPham sp, SanPhamRequest req, List<String> anh) {
+    private SanPhamResponse capNhatSanPhamDaCo(SanPham sp, SanPhamRequest req, List<String> anh, Map<Integer, List<String>> anhMau) {
         String moTaCu = sp.getMoTa();
         napDuLieu(sp, req, false);
         if (sp.getMoTa() == null) {
@@ -123,8 +127,14 @@ public class SanPhamService {
         if (!anh.isEmpty()) {
             dongBoAnh(sp, anh); // không gửi ảnh nào thì giữ ảnh cũ
         }
+        // Ảnh theo màu: chỉ cập nhật các màu có gửi ảnh, màu khác giữ nguyên ảnh cũ
+        Map<Integer, List<String>> coAnh = new LinkedHashMap<>();
+        anhMau.forEach((idMau, ds) -> {
+            if (!ds.isEmpty()) coAnh.put(idMau, ds);
+        });
+        dongBoAnhTheoMau(sp, coAnh);
         bienTheService.luuNhieu(sp, req.bienThes());
-        return toResponse(sp, anhDangDung(sp.getId()));
+        return toResponse(sp, hinhAnhRepo.findBySanPhamId(sp.getId()));
     }
 
     // Tìm sản phẩm đã có cùng tên (bỏ qua hoa thường, khoảng trắng thừa) + danh mục + thương hiệu; không có thì null
@@ -152,11 +162,13 @@ public class SanPhamService {
     public SanPhamResponse sua(Integer id, SanPhamRequest req) {
         SanPham sp = timSanPham(id);
         List<String> anh = layDanhSachAnh(req);
+        Map<Integer, List<String>> anhMau = layAnhTheoMau(req); // null trong request = giữ nguyên ảnh theo màu
         napDuLieu(sp, req, false);
         sp.setNgayCapNhat(LocalDateTime.now());
         sp = sanPhamRepo.save(sp);
         dongBoAnh(sp, anh);
-        return toResponse(sp, anhDangDung(sp.getId()));
+        dongBoAnhTheoMau(sp, anhMau);
+        return toResponse(sp, hinhAnhRepo.findBySanPhamId(sp.getId()));
     }
 
     // Không xóa sản phẩm (đã có biến thể, hóa đơn), chỉ ẩn / hiện bằng cột trạng thái.
@@ -171,7 +183,7 @@ public class SanPhamService {
         }
         sp.setNgayCapNhat(LocalDateTime.now());
         sp = sanPhamRepo.save(sp);
-        return toResponse(sp, anhDangDung(sp.getId()));
+        return toResponse(sp, hinhAnhRepo.findBySanPhamId(sp.getId()));
     }
 
     /* ===================== Hàm phụ ===================== */
@@ -191,7 +203,7 @@ public class SanPhamService {
         }
     }
 
-    // Mã sản phẩm kế tiếp: SP001, SP002, ...
+    // Mã sản phẩm kế tiếp: SP01, SP02, ... SP99, SP100 (số thứ tự tối thiểu 2 chữ số, không đệm thêm số 0)
     private String taoMaMoi() {
         int max = 0;
         for (String ma : sanPhamRepo.findAllMaSanPham()) {
@@ -200,7 +212,7 @@ public class SanPhamService {
                 max = Math.max(max, Integer.parseInt(so));
             }
         }
-        return String.format("SP%03d", max + 1);
+        return MaUtil.dinhDang("SP", max + 1L);
     }
 
     // Kiểm tra dữ liệu người dùng gửi lên, hợp lệ thì ghi vào sp (chưa lưu xuống DB)
@@ -229,11 +241,22 @@ public class SanPhamService {
         loi(moTa.length() > 4000, "Mô tả tối đa 4000 ký tự.");
         sp.setMoTa(moTa.isEmpty() ? null : moTa);
 
+        // Danh mục + chất liệu cũ (null khi thêm mới), để biết người dùng có đổi hay không
+        Integer idDanhMucCu = sp.getDanhMuc() == null ? null : sp.getDanhMuc().getId();
+        Integer idChatLieuCu = sp.getChatLieu() == null ? null : sp.getChatLieu().getId();
+
         // 6 thuộc tính: phải chọn, phải tồn tại, mục mới chọn phải đang hoạt động
         sp.setDanhMuc(ThuocTinhChon.chon(danhMucRepo, req.idDanhMuc(), sp.getDanhMuc(), "danh mục"));
         sp.setThuongHieu(ThuocTinhChon.chon(thuongHieuRepo, req.idThuongHieu(), sp.getThuongHieu(), "thương hiệu"));
         sp.setXuatXu(ThuocTinhChon.chon(xuatXuRepo, req.idXuatXu(), sp.getXuatXu(), "xuất xứ"));
         sp.setChatLieu(ThuocTinhChon.chon(chatLieuRepo, req.idChatLieu(), sp.getChatLieu(), "chất liệu"));
+        // Chất liệu phải hợp với danh mục (vd Quần áo thể thao không dùng Nhôm / Titanium). Sản phẩm cũ giữ nguyên danh mục + chất liệu thì cho qua.
+        boolean giuNguyen = idDanhMucCu != null && idDanhMucCu.equals(sp.getDanhMuc().getId())
+                && idChatLieuCu != null && idChatLieuCu.equals(sp.getChatLieu().getId());
+        if (!giuNguyen) {
+            loi(!NhomDanhMuc.hop(NhomDanhMuc.tach(sp.getChatLieu().getNhomApDung()), sp.getDanhMuc().getTen()),
+                    "Chất liệu \"" + sp.getChatLieu().getTen() + "\" không dùng cho danh mục \"" + sp.getDanhMuc().getTen() + "\". Hãy chọn chất liệu khác.");
+        }
         sp.setDoCung(ThuocTinhChon.chon(doCungRepo, req.idDoCung(), sp.getDoCung(), "độ cứng"));
         sp.setDiemCanBang(ThuocTinhChon.chon(diemCanBangRepo, req.idDiemCanBang(), sp.getDiemCanBang(), "điểm cân bằng"));
     }
@@ -275,55 +298,56 @@ public class SanPhamService {
         return url;
     }
 
-    // Đồng bộ bảng ảnh với danh sách mong muốn: ảnh còn trong danh sách thì bật, ảnh bị bỏ thì chuyển trạng thái 0
-    // (không xóa dòng), ảnh mới thì thêm dòng. Đúng 1 ảnh (phần tử đầu) có la_anh_chinh = 1.
-    private void dongBoAnh(SanPham sp, List<String> anh) {
-        List<HinhAnhSanPham> hienCo = hinhAnhRepo.findBySanPhamId(sp.getId());
-        Set<String> daXuLy = new HashSet<>();
-        List<HinhAnhSanPham> canLuu = new ArrayList<>();
-
-        for (HinhAnhSanPham h : hienCo) {
-            String url = h.getDuongDanHinhAnh();
-            boolean giu = anh.contains(url) && daXuLy.add(url); // add trả false nếu url này đã có dòng khác dùng rồi
-            h.setTrangThai(giu ? HinhAnhSanPham.HOAT_DONG : HinhAnhSanPham.NGUNG_HOAT_DONG);
-            h.setLaAnhChinh(giu && url.equals(anh.get(0)));
-            canLuu.add(h);
+    /*
+     * Ảnh theo màu: [{ idMauSac, anh: [url...] }] -> {idMàu -> [url...]} đã kiểm tra (màu tồn tại, không trùng màu,
+     * tối đa TOI_DA_ANH_MOI_MAU ảnh / màu, đường dẫn hợp lệ, bỏ url trùng). request không gửi (null) thì trả về map rỗng = không đổi.
+     */
+    private Map<Integer, List<String>> layAnhTheoMau(SanPhamRequest req) {
+        Map<Integer, List<String>> ketQua = new LinkedHashMap<>();
+        if (req.anhTheoMau() == null) {
+            return ketQua;
         }
-        for (String url : anh) {
-            if (!daXuLy.contains(url)) {
-                HinhAnhSanPham moi = new HinhAnhSanPham();
-                moi.setSanPham(sp);
-                moi.setDuongDanHinhAnh(url);
-                moi.setLaAnhChinh(url.equals(anh.get(0)));
-                moi.setTrangThai(HinhAnhSanPham.HOAT_DONG);
-                canLuu.add(moi);
+        for (AnhTheoMauRequest x : req.anhTheoMau()) {
+            loi(x == null || x.idMauSac() == null, "Ảnh theo màu thiếu màu sắc.");
+            loi(ketQua.containsKey(x.idMauSac()), "Mỗi màu chỉ gửi một danh sách ảnh.");
+            loi(!mauSacRepo.existsById(x.idMauSac()), "Màu sắc của ảnh không tồn tại.");
+            List<String> ds = new ArrayList<>();
+            if (x.anh() != null) {
+                for (String u : x.anh()) {
+                    String url = u == null ? "" : u.trim();
+                    if (url.isEmpty()) continue;
+                    kiemTraUrl(url);
+                    if (!ds.contains(url)) ds.add(url);
+                }
             }
+            loi(ds.size() > TOI_DA_ANH_MOI_MAU, "Mỗi màu tối đa " + TOI_DA_ANH_MOI_MAU + " ảnh.");
+            ketQua.put(x.idMauSac(), ds);
         }
+        return ketQua;
+    }
+
+    // Đồng bộ ảnh CHUNG (id_mau_sac = NULL) với danh sách mong muốn: ảnh còn trong danh sách thì bật, ảnh bị bỏ thì
+    // chuyển trạng thái 0 (không xóa dòng), ảnh mới thì thêm dòng. Đúng 1 ảnh (phần tử đầu) có la_anh_chinh = 1. Ảnh theo màu giữ nguyên.
+    private void dongBoAnh(SanPham sp, List<String> anh) {
+        hinhAnhRepo.saveAll(AnhSanPham.dongBo(sp, null, hinhAnhRepo.findBySanPhamId(sp.getId()), anh));
+    }
+
+    // Đồng bộ ảnh của từng màu có trong map (màu không có trong map giữ nguyên)
+    private void dongBoAnhTheoMau(SanPham sp, Map<Integer, List<String>> anhMau) {
+        if (anhMau.isEmpty()) {
+            return;
+        }
+        List<HinhAnhSanPham> hienCo = hinhAnhRepo.findBySanPhamId(sp.getId());
+        List<HinhAnhSanPham> canLuu = new ArrayList<>();
+        anhMau.forEach((idMau, ds) -> canLuu.addAll(AnhSanPham.dongBo(sp, idMau, hienCo, ds)));
         hinhAnhRepo.saveAll(canLuu);
     }
 
-    // Ảnh đang dùng của 1 sản phẩm, ảnh chính xếp trước
-    private List<HinhAnhSanPham> anhDangDung(Integer idSanPham) {
-        List<HinhAnhSanPham> chinh = new ArrayList<>();
-        List<HinhAnhSanPham> phu = new ArrayList<>();
-        for (HinhAnhSanPham h : hinhAnhRepo.findBySanPhamId(idSanPham)) {
-            if (h.getTrangThai() == null || h.getTrangThai() != HinhAnhSanPham.HOAT_DONG) {
-                continue;
-            }
-            if (Boolean.TRUE.equals(h.getLaAnhChinh())) {
-                chinh.add(h);
-            } else {
-                phu.add(h);
-            }
-        }
-        chinh.addAll(phu);
-        return chinh;
-    }
-
+    // anh = mọi dòng ảnh của sản phẩm (kể cả đã bỏ, kể cả ảnh theo màu); hàm tự lọc ảnh đang dùng
     private SanPhamResponse toResponse(SanPham sp, List<HinhAnhSanPham> anh) {
         String anhChinh = "";
         List<String> anhPhu = new ArrayList<>();
-        for (HinhAnhSanPham h : anh) {
+        for (HinhAnhSanPham h : AnhSanPham.anhChung(anh)) {
             if (Boolean.TRUE.equals(h.getLaAnhChinh()) && anhChinh.isEmpty()) {
                 anhChinh = h.getDuongDanHinhAnh();
             } else {
@@ -345,6 +369,8 @@ public class SanPhamService {
                 anhPhu,
                 sp.getNgayTao() == null ? null : sp.getNgayTao().toLocalDate(),
                 sp.getNgayCapNhat() == null ? null : sp.getNgayCapNhat().toLocalDate(),
-                dangHoatDong(sp));
+                dangHoatDong(sp),
+                AnhSanPham.anhTheoMauResponse(anh),
+                AnhSanPham.anhDaiDien(anh));
     }
 }

@@ -3,16 +3,19 @@
 // nên dùng chung một trang quản lý (ThuocTinhManager.vue), chỉ khác cấu hình ở đây.
 //   slug   : đường dẫn /san-pham/<slug>
 //   prefix : tiền tố mã gợi ý khi tạo mới
+//   timChinhXac : true -> ô tìm kiếm phân biệt HOA / thường và dấu (thương hiệu, xuất xứ là tên riêng phải gõ đúng)
+
+import { dinhDangMa } from '../utils/ma'
 
 export const THUOC_TINH = {
   'danh-muc': {
     slug: 'danh-muc', label: 'Danh mục', icon: 'bi-folder', prefix: 'DM', example: 'Vợt cầu lông',
   },
   'thuong-hieu': {
-    slug: 'thuong-hieu', label: 'Thương hiệu', icon: 'bi-award', prefix: 'TH', example: 'Yonex',
+    slug: 'thuong-hieu', label: 'Thương hiệu', icon: 'bi-award', prefix: 'TH', example: 'Yonex', timChinhXac: true,
   },
   'xuat-xu': {
-    slug: 'xuat-xu', label: 'Xuất xứ', icon: 'bi-globe', prefix: 'XX', example: 'Nhật Bản',
+    slug: 'xuat-xu', label: 'Xuất xứ', icon: 'bi-globe', prefix: 'XX', example: 'Nhật Bản', timChinhXac: true,
   },
   'chat-lieu': {
     slug: 'chat-lieu', label: 'Chất liệu', icon: 'bi-diagram-3', prefix: 'CL', example: 'Carbon',
@@ -43,12 +46,12 @@ export const TRANG_THAI = {
 }
 export const trangThaiOf = (item) => (item.hoatDong ? 'HOAT_DONG' : 'NGUNG')
 
-/** Mã kế tiếp dạng DM001: lấy số lớn nhất đang có + 1 (giống cách backend cấp mã). Chỉ để hiển thị trước. */
+/** Mã kế tiếp dạng DM01 (quá 99 thì DM100): lấy số lớn nhất đang có + 1 (giống cách backend cấp mã). Chỉ để hiển thị trước. */
 export function taoMa(prefix, existing = []) {
   let max = 0
   for (const ma of existing) {
     const n = Number(String(ma ?? '').replace(/\D/g, ''))
     if (!Number.isNaN(n) && n > max) max = n
   }
-  return `${prefix}${String(max + 1).padStart(3, '0')}`
+  return dinhDangMa(prefix, max + 1)
 }

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
+import MoneyInput from '../common/MoneyInput.vue'
 
 const props = defineProps({
   item: { type: Object, default: null }, // null: tạo mới
@@ -199,10 +200,7 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
         </div>
         <div class="col-md-3">
           <label class="ad-label" for="bt-gia">Giá bán <span class="ad-required">*</span></label>
-          <div class="ad-affix">
-            <input id="bt-gia" v-model.number="form.giaBan" type="number" min="0" step="1000" class="form-control ad-control has-suffix" :class="{ 'is-invalid': errors.giaBan }" :aria-invalid="!!errors.giaBan" />
-            <span class="ad-suffix" aria-hidden="true">₫</span>
-          </div>
+          <MoneyInput id="bt-gia" v-model="form.giaBan" :invalid="!!errors.giaBan" />
           <p v-if="errors.giaBan" class="ad-error">{{ errors.giaBan }}</p>
         </div>
         <div class="col-md-3">

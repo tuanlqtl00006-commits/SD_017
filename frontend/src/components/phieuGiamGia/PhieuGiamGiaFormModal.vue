@@ -2,10 +2,11 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import FormPageShell from '../common/FormPageShell.vue'
+import MoneyInput from '../common/MoneyInput.vue'
 import { HINH_THUC, LOAI_GIAM, taoMaPhieu } from '../../constants/phieuGiamGia'
 import { phieuGiamGiaService } from '../../services/phieuGiamGiaService'
 import { includesText } from '../../utils/text'
-import { todayIso } from '../../utils/format'
+import { formatMoney, todayIso } from '../../utils/format'
 
 const props = defineProps({
   item: { type: Object, default: null }, // null: tạo mới; khi sửa có kèm khachHangs (lấy từ API chi tiết)
@@ -81,6 +82,11 @@ const khachFiltered = computed(() =>
   khachHangAll.value.filter((k) => !khachKeyword.value || includesText(`${k.ma} ${k.hoTen} ${k.soDienThoai ?? ''} ${k.email ?? ''}`, khachKeyword.value)),
 )
 
+// Phiếu cá nhân gửi mail cho khách được tặng: đếm khách có / chưa có email để báo trước khi lưu
+const khachDuocChon = computed(() => khachHangAll.value.filter((k) => form.khachHangIds.includes(k.id)))
+const soKhachCoEmail = computed(() => khachDuocChon.value.filter((k) => String(k.email ?? '').trim()).length)
+const soKhachThieuEmail = computed(() => khachDuocChon.value.length - soKhachCoEmail.value)
+
 function toggleKhach(id) {
   if (khachDaDung.value.has(id)) return
   const i = form.khachHangIds.indexOf(id)
@@ -112,6 +118,20 @@ watch(
   },
   { immediate: true },
 )
+/* ----- Trạng thái gửi mail (chỉ phiếu cá nhân): cảnh báo TRƯỚC khi lưu nếu Gmail chưa cấu hình / đăng nhập lỗi ----- */
+const trangThaiMail = ref(null)
+async function taiTrangThaiMail() {
+  if (trangThaiMail.value) return
+  try {
+    trangThaiMail.value = await phieuGiamGiaService.trangThaiMail()
+  } catch {
+    trangThaiMail.value = { dangNhap: 'KHONG_RO' } // backend cũ chưa có API này: không cảnh báo
+  }
+}
+watch(isCaNhan, (v) => { if (v) taiTrangThaiMail() }, { immediate: true })
+// Sửa phiếu đã / đang diễn ra thì backend không gửi mail (chỉ phiếu còn "Sắp diễn ra" mới gửi khi sửa)
+const suaKhongGuiMail = computed(() => isEdit.value && props.item?.ngayBatDau && props.item.ngayBatDau <= todayIso())
+
 const errors = reactive({})
 const submitted = ref(false)
 
@@ -293,59 +313,56 @@ onMounted(() => {
 
         <div class="col-md-6">
           <label class="ad-label" for="pgg-gia-tri">Giá trị giảm <span class="ad-required">*</span></label>
-          <div class="ad-affix">
+          <div v-if="isPercent" class="ad-affix">
             <input
               id="pgg-gia-tri"
               v-model.number="form.giaTri"
               type="number"
-              min="0"
+              min="1"
+              max="100"
+              step="1"
               class="form-control ad-control has-suffix"
               :class="{ 'is-invalid': errors.giaTri }"
-              :placeholder="isPercent ? 'Từ 1 đến 100' : 'Ví dụ: 50000'"
+              placeholder="Từ 1 đến 100"
               :aria-invalid="!!errors.giaTri"
               aria-describedby="pgg-gia-tri-msg"
             />
-            <span class="ad-suffix" aria-hidden="true">{{ isPercent ? '%' : '₫' }}</span>
+            <span class="ad-suffix" aria-hidden="true">%</span>
           </div>
+          <MoneyInput
+            v-else
+            id="pgg-gia-tri"
+            v-model="form.giaTri"
+            placeholder="Ví dụ: 50.000"
+            aria-label="Giá trị giảm"
+            :invalid="!!errors.giaTri"
+          />
           <p v-if="errors.giaTri" id="pgg-gia-tri-msg" class="ad-error">{{ errors.giaTri }}</p>
+          <p v-else-if="!isPercent && form.giaTri" class="ad-hint">Giảm {{ formatMoney(form.giaTri) }} cho mỗi đơn.</p>
         </div>
 
         <div class="col-md-6">
           <label class="ad-label" for="pgg-giam-toi-da">Giảm tối đa</label>
-          <div class="ad-affix">
-            <input
-              id="pgg-giam-toi-da"
-              v-model.number="form.giamToiDa"
-              type="number"
-              min="0"
-              class="form-control ad-control has-suffix"
-              :class="{ 'is-invalid': errors.giamToiDa }"
-              :disabled="!isPercent"
-              :placeholder="isPercent ? 'Để trống nếu không giới hạn' : 'Chỉ áp dụng khi giảm theo %'"
-              :aria-invalid="!!errors.giamToiDa"
-              aria-describedby="pgg-giam-toi-da-msg"
-            />
-            <span class="ad-suffix" aria-hidden="true">₫</span>
-          </div>
+          <MoneyInput
+            id="pgg-giam-toi-da"
+            v-model="form.giamToiDa"
+            :disabled="!isPercent"
+            :placeholder="isPercent ? 'Để trống nếu không giới hạn' : 'Chỉ áp dụng khi giảm theo %'"
+            aria-label="Giảm tối đa"
+            :invalid="!!errors.giamToiDa"
+          />
           <p v-if="errors.giamToiDa" id="pgg-giam-toi-da-msg" class="ad-error">{{ errors.giamToiDa }}</p>
         </div>
 
         <div class="col-md-6">
           <label class="ad-label" for="pgg-don-toi-thieu">Đơn tối thiểu</label>
-          <div class="ad-affix">
-            <input
-              id="pgg-don-toi-thieu"
-              v-model.number="form.donToiThieu"
-              type="number"
-              min="0"
-              class="form-control ad-control has-suffix"
-              :class="{ 'is-invalid': errors.donToiThieu }"
-              placeholder="0 nếu không yêu cầu"
-              :aria-invalid="!!errors.donToiThieu"
-              aria-describedby="pgg-don-toi-thieu-msg"
-            />
-            <span class="ad-suffix" aria-hidden="true">₫</span>
-          </div>
+          <MoneyInput
+            id="pgg-don-toi-thieu"
+            v-model="form.donToiThieu"
+            placeholder="0 nếu không yêu cầu"
+            aria-label="Đơn tối thiểu"
+            :invalid="!!errors.donToiThieu"
+          />
           <p v-if="errors.donToiThieu" id="pgg-don-toi-thieu-msg" class="ad-error">{{ errors.donToiThieu }}</p>
         </div>
 
@@ -453,12 +470,33 @@ onMounted(() => {
                 />
                 <span class="pgg-picker-name">{{ k.hoTen }}</span>
                 <span class="ad-code">{{ k.ma }}</span>
-                <span class="pgg-picker-sub">{{ k.soDienThoai || k.email || '' }}</span>
+                <span class="pgg-picker-sub">{{ k.soDienThoai || '' }}</span>
+                <span v-if="String(k.email ?? '').trim()" class="pgg-picker-mail" :title="k.email"><i class="bi bi-envelope" aria-hidden="true"></i> {{ k.email }}</span>
+                <span v-else class="ad-pill ad-pill-amber">Chưa có email</span>
                 <span v-if="khachDaDung.has(k.id)" class="ad-pill ad-pill-gray">Đã dùng</span>
               </label>
             </div>
           </div>
           <p v-if="errors.khachHang" class="ad-error">{{ errors.khachHang }}</p>
+          <p v-else-if="form.khachHangIds.length && suaKhongGuiMail" class="ad-hint">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            Phiếu đã bắt đầu nên lưu thay đổi sẽ không gửi mail cho khách (chỉ phiếu còn "Sắp diễn ra" mới gửi mail khi sửa).
+          </p>
+          <p v-else-if="form.khachHangIds.length" class="ad-hint" data-testid="pgg-mail-note">
+            <i class="bi bi-envelope-paper" aria-hidden="true"></i>
+            Khi lưu, hệ thống gửi mail tặng phiếu cho {{ soKhachCoEmail }} khách đã chọn<template v-if="soKhachThieuEmail"> ({{ soKhachThieuEmail }} khách chưa có email nên không nhận được mail)</template>.
+          </p>
+          <p v-if="trangThaiMail?.dangNhap === 'CHUA_CAU_HINH'" class="pgg-mail-status is-warn" role="status" data-testid="pgg-mail-status">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            Chưa cấu hình Gmail: phiếu vẫn lưu bình thường nhưng mail <strong>chưa được gửi thật</strong>. Cách bật: điền email + mật khẩu ứng dụng vào <code>backend/src/main/resources/mail.properties</code> rồi chạy lại backend.
+          </p>
+          <p v-else-if="trangThaiMail?.dangNhap === 'THAT_BAI'" class="pgg-mail-status is-error" role="alert" data-testid="pgg-mail-status">
+            <i class="bi bi-x-octagon" aria-hidden="true"></i>
+            Gmail đăng nhập thử thất bại: {{ trangThaiMail.lyDo || 'xem log backend' }}. Phiếu vẫn lưu được nhưng mail sẽ không tới khách.
+          </p>
+          <p v-else-if="trangThaiMail?.dangNhap === 'THANH_CONG'" class="pgg-mail-status is-ok" data-testid="pgg-mail-status">
+            <i class="bi bi-check-circle" aria-hidden="true"></i> Gmail đã sẵn sàng gửi mail.
+          </p>
         </div>
       </div>
     </form>
@@ -531,6 +569,23 @@ onMounted(() => {
   color: var(--fs-text-2);
   white-space: nowrap;
 }
+.pgg-picker-mail {
+  color: var(--fs-text-2);
+  font-size: 0.8rem;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pgg-mail-status {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+.pgg-mail-status.is-warn { background: #fff7e6; color: #8a5a00; border: 1px solid #f3d9a4; }
+.pgg-mail-status.is-error { background: #fdecee; color: #a61b29; border: 1px solid #f3c2c8; }
+.pgg-mail-status.is-ok { background: #e9f7ef; color: #146c43; border: 1px solid #b7e2c8; }
 .pgg-picker-note {
   margin: 0;
   padding: 1rem;

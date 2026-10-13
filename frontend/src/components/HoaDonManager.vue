@@ -160,7 +160,7 @@ async function exportFile() {
         { header: 'Mã NV', key: 'maNv', width: 12 },
         { header: 'Tên KH', key: 'tenKh', width: 24 },
         { header: 'SĐT KH', key: 'sdt', width: 14 },
-        { header: 'Tổng tiền TT', key: 'tien', width: 16 },
+        { header: 'Tổng tiền TT (₫)', key: 'tien', width: 18, money: true },
         { header: 'Loại đơn', key: 'loai', width: 12 },
         { header: 'Ngày tạo', key: 'ngay', width: 12 },
         { header: 'Trạng thái', key: 'trangThai', width: 16 },
@@ -171,7 +171,7 @@ async function exportFile() {
         maNv: hd.maNhanVien || '',
         tenKh: tenKhach(hd),
         sdt: hd.sdtKhachHang || '',
-        tien: formatMoney(hd.tongTien),
+        tien: Number(hd.tongTien) || 0, // để dạng SỐ để Excel cộng / lọc được
         loai: hd.loaiDon,
         ngay: formatNgay(hd.ngayTao),
         trangThai: trangThaiOf(hd.trangThai).label,

@@ -16,8 +16,7 @@ public record NhanVienResponse(
         LocalDate ngayVaoLam,
         Integer idVaiTro,
         String vaiTro,
-        boolean hoatDong,
-        String cccd,
-        List<ViTriResponse> viTri,
+        boolean hoatDong, // true = "Còn làm", false = "Đã nghỉ"
+        String canCuoc,
         List<DiaChiNhanVienDto> diaChis) {
 }

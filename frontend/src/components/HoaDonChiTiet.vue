@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import QRCode from 'qrcode'
 import { useRoute } from 'vue-router'
 import api from '../services/api'
 import BaseModal from './common/BaseModal.vue'
@@ -40,6 +41,22 @@ function setData(d) {
 onMounted(load)
 
 const hd = computed(() => data.value?.hoaDon ?? {})
+
+/* ===================== Mã QR hóa đơn ===================== */
+// QR chứa mã hóa đơn (vd HD01) để quét tra cứu nhanh; tạo ngay trên trình duyệt, không cần mạng.
+const qrUrl = ref('')
+watch(
+  () => hd.value.maHoaDon,
+  async (ma) => {
+    if (!ma) { qrUrl.value = ''; return }
+    try {
+      qrUrl.value = await QRCode.toDataURL(String(ma), { width: 240, margin: 1, errorCorrectionLevel: 'M' })
+    } catch {
+      qrUrl.value = ''
+    }
+  },
+  { immediate: true },
+)
 const khach = computed(() => data.value?.khachHang ?? {})
 const giao = computed(() => data.value?.giaoHang ?? {})
 const sanPham = computed(() => data.value?.sanPham ?? [])
@@ -152,11 +169,7 @@ function moXacNhan(trangThai) {
 }
 
 function nguoiThaoTac() {
-  try {
-    return localStorage.getItem('fs-role') === 'nhan-vien' ? 'Nhân viên' : 'Quản lý'
-  } catch {
-    return 'Quản lý'
-  }
+  return 'Quản lý'
 }
 
 async function xacNhanDoiTrangThai() {
@@ -276,10 +289,20 @@ function inHoaDon() {
       <td class="r">${esc(money(x.donGia))}</td>
       <td class="r">${esc(money(x.thanhTien))}</td>
     </tr>`).join('')
+  const qr = qrUrl.value ? `<img class="qr" src="${qrUrl.value}" alt="QR ${esc(h.maHoaDon)}">` : ''
   const nguoiNhan = laGiaoHang.value
-    ? `<p><b>Người nhận:</b> ${esc(giao.value.hoTenNguoiNhan || khach.value.ten)} - ${esc(giao.value.sdtNguoiNhan || '')}</p>
-       <p><b>Địa chỉ:</b> ${esc(giao.value.diaChi || '—')}</p>`
-    : ''
+    ? `<p><b>Người nhận:</b> ${esc(giao.value.hoTenNguoiNhan || khach.value.ten)}</p>
+       <p><b>SĐT nhận:</b> ${esc(giao.value.sdtNguoiNhan || '—')}</p>
+       <p><b>Địa chỉ:</b> ${esc(giao.value.diaChi || '—')}</p>
+       <p><b>Vận chuyển:</b> ${esc(h.donViVanChuyen || '—')}</p>`
+    : `<p>Nhận hàng tại cửa hàng</p>`
+  const thanhToanRows = thanhToan.value.map((p) => `
+    <tr>
+      <td>${esc(p.phuongThuc || 'Thanh toán')}</td>
+      <td>${esc(fmtDateTime(p.thoiGian))}${p.maGiaoDich ? ' · ' + esc(p.maGiaoDich) : ''}</td>
+      <td class="c">${p.trangThai === 1 ? 'Đã thanh toán' : 'Chờ xử lý'}</td>
+      <td class="r">${esc(money(p.soTien))}</td>
+    </tr>`).join('')
   w.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${esc(h.maHoaDon)}</title>
   <style>
     body{font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#18242f;margin:32px;font-size:13px}
@@ -295,23 +318,65 @@ function inHoaDon() {
     .sum div{display:flex;justify-content:space-between;padding:4px 0}
     .sum .t{border-top:1px solid #e6eaf0;margin-top:4px;padding-top:8px;font-weight:700;font-size:15px;color:#0977ec}
     .foot{text-align:center;color:#7b8794;margin-top:28px}
+    h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#0977ec;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #cfe0f7}
+    .sec{margin-top:18px;break-inside:avoid}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .head-r{display:flex;align-items:flex-start;gap:14px}
+    .qr{width:96px;height:96px;display:block}
+    @media print{body{margin:14mm}}
   </style></head><body>
     <div class="top">
       <div><img src="${esc(location.origin)}/logo.png" alt="FootStyle"><p>Shop cầu lông FootStyle</p></div>
-      <div style="text-align:right"><h1>HÓA ĐƠN BÁN HÀNG</h1>
-        <p><b>Mã:</b> ${esc(h.maHoaDon)}</p><p><b>Ngày:</b> ${esc(fmtDateTime(h.ngayTao))}</p><p><b>Loại đơn:</b> ${esc(h.tenLoaiDon)}</p></div>
+      <div class="head-r">
+        <div style="text-align:right"><h1>HÓA ĐƠN BÁN HÀNG</h1>
+          <p><b>Mã:</b> ${esc(h.maHoaDon)}</p><p><b>Ngày:</b> ${esc(fmtDateTime(h.ngayTao))}</p></div>
+        ${qr}
+      </div>
     </div>
-    <p><b>Khách hàng:</b> ${esc(khach.value.ten)}${khach.value.sdt ? ' - ' + esc(khach.value.sdt) : ''}</p>
-    ${nguoiNhan}
-    <p><b>Nhân viên:</b> ${esc(h.tenNhanVien || '—')}</p>
-    <table><thead><tr><th class="c">STT</th><th>Sản phẩm</th><th class="c">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-    <div class="sum">
-      <div><span>Tổng tiền hàng</span><span>${esc(money(h.tongTien))}</span></div>
-      <div><span>Giảm giá${h.maPhieuGiamGia ? ' (' + esc(h.maPhieuGiamGia) + ')' : ''}</span><span>- ${esc(money(h.soTienGiam))}</span></div>
-      <div><span>Phí vận chuyển</span><span>${esc(money(h.phiVanChuyen))}</span></div>
-      <div class="t"><span>Tổng thanh toán</span><span>${esc(money(h.thanhTien))}</span></div>
-      <div><span>Đã thanh toán</span><span>${esc(money(daThanhToan.value))}</span></div>
+
+    <div class="sec">
+      <h2>Thông tin đơn hàng</h2>
+      <div class="two">
+        <div><p><b>Mã hóa đơn:</b> ${esc(h.maHoaDon)}</p><p><b>Loại đơn:</b> ${esc(h.tenLoaiDon)}</p><p><b>Nhân viên:</b> ${esc(h.tenNhanVien || '—')}</p></div>
+        <div><p><b>Trạng thái:</b> ${esc(trangThaiHienTai.value.label)}</p><p><b>Thanh toán:</b> ${esc(h.phuongThucThanhToan || '—')}</p></div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="sec">
+        <h2>Khách hàng</h2>
+        <p><b>Tên:</b> ${esc(khach.value.ten || '—')}</p>
+        <p><b>SĐT:</b> ${esc(khach.value.sdt || '—')}</p>
+        <p><b>Email:</b> ${esc(khach.value.email || '—')}</p>
+      </div>
+      <div class="sec">
+        <h2>Giao hàng</h2>
+        ${nguoiNhan}
+        ${h.ghiChu ? `<p><b>Ghi chú:</b> ${esc(h.ghiChu)}</p>` : ''}
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Sản phẩm</h2>
+      <table><thead><tr><th class="c">STT</th><th>Sản phẩm</th><th class="c">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+    </div>
+
+    <div class="sec two">
+      <div>
+        ${thanhToanRows ? `<h2>Lịch sử thanh toán</h2>
+        <table><thead><tr><th>Phương thức</th><th>Thời gian</th><th class="c">Trạng thái</th><th class="r">Số tiền</th></tr></thead><tbody>${thanhToanRows}</tbody></table>` : ''}
+      </div>
+      <div>
+        <h2>Tổng tiền</h2>
+        <div class="sum" style="width:auto;margin-top:6px">
+          <div><span>Tổng tiền hàng</span><span>${esc(money(h.tongTien))}</span></div>
+          <div><span>Giảm giá${h.maPhieuGiamGia ? ' (' + esc(h.maPhieuGiamGia) + ')' : ''}</span><span>- ${esc(money(h.soTienGiam))}</span></div>
+          <div><span>Phí vận chuyển</span><span>${esc(money(h.phiVanChuyen))}</span></div>
+          <div class="t"><span>Tổng thanh toán</span><span>${esc(money(h.thanhTien))}</span></div>
+          <div><span>Đã thanh toán</span><span>${esc(money(daThanhToan.value))}</span></div>
+        </div>
+      </div>
     </div>
     <p class="foot">Cảm ơn quý khách đã mua hàng tại FootStyle!</p>
     <script>window.onload=function(){window.print()}<\/script>
@@ -340,6 +405,14 @@ function inHoaDon() {
     </div>
 
     <template v-else-if="data">
+      <!-- Thanh công cụ ở trên cùng: quay lại danh sách + in hóa đơn -->
+      <div class="hd-toolbar">
+        <RouterLink to="/hoa-don" class="ad-btn text-decoration-none"><i class="bi bi-arrow-left" aria-hidden="true"></i> Về danh sách</RouterLink>
+        <button type="button" class="ad-btn ad-btn-primary" @click="inHoaDon">
+          <i class="bi bi-printer" aria-hidden="true"></i> In hóa đơn
+        </button>
+      </div>
+
       <!-- Hàng 1: Trạng thái đơn hàng + Thông tin đơn -->
       <div class="hd-grid hd-grid--top">
         <section class="ad-card" aria-labelledby="hd-status-title">
@@ -393,10 +466,11 @@ function inHoaDon() {
             <div><dt>Thanh toán</dt><dd>{{ hd.phuongThucThanhToan || '—' }}</dd></div>
           </dl>
         </section>
+
       </div>
 
-      <!-- Hàng 2: Khách hàng / Giao hàng / Thanh toán -->
-      <div class="hd-grid hd-grid--3">
+      <!-- Hàng 2: Khách hàng / Giao hàng / Thanh toán / Mã QR (mỗi phần một khối riêng) -->
+      <div class="hd-grid hd-grid--3 hd-grid--4">
         <section class="ad-card" aria-labelledby="hd-kh-title">
           <div class="ad-card-head">
             <span class="ad-icon-box"><i class="bi bi-person" aria-hidden="true"></i></span>
@@ -420,7 +494,6 @@ function inHoaDon() {
               <div><dt>SĐT nhận</dt><dd>{{ giao.sdtNguoiNhan || '—' }}</dd></div>
             </template>
             <div><dt>Địa chỉ</dt><dd class="hd-break">{{ giao.diaChi || '—' }}</dd></div>
-            <div><dt>Loại đơn</dt><dd class="fw-semibold">{{ laGiaoHang ? 'Giao hàng' : 'Cửa hàng' }}</dd></div>
             <div v-if="laGiaoHang"><dt>Vận chuyển</dt><dd>{{ hd.donViVanChuyen || '—' }}</dd></div>
             <div><dt>Ghi chú</dt><dd class="hd-break">{{ hd.ghiChu || '—' }}</dd></div>
           </dl>
@@ -452,10 +525,19 @@ function inHoaDon() {
               <span>Chưa có lần thanh toán nào</span>
             </div>
           </section>
-          <button type="button" class="ad-btn ad-btn-primary hd-print-btn" @click="inHoaDon">
-            <i class="bi bi-printer" aria-hidden="true"></i> In hóa đơn
-          </button>
         </div>
+
+        <section class="ad-card hd-qr-card" aria-labelledby="hd-qr-title">
+          <div class="ad-card-head">
+            <span class="ad-icon-box"><i class="bi bi-qr-code" aria-hidden="true"></i></span>
+            <h2 id="hd-qr-title" class="ad-card-title">Mã QR hóa đơn</h2>
+          </div>
+          <div class="hd-qr">
+            <img v-if="qrUrl" :src="qrUrl" :alt="`Mã QR hóa đơn ${hd.maHoaDon}`" width="168" height="168">
+            <span v-else class="text-muted small">Không tạo được mã QR</span>
+            <p class="hd-qr-cap">Quét để lấy mã <strong>{{ hd.maHoaDon }}</strong></p>
+          </div>
+        </section>
       </div>
 
       <!-- Hàng 3: Danh sách sản phẩm -->
@@ -675,12 +757,24 @@ function inHoaDon() {
 .hd-grid--top {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 }
+/* Hàng 2 có 4 khối: khách hàng, giao hàng, lịch sử thanh toán, mã QR (QR hẹp hơn) */
+.hd-grid--3.hd-grid--4 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 0.8fr);
+}
+@media (max-width: 1399.98px) {
+  .hd-grid--3.hd-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.hd-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; }
+.hd-qr { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+.hd-qr img { border: 1px solid var(--fs-line); border-radius: 0.5rem; padding: 6px; background: #fff; }
+.hd-qr-cap { margin: 0; font-size: 0.85rem; color: var(--fs-muted); }
 .hd-grid--3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 @media (max-width: 1199.98px) {
   .hd-grid--top,
-  .hd-grid--3 {
+  .hd-grid--3,
+  .hd-grid--3.hd-grid--4 {
     grid-template-columns: minmax(0, 1fr);
   }
 }

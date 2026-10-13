@@ -56,10 +56,8 @@ onBeforeUnmount(() => {
         tabindex="-1"
       >
         <div class="modal-content ad-modal">
-          <div class="modal-header ad-modal-header" v-if="title || $slots.header">
-            <slot name="header">
-              <h2 :id="titleId" class="ad-modal-title">{{ title }}</h2>
-            </slot>
+          <div class="modal-header ad-modal-header">
+            <h2 :id="titleId" class="ad-modal-title">{{ title }}</h2>
             <button type="button" class="btn-close" aria-label="Đóng" @click="emit('close')"></button>
           </div>
           <div class="modal-body ad-modal-body">

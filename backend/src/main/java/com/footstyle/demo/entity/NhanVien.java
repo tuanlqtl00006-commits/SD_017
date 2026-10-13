@@ -5,8 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 @Entity
 @Getter
@@ -44,24 +42,16 @@ public class NhanVien {
     @Column(name = "mat_khau")
     private String matKhau;
 
+    /** Địa chỉ chính ghép thành một dòng (chép từ địa chỉ được chọn trong bảng dia_chi_nhan_vien). */
     @Column(name = "dia_chi")
     private String diaChi;
 
     /** Số căn cước công dân (12 số), có thể nhập tay hoặc quét mã QR trên thẻ. */
-    @Column(name = "cccd")
-    private String cccd;
+    @Column(name = "can_cuoc_cong_dan")
+    private String canCuocCongDan;
 
     @Column(name = "ngay_vao_lam")
     private LocalDate ngayVaoLam;
-
-    /** Các vị trí làm việc (một nhân viên có thể có nhiều vị trí). */
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "nhan_vien_vi_tri",
-            joinColumns = @JoinColumn(name = "id_nhan_vien"),
-            inverseJoinColumns = @JoinColumn(name = "id_vi_tri"))
-    @OrderBy("id ASC")
-    private Set<ViTri> viTriList = new LinkedHashSet<>();
 
     @Column(name = "ngay_cap_nhat")
     private LocalDateTime ngayCapNhat;

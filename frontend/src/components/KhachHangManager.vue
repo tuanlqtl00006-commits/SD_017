@@ -58,7 +58,6 @@
                     <th class="py-3 fw-bold text-dark border-0" style="width: 60px;">STT</th>
                     <th class="py-3 fw-bold text-dark border-0" style="width: 70px;">Ảnh</th>
                     <th class="py-3 fw-bold text-dark border-0">Họ tên</th>
-                    <th class="py-3 fw-bold text-dark border-0">Tên người nhận</th>
                     <th class="py-3 fw-bold text-dark border-0">Email</th>
                     <th class="py-3 fw-bold text-dark border-0" style="width: 250px;">Địa chỉ</th>
                     <th class="py-3 fw-bold text-dark border-0">Số điện thoại</th>
@@ -78,12 +77,8 @@
                   </tr>
                   <tr v-for="(kh, index) in paginatedCustomers" :key="kh.id">
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
-                    <td class="py-2" style="border-bottom: 1px solid #f0f0f0;">
-                      <img v-if="kh.anhDaiDien" :src="kh.anhDaiDien" class="rounded-circle shadow-sm" style="width: 38px; height: 38px; object-fit: cover;">
-                      <span v-else class="ad-avatar ad-avatar-soft">{{ initials(kh.hoTen) }}</span>
-                    </td>
+                    <td class="py-2" style="border-bottom: 1px solid #f0f0f0;"><span class="ad-avatar ad-avatar-soft">{{ initials(kh.hoTen) }}</span></td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.hoTen }}</td>
-                    <td class="py-3 text-muted fw-medium" style="border-bottom: 1px solid #f0f0f0;">{{ getDefaultAddress(kh)?.tenNguoiNhan || "Chưa cập nhật" }}</td>
                     <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.email }}</td>
                     <td class="py-3 small" style="border-bottom: 1px solid #f0f0f0; white-space: normal;">
                       <span v-if="kh.diaChiList && kh.diaChiList.length > 0">
@@ -184,7 +179,23 @@
                     <input type="date" class="form-control bg-light border-0 text-muted" v-model="formData.ngaySinh" :disabled="isView" min="1900-01-01" max="9999-12-31">
                   </div>
                   
-                  <!-- Địa chỉ giao hàng đã được gỡ bỏ -->
+                  <div class="col-12 mt-3">
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-0">Địa chỉ giao hàng</h6>
+                  </div>
+                  
+                  <DiaChiHanhChinhSelect
+                    v-model:tinh-thanh="formData.tinhThanh"
+                    v-model:phuong-xa="formData.phuongXa"
+                    id-prefix="kh-view"
+                    col-class="col-md-6"
+                    select-class="form-select bg-light border-0"
+                    label-class="form-label text-dark fw-medium mb-1"
+                    :disabled="isView"
+                  />
+                  <div class="col-12">
+                    <label class="form-label text-dark fw-medium mb-1">Địa chỉ cụ thể</label>
+                    <textarea class="form-control bg-light border-0" v-model="formData.diaChiCuThe" rows="2" placeholder="Số nhà, tên đường..." :disabled="isView"></textarea>
+                  </div>
                   
                   <div class="col-12 mt-3">
                     <h6 class="fw-bold text-dark border-bottom pb-2 mb-0">Thông tin bổ sung</h6>
@@ -221,7 +232,7 @@
             ? `Bạn có chắc chắn muốn ngừng hoạt động khách hàng ${confirmItem.hoTen}?`
             : `Bạn có chắc chắn muốn kích hoạt lại khách hàng ${confirmItem.hoTen}?`"
           :confirm-text="confirmItem.trangThai === 1 ? 'Ngừng hoạt động' : 'Kích hoạt'"
-          :variant="'primary'"
+          :variant="confirmItem.trangThai === 1 ? 'danger' : 'primary'"
           :loading="confirmLoading"
           @confirm="confirmToggle"
           @cancel="confirmItem = null"
@@ -470,7 +481,7 @@ const confirmToggle = async () => {
 const openViewModal = (kh) => {
   populateForm(kh)
   isEdit.value = true
-  isView.value = false
+  isView.value = true
   showModal.value = true
 }
 
@@ -482,42 +493,18 @@ const phoneErrorMsg = ref('')
 
 const saveCustomer = async () => {
   phoneErrorMsg.value = ''
-
-  if (!formData.value.ten || formData.value.ten.trim() === '') {
-    toast.error('Họ tên không được để trống hoặc chỉ chứa khoảng trắng.')
+  if (formData.value.sdt && !/^[0-9]{10,11}$/.test(formData.value.sdt)) {
+    phoneErrorMsg.value = 'Số điện thoại không hợp lệ (chỉ gồm 10-11 chữ số).'
     return
   }
-
-  if (formData.value.sdt) {
-    // Regex SĐT Việt Nam: bắt đầu bằng 0, theo sau là 3,5,7,8,9 và đúng 8 số nữa (tổng 10 số)
-    const vnPhoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
-    if (!vnPhoneRegex.test(formData.value.sdt.trim())) {
-      phoneErrorMsg.value = 'Số điện thoại không hợp lệ (phải là SĐT Việt Nam 10 số).'
-      return
-    }
-  } else {
-    phoneErrorMsg.value = 'Số điện thoại không được để trống.'
-    return
-  }
-
   if (formData.value.ngaySinh && formData.value.ngaySinh.length > 10) {
     toast.error('Vui lòng nhập Ngày Sinh hợp lệ (năm không quá 4 chữ số).')
     return
   }
-
-  if (formData.value.ngaySinh) {
-    const selectedDate = new Date(formData.value.ngaySinh)
-    const today = new Date()
-    if (selectedDate > today) {
-      toast.error('Ngày sinh không được lớn hơn ngày hiện tại.')
-      return
-    }
-  }
-
   const payload = {
-    hoTen: formData.value.ten.trim(),
-    sdt: formData.value.sdt.trim(),
-    email: formData.value.email ? formData.value.email.trim() : null,
+    hoTen: formData.value.ten,
+    sdt: formData.value.sdt,
+    email: formData.value.email,
     ngaySinh: formData.value.ngaySinh || null,
     gioiTinh: formData.value.gioiTinh,
     trangThai: formData.value.trangThai,

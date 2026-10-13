@@ -4,7 +4,12 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-/** Bảng hinh_anh_san_pham: một sản phẩm có nhiều ảnh, đúng một ảnh có la_anh_chinh = 1. */
+/**
+ * Bảng hinh_anh_san_pham: một sản phẩm có nhiều ảnh.
+ *  - id_mau_sac = NULL: ảnh chung của sản phẩm (đúng một ảnh có la_anh_chinh = 1).
+ *  - id_mau_sac = id màu: ảnh của riêng màu đó, dùng cho MỌI biến thể cùng màu (mỗi màu có một ảnh chính).
+ * Cột id_mau_sac nằm trong database/SD_17_du_lieu_va_nang_cap.sql (SD_17.sql giữ nguyên); backend cũng tự thêm khi khởi động.
+ */
 @Entity
 @Getter
 @Setter
@@ -19,6 +24,10 @@ public class HinhAnhSanPham {
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "id_san_pham")
     private SanPham sanPham;
+
+    /** NULL = ảnh chung của sản phẩm; có giá trị = ảnh của màu này (áp dụng cho mọi biến thể cùng màu). */
+    @Column(name = "id_mau_sac")
+    private Integer idMauSac;
 
     @Column(name = "duong_dan_hinh_anh")
     private String duongDanHinhAnh;

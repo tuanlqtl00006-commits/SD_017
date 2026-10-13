@@ -2,39 +2,65 @@ package com.footstyle.demo.service;
 
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.PhieuGiamGia;
-import java.time.format.DateTimeFormatter;
-import java.util.Locale;
+import com.footstyle.demo.service.PhieuMailNoiDung.Loai;
+import com.footstyle.demo.service.PhieuMailNoiDung.ThuMail;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import jakarta.mail.internet.MimeMessage;
+import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 /**
- * Gửi mail phiếu giảm giá cho khách hàng (chỉ phiếu CÁ NHÂN). Có 3 loại mail:
+ * Gửi mail phiếu giảm giá cho khách hàng (chỉ phiếu CÁ NHÂN). Có 3 loại mail (xem PhieuMailNoiDung.Loai):
  *  - MOI      : khách mới được tặng phiếu;
  *  - CAP_NHAT : khách vẫn được tặng nhưng thông tin phiếu đã đổi (giá trị giảm, đơn tối thiểu, ngày...);
  *  - HUY      : khách bị bỏ khỏi danh sách nhận phiếu -> phiếu bị thu hồi.
  *
- * Chưa cấu hình SMTP (spring.mail.host) thì không gửi mail thật mà chỉ ghi nội dung vào log, để chạy thử không bị lỗi.
+ * Thư gửi dạng HTML (kèm bản chữ cho máy đọc không hiển thị được HTML), nội dung do PhieuMailNoiDung dựng.
+ * Chưa cấu hình Gmail (host + tài khoản + mật khẩu ứng dụng, xem mail.properties) thì không gửi mail thật mà chỉ ghi nội dung vào log,
+ * để chạy thử không bị lỗi; khi đó giao diện được báo rõ là CHƯA gửi (xem duocCauHinh()).
  * Mail gửi ở luồng riêng nên không làm chậm / làm hỏng thao tác lưu phiếu.
+ *
+ * Để giao diện BÁO RÕ khi gửi lỗi (sai mật khẩu ứng dụng, mất mạng...): mỗi lần lưu phiếu là một "lô" thư (batDauLo),
+ * từng thư gửi xong / lỗi được đếm lại theo mã phiếu (ketQuaLo); trang phiếu giảm giá hỏi lại vài giây sau khi lưu
+ * (GET /api/phieu-giam-gia/{id}/ket-qua-mail) và hiện "Đã gửi 3/3 mail" hoặc "Gửi mail lỗi: <lý do>".
+ * Kết quả đăng nhập thử Gmail lúc khởi động cũng được giữ lại (trangThai) để form phiếu cá nhân cảnh báo trước khi lưu.
  */
 @Service
 public class MailService {
 
-    public enum Loai { MOI, CAP_NHAT, HUY }
-
     private static final Logger log = LoggerFactory.getLogger(MailService.class);
-    private static final DateTimeFormatter NGAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String DUONG_DAN_LOGO = "static/logo.jpg";
 
     private final ObjectProvider<JavaMailSender> mailSender;
     private final String from;
+    private final String username;
+    private final String password;
     private final String tenCuaHang;
+    private final PhieuMailNoiDung noiDung;
+    // Nội dung ảnh logo đọc sẵn vào bộ nhớ lúc khởi động; null: không tìm thấy / không đọc được -> thư không có logo
+    byte[] logo;
+    /** Kết quả đăng nhập thử Gmail lúc khởi động: CHUA_CAU_HINH / DANG_KIEM_TRA / THANH_CONG / THAT_BAI. */
+    private volatile String dangNhap = "DANG_KIEM_TRA";
+    private volatile String lyDoDangNhap = "";
+    /** Lô thư gần nhất của từng phiếu (theo mã phiếu). */
+    private final Map<String, LoThu> loThu = new ConcurrentHashMap<>();
     private final ExecutorService luongGui = Executors.newFixedThreadPool(2, r -> {
         Thread t = new Thread(r, "gui-mail");
         t.setDaemon(true);
@@ -44,10 +70,146 @@ public class MailService {
     public MailService(ObjectProvider<JavaMailSender> mailSender,
                        @Value("${app.mail.from:}") String from,
                        @Value("${spring.mail.username:}") String username,
-                       @Value("${app.mail.ten-cua-hang:FootStyle}") String tenCuaHang) {
+                       @Value("${spring.mail.password:}") String password,
+                       @Value("${app.mail.ten-cua-hang:FootStyle}") String tenCuaHang,
+                       @Value("${app.mail.link-cua-hang:}") String linkCuaHang) {
         this.mailSender = mailSender;
-        this.from = (from == null || from.isBlank()) ? username : from;
+        this.username = username == null ? "" : username.trim();
+        this.password = password == null ? "" : password.trim();
+        this.from = (from == null || from.isBlank()) ? this.username : from;
         this.tenCuaHang = tenCuaHang;
+        this.noiDung = new PhieuMailNoiDung(tenCuaHang, linkCuaHang);
+        this.logo = docLogo(new ClassPathResource(DUONG_DAN_LOGO));
+    }
+
+    /** Đọc ảnh logo; không có hoặc đọc lỗi thì trả null (thư vẫn gửi bình thường, chỉ không có logo). */
+    static byte[] docLogo(Resource r) {
+        try {
+            if (!r.exists()) {
+                log.info("Không tìm thấy logo {} nên mail sẽ gửi không kèm logo.", r);
+                return null;
+            }
+            try (InputStream in = r.getInputStream()) {
+                return in.readAllBytes();
+            }
+        } catch (Exception e) {
+            log.warn("Không đọc được logo, mail sẽ gửi không kèm logo: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Đã cấu hình đủ để gửi mail THẬT chưa: có bộ gửi SMTP (spring.mail.host) và đã điền cả email lẫn mật khẩu ứng dụng.
+     * Thiếu một trong các mục này thì mail chỉ được ghi vào log (xem gui()).
+     */
+    public boolean duocCauHinh() {
+        return mailSender.getIfAvailable() != null && !username.isBlank() && !password.isBlank();
+    }
+
+    /** Ghi vào log lúc khởi động để biết ngay mail thật có bật không (đỡ phải đoán vì sao không thấy thư). */
+    @PostConstruct
+    void baoTrangThai() {
+        if (duocCauHinh()) {
+            chuanHoaTaiKhoan();
+            log.info("Gửi mail: ĐÃ cấu hình, thư sẽ gửi thật từ tài khoản {}.", username);
+            thuDangNhapNen();
+        } else {
+            dangNhap = "CHUA_CAU_HINH";
+            log.warn("Gửi mail: CHƯA cấu hình Gmail nên phiếu giảm giá cá nhân sẽ KHÔNG gửi mail thật (chỉ ghi nội dung vào log). "
+                    + "Điền email + mật khẩu ứng dụng vào backend/src/main/resources/mail.properties rồi chạy lại backend.");
+        }
+    }
+
+    /** Mật khẩu ứng dụng Google hiển thị dạng "abcd efgh ijkl mnop"; dán thừa dấu cách / xuống dòng thì Gmail báo 535, nên bỏ hết khoảng trắng. */
+    static String lamSachMatKhau(String matKhau) {
+        return matKhau == null ? "" : matKhau.replaceAll("\\s+", "");
+    }
+
+    /** Ghi lại email / mật khẩu đã làm sạch vào bộ gửi SMTP của Spring (bộ gửi tự nạp từ file giữ nguyên khoảng trắng thừa). */
+    void chuanHoaTaiKhoan() {
+        JavaMailSender sender = mailSender.getIfAvailable();
+        if (sender instanceof JavaMailSenderImpl impl) {
+            impl.setUsername(username);
+            impl.setPassword(lamSachMatKhau(password));
+        }
+    }
+
+    /** Lúc khởi động thử đăng nhập Gmail ở luồng nền (không làm chậm backend) và ghi kết quả thật vào log. */
+    private void thuDangNhapNen() {
+        JavaMailSender sender = mailSender.getIfAvailable();
+        if (!(sender instanceof JavaMailSenderImpl impl)) {
+            return;
+        }
+        luongGui.submit(() -> {
+            try {
+                impl.testConnection();
+                dangNhap = "THANH_CONG";
+                lyDoDangNhap = "";
+                log.info("Gmail: đăng nhập thử THÀNH CÔNG, sẵn sàng gửi thư thật.");
+            } catch (Exception e) {
+                dangNhap = "THAT_BAI";
+                lyDoDangNhap = loiThat(e) + gopY(e);
+                log.error("Gmail: đăng nhập thử THẤT BẠI, thư sẽ KHÔNG gửi được: {}{}", loiThat(e), gopY(e));
+            }
+        });
+    }
+
+    /**
+     * Gửi NGAY (không qua hàng đợi) một thư thử đến chính tài khoản gửi, trả về câu báo kết quả kèm lỗi thật nếu có.
+     * Dùng để kiểm tra cấu hình Gmail mà không cần tạo phiếu.
+     */
+    public String guiThuThu() {
+        if (!duocCauHinh()) {
+            return "CHƯA cấu hình Gmail: mở backend/src/main/resources/mail.properties, điền spring.mail.username (email gửi) "
+                    + "và spring.mail.password (mật khẩu ứng dụng 16 ký tự) rồi chạy lại backend.";
+        }
+        try {
+            JavaMailSender sender = mailSender.getIfAvailable();
+            MimeMessage m = sender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(m, false, "UTF-8");
+            helper.setFrom(from, tenCuaHang);
+            helper.setTo(username);
+            helper.setSubject("[" + tenCuaHang + "] Thư thử gửi mail");
+            helper.setText("Nếu bạn đọc được thư này thì cấu hình Gmail của " + tenCuaHang + " đã đúng.");
+            sender.send(m);
+            return "Đã gửi thư thử đến " + username + ". Hãy kiểm tra hộp thư (cả mục Spam).";
+        } catch (Exception e) {
+            log.warn("Gửi thư thử lỗi: {}", loiThat(e), e);
+            return "Gửi thư thử THẤT BẠI: " + loiThat(e) + gopY(e);
+        }
+    }
+
+    /** Lấy câu lỗi gốc (Gmail trả về trong nguyên nhân sâu nhất) thay vì câu bọc ngoài của Spring. */
+    static String loiThat(Throwable e) {
+        Throwable goc = e;
+        while (goc.getCause() != null && goc.getCause() != goc) {
+            goc = goc.getCause();
+        }
+        String chu = goc.getMessage() == null ? goc.getClass().getSimpleName() : goc.getMessage();
+        return chu.replace('\r', ' ').replace('\n', ' ').trim();
+    }
+
+    /** Gợi ý cách sửa cho vài lỗi hay gặp khi dùng Gmail. Xét cả tên lỗi lẫn nội dung của MỌI nguyên nhân bên trong. */
+    static String gopY(Throwable e) {
+        StringBuilder gom = new StringBuilder();
+        for (Throwable t = e; t != null && gom.length() < 4000; t = t.getCause() == t ? null : t.getCause()) {
+            gom.append(t.getClass().getSimpleName()).append(' ').append(t.getMessage()).append(' ');
+        }
+        String chu = gom.toString().toLowerCase();
+        if (chu.contains("535") || chu.contains("username and password not accepted") || chu.contains("authenticationfailed")
+                || chu.contains("mailauthentication") || chu.contains("invalid credentials")) {
+            return " -> Sai email / mật khẩu: Gmail KHÔNG nhận mật khẩu đăng nhập thường, phải dùng \"Mật khẩu ứng dụng\" 16 ký tự "
+                    + "(bật xác minh 2 bước rồi tạo tại myaccount.google.com/apppasswords).";
+        }
+        if (chu.contains("unknownhost") || chu.contains("could not connect") || chu.contains("connectexception")
+                || chu.contains("timed out") || chu.contains("timeout")) {
+            return " -> Không kết nối được smtp.gmail.com:587: kiểm tra mạng / tường lửa / diệt virus đang chặn cổng 587.";
+        }
+        if (chu.contains("pkix") || chu.contains("certpath") || chu.contains("unable to find valid certification")) {
+            return " -> Lỗi chứng chỉ SSL: thường do phần mềm diệt virus (Avast, Kaspersky, ESET...) đang quét / chèn vào kết nối mail. "
+                    + "Tắt tính năng quét email / quét HTTPS của phần mềm đó (hoặc đổi mạng) rồi chạy lại backend.";
+        }
+        return "";
     }
 
     @PreDestroy
@@ -66,88 +228,144 @@ public class MailService {
             return;
         }
         final String den = kh.getEmail().trim();
-        final String tieuDe = tieuDe(loai, phieu);
-        final String noiDung = noiDung(loai, phieu, kh);
-        luongGui.submit(() -> gui(den, tieuDe, noiDung));
+        final LoThu lo = loThu.computeIfAbsent(khoa(phieu.getMaPhieu()), k -> new LoThu());
+        lo.themThuNeuChuaDatTruoc();
+        // Dựng nội dung ngay bây giờ (chụp lại dữ liệu phiếu lúc này), gửi thì để luồng nền làm
+        final byte[] logoGan = logo;
+        final ThuMail thu;
+        try {
+            thu = noiDung.soan(loai, phieu, kh, logoGan != null);
+        } catch (Exception e) {
+            // Dựng thư lỗi thì chỉ ghi log, không làm hỏng thao tác lưu phiếu đã xong
+            log.error("Không soạn được mail phiếu {} cho {}: {}", phieu.getMaPhieu(), den, e.toString(), e);
+            lo.ghiLoi("Không soạn được thư cho " + den + ": " + loiThat(e));
+            return;
+        }
+        luongGui.submit(() -> gui(den, thu, logoGan, lo));
     }
 
-    private void gui(String den, String tieuDe, String noiDung) {
+    void gui(String den, ThuMail thu, byte[] logoGan) {
+        gui(den, thu, logoGan, null);
+    }
+
+    void gui(String den, ThuMail thu, byte[] logoGan, LoThu lo) {
         JavaMailSender sender = mailSender.getIfAvailable();
-        if (sender == null) {
-            log.info("[MAIL GIẢ LẬP - chưa cấu hình SMTP] Đến: {} | Tiêu đề: {}\n{}", den, tieuDe, noiDung);
+        if (sender == null || !duocCauHinh()) {
+            log.warn("[MAIL GIẢ LẬP - CHƯA cấu hình Gmail nên KHÔNG gửi thật] Đến: {} | Tiêu đề: {}\n{}", den, thu.tieuDe(), thu.banChu());
+            if (lo != null) lo.ghiGiaLap();
             return;
         }
         try {
-            SimpleMailMessage m = new SimpleMailMessage();
-            if (from != null && !from.isBlank()) {
-                m.setFrom(from);
-            }
-            m.setTo(den);
-            m.setSubject(tieuDe);
-            m.setText(noiDung);
-            sender.send(m);
-            log.info("Đã gửi mail '{}' đến {}", tieuDe, den);
+            sender.send(soanThu(sender, den, thu, logoGan));
+            log.info("Đã gửi mail '{}' đến {}", thu.tieuDe(), den);
+            if (lo != null) lo.ghiDaGui();
         } catch (Exception e) {
             // Gửi lỗi (sai mật khẩu, mất mạng...) thì chỉ ghi log, không ảnh hưởng dữ liệu phiếu đã lưu
-            log.warn("Không gửi được mail '{}' đến {}: {}", tieuDe, den, e.getMessage());
+            log.error("KHÔNG gửi được mail '{}' đến {}: {}{}", thu.tieuDe(), den, loiThat(e), gopY(e));
+            if (lo != null) lo.ghiLoi(loiThat(e) + gopY(e));
         }
     }
 
-    /* ===================== Nội dung mail ===================== */
+    /* ===================== Theo dõi kết quả gửi (để giao diện báo rõ) ===================== */
 
-    private String tieuDe(Loai loai, PhieuGiamGia p) {
-        switch (loai) {
-            case MOI:
-                return "[" + tenCuaHang + "] Bạn nhận được phiếu giảm giá " + p.getMaPhieu();
-            case CAP_NHAT:
-                return "[" + tenCuaHang + "] Phiếu giảm giá " + p.getMaPhieu() + " đã được cập nhật";
-            default:
-                return "[" + tenCuaHang + "] Phiếu giảm giá " + p.getMaPhieu() + " đã bị hủy";
+    private static String khoa(String maPhieu) {
+        return maPhieu == null ? "" : maPhieu.trim().toUpperCase();
+    }
+
+    /**
+     * Bắt đầu một lô thư mới của phiếu (mỗi lần lưu phiếu), xóa kết quả của lần lưu trước.
+     * soThu = số thư sẽ xếp gửi trong lô (biết trước nên giao diện không báo "xong" khi thư chưa xếp hết).
+     */
+    public void batDauLo(String maPhieu, int soThu) {
+        LoThu lo = new LoThu();
+        lo.tong = Math.max(0, soThu);
+        lo.datTruoc = true;
+        loThu.put(khoa(maPhieu), lo);
+    }
+
+    /**
+     * Kết quả lô thư gần nhất của phiếu: tong (số thư đã xếp), daGui, loi, giaLap (chưa cấu hình nên không gửi thật),
+     * xong (mọi thư đã có kết quả), lyDo (lý do lỗi gần nhất). Chưa có lô nào thì tong = 0, xong = true.
+     */
+    public Map<String, Object> ketQuaLo(String maPhieu) {
+        LoThu lo = loThu.get(khoa(maPhieu));
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("maPhieu", maPhieu);
+        if (lo == null) {
+            m.put("tong", 0);
+            m.put("daGui", 0);
+            m.put("loi", 0);
+            m.put("giaLap", 0);
+            m.put("xong", true);
+            m.put("lyDo", "");
+            return m;
+        }
+        synchronized (lo) {
+            m.put("tong", lo.tong);
+            m.put("daGui", lo.daGui);
+            m.put("loi", lo.loi);
+            m.put("giaLap", lo.giaLap);
+            m.put("xong", lo.daGui + lo.loi + lo.giaLap >= lo.tong);
+            m.put("lyDo", lo.lyDo);
+            m.put("capNhatLuc", lo.capNhatLuc);
+        }
+        return m;
+    }
+
+    /** Trạng thái gửi mail để form phiếu cá nhân cảnh báo trước: daCauHinh, dangNhap (CHUA_CAU_HINH / DANG_KIEM_TRA / THANH_CONG / THAT_BAI), lyDo. */
+    public Map<String, Object> trangThai() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        boolean cauHinh = duocCauHinh();
+        m.put("daCauHinh", cauHinh);
+        m.put("dangNhap", cauHinh ? dangNhap : "CHUA_CAU_HINH");
+        m.put("lyDo", cauHinh ? lyDoDangNhap : "");
+        return m;
+    }
+
+    /** Đếm kết quả của một lô thư (các luồng gửi cùng ghi nên khóa theo đối tượng). */
+    static final class LoThu {
+        int tong;
+        int daGui;
+        int loi;
+        int giaLap;
+        boolean datTruoc; // tong đã biết trước (batDauLo) thì không tự cộng khi xếp thư
+        String lyDo = "";
+        LocalDateTime capNhatLuc = LocalDateTime.now();
+
+        synchronized void themThuNeuChuaDatTruoc() {
+            if (!datTruoc) tong++;
+        }
+
+        synchronized void ghiDaGui() {
+            daGui++;
+            capNhatLuc = LocalDateTime.now();
+        }
+
+        synchronized void ghiLoi(String lyDoLoi) {
+            loi++;
+            lyDo = lyDoLoi;
+            capNhatLuc = LocalDateTime.now();
+        }
+
+        synchronized void ghiGiaLap() {
+            giaLap++;
+            capNhatLuc = LocalDateTime.now();
         }
     }
 
-    private String noiDung(Loai loai, PhieuGiamGia p, KhachHang kh) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Xin chào ").append(kh.getHoTen() == null ? "quý khách" : kh.getHoTen()).append(",\n\n");
-        switch (loai) {
-            case MOI:
-                sb.append("Cửa hàng ").append(tenCuaHang).append(" tặng bạn một phiếu giảm giá. Thông tin phiếu:\n\n");
-                break;
-            case CAP_NHAT:
-                sb.append("Thông tin phiếu giảm giá của bạn đã được cập nhật. Vui lòng xem thông tin MỚI bên dưới (thay cho thông tin cũ):\n\n");
-                break;
-            default:
-                sb.append("Rất tiếc, phiếu giảm giá dưới đây của bạn đã bị hủy và không còn sử dụng được:\n\n");
-                break;
+    /** Ghép thư HTML (kèm bản chữ) và logo gắn kiểu CID. logoGan = null: không gắn logo. */
+    MimeMessage soanThu(JavaMailSender sender, String den, ThuMail thu, byte[] logoGan) throws Exception {
+        MimeMessage m = sender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(m, true, "UTF-8");
+        if (from != null && !from.isBlank()) {
+            helper.setFrom(from, tenCuaHang);
         }
-        sb.append("- Mã phiếu: ").append(p.getMaPhieu()).append('\n');
-        sb.append("- Tên phiếu: ").append(p.getTenPhieu()).append('\n');
-        if (loai != Loai.HUY) {
-            sb.append("- Mức giảm: ").append(mucGiam(p)).append('\n');
-            sb.append("- Đơn tối thiểu: ").append(tien(p.getGiaTriDonHangToiThieu())).append('\n');
-            sb.append("- Hiệu lực: ")
-                    .append(p.getNgayBatDau() == null ? "" : p.getNgayBatDau().format(NGAY))
-                    .append(" - ")
-                    .append(p.getNgayKetThuc() == null ? "" : p.getNgayKetThuc().format(NGAY)).append('\n');
+        helper.setTo(den);
+        helper.setSubject(thu.tieuDe());
+        helper.setText(thu.banChu(), thu.html()); // phải gọi trước addInline
+        if (logoGan != null) {
+            helper.addInline(PhieuMailNoiDung.CID_LOGO, new ByteArrayResource(logoGan), "image/jpeg");
         }
-        sb.append("\nCảm ơn bạn đã đồng hành cùng ").append(tenCuaHang).append(".\n");
-        return sb.toString();
-    }
-
-    private String mucGiam(PhieuGiamGia p) {
-        boolean phanTram = p.getLoaiGiam() != null && p.getLoaiGiam() == PhieuGiamGia.LOAI_PHAN_TRAM;
-        if (!phanTram) {
-            return "giảm " + tien(p.getGiaTriGiam());
-        }
-        String s = "giảm " + p.getGiaTriGiam() + "%";
-        if (p.getGiamToiDa() != null) {
-            s += " (tối đa " + tien(p.getGiamToiDa()) + ")";
-        }
-        return s;
-    }
-
-    private String tien(Long v) {
-        long x = v == null ? 0 : v;
-        return String.format(new Locale("vi", "VN"), "%,d ₫", x);
+        return m;
     }
 }

@@ -12,8 +12,8 @@ import { THUOC_TINH, TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
 import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
-import { includesText } from '../utils/text'
-import { laKhongApDung } from '../utils/danhMuc'
+import { includesExact, includesText } from '../utils/text'
+import { laKhongApDung, NHOM_DANH_MUC } from '../utils/danhMuc'
 import { exportExcel } from '../utils/exportExcel'
 import { todayIso } from '../utils/format'
 
@@ -22,6 +22,12 @@ const toast = useToast()
 const type = route.meta.attr
 const cfg = THUOC_TINH[type]
 const lower = cfg.label.toLowerCase()
+const laChatLieu = type === 'chat-lieu'
+// Thương hiệu, xuất xứ: tìm đúng từng chữ (phân biệt HOA / thường và dấu); các loại còn lại tìm thoải mái
+const timChinhXac = !!cfg.timChinhXac
+const cotSo = laChatLieu ? 6 : 5
+// Tên các danh mục mà một chất liệu được dùng (chưa gắn nhóm nào = tất cả)
+const tenNhom = (x) => (x.nhom?.length ? NHOM_DANH_MUC.filter((n) => x.nhom.includes(n.ma)).map((n) => n.ten).join(', ') : 'Tất cả danh mục')
 
 const list = ref([])
 const loading = ref(false)
@@ -31,9 +37,13 @@ const defaultFilters = () => ({ keyword: '', trangThai: '' })
 const filters = reactive(defaultFilters())
 const resetFilters = () => Object.assign(filters, defaultFilters())
 
+// Khớp từ khóa với mã hoặc tên (kiểm tra riêng từng ô để từ khóa không "dính" qua ranh giới mã | tên)
+const khopTuKhoa = (x, kw) =>
+  timChinhXac ? [x.ma, x.ten].some((v) => includesExact(v, kw)) : includesText(`${x.ma} ${x.ten}`, kw)
+
 const filtered = computed(() =>
   list.value.filter((x) => {
-    if (filters.keyword && !includesText(`${x.ma} ${x.ten}`, filters.keyword)) return false
+    if (filters.keyword && !khopTuKhoa(x, filters.keyword)) return false
     if (filters.trangThai && trangThaiOf(x) !== filters.trangThai) return false
     return true
   }),
@@ -143,9 +153,10 @@ function exportFile() {
       { header: 'STT', key: 'stt', width: 6 },
       { header: 'Mã', key: 'ma', width: 14 },
       { header: `Tên ${lower}`, key: 'ten', width: 36 },
+      ...(laChatLieu ? [{ header: 'Dùng cho danh mục', key: 'nhom', width: 40 }] : []),
       { header: 'Trạng thái', key: 'trangThai', width: 18 },
     ],
-    rows: filtered.value.map((x, i) => ({ stt: i + 1, ma: x.ma, ten: x.ten, trangThai: TRANG_THAI[trangThaiOf(x)].label })),
+    rows: filtered.value.map((x, i) => ({ stt: i + 1, ma: x.ma, ten: x.ten, ...(laChatLieu ? { nhom: tenNhom(x) } : {}), trangThai: TRANG_THAI[trangThaiOf(x)].label })),
   })
   toast.success(`Đã xuất ${filtered.value.length} ${lower} ra file Excel.`)
 }
@@ -161,6 +172,7 @@ function exportFile() {
             <i class="bi bi-search" aria-hidden="true"></i>
             <input id="tt-keyword" v-model.trim="filters.keyword" type="text" class="form-control ad-control" :placeholder="`Mã hoặc tên ${lower}`" autocomplete="off" />
           </div>
+          <p v-if="timChinhXac" class="ad-hint" data-test="goi-y-chinh-xac">Tìm đúng từng chữ: phân biệt chữ hoa / thường và dấu (vd “{{ cfg.example }}”).</p>
         </div>
         <div>
           <label class="ad-label" for="tt-trang-thai">Trạng thái</label>
@@ -198,14 +210,15 @@ function exportFile() {
                 <th class="ad-col-stt">STT</th>
                 <th>Mã</th>
                 <th>Tên {{ lower }}</th>
+                <th v-if="laChatLieu">Dùng cho danh mục</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td colspan="5"><div class="ad-empty">Đang tải dữ liệu…</div></td></tr>
+              <tr v-if="loading"><td :colspan="cotSo"><div class="ad-empty">Đang tải dữ liệu…</div></td></tr>
               <tr v-else-if="!pageItems.length">
-                <td colspan="5">
+                <td :colspan="cotSo">
                   <div class="ad-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
                     <strong>Không tìm thấy {{ lower }}</strong>
@@ -218,6 +231,7 @@ function exportFile() {
                   <td class="ad-col-stt">{{ (page - 1) * pageSize + i + 1 }}</td>
                   <td><span class="ad-code ad-nowrap">{{ x.ma }}</span></td>
                   <td class="ad-cell-wrap">{{ x.ten }}</td>
+                  <td v-if="laChatLieu" class="ad-cell-wrap">{{ tenNhom(x) }}</td>
                   <td><span class="ad-pill" :class="TRANG_THAI[trangThaiOf(x)].cls">{{ TRANG_THAI[trangThaiOf(x)].label }}</span></td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">

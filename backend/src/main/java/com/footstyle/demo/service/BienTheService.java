@@ -4,12 +4,14 @@ import com.footstyle.demo.dto.BienTheMoiRequest;
 import com.footstyle.demo.dto.BienTheRequest;
 import com.footstyle.demo.dto.BienTheResponse;
 import com.footstyle.demo.entity.ChuVi;
+import com.footstyle.demo.entity.HinhAnhSanPham;
 import com.footstyle.demo.entity.MauSac;
 import com.footstyle.demo.entity.SanPham;
 import com.footstyle.demo.entity.SanPhamChiTiet;
 import com.footstyle.demo.entity.TrongLuong;
 import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.ChuViRepository;
+import com.footstyle.demo.repository.HinhAnhSanPhamRepository;
 import com.footstyle.demo.repository.MauSacRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import com.footstyle.demo.repository.SanPhamRepository;
@@ -17,6 +19,7 @@ import com.footstyle.demo.repository.TrongLuongRepository;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,14 +41,20 @@ public class BienTheService {
     private final MauSacRepository mauSacRepo;
     private final TrongLuongRepository trongLuongRepo;
     private final ChuViRepository chuViRepo;
+    private final HinhAnhSanPhamRepository hinhAnhRepo;
 
     /* ===================== Đọc ===================== */
 
     @Transactional(readOnly = true)
     public List<BienTheResponse> getAll() {
+        // Ảnh của mọi sản phẩm lấy bằng 1 câu truy vấn rồi gom theo sản phẩm (tránh gọi DB cho từng biến thể)
+        Map<Integer, List<HinhAnhSanPham>> anhTheoSp = new HashMap<>();
+        for (HinhAnhSanPham h : hinhAnhRepo.findByTrangThaiOrderByLaAnhChinhDescIdAsc(HinhAnhSanPham.HOAT_DONG)) {
+            anhTheoSp.computeIfAbsent(h.getSanPham().getId(), k -> new ArrayList<>()).add(h);
+        }
         List<BienTheResponse> ketQua = new ArrayList<>();
         for (SanPhamChiTiet b : bienTheRepo.findAllByOrderByIdDesc()) {
-            ketQua.add(toResponse(b));
+            ketQua.add(toResponse(b, anhTheoSp.getOrDefault(b.getSanPham().getId(), List.of())));
         }
         return ketQua;
     }
@@ -317,6 +326,11 @@ public class BienTheService {
     }
 
     private BienTheResponse toResponse(SanPhamChiTiet b) {
+        return toResponse(b, hinhAnhRepo.findBySanPhamId(b.getSanPham().getId()));
+    }
+
+    // anhCuaSanPham: ảnh của sản phẩm chứa biến thể (dùng để lấy ảnh theo màu của biến thể)
+    private BienTheResponse toResponse(SanPhamChiTiet b, List<HinhAnhSanPham> anhCuaSanPham) {
         return new BienTheResponse(
                 b.getId(),
                 b.getMaSpct(),
@@ -326,6 +340,7 @@ public class BienTheService {
                 b.getChuVi().getId(),
                 b.getGiaBan(),
                 b.getSoLuongTon(),
-                dangHoatDong(b));
+                dangHoatDong(b),
+                AnhSanPham.anhCuaBienThe(anhCuaSanPham, b.getMauSac().getId()));
     }
 }

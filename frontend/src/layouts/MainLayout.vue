@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import ToastHost from '../components/common/ToastHost.vue'
 import { THUOC_TINH_LIST } from '../constants/thuocTinh'
@@ -48,28 +48,19 @@ const menuAll = [
   // { key: 'lich-lam', label: 'Quản lý lịch làm', icon: 'bi-calendar3', children: [], roles: QL },
 ]
 
-// Vai trò đang dùng (chưa có đăng nhập nên chọn ở header, nhớ lại sau khi tải lại trang)
-const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } }
-const writeLS = (k, v) => { try { localStorage.setItem(k, v) } catch { /* bỏ qua */ } }
-const role = ref(readLS('fs-role', 'quan-ly'))
-watch(role, (v) => writeLS('fs-role', v))
-const menu = computed(() => menuAll.filter((m) => m.roles.includes(role.value)))
+// Chưa có đăng nhập: giao diện quản trị dùng vai trò Quản Lý (thấy đủ menu). Theo nhận xét của cô đã bỏ ô chọn vai trò ở header.
+const role = 'quan-ly'
+const menu = computed(() => menuAll.filter((m) => m.roles.includes(role)))
 
 // Mục menu sáng cả khi đang ở trang con (vd /hoa-don/1 vẫn sáng "Quản lý hóa đơn")
 const isActive = (to, exact = false) => !!to && (route.path === to || (!exact && route.path.startsWith(to + '/')))
-// Phóng to / thu nhỏ phần nội dung bên phải (mặc định 75%). Thanh bên trái tự co giãn theo cho vừa mắt:
-// luôn lớn hơn nội dung ~10% nhưng chỉ trong khoảng 80% - 100% để menu không quá bé / quá to.
-const ZOOM_DEFAULT = 75, ZOOM_MIN = 50, ZOOM_MAX = 125, ZOOM_STEP = 5
-const zoomPct = ref(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number(readLS('fs-zoom', String(ZOOM_DEFAULT))) || ZOOM_DEFAULT)))
-const applyZoom = () => {
-  const z = zoomPct.value / 100
+// Nội dung luôn hiển thị ở 75% (không còn ô phóng to / thu nhỏ ở header). Thanh bên trái lớn hơn nội dung ~10% cho vừa mắt.
+const ZOOM = 0.75
+{
   const root = document.documentElement.style
-  root.setProperty('--ui-zoom', String(z))
-  root.setProperty('--ui-side-zoom', String(Math.min(1, Math.max(0.8, z + 0.1))))
+  root.setProperty('--ui-zoom', String(ZOOM))
+  root.setProperty('--ui-side-zoom', String(Math.min(1, Math.max(0.8, ZOOM + 0.1))))
 }
-applyZoom()
-watch(zoomPct, (v) => { writeLS('fs-zoom', String(v)); applyZoom() })
-const zoomBy = (d) => { zoomPct.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomPct.value + d)) }
 
 // Nhóm có menu con mặc định đóng cho gọn; bấm vào nhóm để mở/đóng.
 const open = reactive({ 'san-pham': false, 'thuoc-tinh': false, 'giam-gia': false })
@@ -126,6 +117,8 @@ const toggle = (key) => { open[key] = !open[key] }
 
     <!-- Khu vực nội dung -->
     <div class="flex-grow-1 d-flex flex-column" style="min-width: 0;">
+      <!-- Header gọn theo nhận xét của cô: chỉ còn tiêu đề trang + Ca làm việc, Thông báo, Tài khoản
+           (đã bỏ ô phóng to 75%, ô chọn vai trò "Quản lý" và nút sáng/tối chưa dùng) -->
       <header class="bg-white border-bottom px-4 py-3 d-flex flex-wrap align-items-center gap-3">
         <div class="me-auto d-flex align-items-baseline gap-2">
           <template v-if="pageTitle">
@@ -136,25 +129,11 @@ const toggle = (key) => { open[key] = !open[key] }
           </template>
         </div>
 
-        <!-- Phóng to / thu nhỏ phần nội dung -->
-        <div class="btn-group btn-group-sm" role="group" aria-label="Phóng to thu nhỏ nội dung">
-          <button type="button" class="btn btn-outline-secondary" :disabled="zoomPct <= ZOOM_MIN" aria-label="Thu nhỏ" @click="zoomBy(-ZOOM_STEP)"><i class="bi bi-dash-lg"></i></button>
-          <button type="button" class="btn btn-outline-secondary ad-zoom-val" :title="`Về ${ZOOM_DEFAULT}%`" @click="zoomPct = ZOOM_DEFAULT">{{ zoomPct }}%</button>
-          <button type="button" class="btn btn-outline-secondary" :disabled="zoomPct >= ZOOM_MAX" aria-label="Phóng to" @click="zoomBy(ZOOM_STEP)"><i class="bi bi-plus-lg"></i></button>
-        </div>
-        <!-- Chọn vai trò để xem menu theo use case (chưa có đăng nhập) -->
-        <select v-model="role" class="form-select form-select-sm ad-role" aria-label="Vai trò">
-          <option value="quan-ly">Quản Lý</option>
-          <option value="nhan-vien">Nhân Viên</option>
-        </select>
-        <button class="btn btn-light btn-sm border rounded-3 px-3 fw-medium d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-light btn-sm border rounded-3 px-3 fw-medium d-flex align-items-center gap-2">
           <i class="bi bi-arrow-left-right text-secondary"></i> Ca làm việc <span class="ad-live-dot" aria-hidden="true"></span>
         </button>
-        <button class="btn btn-light rounded-circle p-2 lh-1 text-muted" aria-label="Đổi giao diện sáng/tối">
-          <i class="bi bi-moon"></i>
-        </button>
         <div class="position-relative">
-          <button class="btn btn-light rounded-circle p-2 lh-1 text-muted" aria-label="Thông báo">
+          <button type="button" class="btn btn-light rounded-circle p-2 lh-1 text-muted" aria-label="Thông báo">
             <i class="bi bi-bell"></i>
           </button>
           <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">4</span>
@@ -178,8 +157,6 @@ const toggle = (key) => { open[key] = !open[key] }
 /* Thanh bên có độ phóng to riêng (--ui-side-zoom): body đã zoom --ui-zoom nên ở đây nhân thêm tỉ lệ bù, chiều cao chia cho hệ số hiệu dụng để luôn phủ hết màn hình */
 .ad-aside { position: sticky; top: 0; zoom: calc(var(--ui-side-zoom) / var(--ui-zoom)); height: calc(100vh / var(--ui-side-zoom)); overflow-y: auto; overflow-x: hidden; width: 300px; }
 .ad-logo { height: 100px; }
-.ad-role { width: auto; }
-.ad-zoom-val { min-width: 3.4rem; }
 .ad-link { white-space: nowrap; display: flex; align-items: center; padding: 0.7rem 1rem; border-radius: 0.5rem; text-align: left; }
 .ad-link .icon { font-size: 1.15rem; margin-right: 0.8rem; width: 24px; text-align: center; }
 .ad-link.justify-content-between .icon { margin-right: 0.8rem; }

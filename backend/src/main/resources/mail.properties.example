@@ -1,0 +1,26 @@
+# =====================================================================
+#  CẤU HÌNH GỬI GMAIL CHO PHIẾU GIẢM GIÁ CÁ NHÂN
+#  File này tự được nạp khi chạy backend. SAU KHI SỬA PHẢI CHẠY LẠI BACKEND.
+#
+#  Làm 3 bước:
+#   1) Đăng nhập tài khoản Gmail dùng để GỬI thư, bật "Xác minh 2 bước"
+#      (myaccount.google.com > Bảo mật > Xác minh 2 bước).
+#   2) Vào https://myaccount.google.com/apppasswords tạo "Mật khẩu ứng dụng" (đặt tên bất kỳ, vd FootStyle)
+#      -> Google cho 1 dãy 16 ký tự. KHÔNG dùng mật khẩu đăng nhập Gmail thường, Gmail sẽ từ chối (lỗi 535).
+#   3) Điền email và dãy 16 ký tự đó vào 2 dòng username / password bên dưới (viết liền, bỏ dấu cách).
+#
+#  Thử ngay: chạy backend rồi mở http://localhost:8081/api/phieu-giam-gia/thu-gui-mail
+#  -> gửi 1 thư thử đến chính email gửi và hiện lỗi thật nếu có.
+#
+#  CHÚ Ý: file này chứa mật khẩu nên đã được cho vào .gitignore, KHÔNG đẩy lên GitHub.
+#  Tạo lại từ mail.properties.example nếu clone project về máy mới.
+# =====================================================================
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+spring.mail.properties.mail.smtp.starttls.required=true
+
+# Điền vào đây:
+spring.mail.username=
+spring.mail.password=

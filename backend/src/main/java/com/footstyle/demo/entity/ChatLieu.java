@@ -15,4 +15,8 @@ import lombok.Setter;
 @AttributeOverride(name = "ma", column = @Column(name = "ma_chat_lieu"))
 @AttributeOverride(name = "ten", column = @Column(name = "ten_chat_lieu"))
 public class ChatLieu extends ThuocTinh {
+
+    /** Các nhóm danh mục dùng chất liệu này, cách nhau dấu phẩy (VOT,QUAN_AO,...). Rỗng / null = mọi danh mục. */
+    @Column(name = "nhom_ap_dung")
+    private String nhomApDung;
 }

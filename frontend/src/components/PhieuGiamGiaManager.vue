@@ -177,8 +177,11 @@ const confirmContent = computed(() => {
       }
 })
 
-// Công tắc chỉ hiện khi phiếu chưa kết thúc (hôm nay <= ngày kết thúc). Sang ngày hôm sau của ngày kết thúc thì công tắc biến mất.
+// Phiếu đã quá ngày kết thúc ("Đã kết thúc"): công tắc hiện TẮT và bị khóa, không bật / tắt được nữa.
+const congTacBat = (p) => p.hoatDong && !isExpired(p, today)
+const congTacKhoa = (p) => isExpired(p, today)
 function toggleTitle(p) {
+  if (isExpired(p, today)) return 'Đã kết thúc - công tắc tắt, không thể bật / tắt'
   return p.hoatDong ? 'Đang bật - bấm để ngưng hoạt động' : 'Đang tắt - bấm để bật hoạt động'
 }
 
@@ -320,10 +323,10 @@ async function confirmToggle() {
                   </td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
-                      <span class="ad-switch-slot">
+                      <span class="ad-switch-slot" :title="toggleTitle(p)">
                         <StatusSwitch
-                          v-if="!isExpired(p, today)"
-                          :on="p.hoatDong"
+                          :on="congTacBat(p)"
+                          :disabled="congTacKhoa(p)"
                           :label="toggleTitle(p)"
                           @toggle="confirmItem = p"
                         />
