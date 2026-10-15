@@ -13,6 +13,7 @@ import { formatMoney } from '../../utils/format'
 const props = defineProps({
   idDot: { type: Number, required: true },
   dotDangTat: { type: Boolean, default: false },
+  chinhSach: { type: String, default: 'MAX' },
 })
 
 const lich = ref([])
@@ -31,7 +32,7 @@ async function tai() {
   }
 }
 onMounted(tai)
-watch(() => props.idDot, tai)
+watch(() => [props.idDot, props.chinhSach], tai)
 
 // 'yyyy-mm-dd' -> 'd/m/yyyy'
 const ngay = (iso) => {

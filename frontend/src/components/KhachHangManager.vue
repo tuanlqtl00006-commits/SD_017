@@ -160,7 +160,8 @@
               <button type="button" class="btn btn-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;" @click="closeModal"><i class="bi bi-x-lg"></i></button>
             </div>
             <div class="modal-body px-4 pb-4 pt-2">
-              <form @submit.prevent="saveCustomer">
+              <form novalidate @submit.prevent="saveCustomer">
+                <div v-if="editError" class="alert alert-danger bg-danger bg-opacity-10 text-danger border-0 rounded-3 py-2 px-3 small mb-3">{{ editError }}</div>
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label text-dark fw-medium mb-1">Mã KH</label>
@@ -168,20 +169,23 @@
                   </div>
                   <div class="col-md-6">
                     <label class="form-label text-dark fw-medium mb-1">Họ và Tên <span class="text-danger" v-if="!isView">*</span></label>
-                    <input type="text" class="form-control bg-light border-0" v-model="formData.ten" required placeholder="Nguyễn Hữu Việt..." :disabled="isView">
+                    <input type="text" class="form-control bg-light border-0" :class="{ 'is-invalid': editErrors.ten }" v-model="formData.ten" placeholder="Nguyễn Hữu Việt..." :maxlength="TEN_MAX + 20" :disabled="isView" @input="editErrors.ten = ''" @blur="kiemTraSua('ten')">
+                    <small v-if="editErrors.ten" class="text-danger mt-1 d-block">{{ editErrors.ten }}</small>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label text-dark fw-medium mb-1">Số Điện Thoại <span class="text-danger" v-if="!isView">*</span></label>
-                    <input type="text" class="form-control bg-light border-0" :class="{'is-invalid': phoneErrorMsg}" v-model="formData.sdt" required placeholder="0936..." :disabled="isView" @input="phoneErrorMsg = ''">
-                    <small v-if="phoneErrorMsg" class="text-danger mt-1 d-block">{{ phoneErrorMsg }}</small>
+                    <input type="text" class="form-control bg-light border-0" :class="{ 'is-invalid': editErrors.sdt }" v-model="formData.sdt" placeholder="0936..." maxlength="20" :disabled="isView" @input="editErrors.sdt = ''" @blur="kiemTraSua('sdt')">
+                    <small v-if="editErrors.sdt" class="text-danger mt-1 d-block">{{ editErrors.sdt }}</small>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label text-dark fw-medium mb-1">Email</label>
-                    <input type="email" class="form-control bg-light border-0" v-model="formData.email" placeholder="email@gmail.com" :disabled="isView">
+                    <label class="form-label text-dark fw-medium mb-1">Email <span class="text-danger" v-if="!isView">*</span></label>
+                    <input type="email" class="form-control bg-light border-0" :class="{ 'is-invalid': editErrors.email }" v-model="formData.email" placeholder="email@gmail.com" :maxlength="EMAIL_MAX + 20" :disabled="isView" @input="editErrors.email = ''" @blur="kiemTraSua('email')">
+                    <small v-if="editErrors.email" class="text-danger mt-1 d-block">{{ editErrors.email }}</small>
                   </div>
                   <div class="col-12">
-                    <label class="form-label text-dark fw-medium mb-1">Ngày Sinh</label>
-                    <input type="date" class="form-control bg-light border-0 text-muted" v-model="formData.ngaySinh" :disabled="isView" min="1900-01-01" max="9999-12-31">
+                    <label class="form-label text-dark fw-medium mb-1">Ngày Sinh <span v-if="!isView" class="text-muted fw-normal small">(không bắt buộc, từ {{ TUOI_MIN }} đến {{ TUOI_MAX }} tuổi)</span></label>
+                    <input type="date" class="form-control bg-light border-0 text-muted" :class="{ 'is-invalid': editErrors.ngaySinh }" v-model="formData.ngaySinh" :disabled="isView" :min="gioiHanNgay.min" :max="gioiHanNgay.max" @input="editErrors.ngaySinh = ''" @blur="kiemTraSua('ngaySinh')">
+                    <small v-if="editErrors.ngaySinh" class="text-danger mt-1 d-block">{{ editErrors.ngaySinh }}</small>
                   </div>
                   
                   <!-- Địa chỉ giao hàng đã được gỡ bỏ -->
@@ -207,7 +211,9 @@
                 </div>
                 <div class="d-flex justify-content-end gap-3 mt-4">
                   <button type="button" class="btn px-4 py-2 rounded-pill fw-bold border-0" :class="isView ? 'btn-primary text-white' : 'bg-light text-dark'" @click="closeModal" :style="isView ? 'background-color: #0977ec;' : 'background-color: #f1f3f5 !important;'">{{ isView ? 'Đóng' : 'Quay lại' }}</button>
-                  <button v-if="!isView" type="submit" class="btn btn-primary px-5 py-2 rounded-pill fw-bold shadow-sm" style="background-color: #0977ec; border-color: #0977ec;">Lưu thông tin</button>
+                  <button v-if="!isView" type="submit" class="btn btn-primary px-5 py-2 rounded-pill fw-bold shadow-sm" style="background-color: #0977ec; border-color: #0977ec;" :disabled="isSaving">
+                    <span v-if="isSaving" class="spinner-border spinner-border-sm me-2" role="status"></span>{{ isSaving ? 'Đang lưu...' : 'Lưu thông tin' }}
+                  </button>
                 </div>
               </form>
             </div>
@@ -248,8 +254,30 @@ import DiaChiHanhChinhSelect from './common/DiaChiHanhChinhSelect.vue'
 import { ghepDiaChi } from '../utils/diaChi'
 import { useToast } from '../composables/useToast'
 import { exportExcel } from '../utils/exportExcel'
+import {
+  TEN_MAX, EMAIL_MAX, TUOI_MIN, TUOI_MAX,
+  chuanHoaKhoangTrang, chuanHoaSdt, chuanHoaEmail,
+  kiemTraHoTen, kiemTraSdt, kiemTraEmail, kiemTraNgaySinh, gioiHanNgaySinh,
+} from '../utils/khachHangValidate'
 
 const toast = useToast()
+
+// Kiểm tra dữ liệu modal sửa khách hàng
+const gioiHanNgay = gioiHanNgaySinh()
+const isSaving = ref(false)
+const editError = ref('')
+const editErrors = ref({ ten: '', sdt: '', email: '', ngaySinh: '' })
+const kiemTraSua = (field) => {
+  const f = formData.value
+  const luat = {
+    ten: () => kiemTraHoTen(f.ten),
+    sdt: () => kiemTraSdt(f.sdt),
+    email: () => kiemTraEmail(f.email),
+    ngaySinh: () => kiemTraNgaySinh(f.ngaySinh),
+  }
+  editErrors.value[field] = luat[field]()
+  return !editErrors.value[field]
+}
 
 const showModal = ref(false)
 const showAddressModal = ref(false)
@@ -414,7 +442,8 @@ const openEditModal = (kh) => {
 
 
 const populateForm = (kh) => {
-  phoneErrorMsg.value = ''
+  editError.value = ''
+  editErrors.value = { ten: '', sdt: '', email: '', ngaySinh: '' }
 
   let tinhThanh = ''
   let phuongXa = ''
@@ -479,50 +508,26 @@ const closeModal = () => {
   showModal.value = false
 }
 
-const phoneErrorMsg = ref('')
-
 const saveCustomer = async () => {
-  phoneErrorMsg.value = ''
+  if (isSaving.value) return
+  editError.value = ''
 
-  if (!formData.value.ten || formData.value.ten.trim() === '') {
-    toast.error('Họ tên không được để trống hoặc chỉ chứa khoảng trắng.')
+  // Kiểm tra hết các ô một lượt
+  const hopLe = Object.keys(editErrors.value).map(kiemTraSua).every(Boolean)
+  if (!hopLe) {
+    editError.value = 'Vui lòng kiểm tra lại các ô được đánh dấu đỏ.'
     return
-  }
-
-  if (formData.value.sdt) {
-    // Regex SĐT Việt Nam: bắt đầu bằng 0, theo sau là 3,5,7,8,9 và đúng 8 số nữa (tổng 10 số)
-    const vnPhoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
-    if (!vnPhoneRegex.test(formData.value.sdt.trim())) {
-      phoneErrorMsg.value = 'Số điện thoại không hợp lệ (phải là SĐT Việt Nam 10 số).'
-      return
-    }
-  } else {
-    phoneErrorMsg.value = 'Số điện thoại không được để trống.'
-    return
-  }
-
-  if (formData.value.ngaySinh && formData.value.ngaySinh.length > 10) {
-    toast.error('Vui lòng nhập Ngày Sinh hợp lệ (năm không quá 4 chữ số).')
-    return
-  }
-
-  if (formData.value.ngaySinh) {
-    const selectedDate = new Date(formData.value.ngaySinh)
-    const today = new Date()
-    if (selectedDate > today) {
-      toast.error('Ngày sinh không được lớn hơn ngày hiện tại.')
-      return
-    }
   }
 
   const payload = {
-    hoTen: formData.value.ten.trim(),
-    sdt: formData.value.sdt.trim(),
-    email: formData.value.email ? formData.value.email.trim() : null,
+    hoTen: chuanHoaKhoangTrang(formData.value.ten),
+    sdt: chuanHoaSdt(formData.value.sdt),
+    email: chuanHoaEmail(formData.value.email),
     ngaySinh: formData.value.ngaySinh || null,
     gioiTinh: formData.value.gioiTinh,
     trangThai: formData.value.trangThai,
   }
+  isSaving.value = true
   try {
     await api.put(`/khach-hang/${formData.value.id}`, payload)
     closeModal()
@@ -530,7 +535,16 @@ const saveCustomer = async () => {
     toast.success('Đã cập nhật khách hàng.')
   } catch (error) {
     console.error('Lỗi khi lưu khách hàng:', error)
-    toast.error(error.message || 'Có lỗi xảy ra khi lưu khách hàng. Vui lòng kiểm tra lại dữ liệu.')
+    const msg = error.message || 'Có lỗi xảy ra khi lưu khách hàng. Vui lòng kiểm tra lại dữ liệu.'
+    // Đưa lỗi từ server về đúng ô nếu nhận ra được
+    const m = msg.toLowerCase()
+    if (m.includes('email')) editErrors.value.email = msg
+    else if (m.includes('điện thoại')) editErrors.value.sdt = msg
+    else if (m.includes('họ tên')) editErrors.value.ten = msg
+    else if (m.includes('ngày sinh') || m.includes('tuổi')) editErrors.value.ngaySinh = msg
+    editError.value = msg
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -548,6 +562,10 @@ const formatDate = (dateString) => {
 /* Form Input */
 .form-control::placeholder {
   color: #ced4da;
+}
+.form-control.is-invalid {
+  border: 1px solid #dc3545 !important;
+  background-color: #fff8f8 !important;
 }
 
 /* Action Buttons */

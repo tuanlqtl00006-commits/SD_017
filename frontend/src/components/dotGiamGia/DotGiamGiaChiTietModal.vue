@@ -13,10 +13,12 @@
               <div class="card border-0 shadow-sm rounded-3 bg-light">
                 <div class="card-body">
                   <h6 class="fw-bold mb-3">Thêm sản phẩm áp dụng</h6>
+                  <!-- Cho biết biến thể thêm vào đây khi nào sẽ hiện ở cột "Giảm giá" của trang Biến thể sản phẩm -->
+                  <div class="alert py-2 px-3 small" :class="trangThaiDot === 'DANG_DIEN_RA' ? 'alert-success' : 'alert-warning'" role="status" data-testid="ghi-chu-dot">{{ ghiChuDot }}</div>
                   <form @submit.prevent="addProduct">
                     <div class="mb-3">
                       <label class="form-label small text-dark fw-medium">Chọn sản phẩm <span class="text-danger">*</span></label>
-                      <select class="form-select" v-model="selectedProduct" required>
+                      <select class="form-select" v-model="selectedProduct" required :disabled="daKetThuc">
                         <option value="">-- Chọn sản phẩm --</option>
                         <option v-for="sp in selectableProducts" :key="sp.id" :value="sp.id">
                           [{{ sp.ma }}] - Giá: {{ formatCurrency(sp.giaBan) }}
@@ -25,9 +27,9 @@
                     </div>
                     <div class="mb-3">
                       <label class="form-label small text-dark fw-medium">Phần trăm giảm (%) <span class="text-danger">*</span></label>
-                      <input type="number" class="form-control" v-model.number="percent" min="1" max="100" required>
+                      <input type="number" class="form-control" v-model.number="percent" min="1" max="100" required :disabled="daKetThuc">
                     </div>
-                    <button type="submit" class="btn btn-primary w-100 fw-medium">Thêm vào đợt giảm giá</button>
+                    <button type="submit" class="btn btn-primary w-100 fw-medium" :disabled="daKetThuc">Thêm vào đợt giảm giá</button>
                     <div v-if="errorMsg" class="text-danger small mt-2 fw-medium text-center"><i class="bi bi-exclamation-triangle me-1"></i>{{ errorMsg }}</div>
                   </form>
                 </div>
@@ -77,6 +79,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '../../services/api'
+import { tinhTrangThai, daKetThuc as quaNgayKetThuc, ngayIso } from '../../constants/dotGiamGia'
+import { formatDate } from '../../utils/format'
+import { useToast } from '../../composables/useToast'
 
 const props = defineProps({
   campaign: Object
@@ -88,6 +93,25 @@ const details = ref([])
 const selectedProduct = ref('')
 const percent = ref(props.campaign?.phanTramGiamDot || 10)
 const errorMsg = ref('')
+const toast = useToast()
+
+// Trạng thái của đợt quyết định khi nào mức giảm hiện ở cột "Giảm giá" (trang Biến thể sản phẩm)
+const trangThaiDot = computed(() => tinhTrangThai(props.campaign || {}))
+// Quá ngày kết thúc thì khóa thêm sản phẩm (kể cả khi công tắc đang tắt)
+const daKetThuc = computed(() => quaNgayKetThuc(props.campaign || {}))
+const ghiChuDot = computed(() => {
+  if (daKetThuc.value) return 'Đợt đã kết thúc: không thể thêm sản phẩm mới.'
+  switch (trangThaiDot.value) {
+    case 'DANG_DIEN_RA':
+      return 'Đợt đang diễn ra: biến thể thêm vào sẽ được giảm giá ngay và tự hiện ở cột "Giảm giá" của trang Biến thể sản phẩm.'
+    case 'SAP_DIEN_RA':
+      return `Đợt sắp diễn ra: biến thể thêm vào sẽ bắt đầu được giảm từ ${formatDate(ngayIso(props.campaign?.ngayBatDau))} (trước đó cột "Giảm giá" chỉ báo "Sắp giảm").`
+    case 'NGUNG_HOAT_DONG':
+      return 'Đợt đang ngừng hoạt động: phải bật đợt lên thì mức giảm mới được áp dụng và hiện ở cột "Giảm giá".'
+    default:
+      return 'Đợt đã kết thúc: không thể thêm sản phẩm mới.'
+  }
+})
 
 const fetchData = async () => {
   try {
@@ -135,20 +159,13 @@ const formatCurrency = (val) => {
 
 const addProduct = async () => {
   errorMsg.value = ''
-  if (!selectedProduct.value) {
-    errorMsg.value = 'Vui lòng chọn một sản phẩm.'
-    return
-  }
-  if (!percent.value || percent.value < 1 || percent.value > 100 || !Number.isInteger(percent.value)) {
-    errorMsg.value = 'Mức giảm phải là số nguyên từ 1 đến 100.'
-    return
-  }
   try {
     await api.post(`/dot-giam-gia-chi-tiet/campaign/${props.campaign.id}`, {
       idSanPhamChiTiet: selectedProduct.value,
       phanTramGiamBienThe: percent.value
     })
     selectedProduct.value = ''
+    toast.success('Đã thêm biến thể vào đợt giảm giá.')
     fetchData()
   } catch (error) {
     errorMsg.value = error.message || 'Có lỗi xảy ra'

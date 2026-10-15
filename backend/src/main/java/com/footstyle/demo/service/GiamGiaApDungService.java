@@ -28,10 +28,17 @@ public class GiamGiaApDungService {
     private final DotGiamGiaChiTietRepository chiTietRepository;
 
     @Value("${app.giam-gia.che-do-chong-dot:MAX}")
-    private String cheDoCauHinh;
+    private volatile String cheDoCauHinh;
 
     public CheDo cheDo() {
         return CheDo.tuChuoi(cheDoCauHinh);
+    }
+
+    /** Đổi cách tính khi nhiều đợt chồng nhau ngay lúc chạy (MAX = lấy mức cao nhất, TRUNG_BINH = trung bình cộng). */
+    public CheDo doiCheDo(String cheDoMoi) {
+        CheDo cd = CheDo.tuChuoi(cheDoMoi);
+        this.cheDoCauHinh = cd.name();
+        return cd;
     }
 
     /** Chi tiết còn hiệu lực (đợt đang bật, dòng chi tiết đang bật) của một biến thể, đổi sang DotApDung. */

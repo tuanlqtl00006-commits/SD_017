@@ -4,6 +4,11 @@ import BaseModal from './common/BaseModal.vue'
 import DiaChiHanhChinhSelect from './common/DiaChiHanhChinhSelect.vue'
 import api from '../services/api'
 import { useToast } from '../composables/useToast'
+import {
+  SO_DIA_CHI_MAX, TEN_MAX, DIA_CHI_MAX,
+  chuanHoaKhoangTrang, chuanHoaSdt,
+  kiemTraHoTen, kiemTraSdt, kiemTraTinhThanh, kiemTraPhuongXa, kiemTraDiaChiCuThe,
+} from '../utils/khachHangValidate'
 
 const props = defineProps({
   customer: {
@@ -53,18 +58,68 @@ const ghepDiaChi = (addr) => {
 }
 
 const saving = ref(false)
+const busyId = ref(null) // id địa chỉ đang xóa / đặt mặc định, tránh bấm liên tục
+const daDuDiaChi = computed(() => !formData.value.id && addresses.value.length >= SO_DIA_CHI_MAX)
+
+// Lỗi của từng ô
+const errors = ref({ tenNguoiNhan: '', sdtNguoiNhan: '', tinhThanhPho: '', phuongXa: '', diaChiCuThe: '' })
+const xoaLoi = () => {
+  errors.value = { tenNguoiNhan: '', sdtNguoiNhan: '', tinhThanhPho: '', phuongXa: '', diaChiCuThe: '' }
+}
+watch(() => formData.value.tinhThanhPho, () => { errors.value.tinhThanhPho = '' })
+watch(() => formData.value.phuongXa, () => { errors.value.phuongXa = '' })
+
+const kiemTra = (field) => {
+  const f = formData.value
+  const luat = {
+    // Tên / SĐT người nhận để trống thì lấy của khách hàng, có nhập thì phải hợp lệ
+    tenNguoiNhan: () => (chuanHoaKhoangTrang(f.tenNguoiNhan) ? kiemTraHoTen(f.tenNguoiNhan, 'Tên người nhận') : ''),
+    sdtNguoiNhan: () => (chuanHoaSdt(f.sdtNguoiNhan) ? kiemTraSdt(f.sdtNguoiNhan, 'Số điện thoại người nhận') : ''),
+    tinhThanhPho: () => kiemTraTinhThanh(f.tinhThanhPho),
+    phuongXa: () => kiemTraPhuongXa(f.phuongXa),
+    diaChiCuThe: () => kiemTraDiaChiCuThe(f.diaChiCuThe),
+  }
+  errors.value[field] = luat[field]()
+  return !errors.value[field]
+}
+
+const formTrong = () => ({
+  id: null,
+  tenNguoiNhan: '',
+  sdtNguoiNhan: '',
+  tinhThanhPho: '',
+  quanHuyen: '',
+  phuongXa: '',
+  diaChiCuThe: '',
+  laDiaChiMacDinh: addresses.value.length === 0
+})
+
+const huySua = () => {
+  formData.value = formTrong()
+  xoaLoi()
+}
 
 const saveAddress = async () => {
-  if (!formData.value.tinhThanhPho || !formData.value.phuongXa || !formData.value.diaChiCuThe) {
-    toast.error('Vui lòng điền đủ tỉnh/thành phố, quận/huyện, phường/xã và địa chỉ cụ thể!')
+  if (saving.value) return
+  if (daDuDiaChi.value) {
+    toast.error(`Mỗi khách hàng chỉ lưu tối đa ${SO_DIA_CHI_MAX} địa chỉ. Hãy xóa bớt địa chỉ không dùng.`)
     return
   }
-  
-  const finalTen = formData.value.tenNguoiNhan || props.customer.hoTen || 'Khách Hàng'
-  const finalSdt = formData.value.sdtNguoiNhan || props.customer.sdt || ''
-  
-  if (!/^[0-9]{10,11}$/.test(finalSdt)) {
-    toast.error('Số điện thoại không hợp lệ (chỉ gồm 10-11 chữ số).')
+  const hopLe = Object.keys(errors.value).map(kiemTra).every(Boolean)
+  if (!hopLe) {
+    toast.error('Vui lòng kiểm tra lại các ô được đánh dấu đỏ.')
+    return
+  }
+
+  const ten = chuanHoaKhoangTrang(formData.value.tenNguoiNhan) || props.customer.hoTen || ''
+  const sdt = chuanHoaSdt(formData.value.sdtNguoiNhan) || chuanHoaSdt(props.customer.sdt)
+  // Để trống thì lấy của khách hàng, nhưng dữ liệu khách hàng cũ có thể không hợp lệ -> báo để nhập tay
+  const loiTen = kiemTraHoTen(ten, 'Tên người nhận')
+  const loiSdt = kiemTraSdt(sdt, 'Số điện thoại người nhận')
+  if (loiTen || loiSdt) {
+    errors.value.tenNguoiNhan = loiTen
+    errors.value.sdtNguoiNhan = loiSdt
+    toast.error('Thông tin người nhận của khách hàng chưa hợp lệ, vui lòng nhập tay.')
     return
   }
 
@@ -72,8 +127,9 @@ const saveAddress = async () => {
   try {
     const payload = {
       ...formData.value,
-      tenNguoiNhan: finalTen,
-      sdtNguoiNhan: finalSdt
+      tenNguoiNhan: ten,
+      sdtNguoiNhan: sdt,
+      diaChiCuThe: chuanHoaKhoangTrang(formData.value.diaChiCuThe),
     }
 
     if (payload.id) {
@@ -83,20 +139,10 @@ const saveAddress = async () => {
       await api.post(`/dia-chi/khach-hang/${props.customer.id}`, payload)
       toast.success('Đã thêm địa chỉ mới.')
     }
-    
-    // Reset form after saving
-    formData.value = {
-      id: null,
-      tenNguoiNhan: '',
-      sdtNguoiNhan: '',
-      tinhThanhPho: '',
-      quanHuyen: '',
-      phuongXa: '',
-      diaChiCuThe: '',
-      laDiaChiMacDinh: addresses.value.length === 0
-    }
-    
+
     await fetchAddresses()
+    // Reset form after saving
+    huySua()
     emit('address-updated')
   } catch (error) {
     console.error(error)
@@ -107,38 +153,48 @@ const saveAddress = async () => {
 }
 
 const deleteAddress = async (addr) => {
+  if (busyId.value) return
   if (addr.laDiaChiMacDinh) {
     toast.error('Không thể xóa địa chỉ mặc định!')
     return
   }
   if (!confirm('Bạn có chắc chắn muốn xóa địa chỉ này không?')) return
+  busyId.value = addr.id
   try {
     await api.delete(`/dia-chi/${addr.id}`)
     toast.success('Đã xóa địa chỉ.')
+    // Đang sửa đúng địa chỉ vừa xóa thì đưa form về trạng thái thêm mới
+    if (formData.value.id === addr.id) huySua()
     await fetchAddresses()
     emit('address-updated')
   } catch (error) {
     console.error(error)
-    toast.error('Lỗi khi xóa địa chỉ!')
+    toast.error(error.message || 'Lỗi khi xóa địa chỉ!')
+  } finally {
+    busyId.value = null
   }
 }
 
 const setAsDefault = async (addr) => {
-  if (addr.laDiaChiMacDinh) return
+  if (addr.laDiaChiMacDinh || busyId.value) return
+  busyId.value = addr.id
   try {
-    const payload = { ...addr, laDiaChiMacDinh: true }
-    await api.put(`/dia-chi/${addr.id}`, payload)
+    // API riêng chỉ đổi mặc định, địa chỉ cũ nhập thiếu thông tin vẫn đặt được
+    await api.put(`/dia-chi/${addr.id}/mac-dinh`)
     toast.success('Đã thiết lập địa chỉ mặc định.')
     await fetchAddresses()
     emit('address-updated')
   } catch (error) {
     console.error(error)
-    toast.error('Lỗi khi thiết lập mặc định!')
+    toast.error(error.message || 'Lỗi khi thiết lập mặc định!')
+  } finally {
+    busyId.value = null
   }
 }
 
 const editAddress = (addr) => {
   formData.value = { ...addr }
+  xoaLoi()
 }
 </script>
 
@@ -161,7 +217,7 @@ const editAddress = (addr) => {
       <div class="col-md-6">
         <div class="card border-0 shadow-sm rounded-3 h-100">
           <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-            <h6 class="fw-bold mb-0"><i class="bi bi-list-ul me-2"></i> Danh sách địa chỉ</h6>
+            <h6 class="fw-bold mb-0"><i class="bi bi-list-ul me-2"></i> Danh sách địa chỉ <span class="text-muted fw-normal small">({{ addresses.length }}/{{ SO_DIA_CHI_MAX }})</span></h6>
           </div>
           <div class="card-body p-0">
             <div v-if="loading" class="text-center py-4">
@@ -186,12 +242,12 @@ const editAddress = (addr) => {
                       <!-- Hidden actions on hover -->
                       <div class="mt-2 address-actions">
                         <button class="btn btn-sm btn-link text-primary p-0 me-3 text-decoration-none" @click="editAddress(addr)">Cập nhật</button>
-                        <button v-if="!addr.laDiaChiMacDinh" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" @click="deleteAddress(addr)">Xóa</button>
+                        <button v-if="!addr.laDiaChiMacDinh" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" :disabled="!!busyId" @click="deleteAddress(addr)">Xóa</button>
                       </div>
                     </td>
                     <td class="pe-3 py-3 text-end">
                       <span v-if="addr.laDiaChiMacDinh" class="badge bg-danger bg-opacity-10 text-danger rounded-pill d-inline-flex align-items-center justify-content-center m-0" style="width: 85px; height: 30px; font-size: 0.8rem; font-weight: 500;">Mặc định</span>
-                      <button v-else class="btn btn-outline-secondary rounded-pill d-inline-flex align-items-center justify-content-center m-0" style="width: 85px; height: 30px; font-size: 0.8rem; font-weight: 500; padding: 0;" @click="setAsDefault(addr)">Thiết lập</button>
+                      <button v-else class="btn btn-outline-secondary rounded-pill d-inline-flex align-items-center justify-content-center m-0" style="width: 85px; height: 30px; font-size: 0.8rem; font-weight: 500; padding: 0;" :disabled="!!busyId" @click="setAsDefault(addr)">Thiết lập</button>
                     </td>
                   </tr>
                 </tbody>
@@ -212,24 +268,38 @@ const editAddress = (addr) => {
           </div>
           <div class="card-body">
             <div class="row g-3">
+              <div v-if="daDuDiaChi" class="col-12">
+                <div class="alert alert-warning py-2 px-3 small mb-0">
+                  Khách hàng đã có đủ {{ SO_DIA_CHI_MAX }} địa chỉ. Hãy xóa bớt địa chỉ không dùng để thêm mới.
+                </div>
+              </div>
               <div class="col-md-6">
                 <label class="form-label small text-muted mb-1">Họ tên người nhận</label>
-                <input type="text" class="form-control form-control-sm ad-input" v-model="formData.tenNguoiNhan" placeholder="Lấy tên KH nếu trống">
+                <input type="text" class="form-control form-control-sm ad-input" :class="{ 'is-invalid': errors.tenNguoiNhan }" v-model="formData.tenNguoiNhan" placeholder="Lấy tên KH nếu trống" :maxlength="TEN_MAX + 20" @input="errors.tenNguoiNhan = ''" @blur="kiemTra('tenNguoiNhan')">
+                <small v-if="errors.tenNguoiNhan" class="text-danger d-block mt-1">{{ errors.tenNguoiNhan }}</small>
               </div>
               <div class="col-md-6">
                 <label class="form-label small text-muted mb-1">Số điện thoại</label>
-                <input type="text" class="form-control form-control-sm ad-input" v-model="formData.sdtNguoiNhan" placeholder="Lấy SĐT KH nếu trống">
+                <input type="text" class="form-control form-control-sm ad-input" :class="{ 'is-invalid': errors.sdtNguoiNhan }" v-model="formData.sdtNguoiNhan" placeholder="Lấy SĐT KH nếu trống" maxlength="20" @input="errors.sdtNguoiNhan = ''" @blur="kiemTra('sdtNguoiNhan')">
+                <small v-if="errors.sdtNguoiNhan" class="text-danger d-block mt-1">{{ errors.sdtNguoiNhan }}</small>
               </div>
               
               <DiaChiHanhChinhSelect
                 v-model:tinhThanh="formData.tinhThanhPho"
                 v-model:phuongXa="formData.phuongXa"
+                required
                 select-class="form-select form-select-sm ad-input"
+                :invalid-tinh="!!errors.tinhThanhPho"
+                :invalid-phuong="!!errors.phuongXa"
               />
+              <div v-if="errors.tinhThanhPho || errors.phuongXa" class="col-12 mt-1">
+                <small class="text-danger d-block">{{ errors.tinhThanhPho || errors.phuongXa }}</small>
+              </div>
               
               <div class="col-12 mt-3">
-                <label class="form-label small text-muted mb-1">Địa chỉ cụ thể *</label>
-                <input type="text" class="form-control form-control-sm ad-input" v-model="formData.diaChiCuThe" placeholder="Số nhà, đường...">
+                <label class="form-label small text-muted mb-1">Địa chỉ cụ thể <span class="text-danger">*</span></label>
+                <input type="text" class="form-control form-control-sm ad-input" :class="{ 'is-invalid': errors.diaChiCuThe }" v-model="formData.diaChiCuThe" placeholder="Số nhà, đường..." :maxlength="DIA_CHI_MAX + 20" @input="errors.diaChiCuThe = ''" @blur="kiemTra('diaChiCuThe')">
+                <small v-if="errors.diaChiCuThe" class="text-danger d-block mt-1">{{ errors.diaChiCuThe }}</small>
               </div>
               
               <div class="col-12 mt-2">
@@ -242,8 +312,8 @@ const editAddress = (addr) => {
               </div>
               
               <div class="col-12 mt-4 d-flex gap-2">
-                <button v-if="formData.id" class="btn btn-sm btn-light flex-grow-1" @click="formData.id = null; formData.tenNguoiNhan=''; formData.sdtNguoiNhan=''; formData.diaChiCuThe='';">Hủy</button>
-                <button class="btn btn-sm btn-primary text-white flex-grow-1" :disabled="saving" @click="saveAddress">
+                <button v-if="formData.id" class="btn btn-sm btn-light flex-grow-1" :disabled="saving" @click="huySua">Hủy</button>
+                <button class="btn btn-sm btn-primary text-white flex-grow-1" :disabled="saving || daDuDiaChi" @click="saveAddress">
                   {{ saving ? 'Đang lưu...' : (formData.id ? 'Cập nhật' : 'Thêm nhanh') }}
                 </button>
               </div>
@@ -271,6 +341,10 @@ tr:hover .address-actions {
 .ad-input:focus {
   border-color: #86b7fe;
   box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+.ad-input.is-invalid {
+  border-color: #dc3545;
+  background-color: #fff8f8;
 }
 select:disabled {
   background-color: #f8f9fa !important;

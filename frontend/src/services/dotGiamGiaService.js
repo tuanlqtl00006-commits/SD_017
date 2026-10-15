@@ -19,7 +19,7 @@ export const dotGiamGiaService = {
     return (await api.get(`/dot-giam-gia/${id}`)).data
   },
 
-  // Mã đợt do hệ thống sinh (DGG + số thứ tự, vd DGG009), không trùng mã đã có
+  // Mã đợt do hệ thống sinh (DGG + số thứ tự, vd DGG09), không trùng mã đã có
   async maMoi() {
     return (await api.get('/dot-giam-gia/ma-moi')).data.ma
   },
@@ -57,6 +57,11 @@ export const dotGiamGiaService = {
 
   async toggleActive(id) {
     return (await api.put(`/dot-giam-gia/${id}/trang-thai`)).data
+  },
+
+  // Đổi cách tính khi một biến thể nằm trong nhiều đợt chồng ngày nhau: 'MAX' (lấy mức cao nhất) hoặc 'TRUNG_BINH' (trung bình cộng)
+  async doiCheDoChongDot(cheDo) {
+    return (await api.put('/dot-giam-gia/che-do-chong-dot', { cheDo })).data
   },
 }
 

@@ -51,17 +51,18 @@
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label small text-muted fw-semibold">Họ và tên <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control bg-light border-0" v-model="formData.ten" placeholder="Nhập họ và tên">
+                    <input type="text" class="form-control bg-light border-0" :class="{ 'is-invalid': errors.ten }" v-model="formData.ten" placeholder="Nhập họ và tên" :maxlength="TEN_MAX + 20" @input="errors.ten = ''" @blur="kiemTra('ten')">
+                    <small v-if="errors.ten" class="text-danger mt-1 d-block">{{ errors.ten }}</small>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small text-muted fw-semibold">Email <span class="text-danger">*</span></label>
-                    <input type="email" class="form-control bg-light border-0" :class="{ 'is-invalid border-danger': emailErrorMsg, 'border': emailErrorMsg }" v-model="formData.email" placeholder="Nhập email">
-                    <div v-if="emailErrorMsg" class="text-danger small mt-1">{{ emailErrorMsg }}</div>
+                    <input type="email" class="form-control bg-light border-0" :class="{ 'is-invalid': errors.email }" v-model="formData.email" placeholder="Nhập email" :maxlength="EMAIL_MAX + 20" @input="errors.email = ''" @blur="kiemTra('email')">
+                    <small v-if="errors.email" class="text-danger mt-1 d-block">{{ errors.email }}</small>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label small text-muted fw-semibold">Số điện thoại</label>
-                    <input type="text" class="form-control bg-light border-0" :class="{'is-invalid': phoneErrorMsg}" v-model="formData.sdt" placeholder="Nhập số điện thoại" @input="phoneErrorMsg = ''">
-                    <small v-if="phoneErrorMsg" class="text-danger mt-1 d-block">{{ phoneErrorMsg }}</small>
+                    <label class="form-label small text-muted fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control bg-light border-0" :class="{ 'is-invalid': errors.sdt }" v-model="formData.sdt" placeholder="Nhập số điện thoại" maxlength="20" @input="errors.sdt = ''" @blur="kiemTra('sdt')">
+                    <small v-if="errors.sdt" class="text-danger mt-1 d-block">{{ errors.sdt }}</small>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small text-muted fw-semibold">Giới tính</label>
@@ -71,8 +72,9 @@
                     </select>
                   </div>
                   <div class="col-12">
-                      <label class="form-label small text-muted fw-semibold">Ngày sinh</label>
-                      <input type="date" class="form-control bg-light border-0" v-model="formData.ngaySinh" min="1900-01-01" max="9999-12-31">
+                      <label class="form-label small text-muted fw-semibold">Ngày sinh <span class="text-muted fw-normal">(không bắt buộc, từ {{ TUOI_MIN }} đến {{ TUOI_MAX }} tuổi)</span></label>
+                      <input type="date" class="form-control bg-light border-0" :class="{ 'is-invalid': errors.ngaySinh }" v-model="formData.ngaySinh" :min="gioiHanNgay.min" :max="gioiHanNgay.max" @input="errors.ngaySinh = ''" @blur="kiemTra('ngaySinh')">
+                      <small v-if="errors.ngaySinh" class="text-danger mt-1 d-block">{{ errors.ngaySinh }}</small>
                     </div>
                 </div>
               </div>
@@ -109,10 +111,16 @@
                     col-class="col-md-6"
                     select-class="form-select bg-light border-0"
                     label-class="form-label small text-muted fw-semibold"
+                    :invalid-tinh="!!errors.tinhThanh"
+                    :invalid-phuong="!!errors.phuongXa"
                   />
+                  <div v-if="errors.tinhThanh || errors.phuongXa" class="col-12 mt-1">
+                    <small class="text-danger d-block">{{ errors.tinhThanh || errors.phuongXa }}</small>
+                  </div>
                   <div class="col-12">
                     <label class="form-label small text-muted fw-semibold">Địa chỉ cụ thể <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control bg-light border-0" v-model="addressData.diaChiChiTiet" placeholder="Số nhà, đường...">
+                    <input type="text" class="form-control bg-light border-0" :class="{ 'is-invalid': errors.diaChiChiTiet }" v-model="addressData.diaChiChiTiet" placeholder="Số nhà, đường..." :maxlength="DIA_CHI_MAX + 20" @input="errors.diaChiChiTiet = ''" @blur="kiemTra('diaChiChiTiet')">
+                    <small v-if="errors.diaChiChiTiet" class="text-danger mt-1 d-block">{{ errors.diaChiChiTiet }}</small>
                   </div>
                 </div>
               </div>
@@ -120,11 +128,12 @@
 
             <!-- Nút Tạo & Hủy -->
             <div class="d-flex justify-content-end mb-5 gap-3">
-              <button class="btn btn-outline-secondary px-5 py-2 fw-bold shadow-sm" style="border-radius: 8px;" @click="router.push('/khach-hang')">
+              <button class="btn btn-outline-secondary px-5 py-2 fw-bold shadow-sm" style="border-radius: 8px;" :disabled="isSaving" @click="router.push('/khach-hang')">
                   Quay lại
                 </button>
-              <button class="btn btn-primary px-5 py-2 fw-bold shadow-sm" style="border-radius: 8px; background-color: #0977ec; border-color: #0977ec;" @click="createCustomer">
-                <i class="bi bi-save me-2"></i> Tạo khách hàng
+              <button class="btn btn-primary px-5 py-2 fw-bold shadow-sm" style="border-radius: 8px; background-color: #0977ec; border-color: #0977ec;" :disabled="isSaving || isUploading" @click="createCustomer">
+                <span v-if="isSaving" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                <i v-else class="bi bi-save me-2"></i> {{ isSaving ? 'Đang lưu...' : 'Tạo khách hàng' }}
               </button>
             </div>
 
@@ -135,17 +144,30 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../services/api'
 import DiaChiHanhChinhSelect from './common/DiaChiHanhChinhSelect.vue'
 import { useToast } from '../composables/useToast'
+import {
+  TEN_MAX, EMAIL_MAX, DIA_CHI_MAX, TUOI_MIN, TUOI_MAX,
+  chuanHoaKhoangTrang, chuanHoaSdt, chuanHoaEmail,
+  kiemTraHoTen, kiemTraSdt, kiemTraEmail, kiemTraNgaySinh,
+  kiemTraTinhThanh, kiemTraPhuongXa, kiemTraDiaChiCuThe, gioiHanNgaySinh,
+} from '../utils/khachHangValidate'
 
 const router = useRouter()
 const toast = useToast()
 
 const errorMessage = ref('')
-const phoneErrorMsg = ref('')
+const isSaving = ref(false)
+const gioiHanNgay = gioiHanNgaySinh()
+
+// Lỗi của từng ô, '' là hợp lệ
+const errors = reactive({
+  ten: '', email: '', sdt: '', ngaySinh: '',
+  tinhThanh: '', phuongXa: '', diaChiChiTiet: '',
+})
 
 const isUploading = ref(false)
 
@@ -186,8 +208,6 @@ const handleFileUpload = async (e) => {
   }
 }
 
-const emailErrorMsg = ref('')
-
 const avatarText = computed(() => {
   const w = (formData.value.ten || '').trim().split(/\s+/).filter(Boolean)
   if (!w.length) return 'KH'
@@ -221,93 +241,88 @@ watch(() => formData.value.sdt, (newVal) => {
   addressData.value.sdtNguoiNhan = newVal
 })
 
+// Chọn lại tỉnh / phường thì xóa lỗi cũ
+watch(() => addressData.value.tinhThanh, () => { errors.tinhThanh = '' })
+watch(() => addressData.value.phuongXa, () => { errors.phuongXa = '' })
+
+// Kiểm tra 1 ô, trả về true nếu hợp lệ
+const kiemTra = (field) => {
+  const f = formData.value
+  const a = addressData.value
+  const luat = {
+    ten: () => kiemTraHoTen(f.ten),
+    email: () => kiemTraEmail(f.email),
+    sdt: () => kiemTraSdt(f.sdt),
+    ngaySinh: () => kiemTraNgaySinh(f.ngaySinh),
+    tinhThanh: () => kiemTraTinhThanh(a.tinhThanh),
+    phuongXa: () => kiemTraPhuongXa(a.phuongXa),
+    diaChiChiTiet: () => kiemTraDiaChiCuThe(a.diaChiChiTiet),
+  }
+  errors[field] = luat[field]()
+  return !errors[field]
+}
+
+// Đưa câu lỗi từ server về đúng ô (server kiểm tra lại y hệt, phòng khi gọi API trực tiếp)
+const ganLoiTuServer = (msg) => {
+  const m = msg.toLowerCase()
+  if (m.includes('email')) errors.email = msg
+  else if (m.includes('điện thoại')) errors.sdt = msg
+  else if (m.includes('họ tên')) errors.ten = msg
+  else if (m.includes('ngày sinh') || m.includes('tuổi')) errors.ngaySinh = msg
+  else if (m.includes('tỉnh')) errors.tinhThanh = msg
+  else if (m.includes('phường')) errors.phuongXa = msg
+  else if (m.includes('địa chỉ')) errors.diaChiChiTiet = msg
+  else return false
+  return true
+}
+
 const createCustomer = async () => {
+  if (isSaving.value) return
   errorMessage.value = ''
-  phoneErrorMsg.value = ''
-  emailErrorMsg.value = ''
 
-  // Validate cơ bản
-  if (!formData.value.ten || formData.value.ten.trim() === '') {
-    errorMessage.value = 'Không thể tạo khách hàng: Họ tên không được để trống.'
-    return
-  }
-  
-  if (!formData.value.sdt) {
-    phoneErrorMsg.value = 'Vui lòng nhập Số điện thoại.'
+  // Kiểm tra hết các ô một lượt để người dùng thấy tất cả lỗi
+  const hopLe = Object.keys(errors).map(kiemTra).every(Boolean)
+  if (!hopLe) {
+    errorMessage.value = 'Vui lòng kiểm tra lại các ô được đánh dấu đỏ.'
     return
   }
 
-  const vnPhoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
-  if (!vnPhoneRegex.test(formData.value.sdt.trim())) {
-    phoneErrorMsg.value = 'Số điện thoại không hợp lệ (phải là SĐT Việt Nam 10 số).'
-    return
+  const sdt = chuanHoaSdt(formData.value.sdt)
+  const hoTen = chuanHoaKhoangTrang(formData.value.ten)
+  // Địa chỉ giao hàng nhập ở form này sẽ được backend lưu thành địa chỉ mặc định của khách hàng
+  const payload = {
+    hoTen,
+    email: chuanHoaEmail(formData.value.email),
+    sdt,
+    gioiTinh: formData.value.gioiTinh,
+    trangThai: 1,
+    anhDaiDien: formData.value.anhDaiDien || null,
+    ngaySinh: formData.value.ngaySinh || null,
+    tenNguoiNhan: hoTen,
+    sdtNguoiNhan: sdt,
+    tinhThanh: addressData.value.tinhThanh,
+    phuongXa: addressData.value.phuongXa,
+    diaChiCuThe: chuanHoaKhoangTrang(addressData.value.diaChiChiTiet),
   }
 
-  if (formData.value.ngaySinh) {
-    const selectedDate = new Date(formData.value.ngaySinh)
-    const today = new Date()
-    if (selectedDate > today) {
-      errorMessage.value = 'Ngày sinh không được lớn hơn ngày hiện tại.'
-      return
-    }
-  }
-
-  if (!addressData.value.hoTenNguoiNhan || !addressData.value.sdtNguoiNhan || !addressData.value.diaChiChiTiet || !addressData.value.tinhThanh || !addressData.value.phuongXa) {
-    errorMessage.value = 'Không thể tạo khách hàng: Vui lòng nhập đầy đủ thông tin Địa chỉ giao hàng.'
-    return
-  }
-
-  if (addressData.value.sdtNguoiNhan && !vnPhoneRegex.test(addressData.value.sdtNguoiNhan.trim())) {
-
-    errorMessage.value = 'Số điện thoại người nhận không hợp lệ (phải là SĐT Việt Nam 10 số).'
-
-    return
-
-  }
-
+  isSaving.value = true
   try {
-
-    // Địa chỉ giao hàng nhập ở form này sẽ được backend lưu thành địa chỉ mặc định của khách hàng
-    const payload = {
-      hoTen: formData.value.ten.trim(),
-      email: formData.value.email.trim(),
-      sdt: formData.value.sdt.trim(),
-      gioiTinh: formData.value.gioiTinh,
-      trangThai: 1,
-    anhDaiDien: formData.value.anhDaiDien,
-      ngaySinh: formData.value.ngaySinh || null,
-      tenNguoiNhan: addressData.value.hoTenNguoiNhan,
-      sdtNguoiNhan: addressData.value.sdtNguoiNhan,
-      tinhThanh: addressData.value.tinhThanh,
-      phuongXa: addressData.value.phuongXa,
-      diaChiCuThe: addressData.value.diaChiChiTiet,
-    }
-    // Chặn lỗi nhập năm sinh quá 4 chữ số (ví dụ: năm 02024) từ thẻ HTML5 date picker
-    if (payload.ngaySinh && payload.ngaySinh.length > 10) {
-      errorMessage.value = 'Vui lòng nhập Ngày Sinh hợp lệ (năm không quá 4 chữ số).'
-      return
-    }
-
     await api.post('/khach-hang', payload)
     toast.success('Đã tạo khách hàng mới.')
     // Quay lại trang danh sách
     router.push('/khach-hang')
   } catch (error) {
     console.error(error)
-    const status = error.response?.status
     const msg = error.message || ''
-    if (status === 409) {
+    if (!error.response) {
+      errorMessage.value = msg || 'Không kết nối được máy chủ.'
+    } else if (ganLoiTuServer(msg)) {
       errorMessage.value = 'Không thể tạo khách hàng: ' + msg
-      if (msg.includes('Email')) {
-        emailErrorMsg.value = 'Vui lòng kiểm tra lại email.'
-      } else if (msg.includes('điện thoại')) {
-        phoneErrorMsg.value = 'Vui lòng kiểm tra lại số điện thoại.'
-      }
-    } else if (status === 400) {
-      errorMessage.value = msg || 'Dữ liệu không hợp lệ. Vui lòng kiểm tra lại Ngày sinh, Email hoặc Số điện thoại.'
     } else {
       errorMessage.value = 'Không thể tạo khách hàng: ' + (msg || 'Lỗi máy chủ.')
     }
+  } finally {
+    isSaving.value = false
   }
 }
 </script>

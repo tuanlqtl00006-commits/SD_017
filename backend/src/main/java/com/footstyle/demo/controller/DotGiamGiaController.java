@@ -9,13 +9,16 @@ import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.DotGiamGiaChiTietRepository;
 import com.footstyle.demo.repository.DotGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
+import com.footstyle.demo.service.DotCapNhatKeHoach;
 import com.footstyle.demo.service.GiamGiaApDungService;
 import com.footstyle.demo.service.LichGiamGiaService;
+import com.footstyle.demo.service.MaUtil;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,7 +53,7 @@ public class DotGiamGiaController {
         return dotGiamGiaRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
     }
 
-    /** Mã đợt do hệ thống sinh, dạng ngắn DGG + số thứ tự (DGG009), không trùng mã đã có. */
+    /** Mã đợt do hệ thống sinh, dạng ngắn DGG + số thứ tự (DGG09, DGG100), không trùng mã đã có. */
     @GetMapping("/ma-moi")
     public Map<String, String> maMoi() {
         return Map.of("ma", sinhMa());
@@ -71,6 +74,18 @@ public class DotGiamGiaController {
                     ct.getPhanTramGiamBienThe(), d.getNgayBatDau().toLocalDate(), d.getNgayKetThuc().toLocalDate()));
         }
         return new GiamGiaApDungResponse(giamGiaApDungService.cheDo().name(), muc);
+    }
+
+    /** Đọc hoặc đổi cách tính khi biến thể nằm trong nhiều đợt chồng ngày nhau: MAX (lấy mức cao nhất) hoặc TRUNG_BINH (trung bình cộng). */
+    @GetMapping("/che-do-chong-dot")
+    public Map<String, String> layCheDoChongDot() {
+        return Map.of("cheDo", giamGiaApDungService.cheDo().name());
+    }
+
+    @PutMapping("/che-do-chong-dot")
+    public Map<String, String> doiCheDoChongDot(@RequestBody(required = false) Map<String, String> body) {
+        String raw = body == null ? null : body.getOrDefault("cheDo", body.get("chinhSach"));
+        return Map.of("cheDo", giamGiaApDungService.doiCheDo(raw).name());
     }
 
     /** Mức giảm đang áp dụng HÔM NAY của từng biến thể: { "idBienThe": phần trăm }. Nhiều đợt chồng nhau thì gộp theo MAX / TRUNG_BINH (application.properties). */
@@ -118,8 +133,10 @@ public class DotGiamGiaController {
 
     /**
      * Sửa đợt giảm giá (không đổi mã). Có gửi idBienThe thì đồng bộ luôn danh sách biến thể áp dụng.
-     * Đổi % giảm của đợt thì áp % mới cho mọi biến thể trong đợt; không đổi % thì giữ mức giảm riêng
-     * của từng biến thể (đặt ở cửa sổ "Sản phẩm áp dụng").
+     * Xử lý theo switch-case tương tự Phiếu giảm giá (xem DotCapNhatKeHoach, không gửi mail):
+     *  - TH1: đổi thông tin đợt (% giảm), danh sách biến thể giữ nguyên -> cập nhật lại % giảm cho mọi biến thể trong đợt.
+     *  - TH2: thông tin giữ nguyên, danh sách biến thể thay đổi       -> biến thể mới: thêm; biến thể bị bỏ: gỡ; biến thể giữ lại: giữ nguyên mức giảm riêng.
+     *  - TH3: đổi cả hai                                             -> biến thể mới: thêm; biến thể bị bỏ: gỡ; biến thể giữ lại: cập nhật % theo đợt.
      */
     @PutMapping("/{id}")
     @Transactional
@@ -138,7 +155,7 @@ public class DotGiamGiaController {
         if (req.idBienThe() != null) {
             dongBoBienThe(saved, req.idBienThe(), doiPhanTram);
         } else if (doiPhanTram) {
-            // Không gửi danh sách biến thể: giữ nguyên biến thể, chỉ cập nhật lại % giảm cho khớp đợt.
+            // Không gửi danh sách biến thể (TH1): giữ nguyên biến thể, chỉ cập nhật lại % giảm cho khớp đợt.
             for (DotGiamGiaChiTiet ct : chiTietRepository.findByDotGiamGiaId(saved.getId())) {
                 ct.setPhanTramGiamBienThe(saved.getPhanTramGiamDot());
                 chiTietRepository.save(ct);
@@ -149,15 +166,11 @@ public class DotGiamGiaController {
 
     /**
      * Bật / tắt hoạt động đợt giảm giá (1: đang hoạt động, 0: ngừng hoạt động). Không xóa dữ liệu.
-     * Giống phiếu giảm giá: đợt đã qua ngày kết thúc thì không đổi trạng thái nữa (công tắc ở giao diện cũng biến mất).
+     * Đợt đã qua ngày kết thúc vẫn bật / tắt được (công tắc ở giao diện luôn hiện; tắt = \"Ngừng hoạt động\").
      */
     @PutMapping("/{id}/trang-thai")
     public DotGiamGia toggleStatus(@PathVariable Long id) {
         DotGiamGia existing = getById(id);
-        // So theo NGÀY: ngày kết thúc vẫn còn bật / tắt được hết ngày đó, sang hôm sau mới là "Đã kết thúc"
-        if (existing.getNgayKetThuc() != null && existing.getNgayKetThuc().toLocalDate().isBefore(LocalDate.now())) {
-            throw ApiException.conflict("Đợt giảm giá đã kết thúc, không thể thay đổi trạng thái.");
-        }
         existing.setTrangThai(Integer.valueOf(1).equals(existing.getTrangThai()) ? 0 : 1);
         return dotGiamGiaRepository.save(existing);
     }
@@ -173,7 +186,7 @@ public class DotGiamGiaController {
     /* ---------------- hàm phụ ---------------- */
 
     private String sinhMa() {
-        // Mã ngắn theo số thứ tự: DGG001, DGG002... (lấy số lớn nhất đang có + 1), không trùng mã đã có
+        // Mã ngắn theo số thứ tự: DGG01, DGG02... (lấy số lớn nhất đang có + 1, đọc được cả mã cũ DGG001), không trùng mã đã có
         int max = 0;
         for (DotGiamGia d : dotGiamGiaRepository.findAll()) {
             String m = d.getMaDot() == null ? "" : d.getMaDot().trim().toUpperCase(Locale.ROOT);
@@ -182,7 +195,7 @@ public class DotGiamGiaController {
         String ma;
         do {
             max++;
-            ma = String.format("DGG%03d", max);
+            ma = MaUtil.dinhDang("DGG", max);
         } while (dotGiamGiaRepository.existsByMaDot(ma));
         return ma;
     }
@@ -217,10 +230,11 @@ public class DotGiamGiaController {
     }
 
     /**
-     * Đồng bộ biến thể áp dụng của đợt theo danh sách id gửi lên:
-     * giữ biến thể đã có, gỡ biến thể không còn trong danh sách, thêm biến thể mới (nhận % giảm của đợt).
-     * ghiDePhanTram = true thì đặt lại % giảm của mọi biến thể còn lại bằng % của đợt.
-     * Biến thể mới thêm phải đang hoạt động (đang bán).
+     * Đồng bộ biến thể áp dụng của đợt theo kế hoạch switch-case (DotCapNhatKeHoach):
+     *  - Biến thể trong goBo: xóa khỏi đợt.
+     *  - Biến thể trong capNhat (TH1, TH3): đặt lại % giảm bằng % mới của đợt.
+     *  - Biến thể trong giuNguyen (TH2, KHONG_DOI): giữ nguyên mức giảm riêng.
+     *  - Biến thể trong moi (TH2, TH3): kiểm tra đang bán rồi thêm vào đợt với % giảm của đợt.
      */
     private void dongBoBienThe(DotGiamGia dot, List<Long> idMoi, boolean ghiDePhanTram) {
         Set<Long> moi = new LinkedHashSet<>();
@@ -230,23 +244,33 @@ public class DotGiamGiaController {
         }
 
         List<DotGiamGiaChiTiet> hienCo = chiTietRepository.findByDotGiamGiaId(dot.getId());
-        Set<Long> daCo = new HashSet<>();
-        List<DotGiamGiaChiTiet> canGo = new ArrayList<>();
+        Map<Long, DotGiamGiaChiTiet> theoIdBt = new HashMap<>();
+        List<Long> idCu = new ArrayList<>();
         for (DotGiamGiaChiTiet ct : hienCo) {
-            if (moi.contains(ct.getIdSanPhamChiTiet())) {
-                daCo.add(ct.getIdSanPhamChiTiet());
-                if (ghiDePhanTram && !dot.getPhanTramGiamDot().equals(ct.getPhanTramGiamBienThe())) {
-                    ct.setPhanTramGiamBienThe(dot.getPhanTramGiamDot());
-                    chiTietRepository.save(ct);
-                }
-            } else {
-                canGo.add(ct);
+            idCu.add(ct.getIdSanPhamChiTiet());
+            theoIdBt.put(ct.getIdSanPhamChiTiet(), ct);
+        }
+
+        DotCapNhatKeHoach.KeHoach keHoach = DotCapNhatKeHoach.lap(idCu, moi, ghiDePhanTram);
+
+        if (!keHoach.goBo().isEmpty()) {
+            Set<Long> canXoa = new HashSet<>(keHoach.goBo());
+            List<DotGiamGiaChiTiet> dongXoa = new ArrayList<>();
+            for (DotGiamGiaChiTiet ct : hienCo) {
+                if (canXoa.contains(ct.getIdSanPhamChiTiet())) dongXoa.add(ct);
+            }
+            chiTietRepository.deleteAll(dongXoa);
+        }
+
+        for (Long idBienThe : keHoach.capNhat()) {
+            DotGiamGiaChiTiet ct = theoIdBt.get(idBienThe);
+            if (ct != null && !dot.getPhanTramGiamDot().equals(ct.getPhanTramGiamBienThe())) {
+                ct.setPhanTramGiamBienThe(dot.getPhanTramGiamDot());
+                chiTietRepository.save(ct);
             }
         }
-        if (!canGo.isEmpty()) chiTietRepository.deleteAll(canGo);
 
-        for (Long idBienThe : moi) {
-            if (daCo.contains(idBienThe)) continue;
+        for (Long idBienThe : keHoach.moi()) {
             SanPhamChiTiet bienThe = sanPhamChiTietRepository.findById(idBienThe.intValue())
                     .orElseThrow(() -> ApiException.badRequest("Có biến thể được chọn không còn tồn tại."));
             if (!Integer.valueOf(SanPhamChiTiet.HOAT_DONG).equals(bienThe.getTrangThai())) {

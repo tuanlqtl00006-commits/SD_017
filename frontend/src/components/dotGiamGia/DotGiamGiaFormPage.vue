@@ -11,7 +11,9 @@ import { usePagination } from '../../composables/usePagination'
 import { useToast } from '../../composables/useToast'
 import { TRANG_THAI, dangHoatDong, tinhTrangThai } from '../../constants/dotGiamGia'
 import { formatDate, formatMoney, todayIso } from '../../utils/format'
-import { formatPhanTram, lichGiamGia, nhomTheoBienThe } from '../../utils/giamGia'
+import { dinhDangMa } from '../../utils/ma'
+import { formatPhanTram, lichGiamGia, nhomTheoBienThe, tinhGiaSauGiam } from '../../utils/giamGia'
+import { mauHex } from '../../utils/mau'
 import { includesText, normalizeText } from '../../utils/text'
 import { laKhongApDung } from '../../utils/danhMuc'
 
@@ -20,7 +22,9 @@ import { laKhongApDung } from '../../utils/danhMuc'
  *  - Thẻ trái "Thông tin đợt giảm": mã đợt (tự sinh, bấm nút xoay để đổi), tên, giá trị giảm (%), từ ngày, đến ngày, mô tả.
  *  - Thẻ phải "Chọn sản phẩm áp dụng": tìm theo tên / mã, lọc màu sắc + trọng lượng, tích chọn sản phẩm (chọn hết biến thể)
  *    hoặc bấm "+" để chọn từng biến thể.
- *  - Thẻ dưới "Sản phẩm & biến thể đã chọn áp dụng": bảng biến thể đã chọn kèm giá bán và giá sau giảm.
+ *  - Thẻ "Tổng kết đợt giảm giá": mức giảm, số sản phẩm, số biến thể, ngày bắt đầu, ngày kết thúc.
+ *  - Thẻ dưới "Sản phẩm & biến thể đã chọn áp dụng": MỖI DÒNG MỘT BIẾN THỂ (ảnh, sản phẩm, biến thể, giá bán, giá sau giảm),
+ *    lọc theo màu sắc / trọng lượng / chu vi, xóa từng dòng hoặc gỡ cả nhóm đang lọc.
  *  - Bấm "Tạo đợt giảm giá" thì hỏi xác nhận rồi mới lưu; lưu xong quay về danh sách.
  *  - Chỉ sản phẩm đang kinh doanh, biến thể đang bán mới chọn được (danh mục "giày" của CSDL cũ bị ẩn vì cửa hàng chỉ bán vợt).
  *
@@ -75,7 +79,7 @@ const laGiay = (sp) => normalizeText(dmMap.value.get(sp?.idDanhMuc) ?? '').inclu
 const chonDuoc = computed(() => bienTheDayDu.value.filter((v) => v.hoatDong && v.sp?.hoatDong && !laGiay(v.sp)))
 
 /* ----- Form thông tin đợt ----- */
-// Mã dự phòng sinh ngay trên trình duyệt (DGG + số thứ tự, vd DGG009, không trùng mã đã có) khi chưa hỏi được backend
+// Mã dự phòng sinh ngay trên trình duyệt (DGG + số thứ tự, vd DGG09, không trùng mã đã có) khi chưa hỏi được backend
 function taoMaDot() {
   let max = 0
   for (const m of maDaCo.value) {
@@ -85,7 +89,7 @@ function taoMaDot() {
   let ma
   do {
     max += 1
-    ma = 'DGG' + String(max).padStart(3, '0')
+    ma = dinhDangMa('DGG', max)
   } while (maDaCo.value.has(ma))
   return ma
 }
@@ -135,15 +139,7 @@ function boKhoiChon(ids) {
 const idsDangChon = (ids) => ids.filter((id) => daChon.value.has(id)).length
 
 /* ----- Thẻ phải: chọn sản phẩm ----- */
-const bo = reactive({ tuKhoa: '', mau: '', tl: '', cv: '' }) // giá trị đang nhập
-const loc = ref({ tuKhoa: '', mau: '', tl: '', cv: '' }) // giá trị đang áp dụng (bấm Tìm kiếm mới đổi)
-function timKiem() {
-  loc.value = { tuKhoa: bo.tuKhoa.trim(), mau: bo.mau, tl: bo.tl, cv: bo.cv }
-}
-
-const mauChon = computed(() => [...new Set(chonDuoc.value.map((v) => v.idMauSac))].map((id) => ({ id, ten: mauMap.value.get(id) ?? '' })))
-const tlChon = computed(() => [...new Set(chonDuoc.value.map((v) => v.idTrongLuong))].map((id) => ({ id, ten: tlMap.value.get(id) ?? '' })).filter((x) => x.ten !== '—'))
-const cvChon = computed(() => [...new Set(chonDuoc.value.map((v) => v.idChuVi))].map((id) => ({ id, ten: cvMap.value.get(id) ?? '' })).filter((x) => x.ten !== '—'))
+const loc = ref({ tuKhoa: '', mau: '', tl: '', cv: '' }) // bộ lọc đang áp dụng: chỉ còn ô tìm kiếm, gõ tới đâu lọc tới đó
 
 // Mỗi dòng = một sản phẩm kèm các biến thể khớp bộ lọc màu / trọng lượng
 const dongSanPham = computed(() => {
@@ -166,7 +162,7 @@ const dongSanPham = computed(() => {
 })
 
 const { page, pageSize, total, items: dongTrang } = usePagination(dongSanPham, 5)
-watch(loc, () => {
+watch(() => loc.value.tuKhoa, () => {
   page.value = 1
 })
 
@@ -203,35 +199,62 @@ function doiMoRong(id) {
 }
 
 /* ----- Thẻ dưới: biến thể đã chọn ----- */
-const locChon = reactive({ tuKhoa: '', mau: '', tl: '', cv: '' })
 const dsChon = computed(() => {
   const ds = [...daChon.value].map((id) => bienTheById.value.get(id)).filter(Boolean)
   ds.sort((a, b) => (a.sp?.ten ?? '').localeCompare(b.sp?.ten ?? '', 'vi') || String(a.ma).localeCompare(String(b.ma)))
   return ds
 })
-const mauTrongChon = computed(() => [...new Set(dsChon.value.map((v) => v.idMauSac))].map((id) => ({ id, ten: mauMap.value.get(id) ?? '' })))
-const tlTrongChon = computed(() => [...new Set(dsChon.value.map((v) => v.idTrongLuong))].map((id) => ({ id, ten: tlMap.value.get(id) ?? '' })).filter((x) => x.ten !== '—'))
-const cvTrongChon = computed(() => [...new Set(dsChon.value.map((v) => v.idChuVi))].map((id) => ({ id, ten: cvMap.value.get(id) ?? '' })).filter((x) => x.ten !== '—'))
+// Bảng biến thể đã chọn: lọc theo màu sắc / kích cỡ (trọng lượng, chu vi cán)
+const locChon = reactive({ mau: '', tl: '', cv: '' })
+const giaTriLoc = (field, ten) => {
+  const map = new Map()
+  for (const v of dsChon.value) {
+    const t = ten(v)
+    if (t && t !== '—') map.set(v[field], t)
+  }
+  return [...map].map(([id, t]) => ({ id, ten: t })).sort((a, b) => a.ten.localeCompare(b.ten, 'vi'))
+}
+const locMau = computed(() => giaTriLoc('idMauSac', (v) => v.mau))
+const locTl = computed(() => giaTriLoc('idTrongLuong', (v) => v.tl))
+const locCv = computed(() => giaTriLoc('idChuVi', (v) => v.cv))
 const dsChonLoc = computed(() =>
   dsChon.value.filter(
     (v) =>
-      (!locChon.mau || String(v.idMauSac) === locChon.mau) &&
-      (!locChon.tl || String(v.idTrongLuong) === locChon.tl) &&
-      (!locChon.cv || String(v.idChuVi) === locChon.cv) &&
-      (!locChon.tuKhoa || includesText(`${v.sp?.ma ?? ''} ${v.sp?.ten ?? ''} ${v.ma}`, locChon.tuKhoa)),
+      (locChon.mau === '' || v.idMauSac === locChon.mau) &&
+      (locChon.tl === '' || v.idTrongLuong === locChon.tl) &&
+      (locChon.cv === '' || v.idChuVi === locChon.cv),
   ),
 )
-const { page: pageChon, pageSize: pageSizeChon, total: totalChon, items: dongChon } = usePagination(dsChonLoc, 10)
-watch(locChon, () => {
-  pageChon.value = 1
+const dangLocChon = computed(() => locChon.mau !== '' || locChon.tl !== '' || locChon.cv !== '')
+const datLaiLocChon = () => Object.assign(locChon, { mau: '', tl: '', cv: '' })
+const { page: pageChon, pageSize: pageSizeChon, total: totalChon, items: dongChon } = usePagination(dsChonLoc, 8)
+watch(locChon, () => { pageChon.value = 1 })
+// Bỏ hết lọc khi lựa chọn đang lọc không còn biến thể nào (vd vừa gỡ hết màu Đỏ)
+watch(dsChon, () => {
+  if (locChon.mau !== '' && !locMau.value.some((o) => o.id === locChon.mau)) locChon.mau = ''
+  if (locChon.tl !== '' && !locTl.value.some((o) => o.id === locChon.tl)) locChon.tl = ''
+  if (locChon.cv !== '' && !locCv.value.some((o) => o.id === locChon.cv)) locChon.cv = ''
 })
+const goDangLoc = () => boKhoiChon(dsChonLoc.value.map((v) => v.id))
+
+const nhanBienThe = (v) => [v.mau, v.tl, v.cv].filter((x) => x && x !== '—').join(' · ') || v.ma
+const anhBienThe = (v) => v.hinhAnh || v.sp?.anhDaiDien || v.sp?.anhChinh || ''
 
 // Giá sau giảm theo % đang nhập (chưa nhập đúng thì chưa tính)
 const phanTramHopLe = computed(() => {
   const n = Number(form.phanTram)
   return form.phanTram !== '' && Number.isInteger(n) && n >= 1 && n <= 100 ? n : null
 })
-const giaSauGiam = (v) => (phanTramHopLe.value === null ? null : Math.round((v.giaBan * (100 - phanTramHopLe.value)) / 100))
+const giaSauGiam = (v) => (phanTramHopLe.value === null ? null : tinhGiaSauGiam(v.giaBan, phanTramHopLe.value))
+
+/* ----- Tổng kết đợt giảm giá ----- */
+const soSanPhamChon = computed(() => new Set(dsChon.value.map((v) => v.idSanPham)).size)
+const soNgayDot = computed(() => {
+  if (!form.tuNgay || !form.denNgay || form.denNgay < form.tuNgay) return null
+  return Math.round((Date.parse(`${form.denNgay}T00:00:00Z`) - Date.parse(`${form.tuNgay}T00:00:00Z`)) / 86400000) + 1
+})
+const tongGiaGoc = computed(() => dsChon.value.reduce((s, v) => s + (Number(v.giaBan) || 0), 0))
+const tongGiaSau = computed(() => (phanTramHopLe.value === null ? null : dsChon.value.reduce((s, v) => s + giaSauGiam(v), 0)))
 
 /* ----- Lịch giảm giá khi đợt chồng nhau (xem trước theo dữ liệu đang nhập) -----
  * Biến thể có thể nằm trong nhiều đợt cùng lúc. Ví dụ đợt A 10% (1/10-10/10) và đợt B 15% (4/10-20/10) cùng có SPCT1:
@@ -267,6 +290,15 @@ const lichChongNhau = computed(() => {
 })
 const lichHienThi = computed(() => (hienTatCaLich.value ? lichChongNhau.value : lichChongNhau.value.slice(0, 6)))
 const tenChinhSach = computed(() => (apDungKhac.value.chinhSach === 'TRUNG_BINH' ? 'trung bình cộng' : 'mức cao nhất'))
+async function chonChinhSach(cs) {
+  if (apDungKhac.value.chinhSach === cs) return
+  apDungKhac.value = { ...apDungKhac.value, chinhSach: cs }
+  try {
+    await dotGiamGiaService.doiCheDoChongDot(cs)
+  } catch {
+    // Vẫn giữ chế độ vừa chọn để xem trước trên trình duyệt kể cả khi chưa gọi được backend
+  }
+}
 
 /* ----- Tải dữ liệu ----- */
 async function taiDuLieu() {
@@ -283,7 +315,8 @@ async function taiDuLieu() {
       isEdit ? dotGiamGiaService.getBienThe(idXem) : Promise.resolve([]),
     ])
     // Các đợt khác để dựng lịch giảm giá; lỗi thì thôi, không làm hỏng trang
-    dotGiamGiaService.apDung().then((r) => (apDungKhac.value = r)).catch(() => {})
+    // (dữ liệu trả về sai dạng thì coi như không có đợt khác, tránh làm hỏng trang)
+    dotGiamGiaService.apDung().then((r) => (apDungKhac.value = r && Array.isArray(r.muc) ? r : { chinhSach: 'MAX', muc: [] })).catch(() => {})
     sanPhams.value = dsSp
     bienThes.value = dsBt
     mauSacs.value = dsMau
@@ -335,12 +368,6 @@ function kiemTra() {
   if (!form.tuNgay) {
     errors.tuNgay = 'Vui lòng chọn từ ngày.'
     ok = false
-  } else if (!isEdit) {
-    const today = new Date().toISOString().split('T')[0]
-    if (form.tuNgay < today) {
-      errors.tuNgay = 'Từ ngày không được ở trong quá khứ.'
-      ok = false
-    }
   }
   if (!form.denNgay) {
     errors.denNgay = 'Vui lòng chọn đến ngày.'
@@ -527,44 +554,18 @@ const huy = () => router.push('/dot-giam-gia')
             </div>
           </header>
 
-          <div class="dgg-search" @keyup.enter="timKiem">
-            <div class="dgg-search-text">
-              <div class="ad-affix">
-                <i class="bi bi-search" aria-hidden="true"></i>
-                <input
-                  v-model="bo.tuKhoa"
-                  type="text"
-                  class="form-control ad-control"
-                  placeholder="Tìm theo tên hoặc mã sản phẩm..."
-                  aria-label="Tìm theo tên hoặc mã sản phẩm"
-                  autocomplete="off"
-                />
-              </div>
+          <div class="dgg-search">
+            <div class="ad-affix">
+              <i class="bi bi-search" aria-hidden="true"></i>
+              <input
+                v-model="loc.tuKhoa"
+                type="text"
+                class="form-control ad-control"
+                placeholder="Tìm sản phẩm theo tên hoặc mã..."
+                aria-label="Tìm sản phẩm theo tên hoặc mã"
+                autocomplete="off"
+              />
             </div>
-            <div>
-              <label class="ad-label" for="dgg-loc-mau">Màu sắc</label>
-              <select id="dgg-loc-mau" v-model="bo.mau" class="form-select ad-control">
-                <option value="">Tất cả màu sắc</option>
-                <option v-for="m in mauChon" :key="m.id" :value="String(m.id)">{{ m.ten }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="ad-label" for="dgg-loc-tl">Trọng lượng</label>
-              <select id="dgg-loc-tl" v-model="bo.tl" class="form-select ad-control">
-                <option value="">Tất cả trọng lượng</option>
-                <option v-for="t in tlChon" :key="t.id" :value="String(t.id)">{{ t.ten }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="ad-label" for="dgg-loc-cv">Chu vi cán</label>
-              <select id="dgg-loc-cv" v-model="bo.cv" class="form-select ad-control">
-                <option value="">Tất cả chu vi</option>
-                <option v-for="c in cvChon" :key="c.id" :value="String(c.id)">{{ c.ten }}</option>
-              </select>
-            </div>
-            <button type="button" class="ad-btn ad-btn-primary" @click="timKiem">
-              <i class="bi bi-search" aria-hidden="true"></i> Tìm kiếm
-            </button>
           </div>
 
           <div class="ad-table-wrap">
@@ -613,7 +614,10 @@ const huy = () => router.push('/dot-giam-gia')
                       </td>
                       <td class="ad-col-stt">{{ (page - 1) * pageSize + i + 1 }}</td>
                       <td><span class="ad-code ad-nowrap">{{ row.sp.ma }}</span></td>
-                      <td class="ad-cell-wrap">{{ row.sp.ten }}</td>
+                      <td class="ad-cell-wrap">
+                        {{ row.sp.ten }}
+                        <span v-if="idsDangChon(row.ids)" class="dgg-count">Đã chọn {{ idsDangChon(row.ids) }}/{{ row.ids.length }} biến thể</span>
+                      </td>
                       <td class="dgg-col-expand">
                         <button
                           type="button"
@@ -629,18 +633,21 @@ const huy = () => router.push('/dot-giam-gia')
                     </tr>
                     <tr v-if="moRong.has(row.sp.id)" class="dgg-sub-row">
                       <td colspan="5">
-                        <ul class="dgg-variants">
-                          <li v-for="v in row.variants" :key="v.id">
-                            <label class="dgg-variant">
-                              <input type="checkbox" class="form-check-input dgg-check" :checked="daChon.has(v.id)" @change="doiBienThe(v)" />
-                              <span class="ad-code ad-nowrap">{{ v.ma }}</span>
-                              <span class="dgg-chip">{{ v.mau }}</span>
-                              <span v-if="v.tl !== '—'" class="dgg-chip">{{ v.tl }}</span>
-                              <span v-if="v.cv !== '—'" class="dgg-chip">{{ v.cv }}</span>
-                              <span class="dgg-variant-price">{{ formatMoney(v.giaBan) }}</span>
-                            </label>
-                          </li>
-                        </ul>
+                        <div class="dgg-variants">
+                          <button
+                            v-for="v in row.variants"
+                            :key="v.id"
+                            type="button"
+                            class="dgg-vchip"
+                            :class="{ on: daChon.has(v.id) }"
+                            :aria-pressed="daChon.has(v.id)"
+                            @click="doiBienThe(v)"
+                          >
+                            <i v-if="daChon.has(v.id)" class="bi bi-check2" aria-hidden="true"></i>
+                            {{ nhanBienThe(v) }}
+                            <span class="dgg-vchip-price">{{ formatMoney(v.giaBan) }}</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   </template>
@@ -653,17 +660,168 @@ const huy = () => router.push('/dot-giam-gia')
         </section>
       </div>
 
+      <!-- Tổng kết đợt giảm giá -->
+      <section class="ad-card" data-testid="tong-ket">
+        <header class="ad-card-head">
+          <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-clipboard-data"></i></span>
+          <div>
+            <h2 class="ad-card-title">Tổng kết đợt giảm giá</h2>
+            <p class="ad-card-sub">{{ form.tenDot.trim() || 'Đợt đang soạn' }} · {{ form.maDot }}</p>
+          </div>
+        </header>
+        <div class="dgg-stats">
+          <div class="dgg-stat">
+            <span class="dgg-stat-label">Mức giảm</span>
+            <strong class="dgg-stat-value dgg-sale">{{ phanTramHopLe !== null ? `${phanTramHopLe}%` : '—' }}</strong>
+          </div>
+          <div class="dgg-stat">
+            <span class="dgg-stat-label">Sản phẩm</span>
+            <strong class="dgg-stat-value">{{ soSanPhamChon }}</strong>
+          </div>
+          <div class="dgg-stat">
+            <span class="dgg-stat-label">Biến thể</span>
+            <strong class="dgg-stat-value">{{ soDaChon }}</strong>
+          </div>
+          <div class="dgg-stat">
+            <span class="dgg-stat-label">Ngày bắt đầu</span>
+            <strong class="dgg-stat-value">{{ form.tuNgay ? formatDate(form.tuNgay) : '—' }}</strong>
+          </div>
+          <div class="dgg-stat">
+            <span class="dgg-stat-label">Ngày kết thúc</span>
+            <strong class="dgg-stat-value">{{ form.denNgay ? formatDate(form.denNgay) : '—' }}</strong>
+            <span v-if="soNgayDot" class="dgg-stat-sub">{{ soNgayDot }} ngày</span>
+          </div>
+        </div>
+        <p v-if="soDaChon && tongGiaSau !== null" class="ad-hint mb-0 mt-2">
+          Mỗi biến thể 1 sản phẩm: tổng giá bán {{ formatMoney(tongGiaGoc) }} → sau giảm {{ formatMoney(tongGiaSau) }} (giảm {{ formatMoney(tongGiaGoc - tongGiaSau) }}).
+        </p>
+      </section>
+
+      <!-- Thẻ dưới: sản phẩm & biến thể đã chọn (mỗi dòng một biến thể) -->
+      <section class="ad-card" :class="{ 'dgg-card-error': errors.bienThe }">
+        <div class="dgg-chosen-head">
+          <header class="ad-card-head">
+            <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-check2-square"></i></span>
+            <div>
+              <h2 class="ad-card-title">Sản phẩm &amp; biến thể đã chọn áp dụng</h2>
+              <p class="ad-card-sub">{{ soSanPhamChon }} sản phẩm · {{ soDaChon }} biến thể</p>
+            </div>
+          </header>
+          <div v-if="soDaChon" class="dgg-chosen-filters" data-testid="loc-da-chon">
+            <select v-model="locChon.mau" class="form-select ad-control" aria-label="Lọc biến thể đã chọn theo màu sắc">
+              <option value="">Tất cả màu sắc</option>
+              <option v-for="o in locMau" :key="o.id" :value="o.id">{{ o.ten }}</option>
+            </select>
+            <select v-if="locTl.length" v-model="locChon.tl" class="form-select ad-control" aria-label="Lọc theo trọng lượng">
+              <option value="">Tất cả trọng lượng</option>
+              <option v-for="o in locTl" :key="o.id" :value="o.id">{{ o.ten }}</option>
+            </select>
+            <select v-if="locCv.length" v-model="locChon.cv" class="form-select ad-control" aria-label="Lọc theo chu vi cán">
+              <option value="">Tất cả chu vi</option>
+              <option v-for="o in locCv" :key="o.id" :value="o.id">{{ o.ten }}</option>
+            </select>
+            <button v-if="dangLocChon" type="button" class="ad-btn" @click="datLaiLocChon"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại</button>
+            <button v-if="dangLocChon && dsChonLoc.length" type="button" class="ad-btn dgg-btn-go" @click="goDangLoc">
+              <i class="bi bi-x-circle" aria-hidden="true"></i> Gỡ {{ dsChonLoc.length }} biến thể đang lọc
+            </button>
+          </div>
+        </div>
+        <p v-if="errors.bienThe" class="ad-error">{{ errors.bienThe }}</p>
+
+        <div class="ad-table-wrap">
+          <div class="ad-table-scroll">
+            <table class="ad-table dgg-chosen-table">
+              <thead>
+                <tr>
+                  <th class="ad-col-stt">STT</th>
+                  <th class="text-center">Ảnh</th>
+                  <th>Sản phẩm</th>
+                  <th>Biến thể</th>
+                  <th>Giá bán</th>
+                  <th>Giá sau giảm</th>
+                  <th class="ad-col-actions">Xóa</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!dongChon.length">
+                  <td colspan="7">
+                    <div class="ad-empty">
+                      <i class="bi bi-inbox" aria-hidden="true"></i>
+                      <strong>{{ soDaChon ? 'Không có biến thể phù hợp bộ lọc' : 'Chưa chọn sản phẩm nào' }}</strong>
+                      <span v-if="!soDaChon">Tích chọn sản phẩm ở khung “Chọn sản phẩm áp dụng” phía trên.</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-for="(v, i) in dongChon" :key="v.id" class="dgg-chosen-row">
+                  <td class="ad-col-stt">{{ (pageChon - 1) * pageSizeChon + i + 1 }}</td>
+                  <td class="text-center">
+                    <img v-if="anhBienThe(v)" :src="anhBienThe(v)" :alt="v.sp?.ten" class="dgg-thumb" />
+                    <span v-else class="dgg-thumb dgg-thumb-empty" aria-hidden="true"><i class="bi bi-image"></i></span>
+                  </td>
+                  <td>
+                    <div class="dgg-product-name">{{ v.sp?.ten }}</div>
+                    <div class="dgg-muted">{{ v.sp?.ma }}</div>
+                  </td>
+                  <td>
+                    <div class="ad-nowrap"><span class="dgg-dot" :style="{ background: mauHex(v.mau) }" aria-hidden="true"></span>{{ nhanBienThe(v) }}</div>
+                    <div class="dgg-muted ad-code">{{ v.ma }}</div>
+                  </td>
+                  <td class="ad-nowrap">{{ formatMoney(v.giaBan) }}</td>
+                  <td class="ad-nowrap">
+                    <strong v-if="giaSauGiam(v) !== null" class="dgg-sale">{{ formatMoney(giaSauGiam(v)) }}</strong>
+                    <span v-else class="dgg-muted" title="Nhập giá trị giảm (%) để tính">—</span>
+                  </td>
+                  <td class="ad-col-actions">
+                    <div class="ad-actions">
+                      <button
+                        type="button"
+                        class="ad-icon-btn is-danger"
+                        title="Xóa biến thể này khỏi đợt giảm giá"
+                        :aria-label="'Xóa biến thể ' + v.ma"
+                        @click="boKhoiChon([v.id])"
+                      >
+                        <i class="bi bi-trash" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <BasePagination v-if="totalChon" v-model:page="pageChon" :page-size="pageSizeChon" :total="totalChon" />
+      </section>
+
       <!-- Lịch giảm giá khi biến thể nằm trong nhiều đợt chồng nhau -->
       <section v-if="soDaChon && dotDangSoan" class="ad-card dgg-lich">
         <header class="ad-card-head">
           <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-calendar-range"></i></span>
-          <div>
+          <div class="flex-grow-1">
             <h2 class="ad-card-title">Lịch giảm giá khi đợt chồng nhau</h2>
             <p v-if="lichChongNhau.length" class="ad-card-sub">
               {{ lichChongNhau.length }} biến thể đã chọn đang nằm trong đợt giảm giá khác cùng thời gian. Hệ thống áp dụng
               <strong>{{ tenChinhSach }}</strong> cho các ngày chồng nhau.
             </p>
             <p v-else class="ad-card-sub">Không có biến thể nào trùng thời gian với đợt giảm giá khác, mỗi biến thể chỉ áp dụng mức giảm của đợt này.</p>
+          </div>
+          <div class="d-flex gap-1 flex-wrap" role="group" aria-label="Cách tính khi trùng đợt">
+            <button
+              type="button"
+              class="ad-btn"
+              :class="{ 'ad-btn-primary': apDungKhac.chinhSach !== 'TRUNG_BINH' }"
+              @click="chonChinhSach('MAX')"
+            >
+              Mức cao nhất (MAX)
+            </button>
+            <button
+              type="button"
+              class="ad-btn"
+              :class="{ 'ad-btn-primary': apDungKhac.chinhSach === 'TRUNG_BINH' }"
+              @click="chonChinhSach('TRUNG_BINH')"
+            >
+              Trung bình cộng (TBC)
+            </button>
           </div>
         </header>
 
@@ -688,129 +846,12 @@ const huy = () => router.push('/dot-giam-gia')
           <button v-if="lichChongNhau.length > 6" type="button" class="ad-btn dgg-lich-more" @click="hienTatCaLich = !hienTatCaLich">
             {{ hienTatCaLich ? 'Thu gọn' : `Xem thêm ${lichChongNhau.length - 6} biến thể` }}
           </button>
-          <p class="ad-hint mb-0">Ô màu xanh là mức đang được áp dụng. Đổi cách tính trong <code>application.properties</code> (app.giam-gia.che-do-chong-dot = MAX hoặc TRUNG_BINH).</p>
+          <p class="ad-hint mb-0">Ô màu xanh là mức đang được áp dụng. Có thể bấm nút ở góc phải để đổi giữa lấy mức cao nhất (MAX) và tính trung bình cộng (TBC).</p>
         </div>
-      </section>
-
-      <!-- Thẻ dưới: sản phẩm & biến thể đã chọn -->
-      <section class="ad-card" :class="{ 'dgg-card-error': errors.bienThe }">
-        <div class="dgg-chosen-head">
-          <header class="ad-card-head">
-            <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-check2-square"></i></span>
-            <div>
-              <h2 class="ad-card-title">Sản phẩm &amp; biến thể đã chọn áp dụng</h2>
-              <p class="ad-card-sub">Danh sách chi tiết gồm {{ soDaChon }} biến thể đã chọn</p>
-            </div>
-          </header>
-          <div class="dgg-chosen-filters">
-            <div class="dgg-chosen-key">
-              <label class="ad-label" for="dgg-chon-key">Tìm kiếm</label>
-              <input
-                id="dgg-chon-key"
-                v-model="locChon.tuKhoa"
-                type="text"
-                class="form-control ad-control"
-                placeholder="Tên, mã sản phẩm / biến thể..."
-                autocomplete="off"
-              />
-            </div>
-            <div>
-              <label class="ad-label" for="dgg-chon-mau">Màu sắc</label>
-              <select id="dgg-chon-mau" v-model="locChon.mau" class="form-select ad-control">
-                <option value="">Tất cả màu sắc</option>
-                <option v-for="m in mauTrongChon" :key="m.id" :value="String(m.id)">{{ m.ten }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="ad-label" for="dgg-chon-tl">Trọng lượng</label>
-              <select id="dgg-chon-tl" v-model="locChon.tl" class="form-select ad-control">
-                <option value="">Tất cả trọng lượng</option>
-                <option v-for="t in tlTrongChon" :key="t.id" :value="String(t.id)">{{ t.ten }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="ad-label" for="dgg-chon-cv">Chu vi cán</label>
-              <select id="dgg-chon-cv" v-model="locChon.cv" class="form-select ad-control">
-                <option value="">Tất cả chu vi</option>
-                <option v-for="c in cvTrongChon" :key="c.id" :value="String(c.id)">{{ c.ten }}</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <p v-if="errors.bienThe" class="ad-error">{{ errors.bienThe }}</p>
-
-        <div class="ad-table-wrap">
-          <div class="ad-table-scroll">
-            <table class="ad-table">
-              <thead>
-                <tr>
-                  <th class="ad-col-stt">STT</th>
-                  <th>Sản phẩm</th>
-                  <th>Biến thể</th>
-                  <th>Giá bán</th>
-                  <th>Giá sau giảm</th>
-                  <th class="ad-col-actions">Gỡ</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="!dongChon.length">
-                  <td colspan="6">
-                    <div class="ad-empty">
-                      <i class="bi bi-inbox" aria-hidden="true"></i>
-                      <strong>{{ soDaChon ? 'Không có biến thể khớp bộ lọc' : 'Chưa chọn biến thể nào' }}</strong>
-                      <span v-if="!soDaChon">Tích chọn sản phẩm ở khung “Chọn sản phẩm áp dụng” phía trên.</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-for="(v, i) in dongChon" :key="v.id">
-                  <td class="ad-col-stt">{{ (pageChon - 1) * pageSizeChon + i + 1 }}</td>
-                  <td>
-                    <div class="dgg-product">
-                      <img v-if="v.sp?.anhChinh" :src="v.sp.anhChinh" :alt="v.sp.ten" class="dgg-thumb" />
-                      <span v-else class="dgg-thumb dgg-thumb-empty" aria-hidden="true"><i class="bi bi-image"></i></span>
-                      <div>
-                        <div class="dgg-product-name">{{ v.sp?.ten }}</div>
-                        <div class="dgg-muted">{{ v.sp?.ma }}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="dgg-muted dgg-variant-code">{{ v.ma }}</div>
-                    <div class="dgg-chips">
-                      <span class="dgg-chip">{{ v.mau }}</span>
-                      <span v-if="v.tl !== '—'" class="dgg-chip">{{ v.tl }}</span>
-                      <span v-if="v.cv !== '—'" class="dgg-chip">{{ v.cv }}</span>
-                    </div>
-                  </td>
-                  <td class="ad-nowrap">{{ formatMoney(v.giaBan) }}</td>
-                  <td class="ad-nowrap">
-                    <strong v-if="giaSauGiam(v) !== null" class="dgg-sale">{{ formatMoney(giaSauGiam(v)) }}</strong>
-                    <span v-else class="dgg-muted">—</span>
-                  </td>
-                  <td class="ad-col-actions">
-                    <div class="ad-actions">
-                      <button
-                        type="button"
-                        class="ad-icon-btn is-danger"
-                        title="Gỡ khỏi đợt giảm giá"
-                        :aria-label="'Gỡ biến thể ' + v.ma"
-                        @click="boKhoiChon([v.id])"
-                      >
-                        <i class="bi bi-x-lg" aria-hidden="true"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <BasePagination v-if="totalChon" v-model:page="pageChon" :page-size="pageSizeChon" :total="totalChon" />
       </section>
 
       <!-- Lịch giảm giá theo ngày: chỉ khi xem / sửa đợt đã lưu (cần dữ liệu từ backend) -->
-      <DotGiamGiaLichCard v-if="isEdit && item" :id-dot="idXem" :dot-dang-tat="!dangHoatDong(item)" />
+      <DotGiamGiaLichCard v-if="isEdit && item" :id-dot="idXem" :dot-dang-tat="!dangHoatDong(item)" :chinh-sach="apDungKhac.chinhSach" />
     </template>
 
     <ConfirmQuestion
@@ -885,15 +926,9 @@ textarea.ad-control {
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
-.dgg-search-text {
-  flex: 1 1 220px;
+.dgg-search > div {
+  flex: 1 1 260px;
   min-width: 0;
-}
-.dgg-search > div:not(.dgg-search-text) {
-  flex: 0 1 200px;
-}
-.dgg-search .ad-btn {
-  flex: 0 0 auto;
 }
 
 /* Bảng chọn sản phẩm */
@@ -934,26 +969,6 @@ textarea.ad-control {
   padding-top: 0.4rem !important;
   padding-bottom: 0.6rem !important;
 }
-.dgg-variants {
-  list-style: none;
-  margin: 0;
-  padding: 0 0 0 2.2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-.dgg-variant {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  cursor: pointer;
-  font-size: 0.88rem;
-}
-.dgg-variant-price {
-  margin-left: auto;
-  color: var(--fs-text-2);
-}
 
 /* Nhãn nhỏ (màu sắc / trọng lượng / chu vi) */
 .dgg-chips {
@@ -980,21 +995,41 @@ textarea.ad-control {
   justify-content: space-between;
   gap: 1rem;
 }
-.dgg-chosen-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1.1rem;
-}
-.dgg-chosen-filters > div {
-  width: 200px;
-}
-.dgg-chosen-filters > .dgg-chosen-key {
-  width: 260px;
-}
+.dgg-count { display: inline-block; margin-left: 0.5rem; padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--fs-primary-soft, #e6f1fe); color: var(--fs-primary-dark, #075fc0); font-size: 0.75rem; font-weight: 600; }
+.dgg-variants { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.dgg-vchip { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid #d5e0ef; background: #fff; border-radius: 999px; padding: 0.25rem 0.75rem; font-size: 0.82rem; color: #1c2530; }
+.dgg-vchip:hover { border-color: var(--fs-primary, #0977ec); }
+.dgg-vchip.on { background: var(--fs-primary-soft, #e6f1fe); border-color: var(--fs-primary, #0977ec); color: var(--fs-primary-dark, #075fc0); font-weight: 600; }
+.dgg-vchip-price { font-weight: 400; color: #7b8794; }
 .dgg-card-error {
   border-color: var(--fs-danger);
 }
+/* Tổng kết đợt giảm giá */
+.dgg-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+@media (max-width: 991.98px) {
+  .dgg-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.dgg-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--fs-line-soft, #eef1f5);
+  border-radius: 12px;
+  background: var(--fs-surface, #f5f8fc);
+}
+.dgg-stat-label { font-size: 0.78rem; color: var(--fs-muted); }
+.dgg-stat-value { font-size: 1.15rem; color: var(--fs-text); }
+.dgg-stat-sub { font-size: 0.75rem; color: var(--fs-muted); }
+/* Bảng biến thể đã chọn */
+.dgg-chosen-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.dgg-chosen-filters .form-select { width: auto; min-width: 150px; }
+.dgg-btn-go { color: var(--fs-danger); border-color: #f3c2c8; }
+.dgg-dot { display: inline-block; width: 12px; height: 12px; margin-right: 0.4rem; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.18); vertical-align: -1px; }
 .dgg-product {
   display: flex;
   align-items: center;
