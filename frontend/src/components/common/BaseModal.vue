@@ -6,6 +6,8 @@ const props = defineProps({
   size: { type: String, default: 'md' }, // sm | md | lg | xl
   // true: không đóng khi bấm nền mờ hoặc nhấn Esc (dùng cho form để tránh mất dữ liệu)
   staticBackdrop: { type: Boolean, default: false },
+  // Class thêm cho khung modal (tùy chọn) để trang nào cần thì tự đổi giao diện riêng
+  contentClass: { type: String, default: '' },
 })
 const emit = defineEmits(['close'])
 
@@ -55,9 +57,12 @@ onBeforeUnmount(() => {
         :class="sizeClass"
         tabindex="-1"
       >
-        <div class="modal-content ad-modal">
+        <div class="modal-content ad-modal" :class="contentClass">
           <div class="modal-header ad-modal-header">
-            <h2 :id="titleId" class="ad-modal-title">{{ title }}</h2>
+            <!-- Mặc định hiện tiêu đề; trang nào cần tiêu đề riêng thì truyền slot "header" -->
+            <slot name="header">
+              <h2 :id="titleId" class="ad-modal-title">{{ title }}</h2>
+            </slot>
             <button type="button" class="btn-close" aria-label="Đóng" @click="emit('close')"></button>
           </div>
           <div class="modal-body ad-modal-body">

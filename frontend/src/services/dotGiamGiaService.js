@@ -19,7 +19,7 @@ export const dotGiamGiaService = {
     return (await api.get(`/dot-giam-gia/${id}`)).data
   },
 
-  // Mã đợt do hệ thống sinh (DGG + số thứ tự, vd DGG09), không trùng mã đã có
+  // Mã đợt do hệ thống sinh (DGG + số thứ tự, vd DGG009), không trùng mã đã có
   async maMoi() {
     return (await api.get('/dot-giam-gia/ma-moi')).data.ma
   },

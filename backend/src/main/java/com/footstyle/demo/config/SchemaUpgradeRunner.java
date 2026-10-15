@@ -64,6 +64,8 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
                     + "ALTER TABLE dia_chi_khach_hang ADD ngay_tao DATETIME NULL CONSTRAINT df_dckh_ngay_tao DEFAULT CURRENT_TIMESTAMP",
             "IF COL_LENGTH('dia_chi_khach_hang', 'ngay_cap_nhat') IS NULL "
                     + "ALTER TABLE dia_chi_khach_hang ADD ngay_cap_nhat DATETIME NULL CONSTRAINT df_dckh_ngay_cap_nhat DEFAULT CURRENT_TIMESTAMP",
+            // khach_hang.anh_dai_dien (ảnh đại diện khách hàng)
+            "IF COL_LENGTH('khach_hang', 'anh_dai_dien') IS NULL ALTER TABLE khach_hang ADD anh_dai_dien NVARCHAR(500) NULL",
             // dot_giam_gia.mo_ta
             "IF COL_LENGTH('dot_giam_gia', 'mo_ta') IS NULL ALTER TABLE dot_giam_gia ADD mo_ta NVARCHAR(500) NULL",
             // Mục "Không áp dụng" cho danh mục không phải vợt (Phụ kiện, Túi - balo...): không có độ cứng, điểm cân bằng, trọng lượng, chu vi

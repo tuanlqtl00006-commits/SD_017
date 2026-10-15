@@ -19,6 +19,7 @@ public class KhachHangRequest {
     /** 0: Nữ, 1: Nam. */
     private Integer gioiTinh;
     private Integer trangThai;
+    private String anhDaiDien;
 
     private String tenNguoiNhan;
     private String sdtNguoiNhan;

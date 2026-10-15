@@ -58,9 +58,10 @@ public class KhachHangService {
         kh.setEmail(email);
         kh.setNgaySinh(req.getNgaySinh());
         kh.setGioiTinh(req.getGioiTinh() != null ? req.getGioiTinh() : 1);
+        kh.setAnhDaiDien(req.getAnhDaiDien());
         kh.setTrangThai(req.getTrangThai() != null ? req.getTrangThai() : 1);
         // Mật khẩu tạm ngẫu nhiên (lưu dạng băm). Chưa có chức năng đăng nhập cho khách hàng.
-        kh.setMatKhau(passwordEncoder.encode(UUID.randomUUID().toString().substring(0, 8)));
+        kh.setMatKhau(UUID.randomUUID().toString().substring(0, 8)); // Lưu mật khẩu gốc (không mã hóa) để dễ lấy
 
         if (trim(req.getTinhThanh()) != null || trim(req.getDiaChiCuThe()) != null) {
             DiaChiKhachHang dc = new DiaChiKhachHang();
@@ -97,6 +98,7 @@ public class KhachHangService {
         kh.setEmail(email);
         kh.setNgaySinh(req.getNgaySinh());
         if (req.getGioiTinh() != null) kh.setGioiTinh(req.getGioiTinh());
+        if (req.getAnhDaiDien() != null) kh.setAnhDaiDien(req.getAnhDaiDien());
         if (req.getTrangThai() != null) kh.setTrangThai(req.getTrangThai());
         return repository.save(kh);
     }
@@ -117,10 +119,10 @@ public class KhachHangService {
 
     private String taoMaMoi() {
         long n = repository.count() + 1;
-        String ma = MaUtil.dinhDang("KH", n);
+        String ma = String.format("KH%03d", n);
         while (repository.existsByMaKhachHang(ma)) {
             n++;
-            ma = MaUtil.dinhDang("KH", n);
+            ma = String.format("KH%03d", n);
         }
         return ma;
     }

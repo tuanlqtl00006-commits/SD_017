@@ -123,15 +123,6 @@ function exportFile() {
   toast.success(`Đã xuất ${filtered.value.length} đợt giảm giá ra file Excel.`)
 }
 
-/* ----- Công tắc bật / tắt ----- */
-// Đợt đã quá ngày kết thúc ("Đã kết thúc"): công tắc hiện TẮT và bị khóa, không bật / tắt được nữa.
-const congTacBat = (d) => dangHoatDong(d) && !daKetThuc(d, today)
-const congTacKhoa = (d) => daKetThuc(d, today)
-function congTacNhan(d) {
-  if (daKetThuc(d, today)) return 'Đã kết thúc - công tắc tắt, không thể bật / tắt'
-  return dangHoatDong(d) ? 'Đang bật - bấm để ngừng hoạt động' : 'Đang tắt - bấm để bật hoạt động'
-}
-
 /* ----- Bật / tắt hoạt động ----- */
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
@@ -144,13 +135,15 @@ const confirmContent = computed(() => {
         title: 'Ngừng hoạt động đợt giảm giá?',
         message: `Đợt ${d.maDot} (${d.tenDot}) sẽ ngừng áp dụng giảm giá cho các sản phẩm. Dữ liệu vẫn được giữ lại, bạn có thể bật lại bất cứ lúc nào.`,
         confirmText: 'Ngừng hoạt động',
-        variant: 'danger',
+        variant: 'primary',
+        icon: 'warning',
       }
     : {
         title: 'Bật hoạt động đợt giảm giá?',
         message: `Đợt ${d.maDot} (${d.tenDot}) sẽ áp dụng lại từ ${formatNgay(d.ngayBatDau)} đến ${formatNgay(d.ngayKetThuc)}.`,
         confirmText: 'Bật hoạt động',
         variant: 'primary',
+        icon: 'success',
       }
 })
 
@@ -270,12 +263,12 @@ async function confirmToggle() {
                   </td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
-                      <!-- Công tắc bật / tắt: đợt đã kết thúc thì công tắc TẮT và khóa -->
-                      <span class="ad-switch-slot" :title="congTacNhan(d)">
+                      <!-- Công tắc bật / tắt: còn hiển thị khi đợt sắp diễn ra / đang diễn ra; qua ngày kết thúc thì biến mất -->
+                      <span class="ad-switch-slot">
                         <StatusSwitch
-                          :on="congTacBat(d)"
-                          :disabled="congTacKhoa(d)"
-                          :label="congTacNhan(d)"
+                          v-if="!daKetThuc(d, today)"
+                          :on="dangHoatDong(d)"
+                          :label="dangHoatDong(d) ? 'Đang bật - bấm để ngừng hoạt động' : 'Đang tắt - bấm để bật hoạt động'"
                           @toggle="confirmItem = d"
                         />
                       </span>
