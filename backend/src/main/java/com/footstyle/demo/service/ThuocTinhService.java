@@ -19,6 +19,7 @@ import com.footstyle.demo.repository.DanhMucRepository;
 import com.footstyle.demo.repository.DiemCanBangRepository;
 import com.footstyle.demo.repository.DoCungRepository;
 import com.footstyle.demo.repository.MauSacRepository;
+import com.footstyle.demo.repository.SanPhamRepository;
 import com.footstyle.demo.repository.ThuocTinhRepository;
 import com.footstyle.demo.repository.ThuongHieuRepository;
 import com.footstyle.demo.repository.TrongLuongRepository;
@@ -26,6 +27,7 @@ import com.footstyle.demo.repository.XuatXuRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.springframework.stereotype.Service;
@@ -48,9 +50,13 @@ public class ThuocTinhService {
     // loai -> tiền tố mã tự cấp (DM01, TH01, ...)
     private final Map<String, String> tienTo = new HashMap<>();
 
+    private final SanPhamRepository sanPhamRepo;
+
     public ThuocTinhService(DanhMucRepository danhMuc, ThuongHieuRepository thuongHieu, XuatXuRepository xuatXu,
                             ChatLieuRepository chatLieu, DoCungRepository doCung, DiemCanBangRepository diemCanBang,
-                            MauSacRepository mauSac, TrongLuongRepository trongLuong, ChuViRepository chuVi) {
+                            MauSacRepository mauSac, TrongLuongRepository trongLuong, ChuViRepository chuVi,
+                            SanPhamRepository sanPhamRepo) {
+        this.sanPhamRepo = sanPhamRepo;
         dangKy("danh-muc", "danh mục", "DM", danhMuc, DanhMuc::new);
         dangKy("thuong-hieu", "thương hiệu", "TH", thuongHieu, ThuongHieu::new);
         dangKy("xuat-xu", "xuất xứ", "XX", xuatXu, XuatXu::new);
@@ -107,7 +113,16 @@ public class ThuocTinhService {
     public ThuocTinhResponse sua(String loai, Integer id, ThuocTinhRequest req) {
         ThuocTinhRepository<ThuocTinh> repo = repo(loai);
         ThuocTinh t = tim(loai, id);
-        t.setTen(kiemTraTen(loai, req.ten(), id));
+        String tenMoi = kiemTraTen(loai, req.ten(), id);
+        loi(laMucHeThong(loai, t) && !NhomDanhMuc.laKhongApDung(tenMoi),
+                "Mục \"Không áp dụng\" do hệ thống dùng cho danh mục không phải vợt, không đổi tên được.");
+        // Đổi tên danh mục làm nó đổi từ vợt sang loại khác (hoặc ngược lại), vd "Vợt cầu lông" -> "Phụ kiện vợt"... thì
+        // các sản phẩm đang thuộc danh mục sẽ sai bộ thuộc tính (độ cứng, trọng lượng...)
+        if ("danh-muc".equals(loai) && NhomDanhMuc.laVot(t.getTen()) != NhomDanhMuc.laVot(tenMoi)
+                && sanPhamRepo.existsByDanhMucId(id)) {
+            throw ApiException.conflict("Danh mục đang có sản phẩm, không thể đổi tên làm danh mục chuyển giữa loại vợt và loại khác.");
+        }
+        t.setTen(tenMoi);
         // Chất liệu: có gửi nhóm danh mục thì cập nhật; không gửi thì giữ nguyên nhóm cũ
         if (t instanceof ChatLieu cl && req.nhom() != null) {
             cl.setNhomApDung(kiemTraNhom(req.nhom(), true));
@@ -121,6 +136,7 @@ public class ThuocTinhService {
         ThuocTinhRepository<ThuocTinh> repo = repo(loai);
         ThuocTinh t = tim(loai, id);
         if (dangHoatDong(t)) {
+            loi(laMucHeThong(loai, t), "Mục \"Không áp dụng\" do hệ thống dùng cho danh mục không phải vợt, không ngưng được.");
             t.setTrangThai(ThuocTinh.NGUNG_HOAT_DONG);
         } else {
             t.setTrangThai(ThuocTinh.HOAT_DONG);
@@ -141,6 +157,13 @@ public class ThuocTinhService {
     private ThuocTinh tim(String loai, Integer id) {
         return repo(loai).findById(id)
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy " + nhan.get(loai) + "."));
+    }
+
+    // 4 bảng chỉ vợt mới có (độ cứng, điểm cân bằng, trọng lượng, chu vi) có mục "Không áp dụng" gán tự động cho danh mục khác
+    private static final List<String> LOAI_CO_MUC_KHONG_AP_DUNG = List.of("do-cung", "diem-can-bang", "trong-luong", "chu-vi");
+
+    private boolean laMucHeThong(String loai, ThuocTinh t) {
+        return LOAI_CO_MUC_KHONG_AP_DUNG.contains(loai) && NhomDanhMuc.laKhongApDung(t.getTen());
     }
 
     private boolean dangHoatDong(ThuocTinh t) {
@@ -164,7 +187,7 @@ public class ThuocTinhService {
         List<String> ds = new ArrayList<>();
         if (nhom != null) {
             for (String n : nhom) {
-                String v = n == null ? "" : n.trim().toUpperCase();
+                String v = n == null ? "" : n.trim().toUpperCase(Locale.ROOT);
                 loi(!NhomDanhMuc.TAT_CA.contains(v), "Danh mục sử dụng chất liệu không hợp lệ.");
                 if (!ds.contains(v)) {
                     ds.add(v);

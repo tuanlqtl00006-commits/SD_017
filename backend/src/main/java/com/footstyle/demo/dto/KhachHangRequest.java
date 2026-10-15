@@ -19,6 +19,7 @@ public class KhachHangRequest {
     /** 0: Nữ, 1: Nam. */
     private Integer gioiTinh;
     private Integer trangThai;
+    /** Ảnh đại diện (không bắt buộc). Khi sửa: không gửi (null) = giữ ảnh cũ, gửi chuỗi rỗng = bỏ ảnh. */
     private String anhDaiDien;
 
     private String tenNguoiNhan;

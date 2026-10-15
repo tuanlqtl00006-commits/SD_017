@@ -59,6 +59,8 @@ public class NhanVien {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
+    /** Nhân viên phải từ đủ 18 tuổi: dưới 18 là "người lao động chưa thành niên" (Bộ luật Lao động 2019, Điều 143). Xem QuyTacDuLieu. */
+    public static final int TUOI_TOI_THIEU = 18;
     public static final int HOAT_DONG = 1;
     public static final int NGUNG_HOAT_DONG = 0;
     public static final int GIOI_TINH_NU = 0;

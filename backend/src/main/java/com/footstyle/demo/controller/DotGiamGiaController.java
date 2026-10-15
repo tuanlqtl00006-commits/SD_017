@@ -11,6 +11,8 @@ import com.footstyle.demo.repository.DotGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import com.footstyle.demo.service.GiamGiaApDungService;
 import com.footstyle.demo.service.LichGiamGiaService;
+import com.footstyle.demo.service.MaUtil;
+import com.footstyle.demo.service.ThoiGianPhut;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -42,7 +44,7 @@ public class DotGiamGiaController {
     private final DotGiamGiaChiTietRepository chiTietRepository;
     private final SanPhamChiTietRepository sanPhamChiTietRepository;
     private final LichGiamGiaService lichGiamGiaService;
-    private final GiamGiaApDungService giamGiaApDungService; // chế độ gộp khi đợt chồng nhau (MAX / TRUNG_BINH)
+    private final GiamGiaApDungService giamGiaApDungService; // chế độ gộp khi đợt chồng nhau (MAX / CONG_DON / TRUNG_BINH)
 
     /** Mới nhất lên đầu (đợt vừa thêm nằm trên cùng). */
     @GetMapping
@@ -50,7 +52,7 @@ public class DotGiamGiaController {
         return dotGiamGiaRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
     }
 
-    /** Mã đợt do hệ thống sinh, dạng ngắn DGG + số thứ tự (DGG009), không trùng mã đã có. */
+    /** Mã đợt do hệ thống sinh, dạng ngắn DGG + số thứ tự (DGG09, DGG100), không trùng mã đã có. */
     @GetMapping("/ma-moi")
     public Map<String, String> maMoi() {
         return Map.of("ma", sinhMa());
@@ -68,18 +70,25 @@ public class DotGiamGiaController {
         for (DotGiamGiaChiTiet ct : chiTietRepository.findApDung(LocalDateTime.now())) {
             DotGiamGia d = ct.getDotGiamGia();
             muc.add(new GiamGiaApDungResponse.Muc(ct.getIdSanPhamChiTiet(), d.getId(), d.getMaDot(), d.getTenDot(),
-                    ct.getPhanTramGiamBienThe(), d.getNgayBatDau().toLocalDate(), d.getNgayKetThuc().toLocalDate()));
+                    ct.getPhanTramGiamBienThe(), d.getNgayBatDau(), d.getNgayKetThuc()));
         }
         return new GiamGiaApDungResponse(giamGiaApDungService.cheDo().name(), muc);
     }
 
-    /** Mức giảm đang áp dụng HÔM NAY của từng biến thể: { "idBienThe": phần trăm }. Nhiều đợt chồng nhau thì gộp theo MAX / TRUNG_BINH (application.properties). */
+    /** Cách gộp khi nhiều đợt chồng nhau đang cấu hình ở backend: { cheDo: "MAX" | "CONG_DON" | "TRUNG_BINH", moTa } (form phiếu / đợt hiển thị cho người dùng). */
+    @GetMapping("/che-do")
+    public Map<String, String> cheDo() {
+        var cheDo = giamGiaApDungService.cheDo();
+        return Map.of("cheDo", cheDo.name(), "moTa", cheDo.moTa());
+    }
+
+    /** Mức giảm đang áp dụng NGAY LÚC NÀY (tính tới giờ phút) của từng biến thể: { "idBienThe": phần trăm }. Nhiều đợt chồng nhau thì gộp theo MAX / CONG_DON / TRUNG_BINH (application.properties). */
     @GetMapping("/ap-dung-hom-nay")
     public Map<Long, Double> apDungHomNay() {
         return lichGiamGiaService.giamHomNay();
     }
 
-    /** Lịch giảm giá theo khoảng ngày của từng biến thể trong đợt (có tính các đợt khác chồng lên). */
+    /** Lịch giảm giá theo khoảng ngày giờ của từng biến thể trong đợt (có tính các đợt khác chồng lên). */
     @GetMapping("/{id}/lich-giam-gia")
     public List<LichGiamGiaService.LichBienThe> lichGiamGia(@PathVariable Long id) {
         return lichGiamGiaService.lichCuaDot(id);
@@ -99,9 +108,12 @@ public class DotGiamGiaController {
         if (req.idBienThe() == null || req.idBienThe().isEmpty()) {
             throw ApiException.badRequest("Vui lòng chọn ít nhất một biến thể sản phẩm áp dụng.");
         }
+        kiemTraThoiGian(req, null, true);
         String ma = req.maDot() == null ? "" : req.maDot().trim().toUpperCase(Locale.ROOT);
         if (ma.isEmpty()) {
             ma = sinhMa();
+        } else if (!ma.matches("[A-Z0-9_-]{2,20}")) {
+            throw ApiException.badRequest("Mã đợt gồm 2-20 ký tự chữ, số, gạch ngang hoặc gạch dưới, không dấu, không khoảng trắng.");
         } else if (dotGiamGiaRepository.existsByMaDot(ma)) {
             throw ApiException.conflict("Mã đợt giảm giá đã tồn tại. Hãy bấm làm mới để lấy mã khác.");
         }
@@ -129,6 +141,9 @@ public class DotGiamGiaController {
         if (req.idBienThe() != null && req.idBienThe().isEmpty()) {
             throw ApiException.badRequest("Vui lòng chọn ít nhất một biến thể sản phẩm áp dụng.");
         }
+        // Đợt đã bắt đầu thì không đổi giờ bắt đầu; đợt đã kết thúc vẫn sửa được thông tin khác nhưng không được dời
+        // giờ kết thúc sang một thời điểm khác trong quá khứ (muốn dừng ngay thì tắt công tắc)
+        kiemTraThoiGian(req, existing, false);
         Integer phanTramCu = existing.getPhanTramGiamDot();
         apDungThongTin(existing, req);
         if (req.trangThai() != null) existing.setTrangThai(req.trangThai());
@@ -149,15 +164,11 @@ public class DotGiamGiaController {
 
     /**
      * Bật / tắt hoạt động đợt giảm giá (1: đang hoạt động, 0: ngừng hoạt động). Không xóa dữ liệu.
-     * Giống phiếu giảm giá: đợt đã qua ngày kết thúc thì không đổi trạng thái nữa (công tắc ở giao diện cũng biến mất).
+     * Đợt đã qua ngày kết thúc vẫn bật / tắt được (công tắc ở giao diện luôn hiện; tắt = \"Ngừng hoạt động\").
      */
     @PutMapping("/{id}/trang-thai")
     public DotGiamGia toggleStatus(@PathVariable Long id) {
         DotGiamGia existing = getById(id);
-        // So theo NGÀY: ngày kết thúc vẫn còn bật / tắt được hết ngày đó, sang hôm sau mới là "Đã kết thúc"
-        if (existing.getNgayKetThuc() != null && existing.getNgayKetThuc().toLocalDate().isBefore(LocalDate.now())) {
-            throw ApiException.conflict("Đợt giảm giá đã kết thúc, không thể thay đổi trạng thái.");
-        }
         existing.setTrangThai(Integer.valueOf(1).equals(existing.getTrangThai()) ? 0 : 1);
         return dotGiamGiaRepository.save(existing);
     }
@@ -173,7 +184,7 @@ public class DotGiamGiaController {
     /* ---------------- hàm phụ ---------------- */
 
     private String sinhMa() {
-        // Mã ngắn theo số thứ tự: DGG001, DGG002... (lấy số lớn nhất đang có + 1), không trùng mã đã có
+        // Mã ngắn theo số thứ tự: DGG01, DGG02... (lấy số lớn nhất đang có + 1, đọc được cả mã cũ DGG001), không trùng mã đã có
         int max = 0;
         for (DotGiamGia d : dotGiamGiaRepository.findAll()) {
             String m = d.getMaDot() == null ? "" : d.getMaDot().trim().toUpperCase(Locale.ROOT);
@@ -182,7 +193,7 @@ public class DotGiamGiaController {
         String ma;
         do {
             max++;
-            ma = String.format("DGG%03d", max);
+            ma = MaUtil.dinhDang("DGG", max);
         } while (dotGiamGiaRepository.existsByMaDot(ma));
         return ma;
     }
@@ -198,11 +209,11 @@ public class DotGiamGiaController {
 
     /**
      * Đọc ngày giờ từ chuỗi gửi lên. "yyyy-MM-dd" -> đầu ngày (00:00:00) hoặc cuối ngày (23:59:59);
-     * "yyyy-MM-ddTHH:mm:ss" -> đúng thời điểm đó.
+     * "yyyy-MM-ddTHH:mm[:ss]" -> theo PHÚT: bắt đầu tính từ đầu phút, kết thúc tính tới hết phút (xem ThoiGianPhut).
      */
     private LocalDateTime docThoiDiem(String s, boolean cuoiNgay) {
         if (s == null || s.trim().length() < 10) {
-            throw ApiException.badRequest("Vui lòng chọn ngày bắt đầu và ngày kết thúc.");
+            throw ApiException.badRequest("Vui lòng chọn ngày giờ bắt đầu và ngày giờ kết thúc.");
         }
         String v = s.trim();
         try {
@@ -210,9 +221,20 @@ public class DotGiamGiaController {
                 LocalDate ngay = LocalDate.parse(v);
                 return cuoiNgay ? ngay.atTime(LocalTime.of(23, 59, 59)) : ngay.atStartOfDay();
             }
-            return LocalDateTime.parse(v);
+            LocalDateTime t = LocalDateTime.parse(v);
+            return cuoiNgay ? ThoiGianPhut.cuoiPhut(t) : ThoiGianPhut.dauPhut(t);
         } catch (DateTimeParseException e) {
-            throw ApiException.badRequest("Ngày không hợp lệ.");
+            throw ApiException.badRequest("Ngày giờ không hợp lệ.");
+        }
+    }
+
+    /** Quy tắc ngày giờ chung với phiếu giảm giá (ThoiGianPhut). existing = null khi tạo mới. */
+    private void kiemTraThoiGian(DotGiamGiaRequest req, DotGiamGia existing, boolean taoMoi) {
+        String loi = ThoiGianPhut.kiemTra("Đợt", docThoiDiem(req.ngayBatDau(), false), docThoiDiem(req.ngayKetThuc(), true),
+                existing == null ? null : existing.getNgayBatDau(), existing == null ? null : existing.getNgayKetThuc(),
+                taoMoi, LocalDateTime.now());
+        if (loi != null) {
+            throw ApiException.badRequest(loi);
         }
     }
 
@@ -277,8 +299,11 @@ public class DotGiamGiaController {
         }
         LocalDateTime bd = docThoiDiem(d.ngayBatDau(), false);
         LocalDateTime kt = docThoiDiem(d.ngayKetThuc(), true);
-        if (kt.isBefore(bd)) {
-            throw ApiException.badRequest("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.");
+        if (!kt.truncatedTo(java.time.temporal.ChronoUnit.MINUTES).isAfter(bd)) {
+            throw ApiException.badRequest("Ngày giờ kết thúc phải sau ngày giờ bắt đầu.");
+        }
+        if (d.trangThai() != null && d.trangThai() != 0 && d.trangThai() != 1) {
+            throw ApiException.badRequest("Trạng thái chỉ nhận 1 (đang hoạt động) hoặc 0 (ngừng hoạt động).");
         }
     }
 }

@@ -10,6 +10,7 @@ import jakarta.mail.internet.MimeMessage;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -54,6 +55,7 @@ public class MailService {
     private final String password;
     private final String tenCuaHang;
     private final PhieuMailNoiDung noiDung;
+    private final NhanVienMailNoiDung noiDungNhanVien;
     // Nội dung ảnh logo đọc sẵn vào bộ nhớ lúc khởi động; null: không tìm thấy / không đọc được -> thư không có logo
     byte[] logo;
     /** Kết quả đăng nhập thử Gmail lúc khởi động: CHUA_CAU_HINH / DANG_KIEM_TRA / THANH_CONG / THAT_BAI. */
@@ -79,6 +81,7 @@ public class MailService {
         this.from = (from == null || from.isBlank()) ? this.username : from;
         this.tenCuaHang = tenCuaHang;
         this.noiDung = new PhieuMailNoiDung(tenCuaHang, linkCuaHang);
+        this.noiDungNhanVien = new NhanVienMailNoiDung(tenCuaHang, linkCuaHang);
         this.logo = docLogo(new ClassPathResource(DUONG_DAN_LOGO));
     }
 
@@ -195,7 +198,7 @@ public class MailService {
         for (Throwable t = e; t != null && gom.length() < 4000; t = t.getCause() == t ? null : t.getCause()) {
             gom.append(t.getClass().getSimpleName()).append(' ').append(t.getMessage()).append(' ');
         }
-        String chu = gom.toString().toLowerCase();
+        String chu = gom.toString().toLowerCase(Locale.ROOT);
         if (chu.contains("535") || chu.contains("username and password not accepted") || chu.contains("authenticationfailed")
                 || chu.contains("mailauthentication") || chu.contains("invalid credentials")) {
             return " -> Sai email / mật khẩu: Gmail KHÔNG nhận mật khẩu đăng nhập thường, phải dùng \"Mật khẩu ứng dụng\" 16 ký tự "
@@ -244,6 +247,30 @@ public class MailService {
         luongGui.submit(() -> gui(den, thu, logoGan, lo));
     }
 
+    /**
+     * Xếp vào hàng đợi mail THÔNG BÁO TÀI KHOẢN cho một nhân viên mới (nhập hàng loạt từ Excel). Kết quả gửi được đếm vào lô `maLo`
+     * (bắt đầu bằng batDauLo) để giao diện hỏi lại bằng ketQuaLo(maLo), giống mail phiếu giảm giá.
+     */
+    public void guiTaiKhoanNhanVien(String hoTen, String email, String maNhanVien, String vaiTro, String matKhauTam, String maLo) {
+        final LoThu lo = loThu.computeIfAbsent(khoa(maLo), k -> new LoThu());
+        lo.themThuNeuChuaDatTruoc();
+        if (email == null || !email.contains("@")) {
+            lo.ghiLoi("Nhân viên " + maNhanVien + " không có email hợp lệ.");
+            return;
+        }
+        final String den = email.trim();
+        final byte[] logoGan = logo;
+        final ThuMail thu;
+        try {
+            thu = noiDungNhanVien.soan(hoTen, den, maNhanVien, vaiTro, matKhauTam, logoGan != null);
+        } catch (Exception e) {
+            log.error("Không soạn được mail tài khoản cho {}: {}", den, e.toString(), e);
+            lo.ghiLoi("Không soạn được thư cho " + den + ": " + loiThat(e));
+            return;
+        }
+        luongGui.submit(() -> gui(den, thu, logoGan, lo));
+    }
+
     void gui(String den, ThuMail thu, byte[] logoGan) {
         gui(den, thu, logoGan, null);
     }
@@ -269,7 +296,7 @@ public class MailService {
     /* ===================== Theo dõi kết quả gửi (để giao diện báo rõ) ===================== */
 
     private static String khoa(String maPhieu) {
-        return maPhieu == null ? "" : maPhieu.trim().toUpperCase();
+        return maPhieu == null ? "" : maPhieu.trim().toUpperCase(Locale.ROOT);
     }
 
     /**

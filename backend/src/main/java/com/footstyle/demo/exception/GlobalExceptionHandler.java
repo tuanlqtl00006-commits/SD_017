@@ -9,8 +9,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
@@ -26,6 +28,9 @@ public class GlobalExceptionHandler {
             body.put("code", ex.getCode());
             body.put("chiTiet", ex.getChiTiet() == null ? Map.of() : ex.getChiTiet());
         }
+        if (ex.getLoiTheoTruong() != null && !ex.getLoiTheoTruong().isEmpty()) {
+            body.put("loiTheoTruong", ex.getLoiTheoTruong());
+        }
         return ResponseEntity.status(ex.getStatus()).body(body);
     }
 
@@ -33,6 +38,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleUnreadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("message", "Dữ liệu gửi lên không hợp lệ. Vui lòng kiểm tra lại các trường đã nhập."));
+    }
+
+    /**
+     * Tham số trên đường dẫn / query sai kiểu (vd /api/hoa-don/abc, ?tuNgay=13-10-2026, ?page=x).
+     * Không bắt thì Spring trả 500 kèm stack trace, giao diện chỉ thấy "lỗi máy chủ".
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", "Giá trị \"" + ex.getName() + "\" không hợp lệ."));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, String>> handleMissingParam(MissingServletRequestParameterException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", "Thiếu tham số \"" + ex.getParameterName() + "\"."));
     }
 
     /** Ảnh vượt giới hạn spring.servlet.multipart.max-file-size. */

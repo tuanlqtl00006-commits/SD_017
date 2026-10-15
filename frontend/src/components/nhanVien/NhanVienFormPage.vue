@@ -1,15 +1,38 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import CccdScannerModal from './CccdScannerModal.vue'
-import { GIOI_TINH, TRANG_THAI, taoMaTheoTen, tienToMaNhanVien, tinhTuoi } from '../../constants/nhanVien'
+import { GIOI_TINH, TRANG_THAI, taoMaTheoTen, tienToMaNhanVien } from '../../constants/nhanVien'
 import { diaChiMoiTuCccd, ghepDiaChi } from '../../utils/diaChi'
 import { diaChiHanhChinhService } from '../../services/diaChiHanhChinhService'
 import { nhanVienService } from '../../services/nhanVienService'
+import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
-import { avatarColors, formatDate, getInitials, toIso, todayIso } from '../../utils/format'
+import { avatarColors, formatDate, getInitials, todayIso } from '../../utils/format'
+import {
+  HUONG_DAN_TUOI_NHAN_VIEN,
+  TUOI_NHAN_VIEN_TOI_THIEU,
+  cat,
+  chuanHoaHoTen,
+  congNam,
+  khoaEmail,
+  khoaSdt,
+  loiCccd,
+  loiEmail,
+  loiHoTen,
+  loiMatKhau,
+  loiNgaySinh,
+  loiSdt,
+  ngaySinhMuonNhat,
+  ngaySinhSomNhat,
+  timBanTrung,
+  vaoLamKhiDuTuoi,
+} from '../../utils/kiemTra'
+import DateInput from '../common/DateInput.vue'
+import Select2 from '../common/Select2.vue'
+import { tuDanhSach } from '../../utils/luaChon'
 
 /*
  * Trang THÊM nhân viên (/nhan-vien/them) và CHI TIẾT / SỬA nhân viên (/nhan-vien/:id), giống video:
@@ -27,6 +50,13 @@ import { avatarColors, formatDate, getInitials, toIso, todayIso } from '../../ut
  *               ngày vào làm (mốc tuyển dụng), mật khẩu (nhập lúc thêm mới, không hiện ở trang sửa).
  *  - Trạng thái: "Còn làm" / "Đã nghỉ". Nút "Cho nghỉ việc" / "Cho làm lại" ở thẻ "Trạng thái nhân viên" (đổi cột trạng thái, không xóa dữ liệu).
  * Khi thêm mới thì nhập đầy đủ tất cả các ô.
+ *
+ * KIỂM TRA DỮ LIỆU (theo góp ý của cô: "form sửa cũng validate như form thêm", "lỗi dưới từng ô", "tuổi phải có căn cứ"):
+ *  - Lỗi hiện NGAY DƯỚI TỪNG Ô khi rời ô / gõ, và hiện hết sau khi bấm lưu; ô lỗi đầu tiên được đưa con trỏ tới.
+ *  - Form THÊM và form SỬA dùng chung một bộ luật (useLoiForm + utils/kiemTra.js), khớp backend NhanVienService.kiemTra từng câu.
+ *  - Ngày sinh BẮT BUỘC và phải từ đủ 18 tuổi (Bộ luật Lao động 2019, Điều 143) - ghi rõ ngay dưới ô.
+ *  - Họ tên chỉ gồm chữ cái; số điện thoại đúng đầu số; mật khẩu có cả chữ và số; email / số điện thoại / CCCD không trùng.
+ *  - Lỗi do máy chủ trả về (loiTheoTruong) được gắn vào đúng ô và tự mất khi người dùng sửa ô đó.
  */
 const route = useRoute()
 const router = useRouter()
@@ -37,6 +67,7 @@ const isEdit = idXem !== null
 
 const tatCa = ref([]) // toàn bộ nhân viên, dùng để kiểm tra trùng và sinh mã
 const vaiTro = ref([]) // [{ id, ten }] lấy từ bảng vai_tro
+const dsChonVaiTro = computed(() => tuDanhSach(vaiTro.value))
 const item = ref(null) // nhân viên đang xem / sửa (null khi thêm mới)
 
 const dangTai = ref(true)
@@ -70,7 +101,7 @@ const taoKey = () => `n${++keySeq}`
 const hienDiaChi = (d) => ghepDiaChi(d)
 const diaChiChinh = computed(() => form.diaChis.find((d) => d.key === form.chinhKey) ?? form.diaChis[0] ?? null)
 
-const dcForm = reactive({ mo: false, key: null, tinhThanh: '', phuongXa: '', diaChiCuThe: '', loi: {} })
+const dcForm = reactive({ mo: false, key: null, tinhThanh: '', phuongXa: '', diaChiCuThe: '', daBam: false })
 const diaChiTrenCccd = ref('') // địa chỉ ghi trên thẻ CCCD vừa quét (để tham khảo khi nhập địa chỉ cụ thể)
 
 function moFormDiaChi(d = null) {
@@ -79,23 +110,29 @@ function moFormDiaChi(d = null) {
   dcForm.tinhThanh = d?.tinhThanh ?? ''
   dcForm.phuongXa = d?.phuongXa ?? ''
   dcForm.diaChiCuThe = d?.diaChiCuThe ?? ''
-  dcForm.loi = {}
+  dcForm.daBam = false
   nextTick(() => document.getElementById('nv-dc-chi-tiet')?.focus())
 }
 function huyFormDiaChi() {
   dcForm.mo = false
   dcForm.key = null
-  dcForm.loi = {}
+  dcForm.daBam = false
 }
+// Lỗi của ô địa chỉ đang nhập: hiện dưới từng ô sau lần bấm "Lưu địa chỉ" đầu tiên, rồi cập nhật theo từng lần gõ / chọn
+function kiemTraDiaChi() {
+  const e = {}
+  const chiTiet = chuanHoaHoTen(dcForm.diaChiCuThe)
+  if (!dcForm.tinhThanh) e.tinhThanh = 'Chọn Tỉnh/Thành phố.'
+  if (!dcForm.phuongXa) e.phuongXa = 'Chọn Phường/Xã.'
+  if (!chiTiet) e.diaChiCuThe = 'Nhập số nhà, tên đường...'
+  else if (chiTiet.length > 255) e.diaChiCuThe = 'Địa chỉ cụ thể tối đa 255 ký tự.'
+  return e
+}
+const loiDc = computed(() => (dcForm.daBam ? kiemTraDiaChi() : {}))
 function luuFormDiaChi() {
-  const loi = {}
-  const chiTiet = String(dcForm.diaChiCuThe).trim().replace(/\s+/g, ' ')
-  if (!dcForm.tinhThanh) loi.tinhThanh = 'Chọn Tỉnh/Thành phố.'
-  if (!dcForm.phuongXa) loi.phuongXa = 'Chọn Phường/Xã.'
-  if (!chiTiet) loi.diaChiCuThe = 'Nhập số nhà, tên đường...'
-  else if (chiTiet.length > 255) loi.diaChiCuThe = 'Địa chỉ cụ thể tối đa 255 ký tự.'
-  dcForm.loi = loi
-  if (Object.keys(loi).length) return
+  dcForm.daBam = true
+  if (Object.keys(kiemTraDiaChi()).length) return
+  const chiTiet = chuanHoaHoTen(dcForm.diaChiCuThe)
   const du = { tinhThanh: dcForm.tinhThanh, phuongXa: dcForm.phuongXa, diaChiCuThe: chiTiet }
   if (dcForm.key) {
     const d = form.diaChis.find((x) => x.key === dcForm.key)
@@ -144,8 +181,8 @@ async function taiDuLieu() {
       // Mặc định vai trò "Nhân viên" (vai trò không phải quản lý); nếu không có thì lấy vai trò đầu tiên.
       form.idVaiTro = (dsVaiTro.find((v) => v.ten !== 'Quản lý') ?? dsVaiTro[0])?.id ?? null
     }
-  } catch (loi) {
-    loiTai.value = loi.message || 'Không tải được dữ liệu. Vui lòng thử lại.'
+  } catch (err) {
+    loiTai.value = err.message || 'Không tải được dữ liệu. Vui lòng thử lại.'
     toast.error(loiTai.value)
   }
 }
@@ -166,9 +203,16 @@ const hienQuet = ref(false)
 //  - chỉ có Tỉnh/Phường, thiếu số nhà / đường -> mở sẵn ô nhập với Tỉnh/Phường đã điền, người dùng nhập tiếp địa chỉ cụ thể.
 async function apDungCccd(info) {
   form.canCuoc = info.soCccd
-  if (info.hoTen) form.hoTen = info.hoTen
+  cham('canCuoc') // dữ liệu quét về cũng được kiểm tra ngay (trùng CCCD, chưa đủ 18 tuổi...)
+  if (info.hoTen) {
+    form.hoTen = info.hoTen
+    cham('hoTen')
+  }
   if (info.gioiTinh) form.gioiTinh = info.gioiTinh
-  if (info.ngaySinh) form.ngaySinh = info.ngaySinh
+  if (info.ngaySinh) {
+    form.ngaySinh = info.ngaySinh
+    cham('ngaySinh')
+  }
   diaChiTrenCccd.value = info.diaChi
   const trung = tatCa.value.find((e) => e.canCuoc === info.soCccd)
   const tenNv = info.hoTen || 'nhân viên'
@@ -201,107 +245,101 @@ async function themDiaChiTuCccd(diaChiThe) {
   return ' Đã thêm địa chỉ trên thẻ vào danh sách địa chỉ; Tỉnh/Phường chưa khớp đơn vị hành chính mới, bấm nút sửa địa chỉ để chọn lại.'
 }
 
-/* ----- Kiểm tra dữ liệu (validate) ----- */
+/* ----- Kiểm tra dữ liệu: mỗi ô một câu báo lỗi, khớp backend NhanVienService.kiemTra ----- */
 
-const errors = reactive({})
-const daBamLuu = ref(false) // chỉ hiện lỗi sau khi bấm Lưu lần đầu
 const hienMatKhau = ref(false)
+const LOI_EMAIL_NHAN_VIEN = 'Email chưa đúng định dạng, ví dụ: ten@footstyle.vn.'
 
-// Ngày sinh tối đa: đủ 18 tuổi tính đến hôm nay
-const maxBirthDate = computed(() => {
-  const d = new Date()
-  d.setFullYear(d.getFullYear() - 18)
-  return toIso(d)
-})
+// Khóa các ngày không chọn được trên lịch: nhân viên phải từ đủ 18 tuổi và không quá 100 tuổi (chặn gõ nhầm năm).
+// Gõ tay ngày ngoài khoảng này vẫn bị báo lỗi ngay dưới ô.
+const ngaySinhToiDa = ngaySinhMuonNhat(TUOI_NHAN_VIEN_TOI_THIEU)
+const ngaySinhToiThieu = ngaySinhSomNhat()
+const ngayHomNay = todayIso()
+// Ngày vào làm chọn được từ sinh nhật thứ 18 trở đi (chỉ khi ngày sinh đã hợp lệ)
+const ngayVaoLamToiThieu = computed(() => (cat(form.ngaySinh) && !loiNgaySinh(form.ngaySinh, TUOI_NHAN_VIEN_TOI_THIEU, 'Nhân viên') ? congNam(form.ngaySinh, TUOI_NHAN_VIEN_TOI_THIEU) : undefined))
 
-function daDung(field, value) {
-  const needle = String(value).trim().toLowerCase()
-  return tatCa.value.some((e) => e.id !== item.value?.id && String(e[field]).toLowerCase() === needle)
-}
-
-function kiemTraForm() {
+function tinhLoi() {
   const e = {}
+  const homNay = todayIso()
+  const idDangSua = item.value?.id ?? null
 
-  const hoTen = String(form.hoTen).trim()
-  if (!hoTen) e.hoTen = 'Nhập họ tên.'
-  else if (hoTen.length < 2 || hoTen.length > 60) e.hoTen = 'Họ tên từ 2 đến 60 ký tự.'
+  const ten = loiHoTen(form.hoTen, { thieu: 'Nhập họ tên.', toiDa: 60 })
+  if (ten) e.hoTen = ten
 
   // Email chỉ nhập lúc thêm mới; khi sửa email bị khóa nên không cần kiểm tra
   if (!isEdit) {
-    const email = String(form.email).trim()
-    if (!email) e.email = 'Nhập email.'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) e.email = 'Email chưa đúng định dạng, ví dụ: ten@footstyle.vn.'
-    else if (daDung('email', email)) e.email = 'Email đã được sử dụng.'
+    let email = loiEmail(form.email, { thieu: 'Nhập email.', dinhDang: LOI_EMAIL_NHAN_VIEN })
+    if (!email && timBanTrung(tatCa.value, form.email, (x) => x.email, khoaEmail, idDangSua)) email = 'Email đã được sử dụng.'
+    if (email) e.email = email
   }
 
-  const cccd = String(form.canCuoc).trim()
-  if (cccd && !/^\d{12}$/.test(cccd)) e.canCuoc = 'Số căn cước công dân gồm đúng 12 chữ số.'
-  else if (cccd && daDung('canCuoc', cccd)) e.canCuoc = 'Số căn cước công dân đã được sử dụng.'
+  let cccd = loiCccd(form.canCuoc)
+  if (!cccd && timBanTrung(tatCa.value, form.canCuoc, (x) => x.canCuoc, cat, idDangSua)) cccd = 'Số căn cước công dân đã được sử dụng.'
+  if (cccd) e.canCuoc = cccd
 
-  const sdt = String(form.soDienThoai).trim()
-  if (!sdt) e.soDienThoai = 'Nhập số điện thoại.'
-  else if (!/^0[35789]\d{8}$/.test(sdt)) e.soDienThoai = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.'
-  else if (daDung('soDienThoai', sdt)) e.soDienThoai = 'Số điện thoại đã được sử dụng.'
+  let sdt = loiSdt(form.soDienThoai, 'Nhập số điện thoại.')
+  if (!sdt && timBanTrung(tatCa.value, form.soDienThoai, (x) => x.soDienThoai, khoaSdt, idDangSua)) sdt = 'Số điện thoại đã được sử dụng.'
+  if (sdt) e.soDienThoai = sdt
 
-  if (form.ngaySinh && tinhTuoi(form.ngaySinh) < 18) e.ngaySinh = 'Nhân viên phải từ đủ 18 tuổi.'
+  if (!cat(form.gioiTinh)) e.gioiTinh = 'Chọn giới tính.'
+  else if (!GIOI_TINH.includes(form.gioiTinh)) e.gioiTinh = 'Giới tính không hợp lệ.'
+
+  // Ngày sinh BẮT BUỘC (là căn cứ biết nhân viên đã đủ 18 tuổi) - Bộ luật Lao động 2019, Điều 143
+  if (!cat(form.ngaySinh)) e.ngaySinh = 'Nhập ngày sinh.'
+  else {
+    const ns = loiNgaySinh(form.ngaySinh, TUOI_NHAN_VIEN_TOI_THIEU, 'Nhân viên', homNay)
+    if (ns) e.ngaySinh = ns
+  }
+
+  // Ngày vào làm: không nhập thì lấy hôm nay; không được ở tương lai (khi sửa thì ô này bị khóa, giữ ngày cũ)
+  const vaoLam = cat(form.ngayVaoLam).slice(0, 10) || (isEdit ? '' : homNay)
+  if (!isEdit && vaoLam > homNay) e.ngayVaoLam = 'Ngày vào làm không được ở tương lai.'
+
+  // Ngày sinh và ngày vào làm phải khớp nhau (vào làm khi đã đủ 18 tuổi).
+  // Khi sửa, ngày vào làm bị khóa nên lỗi được báo ở ô ngày sinh (ô duy nhất người dùng sửa được).
+  if (vaoLam && cat(form.ngaySinh) && !e.ngaySinh && !e.ngayVaoLam && !vaoLamKhiDuTuoi(form.ngaySinh, vaoLam)) {
+    if (isEdit) e.ngaySinh = `Ngày sinh không hợp lệ: nhân viên phải đủ ${TUOI_NHAN_VIEN_TOI_THIEU} tuổi vào ngày vào làm (${formatDate(vaoLam)}).`
+    else e.ngayVaoLam = `Ngày vào làm không hợp lệ so với ngày sinh (phải từ đủ ${TUOI_NHAN_VIEN_TOI_THIEU} tuổi).`
+  }
 
   if (!form.idVaiTro) e.idVaiTro = 'Chọn vai trò.'
-
-  // Ngày vào làm phải sau khi đủ 18 tuổi.
-  // Khi sửa, ngày vào làm bị khóa nên lỗi được báo ở ô ngày sinh (ô duy nhất người dùng sửa được).
-  if (form.ngayVaoLam && form.ngaySinh && !e.ngaySinh) {
-    const [y, m, d] = form.ngaySinh.split('-').map(Number)
-    const dau18 = toIso(new Date(y + 18, m - 1, d))
-    if (form.ngayVaoLam < dau18) {
-      if (isEdit) e.ngaySinh = `Ngày sinh không hợp lệ: nhân viên phải đủ 18 tuổi vào ngày vào làm (${formatDate(form.ngayVaoLam)}).`
-      else e.ngayVaoLam = 'Ngày vào làm phải sau khi nhân viên đủ 18 tuổi.'
-    }
-  }
 
   if (dcForm.mo) e.diaChis = 'Bấm “Lưu địa chỉ” hoặc “Hủy” để hoàn tất địa chỉ đang nhập.'
   else if (!form.diaChis.length) e.diaChis = 'Thêm ít nhất một địa chỉ.'
 
   // Mật khẩu chỉ nhập lúc thêm mới (khi sửa không có ô mật khẩu).
   if (!isEdit) {
-    if (!form.matKhau) e.matKhau = 'Nhập mật khẩu cho nhân viên mới.'
-    else if (form.matKhau.length < 8 || form.matKhau.length > 50) e.matKhau = 'Mật khẩu từ 8 đến 50 ký tự.'
+    const mk = loiMatKhau(form.matKhau)
+    if (mk) e.matKhau = mk
   }
 
   return e
 }
 
-function capNhatLoi() {
-  const e = kiemTraForm()
-  Object.keys(errors).forEach((k) => delete errors[k])
-  Object.assign(errors, e)
-  return e
-}
-
-// Sau lần bấm lưu đầu tiên, báo lỗi theo thời gian thực để người dùng thấy ngay khi đã sửa đúng.
-watch(form, () => {
-  if (daBamLuu.value) capNhatLoi()
-})
+const { loi, cham, sua, batDauGui, datLoiMayChu, focusLoiDau } = useLoiForm(tinhLoi)
 
 /* ----- Lưu ----- */
 
+async function focusLoiDauTien() {
+  await focusLoiDau('#nv-form')
+  // Lỗi "chưa có địa chỉ" không nằm ở một ô nhập nào: cuộn tới thẻ Địa chỉ
+  if (!document.querySelector('#nv-form .is-invalid, #nv-form [aria-invalid="true"]')) {
+    document.getElementById('nv-dia-chi-card')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  }
+}
+
 async function guiForm() {
   if (dangLuu.value) return
-  daBamLuu.value = true
-  const e = capNhatLoi()
-  if (Object.keys(e).length) {
-    nextTick(() => {
-      const o = document.querySelector('#nv-form .is-invalid')
-      if (o) o.focus()
-      else document.getElementById('nv-dia-chi-card')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
-    })
+  if (!batDauGui()) {
+    focusLoiDauTien()
     return
   }
   const payload = {
-    hoTen: String(form.hoTen).trim().replace(/\s+/g, ' '),
-    soDienThoai: String(form.soDienThoai).trim(),
+    hoTen: chuanHoaHoTen(form.hoTen),
+    soDienThoai: cat(form.soDienThoai),
     gioiTinh: form.gioiTinh,
     ngaySinh: form.ngaySinh || null,
-    canCuoc: String(form.canCuoc).trim() || null,
+    canCuoc: cat(form.canCuoc) || null,
     idVaiTro: form.idVaiTro,
     // Địa chỉ không có nút xóa; gửi cả danh sách, id = null là địa chỉ mới thêm
     diaChis: form.diaChis.map((d) => ({
@@ -314,7 +352,7 @@ async function guiForm() {
   }
   // Email, ngày vào làm, mật khẩu: chỉ gửi khi THÊM MỚI. Khi sửa thì không gửi (giữ nguyên giá trị cũ).
   if (!isEdit) {
-    payload.email = String(form.email).trim().toLowerCase()
+    payload.email = khoaEmail(form.email)
     payload.ngayVaoLam = form.ngayVaoLam || null
     payload.matKhau = form.matKhau
   }
@@ -328,8 +366,14 @@ async function guiForm() {
       toast.success(moi?.ma ? `Đã thêm nhân viên ${moi.hoTen} với mã ${moi.ma}.` : 'Đã thêm nhân viên.')
     }
     router.push('/nhan-vien') // về danh sách, nhân viên mới nằm ở đầu danh sách
-  } catch (loi) {
-    toast.error(loi.message || 'Không thể lưu nhân viên. Vui lòng thử lại.')
+  } catch (err) {
+    // Backend trả lỗi theo từng ô (vd 409 trùng email) -> gắn xuống đúng ô; không có thì báo bằng thông báo chung
+    if (datLoiMayChu(err)) {
+      toast.error(err.message || 'Vui lòng kiểm tra lại các ô báo đỏ.')
+      focusLoiDauTien()
+    } else {
+      toast.error(err.message || 'Không thể lưu nhân viên. Vui lòng thử lại.')
+    }
   } finally {
     dangLuu.value = false
   }
@@ -369,8 +413,8 @@ async function doiTrangThai() {
     const ds = await nhanVienService.getAll()
     tatCa.value = ds
     item.value = ds.find((x) => x.id === idXem) ?? item.value
-  } catch (loi) {
-    toast.error(loi.message || 'Không thể cập nhật trạng thái. Vui lòng thử lại.')
+  } catch (err) {
+    toast.error(err.message || 'Không thể cập nhật trạng thái. Vui lòng thử lại.')
   } finally {
     dangDoiTrangThai.value = false
   }
@@ -458,13 +502,16 @@ async function doiTrangThai() {
                   v-model="form.hoTen"
                   type="text"
                   class="form-control ad-control"
-                  :class="{ 'is-invalid': errors.hoTen }"
+                  :class="{ 'is-invalid': loi.hoTen }"
                   maxlength="60"
                   placeholder="Ví dụ: Nguyễn Văn An"
                   autocomplete="off"
-                  :aria-invalid="!!errors.hoTen"
+                  :aria-invalid="!!loi.hoTen"
+                  aria-describedby="nv-ho-ten-msg"
+                  @input="sua('hoTen')"
+                  @blur="cham('hoTen')"
                 />
-                <p v-if="errors.hoTen" class="ad-error">{{ errors.hoTen }}</p>
+                <p v-if="loi.hoTen" id="nv-ho-ten-msg" class="ad-error">{{ loi.hoTen }}</p>
               </div>
 
               <div class="col-md-6">
@@ -475,13 +522,16 @@ async function doiTrangThai() {
                   type="text"
                   inputmode="numeric"
                   class="form-control ad-control"
-                  :class="{ 'is-invalid': errors.canCuoc }"
+                  :class="{ 'is-invalid': loi.canCuoc }"
                   maxlength="12"
                   placeholder="12 chữ số hoặc bấm “Quét căn cước”"
                   autocomplete="off"
-                  :aria-invalid="!!errors.canCuoc"
+                  :aria-invalid="!!loi.canCuoc"
+                  aria-describedby="nv-cccd-msg"
+                  @input="sua('canCuoc')"
+                  @blur="cham('canCuoc')"
                 />
-                <p v-if="errors.canCuoc" class="ad-error">{{ errors.canCuoc }}</p>
+                <p v-if="loi.canCuoc" id="nv-cccd-msg" class="ad-error">{{ loi.canCuoc }}</p>
               </div>
 
               <div class="col-md-6">
@@ -491,14 +541,17 @@ async function doiTrangThai() {
                   v-model="form.email"
                   type="email"
                   class="form-control ad-control"
-                  :class="{ 'is-invalid': errors.email }"
+                  :class="{ 'is-invalid': loi.email }"
                   :readonly="isEdit"
                   placeholder="ten@footstyle.vn"
                   autocomplete="off"
-                  :aria-invalid="!!errors.email"
+                  :aria-invalid="!!loi.email"
+                  aria-describedby="nv-email-msg"
+                  @input="sua('email')"
+                  @blur="cham('email')"
                 />
                 <p v-if="isEdit" class="ad-hint">Email là tài khoản đăng nhập nên không thể đổi.</p>
-                <p v-if="errors.email" class="ad-error">{{ errors.email }}</p>
+                <p v-if="loi.email" id="nv-email-msg" class="ad-error">{{ loi.email }}</p>
               </div>
 
               <!-- Mật khẩu chỉ nhập khi thêm mới; trang sửa không có ô này -->
@@ -510,11 +563,14 @@ async function doiTrangThai() {
                     v-model="form.matKhau"
                     :type="hienMatKhau ? 'text' : 'password'"
                     class="form-control ad-control has-btn"
-                    :class="{ 'is-invalid': errors.matKhau }"
+                    :class="{ 'is-invalid': loi.matKhau }"
                     maxlength="50"
-                    placeholder="Từ 8 ký tự"
+                    placeholder="Từ 8 ký tự, gồm chữ và số"
                     autocomplete="new-password"
-                    :aria-invalid="!!errors.matKhau"
+                    :aria-invalid="!!loi.matKhau"
+                    aria-describedby="nv-mat-khau-msg"
+                    @input="sua('matKhau')"
+                    @blur="cham('matKhau')"
                   />
                   <button
                     type="button"
@@ -526,7 +582,8 @@ async function doiTrangThai() {
                     <i class="bi" :class="hienMatKhau ? 'bi-eye-slash' : 'bi-eye'" aria-hidden="true"></i>
                   </button>
                 </div>
-                <p v-if="errors.matKhau" class="ad-error">{{ errors.matKhau }}</p>
+                <p v-if="loi.matKhau" id="nv-mat-khau-msg" class="ad-error">{{ loi.matKhau }}</p>
+                <p v-else id="nv-mat-khau-msg" class="ad-hint">8 - 50 ký tự, có cả chữ và số, không chứa khoảng trắng.</p>
               </div>
 
               <div class="col-md-6">
@@ -537,66 +594,81 @@ async function doiTrangThai() {
                   type="tel"
                   inputmode="numeric"
                   class="form-control ad-control"
-                  :class="{ 'is-invalid': errors.soDienThoai }"
+                  :class="{ 'is-invalid': loi.soDienThoai }"
                   maxlength="10"
                   placeholder="0912345678"
                   autocomplete="off"
-                  :aria-invalid="!!errors.soDienThoai"
+                  :aria-invalid="!!loi.soDienThoai"
+                  aria-describedby="nv-sdt-msg"
+                  @input="sua('soDienThoai')"
+                  @blur="cham('soDienThoai')"
                 />
-                <p v-if="errors.soDienThoai" class="ad-error">{{ errors.soDienThoai }}</p>
+                <p v-if="loi.soDienThoai" id="nv-sdt-msg" class="ad-error">{{ loi.soDienThoai }}</p>
+                <p v-else id="nv-sdt-msg" class="ad-hint">10 chữ số, đầu số 03, 05, 07, 08 hoặc 09.</p>
               </div>
 
               <div class="col-md-6">
                 <label class="ad-label" for="nv-vai-tro-form">Vai trò <span class="ad-required">*</span></label>
-                <select
+                <Select2
                   id="nv-vai-tro-form"
                   v-model="form.idVaiTro"
-                  class="form-select ad-control"
-                  :class="{ 'is-invalid': errors.idVaiTro }"
-                  :aria-invalid="!!errors.idVaiTro"
-                >
-                  <option v-for="v in vaiTro" :key="v.id" :value="v.id">{{ v.ten }}</option>
-                </select>
-                <p v-if="errors.idVaiTro" class="ad-error">{{ errors.idVaiTro }}</p>
+                  :options="dsChonVaiTro"
+                  placeholder="Chọn vai trò…"
+                  class="ad-control"
+                  :invalid="!!loi.idVaiTro"
+                  :aria-invalid="!!loi.idVaiTro"
+                  aria-describedby="nv-vai-tro-msg"
+                  @update:model-value="sua('idVaiTro')"
+                />
+                <p v-if="loi.idVaiTro" id="nv-vai-tro-msg" class="ad-error">{{ loi.idVaiTro }}</p>
               </div>
 
               <div class="col-md-6">
                 <span id="nv-gioi-tinh-label" class="ad-label">Giới tính <span class="ad-required">*</span></span>
                 <div class="ad-segment" role="radiogroup" aria-labelledby="nv-gioi-tinh-label">
                   <label v-for="g in GIOI_TINH" :key="g" class="ad-segment-item" :class="{ active: form.gioiTinh === g }">
-                    <input v-model="form.gioiTinh" type="radio" class="visually-hidden" name="gioiTinh" :value="g" />
+                    <input v-model="form.gioiTinh" type="radio" class="visually-hidden" name="gioiTinh" :value="g" @change="sua('gioiTinh')" />
                     {{ g }}
                   </label>
                 </div>
+                <p v-if="loi.gioiTinh" class="ad-error">{{ loi.gioiTinh }}</p>
               </div>
 
               <div class="col-md-6">
-                <label class="ad-label" for="nv-ngay-sinh">Ngày sinh</label>
-                <input
+                <label class="ad-label" for="nv-ngay-sinh">Ngày sinh <span class="ad-required">*</span></label>
+                <DateInput
                   id="nv-ngay-sinh"
                   v-model="form.ngaySinh"
-                  type="date"
-                  :max="maxBirthDate"
+                  :min="ngaySinhToiThieu"
+                  :max="ngaySinhToiDa"
                   class="form-control ad-control"
-                  :class="{ 'is-invalid': errors.ngaySinh }"
-                  :aria-invalid="!!errors.ngaySinh"
+                  :class="{ 'is-invalid': loi.ngaySinh }"
+                  :aria-invalid="!!loi.ngaySinh"
+                  aria-describedby="nv-ngay-sinh-msg"
+                  @update:model-value="sua('ngaySinh')"
+                  @blur="cham('ngaySinh')"
                 />
-                <p v-if="errors.ngaySinh" class="ad-error">{{ errors.ngaySinh }}</p>
+                <p v-if="loi.ngaySinh" id="nv-ngay-sinh-msg" class="ad-error">{{ loi.ngaySinh }}</p>
+                <p v-else id="nv-ngay-sinh-msg" class="ad-hint" data-testid="nv-huong-dan-tuoi">{{ HUONG_DAN_TUOI_NHAN_VIEN }}</p>
               </div>
 
               <div class="col-md-6">
                 <label class="ad-label" for="nv-ngay-vao-lam">Ngày vào làm</label>
-                <input
+                <DateInput
                   id="nv-ngay-vao-lam"
                   v-model="form.ngayVaoLam"
-                  type="date"
+                  :min="isEdit ? undefined : ngayVaoLamToiThieu"
+                  :max="isEdit ? undefined : ngayHomNay"
                   class="form-control ad-control"
-                  :class="{ 'is-invalid': errors.ngayVaoLam }"
+                  :class="{ 'is-invalid': loi.ngayVaoLam }"
                   :readonly="isEdit"
-                  :aria-invalid="!!errors.ngayVaoLam"
+                  :aria-invalid="!!loi.ngayVaoLam"
+                  aria-describedby="nv-ngay-vao-lam-msg"
+                  @update:model-value="sua('ngayVaoLam')"
+                  @blur="cham('ngayVaoLam')"
                 />
                 <p v-if="isEdit" class="ad-hint">Ngày vào làm là mốc tuyển dụng nên không thể đổi.</p>
-                <p v-if="errors.ngayVaoLam" class="ad-error">{{ errors.ngayVaoLam }}</p>
+                <p v-if="loi.ngayVaoLam" id="nv-ngay-vao-lam-msg" class="ad-error">{{ loi.ngayVaoLam }}</p>
               </div>
             </div>
           </section>
@@ -639,8 +711,8 @@ async function doiTrangThai() {
                   col-class="col-md-6"
                   select-class="form-select ad-control"
                   label-class="ad-label"
-                  :invalid-tinh="!!dcForm.loi.tinhThanh"
-                  :invalid-phuong="!!dcForm.loi.phuongXa"
+                  :error-tinh="loiDc.tinhThanh"
+                  :error-phuong="loiDc.phuongXa"
                 />
                 <div class="col-12">
                   <label class="ad-label" for="nv-dc-chi-tiet">Địa chỉ cụ thể <span class="ad-required">*</span></label>
@@ -650,13 +722,14 @@ async function doiTrangThai() {
                     type="text"
                     maxlength="255"
                     class="form-control ad-control"
-                    :class="{ 'is-invalid': dcForm.loi.diaChiCuThe }"
+                    :class="{ 'is-invalid': loiDc.diaChiCuThe }"
                     placeholder="Số nhà, tên đường, thôn / tổ..."
                     autocomplete="off"
+                    :aria-invalid="!!loiDc.diaChiCuThe"
+                    aria-describedby="nv-dc-chi-tiet-msg"
                     @keydown.enter.prevent="luuFormDiaChi"
                   />
-                  <p v-if="dcForm.loi.tinhThanh || dcForm.loi.phuongXa" class="ad-error">{{ dcForm.loi.tinhThanh || dcForm.loi.phuongXa }}</p>
-                  <p v-if="dcForm.loi.diaChiCuThe" class="ad-error">{{ dcForm.loi.diaChiCuThe }}</p>
+                  <p v-if="loiDc.diaChiCuThe" id="nv-dc-chi-tiet-msg" class="ad-error">{{ loiDc.diaChiCuThe }}</p>
                   <p v-if="diaChiTrenCccd" class="ad-hint">
                     Địa chỉ trên căn cước: <strong>{{ diaChiTrenCccd }}</strong>
                     <button type="button" class="btn btn-link btn-sm py-0" @click="dungDiaChiTrenCccd">Dùng làm địa chỉ cụ thể</button>
@@ -669,7 +742,7 @@ async function doiTrangThai() {
               </div>
             </div>
 
-            <p v-if="errors.diaChis" class="ad-error mt-2">{{ errors.diaChis }}</p>
+            <p v-if="loi.diaChis" id="nv-dia-chi-msg" class="ad-error mt-2">{{ loi.diaChis }}</p>
           </section>
 
           <div class="d-flex justify-content-end gap-2 mt-4">

@@ -34,4 +34,21 @@ export const nhanVienService = {
   async toggleActive(id) {
     return (await api.put(`/nhan-vien/${id}/trang-thai`)).data
   },
+
+  /**
+   * Nhập HÀNG LOẠT từ file Excel (.xlsx). chiKiemTra = true: chỉ kiểm tra file, chưa lưu gì.
+   * File sai dù chỉ một dòng -> HTTP 422, error.code = 'FILE_KHONG_HOP_LE', error.chiTiet = { loi: [{ dong, truong, cot, thongBao }], tongDong, soDongLoi }.
+   * Hợp lệ -> { daLuu, soNhanVien, xemTruoc: [{ dong, ma, hoTen, email, vaiTro }], taiKhoan: [{ ma, hoTen, email, vaiTro, matKhauTam }], maLo, soMail, mailDaCauHinh }.
+   */
+  async importExcel(file, { chiKiemTra = false } = {}) {
+    const data = new FormData()
+    data.append('file', file)
+    data.append('chiKiemTra', chiKiemTra ? 'true' : 'false')
+    return (await api.post('/nhan-vien/import', data, { headers: { 'Content-Type': 'multipart/form-data' } })).data
+  },
+
+  /** Tiến độ gửi mail tài khoản của một lần nhập: { tong, daGui, loi, giaLap, xong, lyDo }. */
+  async ketQuaMailImport(lo) {
+    return (await api.get('/nhan-vien/import/ket-qua-mail', { params: { lo } })).data
+  },
 }

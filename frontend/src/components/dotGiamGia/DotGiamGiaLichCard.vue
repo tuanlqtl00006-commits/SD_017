@@ -1,14 +1,17 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { dotGiamGiaService } from '../../services/dotGiamGiaService'
+import { CHE_DO_CHONG_DOT } from '../../constants/dotGiamGia'
 import { formatMoney } from '../../utils/format'
+import { formatPhanTram } from '../../utils/giamGia'
+import { dinhDangNgayGio } from '../../utils/ngayGio'
 
 /*
- * Lịch giảm giá theo KHOẢNG NGÀY của từng biến thể trong một đợt (dữ liệu tính ở backend: LichGiamGiaService).
- * Khi nhiều đợt cùng áp dụng cho một biến thể trong cùng một ngày thì backend gộp theo cách đã cấu hình
- * (app.giam-gia.che-do-chong-dot: MAX = mức cao nhất, mặc định; TRUNG_BINH = trung bình cộng);
- * cả mức cao nhất và trung bình cộng của các đợt chồng nhau đều hiển thị bên cạnh để đối chiếu.
- * Thay đổi gì ở đợt (ngày, %, biến thể) thì bấm "Tải lại" hoặc lưu xong vào lại trang để thấy lịch mới.
+ * Lịch giảm giá theo KHOẢNG NGÀY GIỜ của từng biến thể trong một đợt (dữ liệu tính ở backend: LichGiamGiaService).
+ * Khi nhiều đợt cùng áp dụng cho một biến thể trong cùng một khoảng thời gian thì backend gộp theo cách đã cấu hình
+ * (app.giam-gia.che-do-chong-dot: MAX = mức cao nhất, mặc định; CONG_DON = cộng dồn, tối đa 100%; TRUNG_BINH = trung bình cộng);
+ * mức của cả ba cách đều hiển thị bên cạnh để đối chiếu, cách đang dùng được tô xanh.
+ * Thay đổi gì ở đợt (ngày giờ, %, biến thể) thì bấm "Tải lại" hoặc lưu xong vào lại trang để thấy lịch mới.
  */
 const props = defineProps({
   idDot: { type: Number, required: true },
@@ -18,6 +21,8 @@ const props = defineProps({
 const lich = ref([])
 const dangTai = ref(true)
 const loi = ref('')
+const cheDo = ref('MAX') // cách gộp đang dùng (backend cấu hình)
+const moTaCheDo = ref('')
 
 async function tai() {
   dangTai.value = true
@@ -29,17 +34,28 @@ async function tai() {
   } finally {
     dangTai.value = false
   }
+  try {
+    const kq = await dotGiamGiaService.cheDo()
+    if (kq?.cheDo) {
+      cheDo.value = kq.cheDo
+      moTaCheDo.value = kq.moTa || ''
+    }
+  } catch {
+    // Backend cũ chưa có API này: chỉ không hiện dòng cách tính
+  }
 }
 onMounted(tai)
 watch(() => props.idDot, tai)
 
-// 'yyyy-mm-dd' -> 'd/m/yyyy'
-const ngay = (iso) => {
-  const [y, m, d] = String(iso).split('-')
-  return `${Number(d)}/${Number(m)}/${y}`
-}
 const soBienThe = computed(() => lich.value.length)
 const coChong = (doan) => doan.cacDot.length > 1
+const thongTinCheDo = computed(() => CHE_DO_CHONG_DOT[cheDo.value] ?? CHE_DO_CHONG_DOT.MAX)
+// Ba mức của đoạn chồng nhau; cách đang dùng được tô xanh
+const cacMuc = (d) => [
+  { khoa: 'MAX', ngan: 'Cao nhất', giaTri: d.phanTramCaoNhat },
+  { khoa: 'CONG_DON', ngan: 'Cộng dồn', giaTri: d.phanTramCongDon },
+  { khoa: 'TRUNG_BINH', ngan: 'Trung bình', giaTri: d.phanTramTrungBinh },
+].filter((m) => m.giaTri !== undefined && m.giaTri !== null)
 </script>
 
 <template>
@@ -47,9 +63,10 @@ const coChong = (doan) => doan.cacDot.length > 1
     <header class="ad-card-head">
       <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-calendar2-range"></i></span>
       <div class="flex-grow-1">
-        <h2 class="ad-card-title">Lịch giảm giá theo ngày</h2>
+        <h2 class="ad-card-title">Lịch giảm giá theo ngày giờ</h2>
         <p class="ad-card-sub">
-          Mức giảm thật sự của từng biến thể trong khoảng ngày của đợt. Nhiều đợt chồng nhau thì tự gộp theo cấu hình (mặc định lấy mức giảm cao nhất, có thể đổi sang trung bình cộng).
+          Mức giảm thật sự của từng biến thể trong khoảng ngày giờ của đợt. Nhiều đợt chồng nhau thì tự gộp theo cách đang cấu hình
+          (mặc định lấy mức giảm cao nhất; có thể đổi sang cộng dồn hoặc trung bình cộng).
         </p>
       </div>
       <button type="button" class="ad-btn" :disabled="dangTai" @click="tai">
@@ -57,6 +74,10 @@ const coChong = (doan) => doan.cacDot.length > 1
       </button>
     </header>
 
+    <p class="lich-che-do" data-testid="lich-che-do">
+      Cách tính khi chồng đợt: <span class="ad-pill ad-pill-blue" :data-che-do="cheDo">{{ thongTinCheDo.label }}</span>
+      <span v-if="moTaCheDo" class="lich-che-do-mo-ta">{{ moTaCheDo }}</span>
+    </p>
     <p v-if="dotDangTat" class="ad-hint lich-note">
       <i class="bi bi-info-circle" aria-hidden="true"></i>
       Đợt này đang tắt nên không được tính vào lịch (chỉ các đợt đang bật mới giảm giá).
@@ -82,8 +103,8 @@ const coChong = (doan) => doan.cacDot.length > 1
           <table class="ad-table lich-table">
             <thead>
               <tr>
-                <th>Từ ngày</th>
-                <th>Đến ngày</th>
+                <th>Từ lúc</th>
+                <th>Đến lúc</th>
                 <th>Đợt áp dụng</th>
                 <th>Mức giảm</th>
                 <th>Giá sau giảm</th>
@@ -93,18 +114,19 @@ const coChong = (doan) => doan.cacDot.length > 1
               <tr v-if="!b.doan.length">
                 <td colspan="5" class="lich-empty">Không có đoạn giảm giá nào (đợt đang tắt hoặc đã bị gỡ).</td>
               </tr>
-              <tr v-for="d in b.doan" :key="d.tuNgay">
-                <td class="ad-nowrap">{{ ngay(d.tuNgay) }}</td>
-                <td class="ad-nowrap">{{ ngay(d.denNgay) }}</td>
+              <tr v-for="d in b.doan" :key="d.tuLuc">
+                <td class="ad-nowrap">{{ dinhDangNgayGio(d.tuLuc) }}</td>
+                <td class="ad-nowrap">{{ dinhDangNgayGio(d.denLuc) }}</td>
                 <td>
                   <div v-for="x in d.cacDot" :key="x.idDot" class="lich-dot">
                     <span class="ad-code">{{ x.maDot }}</span> {{ x.phanTram }}%
                   </div>
                 </td>
                 <td class="ad-nowrap">
-                  <strong class="lich-pct">{{ d.phanTramApDung }}%</strong>
+                  <strong class="lich-pct">{{ formatPhanTram(d.phanTramApDung) }}</strong>
                   <div v-if="coChong(d)" class="lich-sub">
-                    chồng {{ d.cacDot.length }} đợt · cao nhất {{ d.phanTramCaoNhat }}% · TB cộng {{ d.phanTramTrungBinh }}%
+                    chồng {{ d.cacDot.length }} đợt:
+                    <span v-for="m in cacMuc(d)" :key="m.khoa" class="lich-muc" :class="{ on: m.khoa === cheDo }" :data-che-do="m.khoa">{{ m.ngan }} {{ formatPhanTram(m.giaTri) }}</span>
                   </div>
                 </td>
                 <td class="ad-nowrap"><strong class="lich-sale">{{ formatMoney(d.giaSauGiam) }}</strong></td>
@@ -169,5 +191,28 @@ const coChong = (doan) => doan.cacDot.length > 1
 }
 .lich-note {
   margin: 0 0 0.75rem;
+}
+.lich-che-do {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+.lich-che-do-mo-ta {
+  color: var(--fs-text-2);
+}
+.lich-muc {
+  display: inline-block;
+  margin-right: 0.35rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: #eef1f5;
+}
+.lich-muc.on {
+  background: var(--fs-success, #198754);
+  color: #fff;
+  font-weight: 600;
 }
 </style>

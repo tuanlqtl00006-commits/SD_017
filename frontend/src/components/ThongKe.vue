@@ -5,10 +5,12 @@ import api from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatDate, formatMoney, todayIso } from '../utils/format'
+import { TRANG_THAI_HOA_DON, TT } from '../constants/hoaDon'
 import {
   KHOANG_NHANH, TT_HOAN_THANH, congNgay, donGanNhat, gomCot, kyTruoc, lamTronTran, locTheoKhoang,
   nhanTienGon, phanTramThayDoi, theoLoaiDon, tinhKhoang, tongHop, xepHang,
 } from '../utils/thongKe'
+import DateInput from './common/DateInput.vue'
 
 // Trang Thống kê: tính từ danh sách hóa đơn có sẵn (GET /api/hoa-don), không cần thêm API mới.
 // Doanh thu chỉ tính đơn đã hoàn thành. Có so sánh với kỳ liền trước (cùng độ dài) khi chọn 7 / 30 / 90 ngày hoặc tự chọn đủ 2 đầu.
@@ -20,15 +22,21 @@ const khoang = ref(30) // 7 | 30 | 90 | 0 (tất cả) | -1 (tự chọn)
 const tuChon = ref(congNgay(todayIso(), -29))
 const denChon = ref(todayIso())
 
-const TRANG_THAI = {
-  0: { label: 'Đã hủy', color: '#e5484d' },
-  1: { label: 'Chờ xác nhận', color: '#f5a524' },
-  2: { label: 'Đã xác nhận', color: '#8bbdf5' },
-  3: { label: 'Chờ giao hàng', color: '#4a9af0' },
-  4: { label: 'Đang giao hàng', color: '#0977ec' },
-  5: { label: 'Đã giao hàng', color: '#1c2530' },
-  6: { label: 'Đã hoàn thành', color: '#17a34a' },
+// Màu từng trạng thái trên biểu đồ; nhãn lấy từ constants/hoaDon.js để không lệch với trang Hóa đơn
+// (không đưa "Hoàn tiền" vào vì chưa có đơn nào ở trạng thái đó)
+const MAU_TRANG_THAI = {
+  [TT.DA_HUY]: '#e5484d',
+  [TT.CHO_XAC_NHAN]: '#f5a524',
+  [TT.DA_XAC_NHAN]: '#8bbdf5',
+  [TT.CHO_LAY_HANG]: '#4a9af0',
+  [TT.DANG_GIAO]: '#0977ec',
+  [TT.GIAO_THAT_BAI]: '#e8751a',
+  [TT.DA_GIAO]: '#1c2530',
+  [TT.HOAN_THANH]: '#17a34a',
 }
+const TRANG_THAI = Object.fromEntries(
+  Object.entries(MAU_TRANG_THAI).map(([ma, color]) => [ma, { label: TRANG_THAI_HOA_DON[ma].label, color }]),
+)
 const ttOf = (v) => TRANG_THAI[v] ?? { label: 'Không rõ', color: '#7a8696' }
 
 async function load() {
@@ -141,11 +149,11 @@ const ngayHienThi = (v) => { const s = String(v ?? '').slice(0, 10); return s ? 
       <div v-if="khoang === -1" class="d-flex flex-wrap align-items-end gap-3 mt-3" data-test="tk-tu-chon">
         <div>
           <label for="tk-tu" class="form-label small mb-1">Từ ngày</label>
-          <input id="tk-tu" v-model="tuChon" type="date" class="form-control form-control-sm" :max="denChon || homNay" />
+          <DateInput id="tk-tu" v-model="tuChon" class="form-control form-control-sm" :max="denChon || homNay" />
         </div>
         <div>
           <label for="tk-den" class="form-label small mb-1">Đến ngày</label>
-          <input id="tk-den" v-model="denChon" type="date" class="form-control form-control-sm" :min="tuChon" />
+          <DateInput id="tk-den" v-model="denChon" class="form-control form-control-sm" :min="tuChon" />
         </div>
         <p v-if="!tuChon && !denChon" class="text-muted small mb-1">Chưa chọn ngày nào nên đang xem toàn bộ thời gian.</p>
       </div>

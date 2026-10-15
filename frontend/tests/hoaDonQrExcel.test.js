@@ -17,13 +17,23 @@ const CHI_TIET = {
   daThanhToan: 0,
 }
 
+// Chờ trang chi tiết tải xong và mã QR (tạo bất đồng bộ, tốn CPU nên máy chậm lâu hơn) hiện ra.
+// Không chờ một khoảng cố định (30ms) vì máy yếu / đang bận sẽ chưa kịp và test báo lỗi oan.
+async function choTaiXong(w) {
+  await flushPromises()
+  try {
+    await vi.waitFor(() => expect(w.find('.hd-qr img').exists()).toBe(true), { timeout: 3000 })
+  } catch { /* không tạo được QR (vd. dữ liệu thiếu mã hóa đơn) hoặc trang lỗi: để từng test tự kiểm tra */ }
+  await flushPromises()
+}
+
 async function montarChiTiet() {
   mock = { get: vi.fn(async () => ({ data: CHI_TIET })) }
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/hoa-don', component: { template: '<div/>' } }, { path: '/hoa-don/:id', component: { template: '<div/>' } }] })
   router.push('/hoa-don/1'); await router.isReady()
   const Comp = (await import('../src/components/HoaDonChiTiet.vue')).default
   const w = mount(Comp, { global: { plugins: [router] }, attachTo: document.body })
-  await flushPromises(); await new Promise((r) => setTimeout(r, 30)); await flushPromises()
+  await choTaiXong(w)
   return w
 }
 

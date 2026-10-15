@@ -29,7 +29,7 @@ public final class PhieuMailNoiDung {
     /** Mã định danh của logo gắn kèm trong thư; HTML dùng src="cid:logo". */
     public static final String CID_LOGO = "logo";
 
-    private static final DateTimeFormatter NGAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter NGAY_GIO = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
     private static final String PHONG = "font-family:Arial,Helvetica,sans-serif;";
 
     private final String tenCuaHang;
@@ -260,15 +260,16 @@ public final class PhieuMailNoiDung {
         return (v == null || v <= 0) ? "Không yêu cầu" : tien(v);
     }
 
+    /** Ví dụ "08:00 09/10/2026 – 23:59 15/10/2026" (phiếu có ngày GIỜ bắt đầu / kết thúc). */
     private String hieuLuc(PhieuGiamGia p) {
-        return (p.getNgayBatDau() == null ? "" : p.getNgayBatDau().format(NGAY))
+        return (p.getNgayBatDau() == null ? "" : p.getNgayBatDau().format(NGAY_GIO))
                 + " – "
-                + (p.getNgayKetThuc() == null ? "" : p.getNgayKetThuc().format(NGAY));
+                + (p.getNgayKetThuc() == null ? "" : p.getNgayKetThuc().format(NGAY_GIO));
     }
 
     public static String tien(Long v) {
         long x = v == null ? 0 : v;
-        return String.format(new Locale("vi", "VN"), "%,d ₫", x);
+        return String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", x);
     }
 
     /** Chỉ nhận địa chỉ http / https, còn lại coi như không có. */

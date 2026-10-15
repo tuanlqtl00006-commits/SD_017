@@ -3,19 +3,20 @@ package com.footstyle.demo.service;
 import com.footstyle.demo.dto.KhachHangTomTatResponse;
 import com.footstyle.demo.dto.PhieuGiamGiaRequest;
 import com.footstyle.demo.dto.PhieuGiamGiaResponse;
+import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.PhieuGiamGia;
 import com.footstyle.demo.entity.PhieuGiamGiaKhachHang;
 import com.footstyle.demo.exception.ApiException;
+import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.KhachHangRepository;
 import com.footstyle.demo.repository.PhieuGiamGiaKhachHangRepository;
 import com.footstyle.demo.repository.PhieuGiamGiaRepository;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -40,7 +41,13 @@ public class PhieuGiamGiaService {
     private final PhieuGiamGiaRepository phieuRepo;
     private final PhieuGiamGiaKhachHangRepository phieuKhRepo;
     private final KhachHangRepository khachHangRepo;
+    private final HoaDonRepository hoaDonRepo; // chỉ để đếm đơn đã hoàn thành của khách (bảng chọn khách)
     private final MailService mailService;
+
+    // Giới hạn trên của các con số nhập vào (chặn gõ nhầm thừa số 0)
+    static final long TIEN_GIAM_TOI_DA = 100_000_000L;      // 100 triệu
+    static final long DON_TOI_THIEU_TOI_DA = 1_000_000_000L; // 1 tỷ
+    static final int SO_LUONG_TOI_DA = 1_000_000;
 
     /* ===================== Đọc ===================== */
 
@@ -69,9 +76,10 @@ public class PhieuGiamGiaService {
     // Khách hàng đang hoạt động, dùng cho ô chọn khi tặng phiếu cá nhân
     @Transactional(readOnly = true)
     public List<KhachHangTomTatResponse> getKhachHangCoTheChon() {
+        Map<Integer, ThongKeMua> thongKe = thongKeMuaHang();
         List<KhachHangTomTatResponse> ketQua = new ArrayList<>();
         for (KhachHang k : khachHangRepo.findByTrangThaiOrderByHoTenAsc(1)) {
-            ketQua.add(toKhachHang(k, false));
+            ketQua.add(toKhachHang(k, false, thongKe));
         }
         return ketQua;
     }
@@ -89,6 +97,9 @@ public class PhieuGiamGiaService {
         p.setSoLuongDaDung(0);
         p.setTrangThai(PhieuGiamGia.HOAT_DONG);
         napDuLieu(p, req, true);
+        if (CA_NHAN.equals(req.hinhThuc())) {
+            kiemTraKhachDangHoatDong(layDanhSachKhachHang(req), List.of()); // kiểm tra trước khi lưu
+        }
         p = phieuRepo.save(p);
 
         // Phiếu cá nhân: mỗi khách được tặng là 1 dòng trong bảng phieu_giam_gia_khach_hang
@@ -109,7 +120,7 @@ public class PhieuGiamGiaService {
         PhieuGiamGia p = timPhieu(id);
         List<PhieuGiamGiaKhachHang> lienKetCu = phieuKhRepo.findByIdPhieuGiamGia(id);
 
-        // Chỉ phiếu còn "Sắp diễn ra" (chưa tới ngày bắt đầu) mới gửi mail khi sửa; xét TRƯỚC khi nạp dữ liệu mới
+        // Chỉ phiếu còn "Sắp diễn ra" (chưa tới GIỜ bắt đầu) mới gửi mail khi sửa; xét TRƯỚC khi nạp dữ liệu mới
         boolean sapDienRa = p.getNgayBatDau() != null && p.getNgayBatDau().isAfter(LocalDateTime.now());
 
         // Phiếu đã có người dùng thì không được đổi giữa công khai <-> cá nhân
@@ -190,7 +201,7 @@ public class PhieuGiamGiaService {
     }
 
     private String chuanHoaMa(String ma) {
-        String m = ma == null ? "" : ma.trim().toUpperCase();
+        String m = ma == null ? "" : ma.trim().toUpperCase(Locale.ROOT);
         loi(m.isEmpty(), "Nhập mã phiếu.");
         loi(!m.matches("[A-Z0-9]{4,20}"), "Mã gồm 4-20 ký tự chữ hoặc số, không dấu, không khoảng trắng.");
         return m;
@@ -215,23 +226,27 @@ public class PhieuGiamGiaService {
         loi(giaTri == null, "Nhập giá trị giảm.");
         loi(phanTram && (giaTri < 1 || giaTri > 100), "Phần trăm giảm từ 1 đến 100.");
         loi(!phanTram && giaTri < 1000, "Số tiền giảm tối thiểu 1.000 ₫.");
+        loi(!phanTram && giaTri > TIEN_GIAM_TOI_DA, "Số tiền giảm tối đa 100.000.000 ₫.");
 
         // Giảm tối đa chỉ dùng cho giảm theo %
         Long giamToiDa = phanTram ? req.giamToiDa() : null;
         loi(giamToiDa != null && giamToiDa <= 0, "Giảm tối đa phải lớn hơn 0, hoặc để trống nếu không giới hạn.");
+        loi(giamToiDa != null && giamToiDa > TIEN_GIAM_TOI_DA, "Giảm tối đa không quá 100.000.000 ₫.");
 
         // Đơn tối thiểu (không nhập thì là 0)
         long donToiThieu = req.donToiThieu() == null ? 0 : req.donToiThieu();
         loi(donToiThieu < 0, "Đơn tối thiểu không được âm.");
+        loi(donToiThieu > DON_TOI_THIEU_TOI_DA, "Đơn tối thiểu không quá 1.000.000.000 ₫.");
         loi(!phanTram && donToiThieu > 0 && giaTri > donToiThieu, "Đơn tối thiểu phải lớn hơn hoặc bằng số tiền giảm.");
 
-        // Ngày bắt đầu / kết thúc
-        LocalDate batDau = req.ngayBatDau();
-        LocalDate ketThuc = req.ngayKetThuc();
-        loi(batDau == null, "Chọn ngày bắt đầu.");
-        loi(ketThuc == null, "Chọn ngày kết thúc.");
-        loi(ketThuc.isBefore(batDau), "Ngày kết thúc phải sau hoặc cùng ngày bắt đầu.");
-        loi(taoMoi && ketThuc.isBefore(LocalDate.now()), "Ngày kết thúc không được ở quá khứ.");
+        // Ngày GIỜ bắt đầu / kết thúc (tính theo phút: kết thúc 17:00 là dùng được tới hết phút 17:00) - quy ước chung ở ThoiGianPhut
+        loi(req.ngayBatDau() == null, "Chọn ngày giờ bắt đầu.");
+        loi(req.ngayKetThuc() == null, "Chọn ngày giờ kết thúc.");
+        LocalDateTime batDau = ThoiGianPhut.dauPhut(req.ngayBatDau());
+        LocalDateTime ketThuc = ThoiGianPhut.cuoiPhut(req.ngayKetThuc());
+        String loiGio = ThoiGianPhut.kiemTra("Phiếu", batDau, ketThuc, taoMoi ? null : p.getNgayBatDau(),
+                taoMoi ? null : p.getNgayKetThuc(), taoMoi, LocalDateTime.now());
+        loi(loiGio != null, loiGio);
 
         // Số lượng và giới hạn mỗi khách
         int soLuong;
@@ -242,6 +257,7 @@ public class PhieuGiamGiaService {
             gioiHan = 1;
         } else {
             loi(req.soLuong() == null || req.soLuong() < 1, "Số lượng là số nguyên từ 1 trở lên.");
+            loi(req.soLuong() > SO_LUONG_TOI_DA, "Số lượng tối đa 1.000.000 phiếu.");
             soLuong = req.soLuong();
             loi(soLuong < soLuongDaDung(p), "Số lượng không được nhỏ hơn số phiếu đã dùng (" + soLuongDaDung(p) + ").");
             gioiHan = req.gioiHanMoiKhach();
@@ -258,8 +274,8 @@ public class PhieuGiamGiaService {
         p.setGiaTriDonHangToiThieu(donToiThieu);
         p.setSoLuong(soLuong);
         p.setGioiHanMoiKhach(gioiHan);
-        p.setNgayBatDau(batDau.atStartOfDay());                      // 00:00:00
-        p.setNgayKetThuc(ketThuc.atTime(LocalTime.of(23, 59, 59)));  // hết ngày kết thúc
+        p.setNgayBatDau(batDau);   // đầu phút bắt đầu (hh:mm:00)
+        p.setNgayKetThuc(ketThuc); // hết phút kết thúc (hh:mm:59)
     }
 
     // Gộp các thông tin khách hàng nhìn thấy trong mail thành 1 chuỗi, để so sánh trước / sau khi sửa
@@ -361,6 +377,15 @@ public class PhieuGiamGiaService {
         return ids;
     }
 
+    // Không tặng phiếu cho khách đã ngừng hoạt động (bỏ qua các id trong boQua = khách đã được tặng từ trước)
+    private void kiemTraKhachDangHoatDong(List<Integer> ids, List<Integer> boQua) {
+        for (KhachHang k : khachHangRepo.findAllById(ids)) {
+            if (boQua.contains(k.getId())) continue;
+            loi(!Integer.valueOf(1).equals(k.getTrangThai()),
+                    "Khách hàng " + k.getHoTen() + " đã ngừng hoạt động, không thể tặng phiếu.");
+        }
+    }
+
     private PhieuGiamGiaKhachHang taoLienKet(Integer idPhieu, Integer idKhachHang) {
         PhieuGiamGiaKhachHang l = new PhieuGiamGiaKhachHang();
         l.setIdPhieuGiamGia(idPhieu);
@@ -377,6 +402,12 @@ public class PhieuGiamGiaService {
             return;
         }
         List<Integer> idMoi = layDanhSachKhachHang(req);
+        // Khách đã được tặng từ trước mà nay ngừng hoạt động thì vẫn giữ; chỉ khách THÊM MỚI phải đang hoạt động
+        List<Integer> idCu = new ArrayList<>();
+        for (PhieuGiamGiaKhachHang l : lienKetCu) {
+            idCu.add(l.getIdKhachHang());
+        }
+        kiemTraKhachDangHoatDong(idMoi, idCu);
 
         // Duyệt các khách đang được tặng: ai không còn trong danh sách mới thì xóa
         List<PhieuGiamGiaKhachHang> canXoa = new ArrayList<>();
@@ -403,17 +434,47 @@ public class PhieuGiamGiaService {
     // Khách hàng được tặng phiếu (kèm cờ đã dùng hay chưa)
     private List<KhachHangTomTatResponse> getKhachHangDuocTang(Integer idPhieu) {
         List<KhachHangTomTatResponse> ketQua = new ArrayList<>();
-        for (PhieuGiamGiaKhachHang l : phieuKhRepo.findByIdPhieuGiamGia(idPhieu)) {
+        List<PhieuGiamGiaKhachHang> lienKets = phieuKhRepo.findByIdPhieuGiamGia(idPhieu);
+        if (lienKets.isEmpty()) {
+            return ketQua; // phiếu công khai: khỏi tính thống kê mua hàng
+        }
+        Map<Integer, ThongKeMua> thongKe = thongKeMuaHang();
+        for (PhieuGiamGiaKhachHang l : lienKets) {
             KhachHang k = khachHangRepo.findById(l.getIdKhachHang()).orElse(null);
             if (k != null) {
-                ketQua.add(toKhachHang(k, l.getNgaySuDung() != null));
+                ketQua.add(toKhachHang(k, l.getNgaySuDung() != null, thongKe));
             }
         }
         return ketQua;
     }
 
-    private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung) {
-        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), daDung);
+    /** Số đơn đã hoàn thành + ngày mua gần nhất của một khách. */
+    private record ThongKeMua(int tongDon, LocalDateTime muaGanNhat) {
+    }
+
+    // { idKhachHang -> thống kê } của mọi khách đã có đơn hoàn thành (khách chưa mua thì không có trong map)
+    private Map<Integer, ThongKeMua> thongKeMuaHang() {
+        Map<Integer, ThongKeMua> ketQua = new HashMap<>();
+        for (Object[] r : hoaDonRepo.thongKeMuaHangTheoKhach(HoaDon.HOAN_THANH)) {
+            if (r == null || r.length < 3 || !(r[0] instanceof Number)) {
+                continue;
+            }
+            int tong = r[1] instanceof Number n ? n.intValue() : 0;
+            LocalDateTime gan = null;
+            if (r[2] instanceof LocalDateTime t) {
+                gan = t;
+            } else if (r[2] instanceof java.sql.Timestamp ts) {
+                gan = ts.toLocalDateTime();
+            }
+            ketQua.put(((Number) r[0]).intValue(), new ThongKeMua(tong, gan));
+        }
+        return ketQua;
+    }
+
+    private KhachHangTomTatResponse toKhachHang(KhachHang k, boolean daDung, Map<Integer, ThongKeMua> thongKe) {
+        ThongKeMua tk = thongKe.get(k.getId());
+        return new KhachHangTomTatResponse(k.getId(), k.getMaKhachHang(), k.getHoTen(), k.getSdt(), k.getEmail(), daDung,
+                k.getNgaySinh(), k.getGioiTinh(), tk == null ? 0 : tk.tongDon(), tk == null ? null : tk.muaGanNhat());
     }
 
     // Đổi entity thành dữ liệu trả về cho frontend (số trong DB -> chữ)
@@ -432,8 +493,8 @@ public class PhieuGiamGiaService {
                 p.getSoLuong(),
                 soLuongDaDung(p),
                 p.getGioiHanMoiKhach(),
-                p.getNgayBatDau() == null ? null : p.getNgayBatDau().toLocalDate(),
-                p.getNgayKetThuc() == null ? null : p.getNgayKetThuc().toLocalDate(),
+                p.getNgayBatDau(),
+                p.getNgayKetThuc(),
                 dangHoatDong(p),
                 khachHangs,
                 null);

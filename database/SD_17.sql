@@ -25,6 +25,7 @@ CREATE TABLE khach_hang (
     sdt VARCHAR(15),
     email VARCHAR(255),
     mat_khau VARCHAR(255),
+    anh_dai_dien NVARCHAR(500), -- ảnh đại diện (đường dẫn /api/uploads/... hoặc link http), có thể để trống
     ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
     ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP,
     trang_thai TINYINT DEFAULT 1

@@ -12,8 +12,8 @@ public class CorsConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
+                // Vite tự nhảy sang cổng 5174, 5175... khi 5173 đang bận nên cho phép mọi cổng của localhost / 127.0.0.1
                 registry.addMapping("/**")
-                        // Cho phép mọi cổng localhost (Vite tự nhảy sang 5174, 5175... khi 5173 đang bận)
                         .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")

@@ -7,7 +7,8 @@ import api from './api'
 // Đợt giảm giá trả về: { id, maDot, tenDot, phanTramGiamDot, ngayBatDau, ngayKetThuc ('yyyy-mm-ddTHH:mm:ss'), moTa, trangThai (1: đang hoạt động, 0: ngừng), ngayTao }
 // Chi tiết trả về:     { id, idSanPhamChiTiet, phanTramGiamBienThe, trangThai }
 // Gửi khi thêm / sửa:  { maDot, tenDot, phanTramGiamDot, ngayBatDau, ngayKetThuc, moTa, idBienThe: [id biến thể] }
-//   (backend nhận cả ngày 'yyyy-mm-dd' lẫn 'yyyy-mm-ddTHH:mm:ss', và cả tên cũ idBienThes)
+//   (ngày GIỜ: 'yyyy-mm-ddTHH:mm:ss'; backend nhận cả ngày 'yyyy-mm-dd' và tên cũ idBienThes. Tính theo phút: bắt đầu từ đầu phút
+//   bắt đầu, kết thúc tới hết phút kết thúc - xem ThoiGianPhut ở backend)
 // Hệ thống không xóa cứng dữ liệu: toggleActive chỉ đổi cột trang_thai.
 
 export const dotGiamGiaService = {
@@ -19,7 +20,7 @@ export const dotGiamGiaService = {
     return (await api.get(`/dot-giam-gia/${id}`)).data
   },
 
-  // Mã đợt do hệ thống sinh (DGG + số thứ tự, vd DGG009), không trùng mã đã có
+  // Mã đợt do hệ thống sinh (DGG + số thứ tự, vd DGG09), không trùng mã đã có
   async maMoi() {
     return (await api.get('/dot-giam-gia/ma-moi')).data.ma
   },
@@ -29,21 +30,27 @@ export const dotGiamGiaService = {
     return (await api.get(`/dot-giam-gia-chi-tiet/campaign/${id}`)).data
   },
 
-  // Lịch giảm giá theo khoảng ngày của từng biến thể trong đợt (tính cả các đợt khác chồng lên):
-  //   [{ idBienThe, maSpct, tenSanPham, giaBan, doan: [{ tuNgay, denNgay, phanTramApDung, phanTramCaoNhat, phanTramTrungBinh, cacDot, giaSauGiam }] }]
+  // Lịch giảm giá theo khoảng ngày giờ của từng biến thể trong đợt (tính cả các đợt khác chồng lên):
+  //   [{ idBienThe, maSpct, tenSanPham, giaBan,
+  //      doan: [{ tuLuc, denLuc ('yyyy-mm-ddTHH:mm:ss', đều tính), phanTramApDung, phanTramCaoNhat, phanTramCongDon, phanTramTrungBinh, cacDot, giaSauGiam }] }]
   async getLichGiamGia(id) {
     return (await api.get(`/dot-giam-gia/${id}/lich-giam-gia`)).data
   },
 
-  // Mức giảm đang áp dụng hôm nay của từng biến thể: { idBienThe: phanTram }
+  // Mức giảm đang áp dụng NGAY LÚC NÀY (tính tới giờ phút) của từng biến thể: { idBienThe: phanTram }
   async getApDungHomNay() {
     return (await api.get('/dot-giam-gia/ap-dung-hom-nay')).data
   },
 
   // Mức giảm của từng biến thể theo các đợt đang bật mà CHƯA kết thúc (đang diễn ra + sắp diễn ra), kèm cách gộp khi chồng nhau:
-  //   { chinhSach: 'MAX' | 'TRUNG_BINH', muc: [{ idBienThe, idDot, maDot, tenDot, phanTram, ngayBatDau, ngayKetThuc }] }
+  //   { chinhSach: 'MAX' | 'CONG_DON' | 'TRUNG_BINH', muc: [{ idBienThe, idDot, maDot, tenDot, phanTram, ngayBatDau, ngayKetThuc ('yyyy-mm-ddTHH:mm:ss') }] }
   async apDung() {
     return (await api.get('/dot-giam-gia/ap-dung')).data
+  },
+
+  // Cách gộp khi nhiều đợt chồng nhau (cấu hình ở backend): { cheDo: 'MAX' | 'CONG_DON' | 'TRUNG_BINH', moTa }
+  async cheDo() {
+    return (await api.get('/dot-giam-gia/che-do')).data
   },
 
   async create(payload) {

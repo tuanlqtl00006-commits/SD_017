@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { diaChiHanhChinhService } from '../../services/diaChiHanhChinhService'
 import { chuanHoaTenDonVi } from '../../utils/diaChi'
+import Select2 from './Select2.vue'
 
 /*
  * Hai ô chọn Tỉnh/Thành phố -> Phường/Xã theo đơn vị hành chính SAU SÁP NHẬP (provinces.open-api.vn, phiên bản 2).
@@ -20,6 +21,9 @@ const props = defineProps({
   labelClass: { type: String, default: 'form-label small text-muted mb-1' },
   invalidTinh: { type: Boolean, default: false },
   invalidPhuong: { type: Boolean, default: false },
+  // Câu báo lỗi hiện ngay dưới từng ô (có chữ thì ô tự viền đỏ); để trống thì không hiện gì.
+  errorTinh: { type: String, default: '' },
+  errorPhuong: { type: String, default: '' },
 })
 const emit = defineEmits(['update:tinhThanh', 'update:phuongXa'])
 
@@ -78,12 +82,26 @@ watch([() => tinhDangChon.value?.code, tinhList], taiPhuong, { immediate: true }
 const tinhLaDiaChiCu = computed(() => !!props.tinhThanh && !dangTaiTinh.value && tinhList.value.length > 0 && !tinhDangChon.value)
 const phuongLaDiaChiCu = computed(() => !!props.phuongXa && !dangTaiPhuong.value && !!tinhDangChon.value && phuongList.value.length > 0 && !phuongList.value.some((w) => w.name === props.phuongXa))
 
-function chonTinh(e) {
-  emit('update:tinhThanh', e.target.value)
+// Danh sách cho ô Select2 (có thể gõ để tìm tỉnh / phường); địa chỉ cũ (trước sáp nhập) vẫn hiện kèm chú thích
+const dsTinh = computed(() => [
+  ...(tinhLaDiaChiCu.value ? [{ value: props.tinhThanh, label: `${props.tinhThanh} (địa chỉ cũ)` }] : []),
+  ...tinhList.value.map((t) => ({ value: t.name, label: t.name })),
+])
+const dsPhuong = computed(() => [
+  ...(phuongLaDiaChiCu.value ? [{ value: props.phuongXa, label: `${props.phuongXa} (địa chỉ cũ)` }] : []),
+  ...phuongList.value.map((w) => ({ value: w.name, label: w.name })),
+])
+
+const tinhLoi = computed(() => props.invalidTinh || !!props.errorTinh)
+const phuongLoi = computed(() => props.invalidPhuong || !!props.errorPhuong)
+
+function chonTinh(ten) {
+  if (ten === props.tinhThanh) return
+  emit('update:tinhThanh', ten)
   emit('update:phuongXa', '') // đổi tỉnh thì phải chọn lại phường/xã
 }
-function chonPhuong(e) {
-  emit('update:phuongXa', e.target.value)
+function chonPhuong(ten) {
+  emit('update:phuongXa', ten)
 }
 function taiLai() {
   loiTai.value = ''
@@ -94,31 +112,35 @@ function taiLai() {
 <template>
   <div :class="colClass">
     <label class="d-block" :class="labelClass" :for="`${idPrefix}-tinh`">Tỉnh/Thành phố <span v-if="required" class="text-danger">*</span></label>
-    <select
+    <Select2
       :id="`${idPrefix}-tinh`"
-      :value="tinhThanh"
-      :class="[selectClass, { 'is-invalid': invalidTinh }]"
+      :model-value="tinhThanh"
+      :options="dsTinh"
+      :class="[selectClass, { 'is-invalid': tinhLoi }]"
+      :invalid="tinhLoi"
+      :aria-invalid="tinhLoi ? 'true' : undefined"
+      :aria-describedby="errorTinh ? `${idPrefix}-tinh-msg` : undefined"
       :disabled="disabled || dangTaiTinh"
-      @change="chonTinh"
-    >
-      <option value="">{{ dangTaiTinh ? 'Đang tải…' : 'Chọn Tỉnh/Thành phố' }}</option>
-      <option v-if="tinhLaDiaChiCu" :value="tinhThanh">{{ tinhThanh }} (địa chỉ cũ)</option>
-      <option v-for="t in tinhList" :key="t.code" :value="t.name">{{ t.name }}</option>
-    </select>
+      :placeholder="dangTaiTinh ? 'Đang tải…' : 'Chọn Tỉnh/Thành phố'"
+      @update:model-value="chonTinh"
+    />
+    <p v-if="errorTinh" :id="`${idPrefix}-tinh-msg`" class="ad-error">{{ errorTinh }}</p>
   </div>
   <div :class="colClass">
     <label class="d-block" :class="labelClass" :for="`${idPrefix}-phuong`">Phường/Xã <span v-if="required" class="text-danger">*</span></label>
-    <select
+    <Select2
       :id="`${idPrefix}-phuong`"
-      :value="phuongXa"
-      :class="[selectClass, { 'is-invalid': invalidPhuong }]"
+      :model-value="phuongXa"
+      :options="dsPhuong"
+      :class="[selectClass, { 'is-invalid': phuongLoi }]"
+      :invalid="phuongLoi"
+      :aria-invalid="phuongLoi ? 'true' : undefined"
+      :aria-describedby="errorPhuong ? `${idPrefix}-phuong-msg` : undefined"
       :disabled="disabled || !tinhDangChon || dangTaiPhuong"
-      @change="chonPhuong"
-    >
-      <option value="">{{ dangTaiPhuong ? 'Đang tải…' : 'Chọn Phường/Xã' }}</option>
-      <option v-if="phuongLaDiaChiCu" :value="phuongXa">{{ phuongXa }} (địa chỉ cũ)</option>
-      <option v-for="w in phuongList" :key="w.code" :value="w.name">{{ w.name }}</option>
-    </select>
+      :placeholder="dangTaiPhuong ? 'Đang tải…' : 'Chọn Phường/Xã'"
+      @update:model-value="chonPhuong"
+    />
+    <p v-if="errorPhuong" :id="`${idPrefix}-phuong-msg`" class="ad-error">{{ errorPhuong }}</p>
   </div>
   <div v-if="loiTai" class="col-12">
     <small class="text-danger">{{ loiTai }}</small>

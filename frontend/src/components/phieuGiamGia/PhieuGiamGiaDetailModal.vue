@@ -1,7 +1,8 @@
 <script setup>
 import BaseModal from '../common/BaseModal.vue'
 import { HINH_THUC, LOAI_GIAM, TRANG_THAI, formatGiaTri } from '../../constants/phieuGiamGia'
-import { formatDate, formatMoney } from '../../utils/format'
+import { formatMoney } from '../../utils/format'
+import { dinhDangNgayGio } from '../../utils/ngayGio'
 
 defineProps({
   // Phiếu kèm trường trangThai đã được tính sẵn ở trang danh sách
@@ -58,7 +59,7 @@ const emit = defineEmits(['close', 'edit'])
       </div>
       <div>
         <dt>Thời gian áp dụng</dt>
-        <dd>{{ formatDate(item.ngayBatDau) }} - {{ formatDate(item.ngayKetThuc) }}</dd>
+        <dd data-testid="pgg-ct-thoi-gian">{{ dinhDangNgayGio(item.ngayBatDau) }} - {{ dinhDangNgayGio(item.ngayKetThuc) }}</dd>
       </div>
       <div v-if="item.hinhThuc === 'CA_NHAN'" class="ad-dl-full">
         <dt>Khách hàng được tặng ({{ item.khachHangs?.length ?? 0 }})</dt>
@@ -67,6 +68,7 @@ const emit = defineEmits(['close', 'edit'])
             <li v-for="k in item.khachHangs" :key="k.id">
               <span>{{ k.hoTen }}</span>
               <span class="ad-code">{{ k.ma }}</span>
+              <span v-if="k.tongDon !== undefined" class="pgg-khach-phu">{{ k.tongDon }} đơn<template v-if="k.muaGanNhat"> · mua gần nhất {{ dinhDangNgayGio(k.muaGanNhat) }}</template></span>
               <span class="ad-pill" :class="k.daDung ? 'ad-pill-gray' : 'ad-pill-green'">{{ k.daDung ? 'Đã dùng' : 'Chưa dùng' }}</span>
             </li>
           </ul>
@@ -97,6 +99,11 @@ const emit = defineEmits(['close', 'edit'])
   gap: 0.6rem;
   padding: 0.35rem 0;
   border-bottom: 1px solid #eef1f5;
+}
+.pgg-khach-phu {
+  color: var(--fs-text-2);
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 .pgg-khach-list li > span:first-child {
   flex: 1;

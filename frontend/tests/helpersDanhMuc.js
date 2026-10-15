@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
 const t = (id, ma, ten, hoatDong = true) => ({ id, ma, ten, hoatDong })
 export const THUOC_TINH = {
   'danh-muc': [t(1, 'DM001', 'Vợt cầu lông'), t(2, 'DM002', 'Vợt cầu lông người mới'), t(3, 'DM003', 'Quần áo thể thao'), t(4, 'DM004', 'Túi - balo'), t(5, 'DM005', 'Phụ kiện'), t(6, 'DM006', 'Quả cầu lông')],
@@ -16,7 +17,8 @@ export const SAN_PHAM = [
   { id: 2, ma: 'SP002', ten: 'Grip Yonex', idDanhMuc: 5, idThuongHieu: 1, idXuatXu: 1, idChatLieu: 1, idDoCung: 90, idDiemCanBang: 91, hoatDong: true },
 ]
 export function mockApi(extra = {}) {
-  const calls = { post: [], put: [], get: [] }
+  const calls = { post: [], put: [], get: [], upload: [] }
+  let soAnh = 0
   const api = {
     get: vi.fn(async (url, cfg) => {
       calls.get.push([url, cfg])
@@ -27,8 +29,22 @@ export function mockApi(extra = {}) {
       if (url === '/bien-the-san-pham') return { data: [] }
       return { data: [] }
     }),
-    post: vi.fn(async (url, body) => { calls.post.push([url, body]); return { data: { id: 99 } } }),
+    post: vi.fn(async (url, body) => {
+      // Tải ảnh lên: ghi riêng để calls.post[0] vẫn là lần lưu sản phẩm / thuộc tính
+      if (url === '/hinh-anh/upload') { calls.upload.push([url, body]); return { data: { duongDan: `/api/uploads/anh-${++soAnh}.png` } } }
+      calls.post.push([url, body])
+      if (extra.post) { const r = extra.post(url, body); if (r !== undefined) return { data: r } }
+      return { data: { id: 99 } }
+    }),
     put: vi.fn(async (url, body) => { calls.put.push([url, body]); return { data: {} } }),
   }
   return { api, calls }
+}
+
+/** Chọn 1 file ảnh cho phần "Ảnh chung" của form sản phẩm (ảnh là bắt buộc nên mọi test lưu sản phẩm đều cần gọi). */
+export async function themAnhChung(w, ten = 'anh.png') {
+  const input = w.get('#sp-file-anh-chung')
+  Object.defineProperty(input.element, 'files', { value: [new File(['x'], ten, { type: 'image/png' })], configurable: true })
+  await input.trigger('change')
+  await flushPromises()
 }

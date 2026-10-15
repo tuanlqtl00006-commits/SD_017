@@ -1,10 +1,11 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
 import StatusSwitch from './common/StatusSwitch.vue'
+import Select2 from './common/Select2.vue'
 import DotGiamGiaChiTietModal from './dotGiamGia/DotGiamGiaChiTietModal.vue'
 import { dotGiamGiaService } from '../services/dotGiamGiaService'
 import { TRANG_THAI, dangHoatDong, daKetThuc, ngayIso, tinhTrangThai } from '../constants/dotGiamGia'
@@ -12,18 +13,28 @@ import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { todayIso } from '../utils/format'
+import { bayGioDayDu, dinhDangNgayGio } from '../utils/ngayGio'
 import { includesText } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
+import { tuBangHang } from '../utils/luaChon'
+import DateInput from './common/DateInput.vue'
 
 /*
- * Danh sách đợt giảm giá (giống video): bộ lọc + bảng STT / Mã / Tên / Giá trị / Ngày bắt đầu /
- * Ngày kết thúc / Trạng thái / Hành động (bật-tắt, xem chi tiết).
+ * Danh sách đợt giảm giá (giống video): bộ lọc + bảng STT / Mã / Tên / Giá trị / Ngày giờ bắt đầu /
+ * Ngày giờ kết thúc / Trạng thái / Hành động (bật-tắt, xem chi tiết).
  * - "Tạo đợt giảm giá" mở trang riêng /dot-giam-gia/them. Đợt mới nằm trên cùng (backend trả mới nhất trước).
  * - Hệ thống không xóa dữ liệu: nút nguồn chỉ bật / tắt hoạt động.
+ * - Trạng thái tính theo NGÀY GIỜ và chạy theo đồng hồ: tới giờ bắt đầu / kết thúc thì tự đổi, không cần tải lại trang.
  */
 const router = useRouter()
 const toast = useToast()
-const today = todayIso()
+const bayGio = ref(bayGioDayDu())
+let dongHo = null
+onMounted(() => {
+  dongHo = setInterval(() => (bayGio.value = bayGioDayDu()), 30000)
+})
+onBeforeUnmount(() => clearInterval(dongHo))
+const dsTrangThaiLoc = tuBangHang(TRANG_THAI, { tatCa: 'Tất cả trạng thái' })
 
 const list = ref([])
 const loading = ref(false)
@@ -33,20 +44,15 @@ const defaultFilters = () => ({ keyword: '', ngayBatDau: '', ngayKetThuc: '', tr
 const filters = reactive(defaultFilters())
 const resetFilters = () => Object.assign(filters, defaultFilters())
 
-// 'yyyy-mm-ddTHH:mm:ss' -> 'd/m/yyyy' (không thêm số 0 phía trước, đúng như video: 16/8/2026)
-function formatNgay(v) {
-  const iso = ngayIso(v)
-  if (!iso) return ''
-  const [y, m, d] = iso.split('-')
-  return `${Number(d)}/${Number(m)}/${y}`
-}
+// 'yyyy-mm-ddTHH:mm:ss' -> 'dd/mm/yyyy HH:mm'
+const formatNgay = dinhDangNgayGio
 
 const filtered = computed(() =>
   list.value.filter((d) => {
     const f = filters
     if (f.keyword && !includesText(`${d.maDot} ${d.tenDot} ${d.phanTramGiamDot}%`, f.keyword)) return false
-    if (f.trangThai && tinhTrangThai(d, today) !== f.trangThai) return false
-    // Ngày bắt đầu / kết thúc ở bộ lọc: đợt bắt đầu từ ngày... và kết thúc đến hết ngày...
+    if (f.trangThai && tinhTrangThai(d, bayGio.value) !== f.trangThai) return false
+    // Ngày bắt đầu / kết thúc ở bộ lọc (so theo NGÀY): đợt bắt đầu từ ngày... và kết thúc đến hết ngày...
     if (f.ngayBatDau && ngayIso(d.ngayBatDau) < f.ngayBatDau) return false
     if (f.ngayKetThuc && ngayIso(d.ngayKetThuc) > f.ngayKetThuc) return false
     return true
@@ -104,8 +110,8 @@ function exportFile() {
       { header: 'Mã', key: 'ma', width: 16 },
       { header: 'Tên', key: 'ten', width: 36 },
       { header: 'Giá trị giảm', key: 'giaTri', width: 14 },
-      { header: 'Ngày bắt đầu', key: 'ngayBatDau', width: 14 },
-      { header: 'Ngày kết thúc', key: 'ngayKetThuc', width: 14 },
+      { header: 'Ngày giờ bắt đầu', key: 'ngayBatDau', width: 18 },
+      { header: 'Ngày giờ kết thúc', key: 'ngayKetThuc', width: 18 },
       { header: 'Trạng thái', key: 'trangThai', width: 18 },
       { header: 'Mô tả', key: 'moTa', width: 36 },
     ],
@@ -116,11 +122,20 @@ function exportFile() {
       giaTri: `${d.phanTramGiamDot}%`,
       ngayBatDau: formatNgay(d.ngayBatDau),
       ngayKetThuc: formatNgay(d.ngayKetThuc),
-      trangThai: TRANG_THAI[tinhTrangThai(d, today)].label,
+      trangThai: TRANG_THAI[tinhTrangThai(d, bayGio.value)].label,
       moTa: d.moTa ?? '',
     })),
   })
   toast.success(`Đã xuất ${filtered.value.length} đợt giảm giá ra file Excel.`)
+}
+
+/* ----- Công tắc bật / tắt ----- */
+// Đợt đã quá giờ kết thúc ("Đã kết thúc"): công tắc hiện TẮT và bị khóa, không bật / tắt được nữa.
+const congTacBat = (d) => dangHoatDong(d) && !daKetThuc(d, bayGio.value)
+const congTacKhoa = (d) => daKetThuc(d, bayGio.value)
+function congTacNhan(d) {
+  if (daKetThuc(d, bayGio.value)) return 'Đã kết thúc - công tắc tắt, không thể bật / tắt'
+  return dangHoatDong(d) ? 'Đang bật - bấm để ngừng hoạt động' : 'Đang tắt - bấm để bật hoạt động'
 }
 
 /* ----- Bật / tắt hoạt động ----- */
@@ -135,7 +150,7 @@ const confirmContent = computed(() => {
         title: 'Ngừng hoạt động đợt giảm giá?',
         message: `Đợt ${d.maDot} (${d.tenDot}) sẽ ngừng áp dụng giảm giá cho các sản phẩm. Dữ liệu vẫn được giữ lại, bạn có thể bật lại bất cứ lúc nào.`,
         confirmText: 'Ngừng hoạt động',
-        variant: 'primary',
+        variant: 'danger',
         icon: 'warning',
       }
     : {
@@ -186,20 +201,17 @@ async function confirmToggle() {
 
         <div>
           <label class="ad-label" for="dgg-tu-ngay">Ngày bắt đầu</label>
-          <input id="dgg-tu-ngay" v-model="filters.ngayBatDau" type="date" class="form-control ad-control" />
+          <DateInput id="dgg-tu-ngay" v-model="filters.ngayBatDau" class="form-control ad-control" />
         </div>
 
         <div>
           <label class="ad-label" for="dgg-den-ngay">Ngày kết thúc</label>
-          <input id="dgg-den-ngay" v-model="filters.ngayKetThuc" type="date" class="form-control ad-control" />
+          <DateInput id="dgg-den-ngay" v-model="filters.ngayKetThuc" class="form-control ad-control" />
         </div>
 
         <div>
           <label class="ad-label" for="dgg-trang-thai">Trạng thái</label>
-          <select id="dgg-trang-thai" v-model="filters.trangThai" class="form-select ad-control">
-            <option value="">Tất cả trạng thái</option>
-            <option v-for="(item, key) in TRANG_THAI" :key="key" :value="key">{{ item.label }}</option>
-          </select>
+          <Select2 id="dgg-trang-thai" v-model="filters.trangThai" :options="dsTrangThaiLoc" class="ad-control" />
         </div>
       </div>
 
@@ -231,8 +243,8 @@ async function confirmToggle() {
                 <th>Mã</th>
                 <th>Tên</th>
                 <th>Giá trị</th>
-                <th>Ngày bắt đầu</th>
-                <th>Ngày kết thúc</th>
+                <th>Ngày giờ bắt đầu</th>
+                <th>Ngày giờ kết thúc</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
               </tr>
@@ -259,16 +271,16 @@ async function confirmToggle() {
                   <td class="ad-nowrap">{{ formatNgay(d.ngayBatDau) }}</td>
                   <td class="ad-nowrap">{{ formatNgay(d.ngayKetThuc) }}</td>
                   <td>
-                    <span class="ad-pill" :class="TRANG_THAI[tinhTrangThai(d, today)].cls">{{ TRANG_THAI[tinhTrangThai(d, today)].label }}</span>
+                    <span class="ad-pill" :class="TRANG_THAI[tinhTrangThai(d, bayGio)].cls">{{ TRANG_THAI[tinhTrangThai(d, bayGio)].label }}</span>
                   </td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
-                      <!-- Công tắc bật / tắt: còn hiển thị khi đợt sắp diễn ra / đang diễn ra; qua ngày kết thúc thì biến mất -->
-                      <span class="ad-switch-slot">
+                      <!-- Công tắc bật / tắt: đợt đã kết thúc thì công tắc TẮT và khóa -->
+                      <span class="ad-switch-slot" :title="congTacNhan(d)">
                         <StatusSwitch
-                          v-if="!daKetThuc(d, today)"
-                          :on="dangHoatDong(d)"
-                          :label="dangHoatDong(d) ? 'Đang bật - bấm để ngừng hoạt động' : 'Đang tắt - bấm để bật hoạt động'"
+                          :on="congTacBat(d)"
+                          :disabled="congTacKhoa(d)"
+                          :label="congTacNhan(d)"
                           @toggle="confirmItem = d"
                         />
                       </span>

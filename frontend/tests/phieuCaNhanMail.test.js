@@ -1,9 +1,10 @@
 // Phiếu giảm giá cá nhân (nhận xét của cô: "Cá nhân chưa thấy gửi mail", "chưa định dạng"):
-// số lượng tự bằng số khách chọn, ô tiền có định dạng, cảnh báo cấu hình Gmail, báo rõ kết quả gửi 3 loại mail.
+// phiếu cá nhân không có ô số lượng (= số khách chọn), ô tiền có định dạng, cảnh báo cấu hình Gmail, báo rõ kết quả gửi 3 loại mail.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { useToast } from '../src/composables/useToast'
 import { cauBaoKetQuaMail, theoDoiKetQuaMail } from '../src/services/phieuGiamGiaService'
+import { datSelect2 } from './helpersSelect2'
 
 let mock
 vi.mock('../src/services/api', () => ({ default: new Proxy({}, { get: (_, k) => (...a) => mock.api[k](...a) }) }))
@@ -42,19 +43,57 @@ beforeEach(() => {
   useToast().toasts.splice(0)
 })
 
+const dongKhach = (w) => w.findAll('[data-testid=pgg-khach-dong]')
+const oChon = (w) => w.findAll('[data-testid=pgg-khach-dong] input[type=checkbox]')
+const nhapNgay = async (w, id, iso, gio) => {
+  await w.get(`#${id}`).setValue(iso)
+  if (gio) await w.get(`#${id}-gio`).setValue(gio)
+}
+
 describe('Form phiếu cá nhân', () => {
-  it('số lượng tự bằng số khách đã chọn (chọn 3 -> 3, bỏ 1 -> 2), ô số lượng chỉ đọc', async () => {
+  it('chọn Cá nhân: ô Số lượng + Giới hạn mỗi khách BIẾN MẤT và số đã nhập bị xóa; về Công khai thì ô trống', async () => {
+    mock = api()
+    const w = await montarForm()
+    expect(w.find('#pgg-so-luong').exists()).toBe(true)
+    await w.get('#pgg-so-luong').setValue('50')
+    await w.get('#pgg-gioi-han').setValue('2')
+    await chonCaNhan(w)
+    expect(w.find('#pgg-so-luong').exists()).toBe(false)
+    expect(w.find('#pgg-gioi-han').exists()).toBe(false)
+    await w.findAll('input[name=hinhThuc]').find((i) => i.element.value === 'CONG_KHAI').setValue(true)
+    await flushPromises()
+    expect(w.get('#pgg-so-luong').element.value).toBe('')
+    expect(w.get('#pgg-gioi-han').element.value).toBe('')
+  })
+
+  it('bảng khách hiện đủ cột (Mã KH, Họ tên, Giới tính, Ngày sinh, SĐT, Email, Tổng đơn, Mua gần nhất); nhãn "Đã chọn N khách hàng" đếm theo lựa chọn', async () => {
     mock = api()
     const w = await montarForm()
     await chonCaNhan(w)
-    const boxes = w.findAll('.pgg-picker-item input[type=checkbox]')
-    expect(boxes.length).toBe(3)
-    for (const b of boxes) await b.setValue(true)
-    expect(w.get('#pgg-so-luong').element.value).toBe('3')
-    expect(w.get('#pgg-so-luong').attributes('readonly')).toBeDefined()
-    await boxes[0].setValue(false)
-    expect(w.get('#pgg-so-luong').element.value).toBe('2')
-    expect(w.text()).toContain('Đã chọn 2')
+    const tieuDe = w.findAll('.pgg-khach-bang thead th').map((t) => t.text())
+    expect(tieuDe).toEqual(expect.arrayContaining(['Mã KH', 'Họ và tên', 'Giới tính', 'Ngày sinh', 'Số điện thoại', 'Email', 'Tổng đơn', 'Mua gần nhất']))
+    expect(dongKhach(w).length).toBe(3)
+    expect(w.get('[data-testid=pgg-da-chon]').text()).toBe('Đã chọn 0 khách hàng')
+    for (const b of oChon(w)) await b.setValue(true)
+    expect(w.get('[data-testid=pgg-da-chon]').text()).toBe('Đã chọn 3 khách hàng')
+    await oChon(w)[0].setValue(false)
+    expect(w.get('[data-testid=pgg-da-chon]').text()).toBe('Đã chọn 2 khách hàng')
+  })
+
+  it('lưu phiếu cá nhân: số lượng gửi đi = số khách đã chọn, giới hạn mỗi khách null', async () => {
+    mock = api()
+    const w = await montarForm()
+    await w.get('#pgg-ten').setValue('Tri ân')
+    await w.get('#pgg-gia-tri').setValue('10')
+    await nhapNgay(w, 'pgg-ngay-kt', '2099-12-31', '23:59')
+    await chonCaNhan(w)
+    await oChon(w)[0].setValue(true)
+    await oChon(w)[1].setValue(true)
+    await w.get('form').trigger('submit'); await flushPromises()
+    const body = w.emitted('save')[0][0]
+    expect(body).toMatchObject({ hinhThuc: 'CA_NHAN', soLuong: 2, gioiHanMoiKhach: null, khachHangIds: [1, 2] })
+    expect(body.ngayKetThuc).toBe('2099-12-31T23:59:00')
+    expect(body.ngayBatDau).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00$/)
   })
 
   it('khách chưa có email hiện nhãn "Chưa có email" và câu báo trước số mail sẽ gửi', async () => {
@@ -62,8 +101,8 @@ describe('Form phiếu cá nhân', () => {
     const w = await montarForm()
     await chonCaNhan(w)
     expect(w.text()).toContain('an@mail.vn')
-    expect(w.findAll('.pgg-picker-item')[2].text()).toContain('Chưa có email')
-    for (const b of w.findAll('.pgg-picker-item input[type=checkbox]')) await b.setValue(true)
+    expect(dongKhach(w)[2].text()).toContain('Chưa có email')
+    for (const b of oChon(w)) await b.setValue(true)
     expect(w.get('[data-testid=pgg-mail-note]').text()).toContain('gửi mail tặng phiếu cho 2 khách đã chọn (1 khách chưa có email')
     expect(w.get('[data-testid=pgg-mail-status]').text()).toContain('Gmail đã sẵn sàng')
   })
@@ -88,32 +127,34 @@ describe('Form phiếu cá nhân', () => {
     await w.get('#pgg-gia-tri').setValue('10')
     await w.get('#pgg-giam-toi-da').setValue('200000')
     await w.get('#pgg-don-toi-thieu').setValue('1500000')
+    await w.get('#pgg-so-luong').setValue('100')
     expect(w.get('#pgg-giam-toi-da').element.value).toBe('200.000')
     expect(w.get('#pgg-don-toi-thieu').element.value).toBe('1.500.000')
-    await w.get('#pgg-ngay-kt').setValue('2099-12-31')
+    await nhapNgay(w, 'pgg-ngay-kt', '2099-12-31')
     await w.get('form').trigger('submit'); await flushPromises()
     const body = w.emitted('save')[0][0]
-    expect(body).toMatchObject({ giaTri: 10, giamToiDa: 200000, donToiThieu: 1500000, loaiGiam: 'PHAN_TRAM' })
-    // đổi sang giảm theo số tiền: ô giá trị thành ô tiền, giảm tối đa bị khóa
-    await w.findAll('input[name=loaiGiam]').find((i) => i.element.value === 'TIEN_MAT').setValue(true)
+    expect(body).toMatchObject({ giaTri: 10, giamToiDa: 200000, donToiThieu: 1500000, loaiGiam: 'PHAN_TRAM', soLuong: 100 })
+    // đổi sang giảm theo số tiền: ô giá trị thành ô tiền (giá trị cũ bị xóa), giảm tối đa bị khóa
+    await datSelect2(w, '#pgg-loai-giam', 'TIEN_MAT')
+    expect(w.get('#pgg-gia-tri').element.value).toBe('')
     await w.get('#pgg-gia-tri').setValue('50000')
     expect(w.get('#pgg-gia-tri').element.value).toBe('50.000')
     expect(w.get('#pgg-giam-toi-da').attributes('disabled')).toBeDefined()
   })
 
-  it('kiểm tra dữ liệu: % ngoài 1-100, tiền < 1.000, đơn tối thiểu < số tiền giảm, ngày kết thúc trước ngày bắt đầu, chưa chọn khách', async () => {
+  it('kiểm tra dữ liệu: % ngoài 1-100, tiền < 1.000, đơn tối thiểu < số tiền giảm, kết thúc trước bắt đầu, chưa chọn khách', async () => {
     mock = api()
     const w = await montarForm()
     await w.get('#pgg-ten').setValue('X')
     await w.get('#pgg-gia-tri').setValue('150')
-    await w.get('#pgg-ngay-bd').setValue('2099-05-10')
-    await w.get('#pgg-ngay-kt').setValue('2099-05-01')
+    await nhapNgay(w, 'pgg-ngay-bd', '2099-05-10', '08:00')
+    await nhapNgay(w, 'pgg-ngay-kt', '2099-05-01', '08:00')
     await chonCaNhan(w)
     await w.get('form').trigger('submit'); await flushPromises()
     expect(w.text()).toContain('Phần trăm giảm từ 1 đến 100.')
-    expect(w.text()).toContain('Ngày kết thúc phải sau hoặc cùng ngày bắt đầu.')
+    expect(w.text()).toContain('Ngày giờ kết thúc phải sau ngày giờ bắt đầu.')
     expect(w.text()).toContain('Chọn ít nhất một khách hàng để tặng phiếu.')
-    await w.findAll('input[name=loaiGiam]').find((i) => i.element.value === 'TIEN_MAT').setValue(true)
+    await datSelect2(w, '#pgg-loai-giam', 'TIEN_MAT')
     await w.get('#pgg-gia-tri').setValue('500')
     await flushPromises()
     expect(w.text()).toContain('Số tiền giảm tối thiểu 1.000 ₫.')
@@ -126,7 +167,7 @@ describe('Form phiếu cá nhân', () => {
 
   it('sửa phiếu đã bắt đầu: báo trước là lưu sẽ không gửi mail', async () => {
     mock = api()
-    const item = { id: 1, ma: 'VCH0001', ten: 'Tri ân', hinhThuc: 'CA_NHAN', loaiGiam: 'PHAN_TRAM', giaTri: 10, giamToiDa: null, donToiThieu: 0, soLuong: 1, soLuongDaDung: 0, ngayBatDau: '2020-01-01', ngayKetThuc: '2099-01-01', hoatDong: true, khachHangs: [{ id: 1, ma: 'KH01', hoTen: 'An' }] }
+    const item = { id: 1, ma: 'VCH0001', ten: 'Tri ân', hinhThuc: 'CA_NHAN', loaiGiam: 'PHAN_TRAM', giaTri: 10, giamToiDa: null, donToiThieu: 0, soLuong: 1, soLuongDaDung: 0, ngayBatDau: '2020-01-01T00:00:00', ngayKetThuc: '2099-01-01T23:59:59', hoatDong: true, khachHangs: [{ id: 1, ma: 'KH01', hoTen: 'An' }] }
     const w = await montarForm(item)
     expect(w.text()).toContain('Phiếu đã bắt đầu nên lưu thay đổi sẽ không gửi mail')
   })

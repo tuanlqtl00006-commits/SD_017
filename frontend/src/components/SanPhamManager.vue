@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
+import Select2 from './common/Select2.vue'
 import SanPhamDetailModal from './sanPham/SanPhamDetailModal.vue'
 import { sanPhamService, bienTheService } from '../services/sanPhamService'
 import { useGiamGiaBienThe } from '../composables/useGiamGiaBienThe'
@@ -13,6 +14,7 @@ import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatMoney, todayIso } from '../utils/format'
 import { includesText, layTen } from '../utils/text'
+import { tuBangHang, tuDanhSach } from '../utils/luaChon'
 import { exportExcel } from '../utils/exportExcel'
 
 const toast = useToast()
@@ -85,6 +87,11 @@ onMounted(() => taiDuLieu())
 /* ===== 3. BỘ LỌC ===== */
 
 const filters = reactive({ keyword: '', idDanhMuc: '', idThuongHieu: '', trangThai: '' })
+
+// Các ô chọn của bộ lọc (Select2): mục đầu "Tất cả ..." có value rỗng = không lọc
+const dsLocThuongHieu = computed(() => tuDanhSach(thuocTinh['thuong-hieu'], { tatCa: 'Tất cả thương hiệu' }))
+const dsLocDanhMuc = computed(() => tuDanhSach(thuocTinh['danh-muc'], { tatCa: 'Tất cả danh mục' }))
+const dsLocTrangThai = tuBangHang(TRANG_THAI, { tatCa: 'Tất cả trạng thái' })
 
 function datLaiBoLoc() {
   filters.keyword = ''
@@ -325,24 +332,15 @@ function xuatExcel() {
       <div class="ad-filter-grid ad-filter-grid--3">
         <div>
           <label class="ad-label" for="sp-f-thuong-hieu">Thương hiệu</label>
-          <select id="sp-f-thuong-hieu" v-model="filters.idThuongHieu" class="form-select ad-control">
-            <option value="">Tất cả thương hiệu</option>
-            <option v-for="o in thuocTinh['thuong-hieu']" :key="o.id" :value="o.id">{{ o.ten }}</option>
-          </select>
+          <Select2 id="sp-f-thuong-hieu" v-model="filters.idThuongHieu" :options="dsLocThuongHieu" class="ad-control" />
         </div>
         <div>
           <label class="ad-label" for="sp-f-danh-muc">Danh mục</label>
-          <select id="sp-f-danh-muc" v-model="filters.idDanhMuc" class="form-select ad-control">
-            <option value="">Tất cả danh mục</option>
-            <option v-for="o in thuocTinh['danh-muc']" :key="o.id" :value="o.id">{{ o.ten }}</option>
-          </select>
+          <Select2 id="sp-f-danh-muc" v-model="filters.idDanhMuc" :options="dsLocDanhMuc" class="ad-control" />
         </div>
         <div>
           <label class="ad-label" for="sp-f-trang-thai">Trạng thái</label>
-          <select id="sp-f-trang-thai" v-model="filters.trangThai" class="form-select ad-control">
-            <option value="">Tất cả trạng thái</option>
-            <option v-for="(item, key) in TRANG_THAI" :key="key" :value="key">{{ item.label }}</option>
-          </select>
+          <Select2 id="sp-f-trang-thai" v-model="filters.trangThai" :options="dsLocTrangThai" class="ad-control" />
         </div>
       </div>
     </FilterCard>

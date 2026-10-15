@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
+import { datSelect2 } from './helpersSelect2'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { mockApi, THUOC_TINH, SAN_PHAM } from './helpersDanhMuc'
 import { layTen, layLuaChon } from '../src/utils/text'
@@ -44,7 +45,12 @@ describe('Modal biến thể', () => {
     await flushPromises(); return w
   }
   const q = (sel) => document.body.querySelector(sel)
-  const set = async (sel, v) => { const e = q(sel); e.value = String(v); e.dispatchEvent(new Event('change')); e.dispatchEvent(new Event('input')); await flushPromises() }
+  // Ô nhập thường: gán value; ô chọn Select2 (có data-gia-tri; nội dung nằm trong hộp thoại) thì chọn mục theo value
+  const set = async (sel, v) => {
+    const e = q(sel)
+    if (e.hasAttribute('data-gia-tri')) { await datSelect2(new DOMWrapper(document.body), sel, v); return }
+    e.value = String(v); e.dispatchEvent(new Event('change')); e.dispatchEvent(new Event('input')); await flushPromises()
+  }
   it('sản phẩm vợt: có trọng lượng + chu vi, bắt buộc chọn', async () => {
     const w = await montar()
     await set('#bt-san-pham', 1)
@@ -78,7 +84,7 @@ describe('Modal biến thể', () => {
     const w = await montar({ item: { id: 5, ma: 'SP002-DEN', idSanPham: 2, idMauSac: 1, idTrongLuong: 92, idChuVi: 93, giaBan: 50000, soLuongTon: 1 } })
     expect(q('#bt-tl')).toBeFalsy()
     await set('#bt-san-pham', 1)
-    expect(q('#bt-tl')).toBeTruthy(); expect(q('#bt-tl').value).toBe('')
+    expect(q('#bt-tl')).toBeTruthy(); expect(q('#bt-tl').getAttribute('data-gia-tri')).toBe('')
     q('#bt-form').dispatchEvent(new Event('submit')); await flushPromises()
     expect(w.emitted('save')).toBeFalsy()
     w.unmount()

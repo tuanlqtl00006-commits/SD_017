@@ -3,12 +3,14 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { taoMa } from '../../constants/thuocTinh'
 import { layLuaChon } from '../../utils/text'
-import { chatLieuHopDanhMuc, idKhongApDung, laDanhMucVot, laKhongApDung } from '../../utils/danhMuc'
+import { NHOM_DANH_MUC, chatLieuHopDanhMuc, idKhongApDung, laDanhMucVot, laKhongApDung, nhomDanhMuc } from '../../utils/danhMuc'
+import { tuDanhSach } from '../../utils/luaChon'
 import {
   CHE_DO_HIEN_THI_MAC_DINH,
   TOI_DA_ANH_MOI_MAU,
   apDungMacDinh as apMacDinh,
   congThucSoBienThe,
+  kiemTraAnhBatBuoc,
   kiemTraBienThe,
   nhomTheoMau,
   payloadAnhTheoMau,
@@ -21,6 +23,8 @@ import { bienTheService, sanPhamService } from '../../services/sanPhamService'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import ConfirmQuestion from '../common/ConfirmQuestion.vue'
 import MoneyInput from '../common/MoneyInput.vue'
+import Select2 from '../common/Select2.vue'
+import { useThemNhanh } from '../../composables/useThemNhanh'
 import { thuocTinhService } from '../../services/thuocTinhService'
 import { hinhAnhService } from '../../services/hinhAnhService'
 import { useToast } from '../../composables/useToast'
@@ -102,6 +106,27 @@ function luaChonCua(s) {
   return ds.filter((o) => (giuCu && o.id === hienTai) || chatLieuHopDanhMuc(o, tenDanhMuc.value))
 }
 const khoaOChon = (s) => s.field === 'idChatLieu' && !daChonDanhMuc.value
+const dsChon = (s) => tuDanhSach(luaChonCua(s))
+
+/* ----- "Thêm nhanh" thuộc tính ngay trong ô chọn (Select2) ----- */
+// Chất liệu mới gắn với nhóm của danh mục đang chọn (danh mục lạ thì dùng cho mọi nhóm)
+const nhomChatLieuMoi = () => {
+  const nhom = nhomDanhMuc(tenDanhMuc.value)
+  return nhom ? [nhom] : NHOM_DANH_MUC.map((n) => n.ma)
+}
+const { themNhanh, dangThem } = useThemNhanh({
+  layDanhSach: (slug) => thuocTinh[slug],
+  themVaoDanhSach: (slug, muc) => {
+    thuocTinh[slug] = [muc, ...thuocTinh[slug].filter((x) => x.id !== muc.id)]
+  },
+  toast,
+  nhomChatLieu: nhomChatLieuMoi,
+})
+// Ô chọn đơn (danh mục, thương hiệu, xuất xứ, chất liệu, độ cứng, điểm cân bằng): tạo xong chọn luôn mục mới
+async function themNhanhOChon(s, ten) {
+  const moi = await themNhanh(s.slug, ten)
+  if (moi) form[s.field] = moi.id
+}
 
 // Đổi danh mục: xóa giá trị riêng của vợt khi chuyển sang danh mục khác (và ngược lại bắt chọn lại)
 watch(
@@ -197,6 +222,15 @@ const hoiCapNhat = ref(null) // sản phẩm đã tồn tại: { message, ... } 
 const dangHoatDong = (slug) => thuocTinh[slug].filter((x) => x.hoatDong && !laKhongApDung(x)) // bỏ mục "Không áp dụng" (hệ thống tự gán)
 const tenCua = (slug, id) => thuocTinh[slug].find((x) => x.id === id)?.ten ?? '—'
 const baMau = (arr, id) => { const i = arr.indexOf(id); i === -1 ? arr.push(id) : arr.splice(i, 1) }
+// Ô "Tìm hoặc thêm nhanh" cạnh các nút chọn màu / trọng lượng / chu vi: chọn một mục (hoặc tạo mới) thì tích luôn
+const dsThemBienThe = (g) => tuDanhSach(dangHoatDong(g.slug).filter((o) => !g.sel.includes(o.id)))
+function tichThem(g, id) {
+  if (id !== '' && !g.sel.includes(id)) g.sel.push(id)
+}
+async function themNhanhBienThe(g, ten) {
+  const moi = await themNhanh(g.slug, ten)
+  if (moi) tichThem(g, moi.id)
+}
 
 // Số biến thể sẽ tạo + công thức (để tự đếm lại: 4 màu x 3 trọng lượng x 2 chu vi = 24)
 const duKien = computed(() => congThucSoBienThe(chonMau.value.length, chonTl.value.length, chonCv.value.length, laVot.value))
@@ -249,6 +283,10 @@ const thongSoDong = (r) => [tenCua('trong-luong', r.idTrongLuong), tenCua('chu-v
 /* ----- Ảnh theo màu ----- */
 // Thêm mới: các màu đang có biến thể; sửa: các màu sản phẩm đã có biến thể / đã có ảnh
 const mauCoAnh = computed(() => (isEdit ? mauCuaSpDangSua.value : nhomMau.value.map((g) => g.idMauSac)))
+// Các màu cần có ảnh: thêm mới = màu của biến thể đang tích; sửa = màu sản phẩm đã có biến thể / đã có ảnh
+const mauCanAnh = computed(() =>
+  isEdit ? mauCuaSpDangSua.value : nhomMau.value.filter((g) => g.rows.some((r) => r.chon)).map((g) => g.idMauSac),
+)
 const soBienTheCuaMau = (idMau) => bienThe.value.filter((r) => r.idMauSac === idMau).length
 
 /* ----- Kiểm tra dữ liệu (validate) ----- */
@@ -291,9 +329,17 @@ function kiemTra() {
     errors.idDanhMuc = THIEU_KHONG_AP_DUNG
   }
 
-  // Ảnh: không bắt buộc, tối đa 10 ảnh gồm cả ảnh chính (đường dẫn ảnh do backend kiểm tra khi lưu)
+  // Ảnh BẮT BUỘC (cô: chưa có ảnh mà vẫn lưu thành công là sai): có ít nhất 1 ảnh chung, hoặc mọi màu đều có ảnh riêng.
+  // Tối đa 10 ảnh gồm cả ảnh chính (đường dẫn ảnh do backend kiểm tra lại khi lưu)
   if (form.anh.length > TOI_DA_ANH) {
     errors.anh = `Mỗi sản phẩm tối đa ${TOI_DA_ANH} ảnh (gồm cả ảnh chính).`
+  } else {
+    const anh = kiemTraAnhBatBuoc({ anhChung: form.anh, anhTheoMau, mauCanAnh: mauCanAnh.value })
+    if (!anh.ok) {
+      errors.anh = anh.mauThieu.length && anh.mauThieu.length < mauCanAnh.value.length
+        ? `Chưa có ảnh sản phẩm. Thêm ít nhất 1 ảnh chung, hoặc thêm ảnh cho đủ các màu còn thiếu: ${anh.mauThieu.map((m) => tenCua('mau-sac', m)).join(', ')}.`
+        : 'Chưa có ảnh sản phẩm. Thêm ít nhất 1 ảnh chung của sản phẩm, hoặc thêm ảnh cho từng màu.'
+    }
   }
 
   // Biến thể (nếu có): phải tích ít nhất 1 dòng; mỗi dòng đang tích cần số lượng nguyên >= 0 và giá bán >= 1.000 ₫
@@ -402,6 +448,12 @@ function guiForm() {
   daBamLuu.value = true
   if (!kiemTra()) {
     if (errors.bienThe) toast.error(errors.bienThe)
+    else if (errors.anh) toast.error(errors.anh)
+    // Kéo tới ô lỗi đầu tiên để người dùng thấy ngay chỗ cần sửa
+    nextTick(() => {
+      const o = document.querySelector('#sp-form .is-invalid') || document.getElementById('sp-anh-chung')
+      o?.scrollIntoView?.({ block: 'center' })
+    })
     return // có lỗi thì dừng
   }
   if (isEdit) luuSanPham()
@@ -502,17 +554,19 @@ async function luuSanPham(xacNhanCapNhat = false) {
 
           <div v-for="s in selectsHienThi" :key="s.field" class="col-md-6">
             <label class="ad-label" :for="`sp-${s.field}`">{{ s.label }} <span class="ad-required">*</span></label>
-            <select
+            <Select2
               :id="`sp-${s.field}`"
               v-model="form[s.field]"
-              class="form-select ad-control"
+              :options="dsChon(s)"
+              class="ad-control"
               :class="{ 'is-invalid': errors[s.field] }"
               :disabled="khoaOChon(s)"
               :aria-invalid="!!errors[s.field]"
-            >
-              <option value="">{{ khoaOChon(s) ? 'Chọn danh mục trước…' : `Chọn ${s.label.toLowerCase()}…` }}</option>
-              <option v-for="o in luaChonCua(s)" :key="o.id" :value="o.id">{{ o.ten }}</option>
-            </select>
+              :placeholder="khoaOChon(s) ? 'Chọn danh mục trước…' : `Chọn ${s.label.toLowerCase()}…`"
+              :allow-create="!khoaOChon(s)"
+              :creating="dangThem"
+              @create="themNhanhOChon(s, $event)"
+            />
             <p v-if="errors[s.field]" class="ad-error">{{ errors[s.field] }}</p>
             <p v-else-if="s.field === 'idDanhMuc' && daChonDanhMuc && !laVot" class="ad-hint">Danh mục này không có độ cứng, điểm cân bằng, trọng lượng, chu vi cán nên các mục đó được ẩn.</p>
           </div>
@@ -538,6 +592,19 @@ async function luuSanPham(xacNhanCapNhat = false) {
               <i v-if="g.sel.includes(o.id)" class="bi bi-check2" aria-hidden="true"></i> {{ o.ten }}
             </button>
             <span v-if="!dangHoatDong(g.slug).length" class="text-muted small">Chưa có {{ g.label.toLowerCase() }} nào đang hoạt động.</span>
+            <div class="bt-them-nhanh">
+              <Select2
+                :id="`sp-them-${g.slug}`"
+                :model-value="''"
+                :options="dsThemBienThe(g)"
+                class="ad-control bt-them-nhanh-chon"
+                :placeholder="`Tìm hoặc thêm nhanh ${g.label.toLowerCase()}…`"
+                allow-create
+                :creating="dangThem"
+                @update:model-value="tichThem(g, $event)"
+                @create="themNhanhBienThe(g, $event)"
+              />
+            </div>
           </div>
         </div>
         <div v-if="daChonDanhMuc" class="d-flex flex-wrap justify-content-end align-items-center gap-3 mt-3">
@@ -547,6 +614,9 @@ async function luuSanPham(xacNhanCapNhat = false) {
 
         <template v-if="bienThe.length">
           <hr />
+          <p class="bt-tong" data-testid="tong-bien-the">
+            Tổng cộng <strong>{{ bienThe.length }}</strong> biến thể<template v-if="duKien.so === bienThe.length"> ({{ duKien.congThuc.replace(/ = .*$/, '') }})</template>
+          </p>
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <div class="form-check mb-0">
               <input id="bt-all" v-model="tatCaChon" type="checkbox" class="form-check-input" />
@@ -685,7 +755,7 @@ async function luuSanPham(xacNhanCapNhat = false) {
             <div v-if="anhTheoMau[idMau]?.length" class="d-flex flex-wrap gap-2">
               <div v-for="(url, i) in anhTheoMau[idMau]" :key="`${i}-${url}`" class="position-relative" style="width: 84px">
                 <img :src="url" :alt="`Ảnh ${i + 1} màu ${tenCua('mau-sac', idMau)}`" class="rounded-3 border" style="width: 84px; height: 84px; object-fit: cover" />
-                <span v-if="i === 0" class="badge bg-primary position-absolute top-0 start-0 m-1">Ảnh chính</span>
+                <span v-if="i === 0" class="badge bg-primary position-absolute bottom-0 start-0 ms-1 mb-2">Ảnh chính</span>
                 <button type="button" class="btn btn-sm btn-light border position-absolute top-0 end-0 m-1 py-0 px-1 lh-sm" :aria-label="`Bỏ ảnh ${i + 1} màu ${tenCua('mau-sac', idMau)}`" @click="xoaAnhTrong(anhTheoMau[idMau], i)">
                   <i class="bi bi-x-lg"></i>
                 </button>
@@ -701,12 +771,12 @@ async function luuSanPham(xacNhanCapNhat = false) {
         </div>
       </section>
 
-      <section class="ad-card">
-        <label class="ad-label">Ảnh chung của sản phẩm</label>
+      <section id="sp-anh-chung" class="ad-card">
+        <label class="ad-label">Ảnh chung của sản phẩm <span class="ad-required">*</span></label>
         <div class="d-flex flex-wrap gap-2">
           <div v-for="(url, i) in form.anh" :key="`${i}-${url}`" class="position-relative" style="width: 92px">
             <img :src="url" :alt="`Ảnh ${i + 1} của sản phẩm`" class="rounded-3 border" style="width: 92px; height: 92px; object-fit: cover" />
-            <span v-if="i === 0" class="badge bg-primary position-absolute top-0 start-0 m-1">Ảnh chính</span>
+            <span v-if="i === 0" class="badge bg-primary position-absolute bottom-0 start-0 ms-1 mb-2">Ảnh chính</span>
             <button
               type="button"
               class="btn btn-sm btn-light border position-absolute top-0 end-0 m-1 py-0 px-1 lh-sm"
@@ -732,10 +802,10 @@ async function luuSanPham(xacNhanCapNhat = false) {
             <span class="small">{{ dangTaiAnh && mauDangTai === null ? 'Đang tải…' : 'Thêm ảnh' }}</span>
           </button>
         </div>
-        <input ref="inputFile" type="file" class="d-none" accept="image/jpeg,image/png,image/webp,image/gif" multiple @change="chonFile" />
+        <input id="sp-file-anh-chung" ref="inputFile" type="file" class="d-none" accept="image/jpeg,image/png,image/webp,image/gif" multiple @change="chonFile" />
         <p v-if="loiAnh" class="ad-error">{{ loiAnh }}</p>
-        <p v-else-if="errors.anh" class="ad-error">{{ errors.anh }}</p>
-        <p v-else class="ad-hint">Không bắt buộc (đã có ảnh theo màu thì danh sách dùng ảnh của màu). Chọn ảnh JPG, PNG, WEBP, GIF (tối đa {{ TOI_DA_MB }} MB mỗi ảnh, {{ TOI_DA_ANH }} ảnh). Ảnh đầu tiên là ảnh chính.</p>
+        <p v-else-if="errors.anh" class="ad-error" role="alert" data-testid="loi-anh">{{ errors.anh }}</p>
+        <p v-else class="ad-hint">Bắt buộc có ảnh: thêm ít nhất 1 ảnh chung, hoặc ảnh riêng cho từng màu ở phần trên. Chọn ảnh JPG, PNG, WEBP, GIF (tối đa {{ TOI_DA_MB }} MB mỗi ảnh, {{ TOI_DA_ANH }} ảnh). Ảnh đầu tiên là ảnh chính.</p>
 
         <label class="ad-label mt-3" for="sp-mo-ta">Mô tả</label>
         <textarea id="sp-mo-ta" v-model="form.moTa" rows="3" class="form-control ad-control" placeholder="Đặc điểm nổi bật, đối tượng phù hợp…"></textarea>
@@ -782,6 +852,9 @@ async function luuSanPham(xacNhanCapNhat = false) {
 .bt-dot-lg { width: 14px; height: 14px; }
 .bt-du-kien { font-size: 0.85rem; color: var(--fs-text-2, #4b5563); background: var(--fs-surface, #f5f8fc); border: 1px dashed #c9d6e8; border-radius: 999px; padding: 0.3rem 0.85rem; }
 .bt-view { width: auto; }
+.bt-them-nhanh { flex: 0 1 17rem; min-width: 12rem; }
+.bt-them-nhanh :deep(.s2-trigger) { height: 36px; border-radius: 999px; font-size: 0.85rem; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.bt-tong { margin: 0 0 0.6rem; font-size: 0.9rem; color: var(--fs-text-2, #4b5563); }
 .bt-view .ad-segment-item { white-space: nowrap; }
 .bt-anh-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-bottom: 0.15rem; }
 .bt-anh-btn { padding: 0.3rem 0.75rem; font-size: 0.82rem; white-space: nowrap; }

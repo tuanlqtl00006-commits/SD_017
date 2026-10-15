@@ -8,7 +8,7 @@ import com.footstyle.demo.repository.DotGiamGiaChiTietRepository;
 import com.footstyle.demo.repository.DotGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import com.footstyle.demo.service.GiamGiaChongDot.CheDo;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,17 +22,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Tính mức giảm giá của từng biến thể theo KHOẢNG NGÀY khi nhiều đợt giảm giá chồng lên nhau.
+ * Tính mức giảm giá của từng biến thể theo KHOẢNG THỜI GIAN (ngày giờ) khi nhiều đợt giảm giá chồng lên nhau.
  *
- * Ví dụ: đợt A giảm 10% từ 1/10 đến 10/10 cho SPCT1, SPCT5; đợt B giảm 15% từ 4/10 đến 20/10 cho SPCT1, SPCT3, SPCT4.
+ * Ví dụ: đợt A giảm 10% từ 1/10 08:00 đến 10/10 17:00 cho SPCT1, SPCT5; đợt B giảm 15% từ 4/10 12:00 đến 20/10 23:59 cho SPCT1, SPCT3, SPCT4.
  * Với SPCT1 kết quả là 3 đoạn:
- *   1/10 - 3/10  : chỉ đợt A            -> 10%
- *   4/10 - 10/10 : đợt A và B chồng nhau -> lấy mức CAO NHẤT = 15% (trung bình cộng của các đợt là 12,5%)
- *   11/10 - 20/10: chỉ đợt B            -> 15%
+ *   1/10 08:00 - 4/10 11:59   : chỉ đợt A             -> 10%
+ *   4/10 12:00 - 10/10 17:00  : đợt A và B chồng nhau -> MAX = 15% (cộng dồn 25%, trung bình cộng 12,5%)
+ *   10/10 17:01 - 20/10 23:59 : chỉ đợt B             -> 15%
  *
- * Quy ước: khi nhiều đợt cùng áp dụng cho một biến thể trong một ngày thì mức áp dụng (phanTramApDung) tính theo
- * cấu hình app.giam-gia.che-do-chong-dot: MAX (mặc định) = lấy mức cao nhất, TRUNG_BINH = trung bình cộng các đợt.
- * Cả mức cao nhất và trung bình cộng đều được trả kèm để đối chiếu.
+ * Quy ước: khi nhiều đợt cùng áp dụng cho một biến thể trong một đoạn thì mức áp dụng (phanTramApDung) tính theo
+ * cấu hình app.giam-gia.che-do-chong-dot: MAX (mặc định) = lấy mức cao nhất, CONG_DON = cộng dồn (tối đa 100%),
+ * TRUNG_BINH = trung bình cộng các đợt. Cả ba mức (cao nhất, cộng dồn, trung bình cộng) đều được trả kèm để đối chiếu.
  * Chỉ tính các đợt đang bật (trang_thai = 1) và các dòng chi tiết đang bật.
  */
 @Service
@@ -42,8 +42,9 @@ public class LichGiamGiaService {
     public record DotTrongDoan(Long idDot, String maDot, String tenDot, int phanTram) {
     }
 
-    public record DoanGiam(LocalDate tuNgay, LocalDate denNgay, double phanTramApDung, int phanTramCaoNhat,
-                           double phanTramTrungBinh, List<DotTrongDoan> cacDot, Long giaSauGiam) {
+    /** Một đoạn thời gian liên tiếp (tuLuc, denLuc đều tính) có cùng tập đợt áp dụng. */
+    public record DoanGiam(LocalDateTime tuLuc, LocalDateTime denLuc, double phanTramApDung, int phanTramCaoNhat,
+                           double phanTramCongDon, double phanTramTrungBinh, List<DotTrongDoan> cacDot, Long giaSauGiam) {
     }
 
     public record LichBienThe(Long idBienThe, String maSpct, String tenSanPham, Long giaBan, List<DoanGiam> doan) {
@@ -54,22 +55,22 @@ public class LichGiamGiaService {
     private final SanPhamChiTietRepository bienTheRepo;
     private final GiamGiaApDungService apDungService; // giữ cấu hình MAX / TRUNG_BINH và tính giảm giá hôm nay
 
-    /** Một dòng "đợt X giảm p% cho biến thể này từ ngày a đến ngày b". */
-    private record MucGiam(DotGiamGia dot, int phanTram, LocalDate tu, LocalDate den) {
+    /** Một dòng "đợt X giảm p% cho biến thể này từ lúc a đến lúc b". */
+    private record MucGiam(DotGiamGia dot, int phanTram, LocalDateTime tu, LocalDateTime den) {
     }
 
     /* ===================== Lịch giảm giá của một đợt ===================== */
 
     /**
-     * Với mỗi biến thể của đợt: chia khoảng ngày của đợt thành các đoạn có mức giảm khác nhau
+     * Với mỗi biến thể của đợt: chia khoảng thời gian của đợt thành các đoạn có mức giảm khác nhau
      * (có tính cả các đợt khác đang chồng lên).
      */
     @Transactional(readOnly = true)
     public List<LichBienThe> lichCuaDot(Long idDot) {
         DotGiamGia dot = dotRepo.findById(idDot)
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy đợt giảm giá."));
-        LocalDate tu = dot.getNgayBatDau().toLocalDate();
-        LocalDate den = dot.getNgayKetThuc().toLocalDate();
+        LocalDateTime tu = dot.getNgayBatDau();
+        LocalDateTime den = dot.getNgayKetThuc();
 
         Set<Long> idBienThes = new HashSet<>();
         List<Long> thuTu = new ArrayList<>();
@@ -94,15 +95,15 @@ public class LichGiamGiaService {
         return ketQua;
     }
 
-    /* ===================== Mức giảm đang áp dụng hôm nay ===================== */
+    /* ===================== Mức giảm đang áp dụng ngay lúc này ===================== */
 
     /**
-     * { idBienThe -> % giảm hôm nay } (nhiều đợt cùng áp dụng thì gộp theo MAX / TRUNG_BINH đã cấu hình).
-     * Biến thể không giảm thì không có trong map.
+     * { idBienThe -> % giảm ĐANG áp dụng (tính tới giờ phút hiện tại) } (nhiều đợt cùng áp dụng thì gộp theo MAX / CONG_DON /
+     * TRUNG_BINH đã cấu hình). Đợt bắt đầu 18:00 thì trước 18:00 chưa giảm. Biến thể không giảm thì không có trong map.
      */
     @Transactional(readOnly = true)
     public Map<Long, Double> giamHomNay() {
-        return apDungService.phanTramTheoBienThe(LocalDate.now());
+        return apDungService.phanTramTheoBienThe(LocalDateTime.now());
     }
 
     /* ===================== Hàm phụ ===================== */
@@ -130,32 +131,32 @@ public class LichGiamGiaService {
             }
             int pt = ct.getPhanTramGiamBienThe() == null ? 0 : ct.getPhanTramGiamBienThe();
             ketQua.computeIfAbsent(ct.getIdSanPhamChiTiet(), k -> new ArrayList<>())
-                    .add(new MucGiam(d, pt, d.getNgayBatDau().toLocalDate(), d.getNgayKetThuc().toLocalDate()));
+                    .add(new MucGiam(d, pt, d.getNgayBatDau(), d.getNgayKetThuc()));
         }
         return ketQua;
     }
 
     // Chia [tu, den] thành các đoạn liên tiếp mà trong mỗi đoạn tập các đợt áp dụng không đổi.
-    private List<DoanGiam> chiaDoan(List<MucGiam> mucs, LocalDate tu, LocalDate den, Long giaBan, CheDo cheDo) {
-        // Các mốc đổi mức giảm: ngày bắt đầu mỗi đợt và ngày liền sau ngày kết thúc mỗi đợt (cắt trong [tu, den])
-        TreeSet<LocalDate> moc = new TreeSet<>();
+    private List<DoanGiam> chiaDoan(List<MucGiam> mucs, LocalDateTime tu, LocalDateTime den, Long giaBan, CheDo cheDo) {
+        // Các mốc đổi mức giảm: lúc bắt đầu mỗi đợt và 1 giây sau lúc kết thúc mỗi đợt (cắt trong [tu, den])
+        TreeSet<LocalDateTime> moc = new TreeSet<>();
         moc.add(tu);
-        moc.add(den.plusDays(1));
+        moc.add(den.plusSeconds(1));
         for (MucGiam m : mucs) {
-            LocalDate s = m.tu().isBefore(tu) ? tu : m.tu();
-            LocalDate e = m.den().isAfter(den) ? den : m.den();
+            LocalDateTime s = m.tu().isBefore(tu) ? tu : m.tu();
+            LocalDateTime e = m.den().isAfter(den) ? den : m.den();
             if (s.isAfter(e)) {
                 continue;
             }
             moc.add(s);
-            moc.add(e.plusDays(1));
+            moc.add(e.plusSeconds(1));
         }
 
         List<DoanGiam> ketQua = new ArrayList<>();
-        List<LocalDate> ds = new ArrayList<>(moc);
+        List<LocalDateTime> ds = new ArrayList<>(moc);
         for (int i = 0; i + 1 < ds.size(); i++) {
-            LocalDate dau = ds.get(i);
-            LocalDate cuoi = ds.get(i + 1).minusDays(1);
+            LocalDateTime dau = ds.get(i);
+            LocalDateTime cuoi = ds.get(i + 1).minusSeconds(1);
             List<MucGiam> ap = new ArrayList<>();
             for (MucGiam m : mucs) {
                 if (!m.tu().isAfter(dau) && !m.den().isBefore(cuoi)) {
@@ -166,24 +167,25 @@ public class LichGiamGiaService {
                 continue;
             }
             int cao = 0;
-            double tong = 0;
+            int tong = 0;
             List<DotTrongDoan> cacDot = new ArrayList<>();
             for (MucGiam m : ap) {
                 cao = Math.max(cao, m.phanTram());
                 tong += m.phanTram();
                 cacDot.add(new DotTrongDoan(m.dot().getId(), m.dot().getMaDot(), m.dot().getTenDot(), m.phanTram()));
             }
-            double trungBinh = Math.round(tong / ap.size() * 100.0) / 100.0;
-            double apDung = cheDo == CheDo.TRUNG_BINH ? trungBinh : cao;
+            double trungBinh = Math.round((double) tong / ap.size() * 100.0) / 100.0;
+            double congDon = Math.min(100, tong);
+            double apDung = cheDo == CheDo.TRUNG_BINH ? trungBinh : cheDo == CheDo.CONG_DON ? congDon : cao;
             long gia = giaBan == null ? 0 : giaBan;
             long giaSau = Math.round(gia * (1 - apDung / 100.0));
 
             // Đoạn liền kề có cùng tập đợt (và cùng mức giảm) thì gộp lại cho gọn
             DoanGiam truoc = ketQua.isEmpty() ? null : ketQua.get(ketQua.size() - 1);
-            if (truoc != null && truoc.denNgay().plusDays(1).equals(dau) && cungTapDot(truoc.cacDot(), cacDot)) {
-                ketQua.set(ketQua.size() - 1, new DoanGiam(truoc.tuNgay(), cuoi, apDung, cao, trungBinh, cacDot, giaSau));
+            if (truoc != null && truoc.denLuc().plusSeconds(1).equals(dau) && cungTapDot(truoc.cacDot(), cacDot)) {
+                ketQua.set(ketQua.size() - 1, new DoanGiam(truoc.tuLuc(), cuoi, apDung, cao, congDon, trungBinh, cacDot, giaSau));
             } else {
-                ketQua.add(new DoanGiam(dau, cuoi, apDung, cao, trungBinh, cacDot, giaSau));
+                ketQua.add(new DoanGiam(dau, cuoi, apDung, cao, congDon, trungBinh, cacDot, giaSau));
             }
         }
         return ketQua;

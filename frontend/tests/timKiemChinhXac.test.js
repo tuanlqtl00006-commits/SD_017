@@ -4,6 +4,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { mockApi } from './helpersDanhMuc'
 import { includesExact, includesText } from '../src/utils/text'
 import { THUOC_TINH as CAU_HINH } from '../src/constants/thuocTinh'
+import { datSelect2 } from './helpersSelect2'
 
 let mock
 vi.mock('../src/services/api', () => ({ default: new Proxy({}, { get: (_, k) => (...a) => mock.api[k](...a) }) }))
@@ -152,7 +153,7 @@ describe('Trang Thương hiệu: gõ vào ô tìm kiếm', () => {
   })
   it('kết hợp với lọc trạng thái: tìm "Ngưng" trong mục đã ngưng', async () => {
     const { w, go, ten } = await moTrang('thuong-hieu')
-    await w.find('#tt-trang-thai').setValue('NGUNG'); await flushPromises()
+    await datSelect2(w, '#tt-trang-thai', 'NGUNG'); await flushPromises()
     await go('Ngưng'); expect(ten()).toEqual(['Ngưng Hiệu'])
     await go('Ngung'); expect(ten()).toEqual([])
     await go('ngưng'); expect(ten()).toEqual([])

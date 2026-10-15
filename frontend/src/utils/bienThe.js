@@ -149,3 +149,17 @@ export function payloadBienThe(rows = []) {
       soLuongTon: Number(r.soLuong),
     }))
 }
+
+/**
+ * Ảnh sản phẩm là BẮT BUỘC (cô: "ảnh đang chưa có mà tại sao vẫn thành công"): phải có ít nhất 1 ảnh chung của sản phẩm,
+ * hoặc mọi màu đang dùng đều có ảnh riêng (ảnh của màu áp dụng cho mọi biến thể cùng màu).
+ * mauCanAnh: id các màu đang có biến thể (thêm mới: màu của dòng đang tích; sửa: màu sản phẩm đã có biến thể).
+ * @returns {{ ok: boolean, mauThieu: number[] }} mauThieu: các màu chưa có ảnh riêng (rỗng nếu không có màu nào)
+ */
+export function kiemTraAnhBatBuoc({ anhChung = [], anhTheoMau = {}, mauCanAnh = [] } = {}) {
+  const dem = (ds) => (ds || []).filter(Boolean).length
+  const coChung = dem(anhChung) > 0
+  const mauThieu = mauCanAnh.filter((m) => dem(anhTheoMau[m]) === 0)
+  const moiMauCoAnh = mauCanAnh.length > 0 && mauThieu.length === 0
+  return { ok: coChung || moiMauCoAnh, mauThieu }
+}

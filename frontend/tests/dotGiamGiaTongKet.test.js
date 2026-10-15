@@ -4,6 +4,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { mockApi } from './helpersDanhMuc'
 import { tinhGiaSauGiam } from '../src/utils/giamGia'
+import { datSelect2 } from './helpersSelect2'
 
 let mock
 vi.mock('../src/services/api', () => ({ default: new Proxy({}, { get: (_, k) => (...a) => mock.api[k](...a) }) }))
@@ -50,14 +51,15 @@ describe('Thêm đợt giảm giá: tổng kết + bảng biến thể đã ch�
     expect(w.findAll('.dgg-chosen-row').length).toBe(4)
     await w.get('#dgg-ten').setValue('Sale vợt')
     await w.get('#dgg-gia-tri').setValue('15')
-    await w.get('#dgg-tu-ngay').setValue('2026-10-20')
-    await w.get('#dgg-den-ngay').setValue('2026-10-29')
+    await w.get('#dgg-tu-ngay').setValue('2099-10-20')
+    await w.get('#dgg-tu-ngay-gio').setValue('00:00')
+    await w.get('#dgg-den-ngay').setValue('2099-10-29')
     const tk = tongKet(w)
     expect(tk).toContain('Mức giảm15%')
     expect(tk).toContain('Sản phẩm1')
     expect(tk).toContain('Biến thể4')
-    expect(tk).toContain('Ngày bắt đầu20/10/2026')
-    expect(tk).toContain('Ngày kết thúc29/10/2026')
+    expect(tk).toContain('Ngày giờ bắt đầu20/10/2099 00:00')
+    expect(tk).toContain('Ngày giờ kết thúc29/10/2099 23:59') // chọn ngày mà chưa chọn giờ: ngày kết thúc lấy 23:59
     expect(tk).toContain('10 ngày')
     expect(tk).toContain('tổng giá bán 12.400.000 ₫ → sau giảm 10.540.000 ₫')
   })
@@ -79,12 +81,11 @@ describe('Thêm đợt giảm giá: tổng kết + bảng biến thể đã ch�
   it('lọc theo màu / trọng lượng, gỡ cả nhóm đang lọc, xóa từng dòng', async () => {
     const { w } = await montar()
     await dongSanPham(w, 'Astrox 99').get('input[type=checkbox]').setValue(true); await flushPromises()
-    const [mau, tl] = w.get('[data-testid=loc-da-chon]').findAll('select')
-    await mau.setValue('2') // Đỏ
+    await datSelect2(w, '#dgg-loc-mau', 2) // Đỏ
     expect(w.findAll('.dgg-chosen-row').length).toBe(2)
-    await tl.setValue('2') // 3U
+    await datSelect2(w, '#dgg-loc-tl', 2) // 3U
     expect(w.findAll('.dgg-chosen-row').length).toBe(1)
-    await tl.setValue('')
+    await datSelect2(w, '#dgg-loc-tl', '')
     await w.findAll('button').find((b) => b.text().includes('Gỡ 2 biến thể đang lọc')).trigger('click'); await flushPromises()
     expect(w.text()).toContain('1 sản phẩm · 2 biến thể')
     expect(w.findAll('.dgg-chosen-row').length).toBe(2) // màu Đỏ hết biến thể -> bộ lọc màu tự bỏ
@@ -106,6 +107,28 @@ describe('Thêm đợt giảm giá: tổng kết + bảng biến thể đã ch�
     const luu = mock.calls.post.find((c) => c[0] === '/dot-giam-gia')
     expect(luu[1]).toMatchObject({ maDot: 'DGG09', phanTramGiamDot: 10, idBienThe: [21] })
     expect(router.currentRoute.value.path).toBe('/dot-giam-gia')
+  })
+
+  it('ô ngày hiện dd/mm/yyyy: gõ 20/10/2099 và chọn ngày trên lịch, giờ gõ HH:mm, lưu gửi yyyy-mm-ddTHH:mm:ss', async () => {
+    const { w } = await montar()
+    await dongSanPham(w, 'Grip Yonex').get('input[type=checkbox]').setValue(true); await flushPromises()
+    await w.get('#dgg-ten').setValue('Sale cuối năm'); await w.get('#dgg-gia-tri').setValue('10')
+    expect(w.get('#dgg-tu-ngay').attributes('type')).toBe('text')
+    await w.get('#dgg-tu-ngay').setValue('20102099') // gõ liền số, ô tự chèn dấu /
+    expect(w.get('#dgg-tu-ngay').element.value).toBe('20/10/2099')
+    await w.get('#dgg-tu-ngay-gio').setValue('0830') // gõ liền số, ô tự chèn dấu :
+    expect(w.get('#dgg-tu-ngay-gio').element.value).toBe('08:30')
+    await w.get('#dgg-den-ngay').trigger('click')
+    // Đến ngày có min = Từ ngày: các ngày trước 20/10/2099 bị khóa trên lịch
+    expect(w.get('[data-iso="2099-10-19"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-iso="2099-10-31"]').trigger('click')
+    expect(w.get('#dgg-den-ngay').element.value).toBe('31/10/2099')
+    expect(tongKet(w)).toContain('Ngày giờ bắt đầu20/10/2099 08:30')
+    expect(tongKet(w)).toContain('Ngày giờ kết thúc31/10/2099 23:59')
+    await w.get('form').trigger('submit'); await flushPromises()
+    ;[...document.body.querySelectorAll('button')].find((b) => /Xác nhận|Đồng ý|Có/.test(b.textContent))?.click(); await flushPromises()
+    const luu = mock.calls.post.find((c) => c[0] === '/dot-giam-gia')
+    expect(luu[1]).toMatchObject({ ngayBatDau: '2099-10-20T08:30:00', ngayKetThuc: '2099-10-31T23:59:00' }) // backend chuẩn hóa: bắt đầu :00, kết thúc :59
   })
 
   it('chưa chọn biến thể nào: báo lỗi, không lưu', async () => {

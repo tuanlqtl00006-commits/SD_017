@@ -4,8 +4,15 @@ import QRCode from 'qrcode'
 import { useRoute } from 'vue-router'
 import api from '../services/api'
 import BaseModal from './common/BaseModal.vue'
+import Select2 from './common/Select2.vue'
+import VanChuyenLogo from './common/VanChuyenLogo.vue'
 import { useToast } from '../composables/useToast'
-import { formatMoney } from '../utils/format'
+import {
+  BUOC_DA_HUY, BUOC_GIAO_THAT_BAI, LUONG_GIAO_HANG, LUONG_TAI_QUAY, TT,
+  laTrangThaiCuoi, nutChuyen, trangThaiOf,
+} from '../constants/hoaDon'
+import { formatGio, formatMoney, formatNgay, formatNgayGio } from '../utils/format'
+import { moTaMucGiam, taoHtmlHoaDon } from '../utils/hoaDonIn'
 import { normalizeText } from '../utils/text'
 
 const route = useRoute()
@@ -63,125 +70,151 @@ const sanPham = computed(() => data.value?.sanPham ?? [])
 const thanhToan = computed(() => data.value?.thanhToan ?? [])
 const lichSu = computed(() => data.value?.lichSu ?? [])
 const laGiaoHang = computed(() => hd.value.loaiDon === 2)
+// Khách lẻ (không gắn hồ sơ khách hàng) và không có SĐT: không hiện dòng SĐT / email (cô: "khách lẻ tại sao có số điện thoại")
+const laKhachLe = computed(() => !!khach.value.khachLe && !khach.value.sdt)
+const moTaGiam = computed(() => moTaMucGiam(hd.value))
 
 /* ===================== Định dạng ===================== */
 
-const pad = (n) => String(n).padStart(2, '0')
-function parseDate(v) {
-  if (!v) return null
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? null : d
-}
-const fmtTime = (v) => { const d = parseDate(v); return d ? `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` : '' }
-const fmtDay = (v) => { const d = parseDate(v); return d ? `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}` : '' }
-const fmtDateTime = (v) => (parseDate(v) ? `${fmtTime(v)} ${fmtDay(v)}` : '—')
+const fmtTime = formatGio
+const fmtDay = formatNgay
+const fmtDateTime = formatNgayGio
 const money = (v) => formatMoney(v ?? 0)
 
 /* ===================== Trạng thái & dòng thời gian ===================== */
 
-const TRANG_THAI = {
-  0: { label: 'Đã hủy', pill: 'ad-pill-red' },
-  1: { label: 'Chờ xác nhận', pill: 'ad-pill-amber' },
-  2: { label: 'Đã xác nhận', pill: 'ad-pill-blue' },
-  3: { label: 'Chờ giao hàng', pill: 'ad-pill-purple' },
-  4: { label: 'Đang giao hàng', pill: 'ad-pill-blue' },
-  5: { label: 'Đã giao hàng', pill: 'ad-pill-green' },
-  6: { label: 'Đã hoàn thành', pill: 'ad-pill-green' },
-}
-const trangThaiHienTai = computed(() => TRANG_THAI[hd.value.trangThai] ?? { label: 'Không xác định', pill: 'ad-pill-gray' })
-
-// Đơn giao hàng đi đủ 6 bước; đơn tại quầy: tạo đơn -> hoàn thành (thanh toán ngay)
-const FLOW_GIAO_HANG = [
-  { code: 1, label: 'Chờ xác nhận', icon: 'bi-hourglass-split' },
-  { code: 2, label: 'Đã xác nhận', icon: 'bi-clipboard-check' },
-  { code: 3, label: 'Chờ giao hàng', icon: 'bi-box-seam' },
-  { code: 4, label: 'Đang giao hàng', icon: 'bi-truck' },
-  { code: 5, label: 'Đã giao hàng', icon: 'bi-house-check' },
-  { code: 6, label: 'Đã hoàn thành', icon: 'bi-patch-check' },
-]
-const FLOW_TAI_QUAY = [
-  { code: 1, label: 'Tạo đơn hàng', icon: 'bi-receipt' },
-  { code: 6, label: 'Đã hoàn thành', icon: 'bi-patch-check' },
-]
+const trangThaiHienTai = computed(() => trangThaiOf(hd.value.trangThai))
 
 const timeline = computed(() => {
-  const flow = laGiaoHang.value ? FLOW_GIAO_HANG : FLOW_TAI_QUAY
+  const flow = laGiaoHang.value ? LUONG_GIAO_HANG : LUONG_TAI_QUAY
   const status = hd.value.trangThai
-  // Lần gần nhất đạt từng trạng thái (lấy giờ + người thao tác)
+  // Lần gần nhất đạt từng trạng thái (lấy giờ + người thao tác); riêng "Đang giao hàng" lấy lần ĐẦU (lúc bàn giao cho vận chuyển)
+  // để giờ không nhảy sau giờ "Giao hàng thất bại" khi đơn được giao lại.
   const lanCuoi = {}
-  for (const ls of lichSu.value) if (ls.trangThai !== null && ls.trangThai !== undefined) lanCuoi[ls.trangThai] = ls
+  const lanDau = {}
+  for (const ls of lichSu.value) {
+    if (ls.trangThai === null || ls.trangThai === undefined) continue
+    lanCuoi[ls.trangThai] = ls
+    lanDau[ls.trangThai] ??= ls
+  }
+  const coThatBai = laGiaoHang.value && (status === TT.GIAO_THAT_BAI || !!lanCuoi[TT.GIAO_THAT_BAI])
+  const viTriGiao = flow.findIndex((s) => s.code === TT.DANG_GIAO)
 
   let viTri = flow.findIndex((s) => s.code === status)
-  if (status === 0) {
+  if (status === TT.GIAO_THAT_BAI) viTri = Math.max(0, viTriGiao) // thất bại xảy ra khi đang giao
+  if (status === TT.DA_HUY) {
     // Đơn hủy: bước xa nhất đã đi được trước khi hủy
     viTri = 0
     flow.forEach((s, i) => { if (lanCuoi[s.code]) viTri = i })
   }
+  // Bước đang đứng đã "xong" (không còn đang chờ xử lý) khi đơn dừng ở đó
+  const dungLai = status === TT.DA_HUY || status === TT.HOAN_THANH || status === TT.GIAO_THAT_BAI
 
   const steps = flow.map((s, i) => {
     let state = 'todo'
-    if (i < viTri || (i === viTri && (status === 0 || status === 6))) state = 'done'
+    if (i < viTri || (i === viTri && dungLai)) state = 'done'
     else if (i === viTri) state = 'current'
-    const ls = lanCuoi[s.code]
+    const ls = s.code === TT.DANG_GIAO ? lanDau[s.code] : lanCuoi[s.code]
     const time = state === 'todo' ? null : ls?.thoiGian ?? (i === 0 ? hd.value.ngayTao : null)
     return { ...s, state, time, user: state === 'todo' ? null : ls?.nguoiThaoTac }
   })
 
-  if (status === 0) {
+  // Nhánh "Giao hàng thất bại" nằm ngay sau "Đang giao hàng" (cô: "trường hợp giao hàng thất bại chưa thể hiện")
+  const chenThatBai = coThatBai && viTriGiao >= 0
+  if (chenThatBai) {
+    const ls = lanCuoi[TT.GIAO_THAT_BAI]
+    steps.splice(viTriGiao + 1, 0, {
+      ...BUOC_GIAO_THAT_BAI, state: 'fail', moi: status === TT.GIAO_THAT_BAI, time: ls?.thoiGian ?? null, user: ls?.nguoiThaoTac, ghiChu: ls?.moTa,
+    })
+  }
+
+  if (status === TT.DA_HUY) {
     // Bỏ các bước chưa đi, thêm bước "Đã hủy"
-    const ls = lanCuoi[0]
-    return [...steps.slice(0, viTri + 1), { code: 0, label: 'Đã hủy', icon: 'bi-x-circle', state: 'cancel', time: ls?.thoiGian, user: ls?.nguoiThaoTac }]
+    const ls = lanCuoi[TT.DA_HUY]
+    const cat = viTri + 1 + (chenThatBai && viTriGiao <= viTri ? 1 : 0)
+    return [...steps.slice(0, cat), { ...BUOC_DA_HUY, state: 'cancel', time: ls?.thoiGian, user: ls?.nguoiThaoTac, ghiChu: ls?.moTa }]
   }
   return steps
 })
 
 /* ===================== Đổi trạng thái ===================== */
+// Nút nào được hiện do BACKEND quyết định (hoaDon.chuyenDuoc); đơn đã hoàn thành / đã hủy thì không còn nút nào.
 
-const NUT_TIEP_THEO = {
-  2: { text: 'Xác nhận đơn', icon: 'bi-check2-circle' },
-  3: { text: 'Chuẩn bị hàng', icon: 'bi-box-seam' },
-  4: { text: 'Giao cho vận chuyển', icon: 'bi-truck' },
-  5: { text: 'Xác nhận đã giao', icon: 'bi-house-check' },
-  6: { text: 'Hoàn thành đơn', icon: 'bi-patch-check' },
+const THU_TU_NUT = { nguyhiem: 0, canhbao: 1, chinh: 2 }
+const dsNut = computed(() =>
+  (hd.value.chuyenDuoc ?? [])
+    .map((c) => ({ ...c, ...nutChuyen(hd.value.loaiDon, hd.value.trangThai, c.trangThai) }))
+    .sort((a, b) => THU_TU_NUT[a.kieu] - THU_TU_NUT[b.kieu]),
+)
+const LOP_NUT = { chinh: 'ad-btn-primary', canhbao: 'hd-btn-outline-warning', nguyhiem: 'hd-btn-outline-danger' }
+const daKhoa = computed(() => (hd.value.laTrangThaiCuoi ?? laTrangThaiCuoi(hd.value.trangThai)) === true)
+const thongBaoKhoa = computed(() => {
+  const ten = trangThaiHienTai.value.label.toLowerCase()
+  return `Đơn đã ở trạng thái "${ten}" - là trạng thái cuối nên không thể đổi trạng thái nữa.`
+})
+
+const action = reactive({ open: false, trangThai: null, title: '', ghiChu: '', error: '', saving: false, batBuoc: false })
+
+const NHAN_GHI_CHU = { [TT.DA_HUY]: 'Lý do hủy', [TT.GIAO_THAT_BAI]: 'Lý do giao hàng thất bại' }
+const GOI_Y_GHI_CHU = {
+  [TT.DA_HUY]: 'Vd: Khách đổi ý, không muốn mua nữa',
+  [TT.GIAO_THAT_BAI]: 'Vd: Khách không nghe máy 3 lần / từ chối nhận hàng / sai địa chỉ',
 }
-
-const trangThaiTiepTheo = computed(() => {
-  const s = hd.value.trangThai
-  if (s === 0 || s === 6 || s === undefined || s === null) return null
-  return laGiaoHang.value ? s + 1 : 6
-})
-const nutTiepTheo = computed(() => {
-  const next = trangThaiTiepTheo.value
-  if (next === null) return null
-  if (!laGiaoHang.value) return { text: 'Xác nhận thanh toán', icon: 'bi-cash-coin' }
-  return NUT_TIEP_THEO[next]
-})
-const coTheHuy = computed(() => [1, 2, 3].includes(hd.value.trangThai))
-
-const action = reactive({ open: false, trangThai: null, title: '', ghiChu: '', error: '', saving: false })
+const THIEU_LY_DO = { [TT.DA_HUY]: 'Vui lòng nhập lý do hủy đơn.', [TT.GIAO_THAT_BAI]: 'Vui lòng nhập lý do giao hàng thất bại.' }
 
 function moXacNhan(trangThai) {
+  const c = (hd.value.chuyenDuoc ?? []).find((x) => x.trangThai === trangThai)
   action.open = true
   action.trangThai = trangThai
   action.ghiChu = ''
   action.error = ''
-  action.title = trangThai === 0 ? 'Hủy đơn hàng' : nutTiepTheo.value?.text ?? 'Cập nhật trạng thái'
+  action.batBuoc = c ? !!c.batBuocLyDo : trangThai in THIEU_LY_DO
+  const nut = nutChuyen(hd.value.loaiDon, hd.value.trangThai, trangThai)
+  action.title = trangThai === TT.DA_HUY ? 'Hủy đơn hàng' : trangThai === TT.GIAO_THAT_BAI ? 'Báo giao hàng thất bại' : nut.text
 }
 
 function nguoiThaoTac() {
   return 'Quản lý'
 }
 
+/* ===================== In hóa đơn ===================== */
+
+function moCuaSoIn() {
+  return window.open('', '_blank', 'width=820,height=900')
+}
+
+/** Viết hóa đơn vào cửa sổ đã mở; cửa sổ tự gọi hộp thoại in (chọn "Lưu dưới dạng PDF" để có file PDF). */
+function inVaoCuaSo(w) {
+  w.document.write(taoHtmlHoaDon({
+    hd: hd.value, khach: khach.value, giao: giao.value, sanPham: sanPham.value,
+    daThanhToan: daThanhToan.value, qrUrl: qrUrl.value, goc: location.origin,
+  }))
+  w.document.close()
+}
+
+function inHoaDon() {
+  const w = moCuaSoIn()
+  if (!w) {
+    toast.error('Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại.')
+    return
+  }
+  inVaoCuaSo(w)
+}
+
 async function xacNhanDoiTrangThai() {
   const ghiChu = action.ghiChu.trim()
-  if (action.trangThai === 0 && !ghiChu) {
-    action.error = 'Vui lòng nhập lý do hủy đơn.'
+  if (action.batBuoc && !ghiChu) {
+    action.error = THIEU_LY_DO[action.trangThai] ?? 'Vui lòng nhập ghi chú.'
     return
   }
   if (ghiChu.length > 500) {
     action.error = 'Ghi chú tối đa 500 ký tự.'
     return
   }
+  // Chuyển sang "Đã xác nhận" thì tự mở bản in / PDF hóa đơn (cô: "chuyển sang đã xác nhận thì tự động in PDF").
+  // Cửa sổ in phải mở ngay lúc người dùng bấm (trước khi chờ máy chủ) thì trình duyệt mới không chặn; có lỗi thì đóng lại.
+  const tuDongIn = action.trangThai === TT.DA_XAC_NHAN
+  const cuaSoIn = tuDongIn ? moCuaSoIn() : null
   action.saving = true
   try {
     const res = await api.put(`/hoa-don/${idHoaDon}/trang-thai`, {
@@ -191,10 +224,20 @@ async function xacNhanDoiTrangThai() {
     })
     setData(res.data)
     action.open = false
-    toast.success(action.trangThai === 0
-      ? `Đã hủy hóa đơn ${hd.value.maHoaDon}`
-      : `Hóa đơn ${hd.value.maHoaDon}: ${TRANG_THAI[action.trangThai].label.toLowerCase()}`)
+    const ma = hd.value.maHoaDon
+    if (action.trangThai === TT.DA_HUY) toast.success(`Đã hủy hóa đơn ${ma}`)
+    else if (action.trangThai === TT.GIAO_THAT_BAI) toast.success(`Hóa đơn ${ma}: đã ghi nhận giao hàng thất bại`)
+    else toast.success(`Hóa đơn ${ma}: ${trangThaiOf(action.trangThai).label.toLowerCase()}`)
+    if (tuDongIn) {
+      if (cuaSoIn) {
+        inVaoCuaSo(cuaSoIn)
+        toast.success('Đã mở bản in hóa đơn. Chọn "Lưu dưới dạng PDF" trong hộp thoại in để lưu file.')
+      } else {
+        toast.error('Đã xác nhận đơn nhưng trình duyệt chặn cửa sổ in. Cho phép cửa sổ bật lên rồi bấm "In hóa đơn".')
+      }
+    }
   } catch (e) {
+    cuaSoIn?.close?.()
     action.error = e.message || 'Không cập nhật được trạng thái.'
   } finally {
     action.saving = false
@@ -215,6 +258,15 @@ const filters = reactive({ q: '', loai: '', sort: 'mac-dinh' })
 const price = reactive({ min: 0, max: 0 })
 
 const loaiSanPham = computed(() => [...new Set(sanPham.value.map((x) => x.tenDanhMuc).filter(Boolean))])
+const dsLoaiLoc = computed(() => [{ value: '', label: 'Tất cả loại' }, ...loaiSanPham.value.map((l) => ({ value: l, label: l }))])
+const DS_SAP_XEP = [
+  { value: 'mac-dinh', label: 'Mặc định' },
+  { value: 'gia-tang', label: 'Đơn giá tăng dần' },
+  { value: 'gia-giam', label: 'Đơn giá giảm dần' },
+  { value: 'sl-giam', label: 'Số lượng nhiều nhất' },
+  { value: 'tien-giam', label: 'Thành tiền cao nhất' },
+  { value: 'ten-az', label: 'Tên A → Z' },
+]
 const priceCeil = computed(() => Math.max(0, ...sanPham.value.map((x) => Number(x.donGia) || 0)))
 const priceStep = computed(() => (priceCeil.value > 1_000_000 ? 10_000 : 1_000))
 
@@ -269,120 +321,6 @@ const MAU = {
 }
 const mauHex = (ten) => MAU[normalizeText(ten)] ?? '#cbd5e1'
 const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '—'
-
-/* ===================== In hóa đơn ===================== */
-
-const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
-
-function inHoaDon() {
-  const w = window.open('', '_blank', 'width=820,height=900')
-  if (!w) {
-    toast.error('Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại.')
-    return
-  }
-  const h = hd.value
-  const rows = sanPham.value.map((x, i) => `
-    <tr>
-      <td class="c">${i + 1}</td>
-      <td>${esc(x.tenSanPham)}<div class="m">${esc(x.maSpct)} · ${esc(x.mauSac || '')} · ${esc(thongSo(x))}</div></td>
-      <td class="c">${esc(x.soLuong)}</td>
-      <td class="r">${esc(money(x.donGia))}</td>
-      <td class="r">${esc(money(x.thanhTien))}</td>
-    </tr>`).join('')
-  const qr = qrUrl.value ? `<img class="qr" src="${qrUrl.value}" alt="QR ${esc(h.maHoaDon)}">` : ''
-  const nguoiNhan = laGiaoHang.value
-    ? `<p><b>Người nhận:</b> ${esc(giao.value.hoTenNguoiNhan || khach.value.ten)}</p>
-       <p><b>SĐT nhận:</b> ${esc(giao.value.sdtNguoiNhan || '—')}</p>
-       <p><b>Địa chỉ:</b> ${esc(giao.value.diaChi || '—')}</p>
-       <p><b>Vận chuyển:</b> ${esc(h.donViVanChuyen || '—')}</p>`
-    : `<p>Nhận hàng tại cửa hàng</p>`
-  const thanhToanRows = thanhToan.value.map((p) => `
-    <tr>
-      <td>${esc(p.phuongThuc || 'Thanh toán')}</td>
-      <td>${esc(fmtDateTime(p.thoiGian))}${p.maGiaoDich ? ' · ' + esc(p.maGiaoDich) : ''}</td>
-      <td class="c">${p.trangThai === 1 ? 'Đã thanh toán' : 'Chờ xử lý'}</td>
-      <td class="r">${esc(money(p.soTien))}</td>
-    </tr>`).join('')
-  w.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${esc(h.maHoaDon)}</title>
-  <style>
-    body{font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#18242f;margin:32px;font-size:13px}
-    .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0977ec;padding-bottom:12px;margin-bottom:16px}
-    .top img{height:56px}
-    h1{font-size:20px;margin:0 0 4px;color:#0977ec}
-    p{margin:3px 0}
-    table{width:100%;border-collapse:collapse;margin-top:14px}
-    th{background:#e7f1fd;text-align:left;padding:8px;font-size:12px}
-    td{padding:8px;border-bottom:1px solid #e6eaf0;vertical-align:top}
-    .c{text-align:center}.r{text-align:right;white-space:nowrap}.m{color:#7b8794;font-size:11px;margin-top:2px}
-    .sum{margin-left:auto;width:300px;margin-top:14px}
-    .sum div{display:flex;justify-content:space-between;padding:4px 0}
-    .sum .t{border-top:1px solid #e6eaf0;margin-top:4px;padding-top:8px;font-weight:700;font-size:15px;color:#0977ec}
-    .foot{text-align:center;color:#7b8794;margin-top:28px}
-    h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#0977ec;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #cfe0f7}
-    .sec{margin-top:18px;break-inside:avoid}
-    .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    .head-r{display:flex;align-items:flex-start;gap:14px}
-    .qr{width:96px;height:96px;display:block}
-    @media print{body{margin:14mm}}
-  </style></head><body>
-    <div class="top">
-      <div><img src="${esc(location.origin)}/logo.png" alt="FootStyle"><p>Shop cầu lông FootStyle</p></div>
-      <div class="head-r">
-        <div style="text-align:right"><h1>HÓA ĐƠN BÁN HÀNG</h1>
-          <p><b>Mã:</b> ${esc(h.maHoaDon)}</p><p><b>Ngày:</b> ${esc(fmtDateTime(h.ngayTao))}</p></div>
-        ${qr}
-      </div>
-    </div>
-
-    <div class="sec">
-      <h2>Thông tin đơn hàng</h2>
-      <div class="two">
-        <div><p><b>Mã hóa đơn:</b> ${esc(h.maHoaDon)}</p><p><b>Loại đơn:</b> ${esc(h.tenLoaiDon)}</p><p><b>Nhân viên:</b> ${esc(h.tenNhanVien || '—')}</p></div>
-        <div><p><b>Trạng thái:</b> ${esc(trangThaiHienTai.value.label)}</p><p><b>Thanh toán:</b> ${esc(h.phuongThucThanhToan || '—')}</p></div>
-      </div>
-    </div>
-
-    <div class="two">
-      <div class="sec">
-        <h2>Khách hàng</h2>
-        <p><b>Tên:</b> ${esc(khach.value.ten || '—')}</p>
-        <p><b>SĐT:</b> ${esc(khach.value.sdt || '—')}</p>
-        <p><b>Email:</b> ${esc(khach.value.email || '—')}</p>
-      </div>
-      <div class="sec">
-        <h2>Giao hàng</h2>
-        ${nguoiNhan}
-        ${h.ghiChu ? `<p><b>Ghi chú:</b> ${esc(h.ghiChu)}</p>` : ''}
-      </div>
-    </div>
-
-    <div class="sec">
-      <h2>Sản phẩm</h2>
-      <table><thead><tr><th class="c">STT</th><th>Sản phẩm</th><th class="c">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead>
-        <tbody>${rows}</tbody></table>
-    </div>
-
-    <div class="sec two">
-      <div>
-        ${thanhToanRows ? `<h2>Lịch sử thanh toán</h2>
-        <table><thead><tr><th>Phương thức</th><th>Thời gian</th><th class="c">Trạng thái</th><th class="r">Số tiền</th></tr></thead><tbody>${thanhToanRows}</tbody></table>` : ''}
-      </div>
-      <div>
-        <h2>Tổng tiền</h2>
-        <div class="sum" style="width:auto;margin-top:6px">
-          <div><span>Tổng tiền hàng</span><span>${esc(money(h.tongTien))}</span></div>
-          <div><span>Giảm giá${h.maPhieuGiamGia ? ' (' + esc(h.maPhieuGiamGia) + ')' : ''}</span><span>- ${esc(money(h.soTienGiam))}</span></div>
-          <div><span>Phí vận chuyển</span><span>${esc(money(h.phiVanChuyen))}</span></div>
-          <div class="t"><span>Tổng thanh toán</span><span>${esc(money(h.thanhTien))}</span></div>
-          <div><span>Đã thanh toán</span><span>${esc(money(daThanhToan.value))}</span></div>
-        </div>
-      </div>
-    </div>
-    <p class="foot">Cảm ơn quý khách đã mua hàng tại FootStyle!</p>
-    <script>window.onload=function(){window.print()}<\/script>
-  </body></html>`)
-  w.document.close()
-}
 </script>
 
 <template>
@@ -428,7 +366,7 @@ function inHoaDon() {
           </div>
 
           <ol class="hd-timeline" aria-label="Tiến trình đơn hàng">
-            <li v-for="s in timeline" :key="s.code" class="hd-step" :class="`is-${s.state}`">
+            <li v-for="s in timeline" :key="s.code" class="hd-step" :class="[`is-${s.state}`, { 'is-latest': s.moi }]" :data-buoc="s.code">
               <span class="hd-step-dot"><i class="bi" :class="s.icon" aria-hidden="true"></i></span>
               <span class="hd-step-label">{{ s.label }}</span>
               <template v-if="s.time">
@@ -436,15 +374,25 @@ function inHoaDon() {
                 <span class="hd-step-meta">{{ fmtDay(s.time) }}</span>
               </template>
               <span v-if="s.user" class="hd-step-user">{{ s.user }}</span>
+              <span v-if="s.ghiChu && (s.state === 'fail' || s.state === 'cancel')" class="hd-step-note">{{ s.ghiChu }}</span>
             </li>
           </ol>
 
           <div class="hd-actions">
-            <button v-if="coTheHuy" type="button" class="ad-btn hd-btn-outline-danger" @click="moXacNhan(0)">
-              <i class="bi bi-x-circle" aria-hidden="true"></i> Hủy đơn
-            </button>
-            <button v-if="nutTiepTheo" type="button" class="ad-btn ad-btn-primary" @click="moXacNhan(trangThaiTiepTheo)">
-              <i class="bi" :class="nutTiepTheo.icon" aria-hidden="true"></i> {{ nutTiepTheo.text }}
+            <!-- Đã hoàn thành / Đã hủy là trạng thái cuối: khóa, không còn nút đổi trạng thái -->
+            <p v-if="daKhoa" class="hd-khoa" role="note">
+              <i class="bi bi-lock-fill" aria-hidden="true"></i> {{ thongBaoKhoa }}
+            </p>
+            <button
+              v-for="n in dsNut"
+              :key="n.trangThai"
+              type="button"
+              class="ad-btn"
+              :class="LOP_NUT[n.kieu]"
+              :data-chuyen="n.trangThai"
+              @click="moXacNhan(n.trangThai)"
+            >
+              <i class="bi" :class="n.icon" aria-hidden="true"></i> {{ n.text }}
             </button>
             <button type="button" class="ad-btn" @click="showLichSu = true">
               <i class="bi bi-clock-history" aria-hidden="true"></i> Lịch sử thao tác
@@ -464,6 +412,14 @@ function inHoaDon() {
             <div><dt>Ngày tạo</dt><dd>{{ fmtDateTime(hd.ngayTao) }}</dd></div>
             <div><dt>Nhân viên</dt><dd>{{ hd.tenNhanVien || '—' }}</dd></div>
             <div><dt>Thanh toán</dt><dd>{{ hd.phuongThucThanhToan || '—' }}</dd></div>
+            <div>
+              <dt>Phiếu giảm giá</dt>
+              <dd v-if="hd.maPhieuGiamGia" class="hd-phieu">
+                <span class="ad-code" :title="hd.tenPhieuGiamGia">{{ hd.maPhieuGiamGia }}</span>
+                <span v-if="moTaGiam" class="hd-sub">{{ moTaGiam }}</span>
+              </dd>
+              <dd v-else class="text-muted">Không dùng phiếu</dd>
+            </div>
           </dl>
         </section>
 
@@ -478,8 +434,12 @@ function inHoaDon() {
           </div>
           <dl class="hd-rows">
             <div><dt>Tên khách hàng</dt><dd class="fw-semibold">{{ khach.ten }}</dd></div>
-            <div><dt>Số điện thoại</dt><dd>{{ khach.sdt || '—' }}</dd></div>
-            <div><dt>Email</dt><dd class="hd-break">{{ khach.email || 'Không có' }}</dd></div>
+            <!-- Khách lẻ: không lưu số điện thoại / email nên không hiện hai dòng này -->
+            <div v-if="laKhachLe"><dt>Loại khách</dt><dd class="text-muted">Khách lẻ, không lưu thông tin liên hệ</dd></div>
+            <template v-else>
+              <div><dt>Số điện thoại</dt><dd>{{ khach.sdt || '—' }}</dd></div>
+              <div><dt>Email</dt><dd class="hd-break">{{ khach.email || 'Không có' }}</dd></div>
+            </template>
           </dl>
         </section>
 
@@ -492,9 +452,11 @@ function inHoaDon() {
             <template v-if="laGiaoHang">
               <div><dt>Người nhận</dt><dd class="fw-semibold">{{ giao.hoTenNguoiNhan || khach.ten }}</dd></div>
               <div><dt>SĐT nhận</dt><dd>{{ giao.sdtNguoiNhan || '—' }}</dd></div>
+              <div><dt>Địa chỉ</dt><dd class="hd-break">{{ giao.diaChi || '—' }}</dd></div>
+              <div><dt>Vận chuyển</dt><dd><VanChuyenLogo :ten="hd.donViVanChuyen" /></dd></div>
             </template>
-            <div><dt>Địa chỉ</dt><dd class="hd-break">{{ giao.diaChi || '—' }}</dd></div>
-            <div v-if="laGiaoHang"><dt>Vận chuyển</dt><dd>{{ hd.donViVanChuyen || '—' }}</dd></div>
+            <!-- Đơn tại quầy: nhận hàng ngay tại cửa hàng, không có địa chỉ giao / đơn vị vận chuyển / phí vận chuyển -->
+            <div v-else><dt>Hình thức</dt><dd>Nhận hàng tại cửa hàng</dd></div>
             <div><dt>Ghi chú</dt><dd class="hd-break">{{ hd.ghiChu || '—' }}</dd></div>
           </dl>
         </section>
@@ -566,21 +528,11 @@ function inHoaDon() {
             </div>
             <div>
               <label class="ad-label" for="hd-loai">Loại sản phẩm</label>
-              <select id="hd-loai" v-model="filters.loai" class="form-select">
-                <option value="">Tất cả loại</option>
-                <option v-for="l in loaiSanPham" :key="l" :value="l">{{ l }}</option>
-              </select>
+              <Select2 id="hd-loai" v-model="filters.loai" :options="dsLoaiLoc" />
             </div>
             <div>
               <label class="ad-label" for="hd-sort">Sắp xếp</label>
-              <select id="hd-sort" v-model="filters.sort" class="form-select">
-                <option value="mac-dinh">Mặc định</option>
-                <option value="gia-tang">Đơn giá tăng dần</option>
-                <option value="gia-giam">Đơn giá giảm dần</option>
-                <option value="sl-giam">Số lượng nhiều nhất</option>
-                <option value="tien-giam">Thành tiền cao nhất</option>
-                <option value="ten-az">Tên A → Z</option>
-              </select>
+              <Select2 id="hd-sort" v-model="filters.sort" :options="DS_SAP_XEP" />
             </div>
           </div>
 
@@ -659,11 +611,16 @@ function inHoaDon() {
         <!-- Tổng tiền -->
         <div class="hd-summary">
           <div><span>Tổng tiền hàng</span><span>{{ money(hd.tongTien) }}</span></div>
-          <div>
-            <span>Giảm giá <span v-if="hd.maPhieuGiamGia" class="ad-pill ad-pill-blue hd-voucher" :title="hd.tenPhieuGiamGia">{{ hd.maPhieuGiamGia }}</span></span>
+          <div data-dong="giam-gia">
+            <span>
+              Giảm giá
+              <span v-if="hd.maPhieuGiamGia" class="ad-pill ad-pill-blue hd-voucher" :title="hd.tenPhieuGiamGia">{{ hd.maPhieuGiamGia }}</span>
+              <small v-if="moTaGiam" class="hd-giam-mota">{{ moTaGiam }}</small>
+            </span>
             <span class="text-danger">- {{ money(hd.soTienGiam) }}</span>
           </div>
-          <div><span>Phí vận chuyển</span><span>{{ money(hd.phiVanChuyen) }}</span></div>
+          <!-- Đơn tại quầy không có vận chuyển nên không có dòng phí vận chuyển -->
+          <div v-if="laGiaoHang" data-dong="phi-van-chuyen"><span>Phí vận chuyển</span><span>{{ money(hd.phiVanChuyen) }}</span></div>
           <div class="hd-summary-total"><span>Tổng thanh toán</span><span>{{ money(hd.thanhTien) }}</span></div>
           <div><span>Đã thanh toán</span><span class="text-success fw-semibold">{{ money(daThanhToan) }}</span></div>
           <div v-if="hd.trangThai !== 0"><span>Còn phải trả</span><span :class="conPhaiTra > 0 ? 'text-danger fw-semibold' : ''">{{ money(conPhaiTra) }}</span></div>
@@ -691,7 +648,7 @@ function inHoaDon() {
               </tr>
               <tr v-for="(ls, i) in lichSuMoiTruoc" :key="ls.id">
                 <td class="ad-col-stt">{{ i + 1 }}</td>
-                <td><span class="ad-pill" :class="TRANG_THAI[ls.trangThai]?.pill ?? 'ad-pill-gray'">{{ ls.hanhDong }}</span></td>
+                <td><span class="ad-pill" :class="trangThaiOf(ls.trangThai).pill">{{ ls.hanhDong }}</span></td>
                 <td class="ad-nowrap">{{ ls.nguoiThaoTac || '—' }}</td>
                 <td class="ad-nowrap">{{ fmtDateTime(ls.thoiGian) }}</td>
                 <td class="ad-cell-wrap">{{ ls.moTa || '—' }}</td>
@@ -702,15 +659,26 @@ function inHoaDon() {
       </div>
     </BaseModal>
 
-    <!-- Hộp thoại: xác nhận đổi trạng thái / hủy -->
+    <!-- Hộp thoại: xác nhận đổi trạng thái / hủy / báo giao hàng thất bại -->
     <BaseModal v-if="action.open" :title="action.title" static-backdrop @close="action.open = false">
-      <p class="mb-3">
-        <template v-if="action.trangThai === 0">Hủy hóa đơn <strong>{{ hd.maHoaDon }}</strong>? Thao tác này không hoàn tác được.</template>
-        <template v-else>Chuyển hóa đơn <strong>{{ hd.maHoaDon }}</strong> sang <strong>{{ TRANG_THAI[action.trangThai]?.label }}</strong>?</template>
+      <p class="mb-3" data-noi-dung="xac-nhan">
+        <template v-if="action.trangThai === TT.DA_HUY">
+          Hủy hóa đơn <strong>{{ hd.maHoaDon }}</strong>? Thao tác này không hoàn tác được; số lượng hàng của đơn sẽ được cộng lại vào kho.
+        </template>
+        <template v-else-if="action.trangThai === TT.GIAO_THAT_BAI">
+          Ghi nhận hóa đơn <strong>{{ hd.maHoaDon }}</strong> giao hàng <strong>thất bại</strong>? Sau đó có thể giao lại hoặc hủy đơn.
+        </template>
+        <template v-else-if="hd.trangThai === TT.GIAO_THAT_BAI && action.trangThai === TT.DANG_GIAO">
+          Giao lại hóa đơn <strong>{{ hd.maHoaDon }}</strong> cho đơn vị vận chuyển?
+        </template>
+        <template v-else>Chuyển hóa đơn <strong>{{ hd.maHoaDon }}</strong> sang <strong>{{ trangThaiOf(action.trangThai).label }}</strong>?</template>
+      </p>
+      <p v-if="action.trangThai === TT.DA_XAC_NHAN" class="hd-in-tu-dong">
+        <i class="bi bi-printer" aria-hidden="true"></i> Sau khi xác nhận, hệ thống tự mở bản in hóa đơn (chọn "Lưu dưới dạng PDF" để lưu file).
       </p>
       <label class="ad-label" for="hd-ghi-chu">
-        {{ action.trangThai === 0 ? 'Lý do hủy' : 'Ghi chú' }}
-        <span v-if="action.trangThai === 0" class="ad-required">*</span>
+        {{ NHAN_GHI_CHU[action.trangThai] ?? 'Ghi chú' }}
+        <span v-if="action.batBuoc" class="ad-required">*</span>
       </label>
       <textarea
         id="hd-ghi-chu"
@@ -719,7 +687,7 @@ function inHoaDon() {
         :class="{ 'is-invalid': action.error }"
         rows="3"
         maxlength="500"
-        :placeholder="action.trangThai === 0 ? 'Vd: Khách đổi ý, không muốn mua nữa' : 'Không bắt buộc'"
+        :placeholder="GOI_Y_GHI_CHU[action.trangThai] ?? 'Không bắt buộc'"
         @input="action.error = ''"
       ></textarea>
       <div v-if="action.error" class="ad-error mt-1" role="alert">{{ action.error }}</div>
@@ -728,12 +696,12 @@ function inHoaDon() {
         <button
           type="button"
           class="ad-btn"
-          :class="action.trangThai === 0 ? 'ad-btn-danger' : 'ad-btn-primary'"
+          :class="action.trangThai === TT.DA_HUY ? 'ad-btn-danger' : action.trangThai === TT.GIAO_THAT_BAI ? 'hd-btn-warning' : 'ad-btn-primary'"
           :disabled="action.saving"
           @click="xacNhanDoiTrangThai"
         >
           <span v-if="action.saving" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-          {{ action.trangThai === 0 ? 'Hủy đơn' : 'Xác nhận' }}
+          {{ action.trangThai === TT.DA_HUY ? 'Hủy đơn' : action.trangThai === TT.GIAO_THAT_BAI ? 'Ghi nhận thất bại' : 'Xác nhận' }}
         </button>
       </template>
     </BaseModal>
@@ -865,6 +833,29 @@ function inHoaDon() {
 .hd-step.is-cancel .hd-step-label {
   color: var(--fs-danger);
 }
+/* Nhánh "Giao hàng thất bại": màu cam để khác với bước bình thường (xanh) và hủy (đỏ) */
+.hd-step.is-fail::before {
+  background: #e8751a;
+}
+.hd-step.is-fail .hd-step-dot {
+  border-color: #e8751a;
+  background: #e8751a;
+  color: #fff;
+}
+.hd-step.is-fail.is-latest .hd-step-dot {
+  box-shadow: 0 0 0 6px rgba(232, 117, 26, 0.18);
+}
+.hd-step.is-fail .hd-step-label {
+  color: #a1400a;
+}
+.hd-step-note {
+  max-width: 150px;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: var(--fs-text-2);
+  word-break: break-word;
+}
 .hd-step-meta {
   font-size: 0.75rem;
   color: var(--fs-muted);
@@ -894,6 +885,59 @@ function inHoaDon() {
   background: #fdecee;
   border-color: #f3c2c8;
   color: #b02a37;
+}
+.hd-btn-outline-warning {
+  border-color: #f6c9a4;
+  color: #a1400a;
+}
+.hd-btn-outline-warning:hover:not(:disabled) {
+  background: #ffe9d6;
+  border-color: #f6c9a4;
+  color: #8a3405;
+}
+.hd-btn-warning {
+  border-color: #e8751a;
+  background: #e8751a;
+  color: #fff;
+}
+.hd-btn-warning:hover:not(:disabled) {
+  background: #cf6310;
+  border-color: #cf6310;
+  color: #fff;
+}
+/* Trạng thái cuối: thông báo khóa thay cho các nút đổi trạng thái */
+.hd-khoa {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: 12px;
+  background: var(--fs-surface);
+  border: 1px dashed var(--fs-line);
+  color: var(--fs-text-2);
+  font-size: 0.88rem;
+}
+.hd-in-tu-dong {
+  margin: -0.5rem 0 1rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+  font-size: 0.85rem;
+}
+.hd-phieu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+}
+.hd-giam-mota {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.75rem;
+  color: var(--fs-muted);
 }
 
 /* ---------- Danh sách dạng nhãn - giá trị ---------- */

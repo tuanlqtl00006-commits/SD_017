@@ -1,5 +1,7 @@
 <script setup>
+// Phân trang rút gọn: 1 2 3 … N (xem utils/phanTrang.js). Dùng chung cho mọi danh sách.
 import { computed } from 'vue'
+import { danhSachTrang } from '../../utils/phanTrang'
 
 const props = defineProps({
   page: { type: Number, required: true },
@@ -9,18 +11,7 @@ const props = defineProps({
 const emit = defineEmits(['update:page'])
 
 const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
-
-// Hiển thị tối đa 5 số trang quanh trang hiện tại.
-const pages = computed(() => {
-  const maxVisible = 5
-  let start = Math.max(1, props.page - Math.floor(maxVisible / 2))
-  let end = start + maxVisible - 1
-  if (end > totalPages.value) {
-    end = totalPages.value
-    start = Math.max(1, end - maxVisible + 1)
-  }
-  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
-})
+const pages = computed(() => danhSachTrang(props.page, totalPages.value))
 
 function go(target) {
   const next = Math.min(Math.max(1, target), totalPages.value)
@@ -33,17 +24,14 @@ function go(target) {
     <nav aria-label="Phân trang">
       <ul class="ad-pager-list">
         <li>
-          <button type="button" class="ad-page-btn" :disabled="page <= 1" aria-label="Trang đầu" @click="go(1)">
-            <i class="bi bi-chevron-double-left" aria-hidden="true"></i>
-          </button>
-        </li>
-        <li>
           <button type="button" class="ad-page-btn" :disabled="page <= 1" aria-label="Trang trước" @click="go(page - 1)">
             <i class="bi bi-chevron-left" aria-hidden="true"></i>
           </button>
         </li>
-        <li v-for="p in pages" :key="p">
+        <li v-for="(p, i) in pages" :key="typeof p === 'number' ? p : `gap-${i}`">
+          <span v-if="typeof p !== 'number'" class="ad-page-gap" aria-hidden="true">{{ p }}</span>
           <button
+            v-else
             type="button"
             class="ad-page-btn"
             :class="{ active: p === page }"
@@ -57,11 +45,6 @@ function go(target) {
         <li>
           <button type="button" class="ad-page-btn" :disabled="page >= totalPages" aria-label="Trang sau" @click="go(page + 1)">
             <i class="bi bi-chevron-right" aria-hidden="true"></i>
-          </button>
-        </li>
-        <li>
-          <button type="button" class="ad-page-btn" :disabled="page >= totalPages" aria-label="Trang cuối" @click="go(totalPages)">
-            <i class="bi bi-chevron-double-right" aria-hidden="true"></i>
           </button>
         </li>
       </ul>

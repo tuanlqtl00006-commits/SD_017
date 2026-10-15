@@ -13,6 +13,7 @@ vi.mock('../src/services/nhanVienService', () => ({ nhanVienService: svc }))
 vi.mock('../src/utils/exportExcel', () => ({ exportExcel: xuat }))
 
 import NhanVienManager from '../src/components/NhanVienManager.vue'
+import { cacMucSelect2, datSelect2 } from './helpersSelect2'
 
 const nv = (id, ma, hoTen, extra = {}) => ({
   id, ma, hoTen, email: `${ma.toLowerCase()}@footstyle.vn`, soDienThoai: `09120000${String(id).padStart(2, '0')}`, gioiTinh: 'Nam',
@@ -56,14 +57,14 @@ describe('Danh sách nhân viên', () => {
     expect(hang[1].text()).toContain('Đã nghỉ')
     expect(w.text()).not.toContain('Ngưng hoạt động')
     expect(w.text()).not.toMatch(/Hoạt động(?! )/)
-    const loc = w.findAll('#nv-trang-thai option').map((o) => o.text())
+    const loc = await cacMucSelect2(w, '#nv-trang-thai')
     expect(loc).toEqual(['Tất cả trạng thái', 'Còn làm', 'Đã nghỉ'])
     w.unmount()
   })
 
   it('lọc theo trạng thái "Đã nghỉ" chỉ còn nhân viên đã nghỉ', async () => {
     const w = await mo()
-    await w.find('#nv-trang-thai').setValue('false')
+    await datSelect2(w, '#nv-trang-thai', 'false')
     await flushPromises()
     expect(w.findAll('tbody .ad-code').map((c) => c.text())).toEqual(['NV0002'])
     w.unmount()

@@ -48,6 +48,31 @@ public final class NhomDanhMuc {
         return null;
     }
 
+    /** Danh mục vợt (tên có chữ "vợt") có đủ Độ cứng, Điểm cân bằng, Trọng lượng, Chu vi. Khớp laDanhMucVot() ở frontend. */
+    public static boolean laVot(String tenDanhMuc) {
+        return VOT.equals(tuTen(tenDanhMuc));
+    }
+
+    /** Mục "Không áp dụng" (DC00, CB00, TL00, CV00) dùng cho danh mục không phải vợt. */
+    public static boolean laKhongApDung(String ten) {
+        return "khong ap dung".equals(boDau(ten).replaceAll("\\s+", " "));
+    }
+
+    /**
+     * Thuộc tính chỉ có ở vợt (độ cứng, điểm cân bằng, trọng lượng, chu vi) phải khớp danh mục:
+     * vợt thì phải chọn giá trị thật, danh mục khác thì phải là "Không áp dụng". Trả về câu lỗi, hợp lệ thì null.
+     */
+    public static String loiThuocTinhVot(String tenDanhMuc, String tenThuocTinh, String nhan) {
+        boolean khongApDung = laKhongApDung(tenThuocTinh);
+        if (laVot(tenDanhMuc) && khongApDung) {
+            return "Danh mục \"" + tenDanhMuc + "\" phải chọn " + nhan + " cụ thể (không được chọn \"Không áp dụng\").";
+        }
+        if (!laVot(tenDanhMuc) && !khongApDung) {
+            return "Danh mục \"" + tenDanhMuc + "\" không có " + nhan + ", hãy chọn \"Không áp dụng\".";
+        }
+        return null;
+    }
+
     /** Chất liệu (danh sách nhóm đã gắn) có dùng được cho danh mục này không. Danh mục lạ hoặc chưa gắn nhóm: dùng được. */
     public static boolean hop(List<String> nhomChatLieu, String tenDanhMuc) {
         String nhom = tuTen(tenDanhMuc);

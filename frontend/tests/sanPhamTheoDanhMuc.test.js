@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import { mockApi } from './helpersDanhMuc'
+import { mockApi, themAnhChung } from './helpersDanhMuc'
+import { datSelect2, giaTriSelect2 } from './helpersSelect2'
 
 let mock
 vi.mock('../src/services/api', () => ({ default: new Proxy({}, { get: (_, k) => (...a) => mock.api[k](...a) }) }))
@@ -18,7 +19,7 @@ async function montar(path = '/san-pham/them') {
   await flushPromises()
   return { w, router }
 }
-const chonDanhMuc = async (w, id) => { await w.get('#sp-idDanhMuc').setValue(id); await flushPromises() }
+const chonDanhMuc = async (w, id) => { await datSelect2(w, '#sp-idDanhMuc', id); await flushPromises() }
 const nhan = (w) => w.findAll('label').map((l) => l.text())
 
 beforeEach(() => { mock = mockApi(); document.body.innerHTML = '' })
@@ -58,9 +59,9 @@ describe('Form sản phẩm theo danh mục', () => {
   it('Phụ kiện: lưu được khi chưa chọn độ cứng, gửi "Không áp dụng" + biến thể chỉ màu', async () => {
     const { w, router } = await montar(); await chonDanhMuc(w, 5)
     await w.get('#sp-ten').setValue('Cuốn cán Yonex')
-    await w.get('#sp-idThuongHieu').setValue(1)
-    await w.get('#sp-idXuatXu').setValue(1)
-    await w.get('#sp-idChatLieu').setValue(1)
+    await datSelect2(w, '#sp-idThuongHieu', 1)
+    await datSelect2(w, '#sp-idXuatXu', 1)
+    await datSelect2(w, '#sp-idChatLieu', 1)
     // chọn 2 màu rồi tạo biến thể
     const chips = w.findAll('.ad-gen-chip'); expect(chips.length).toBe(2)
     await chips[0].trigger('click'); await chips[1].trigger('click')
@@ -76,6 +77,7 @@ describe('Form sản phẩm theo danh mục', () => {
     expect(w.find('thead').text()).toContain('Màu sắc')
     expect(w.find('thead').text()).not.toContain('Trọng lượng')
     for (const input of w.findAll('tbody input[type=number], tbody input[inputmode=numeric]')) await input.setValue(input.attributes('aria-label') === 'Giá bán' ? '50000' : '5')
+    await themAnhChung(w) // ảnh là bắt buộc
     await w.get('form').trigger('submit'); await flushPromises()
     expect(document.body.textContent).toContain('Bạn có muốn lưu sản phẩm không?')
     const nutLuu = [...document.body.querySelectorAll('button')].find((b) => b.textContent.includes('Xác nhận lưu'))
@@ -89,7 +91,7 @@ describe('Form sản phẩm theo danh mục', () => {
   })
   it('Vợt: vẫn bắt buộc độ cứng / điểm cân bằng', async () => {
     const { w } = await montar(); await chonDanhMuc(w, 1)
-    await w.get('#sp-ten').setValue('Vợt A'); await w.get('#sp-idThuongHieu').setValue(1); await w.get('#sp-idXuatXu').setValue(1); await w.get('#sp-idChatLieu').setValue(1)
+    await w.get('#sp-ten').setValue('Vợt A'); await datSelect2(w, '#sp-idThuongHieu', 1); await datSelect2(w, '#sp-idXuatXu', 1); await datSelect2(w, '#sp-idChatLieu', 1)
     await w.get('form').trigger('submit'); await flushPromises()
     expect(w.text()).toContain('Chọn độ cứng.')
     expect(w.text()).toContain('Chọn điểm cân bằng.')
@@ -118,10 +120,10 @@ describe('Form sản phẩm theo danh mục', () => {
     expect(w.find('#sp-idDoCung').exists()).toBe(false)
     await chonDanhMuc(w, 1)
     expect(w.find('#sp-idDoCung').exists()).toBe(true)
-    expect(w.get('#sp-idDoCung').element.value).toBe('') // không giữ "Không áp dụng"
+    expect(giaTriSelect2(w, '#sp-idDoCung')).toBe('') // không giữ "Không áp dụng"
   })
   it('sửa sản phẩm phụ kiện: không hiện độ cứng; lưu giữ "Không áp dụng"', async () => {
-    mock = mockApi({ get: (url) => (url === '/san-pham/2' ? { id: 2, ma: 'SP002', ten: 'Grip Yonex', idDanhMuc: 5, idThuongHieu: 1, idXuatXu: 1, idChatLieu: 1, idDoCung: 90, idDiemCanBang: 91, anhChinh: '', anhPhu: [], moTa: '', hoatDong: true } : undefined) })
+    mock = mockApi({ get: (url) => (url === '/san-pham/2' ? { id: 2, ma: 'SP002', ten: 'Grip Yonex', idDanhMuc: 5, idThuongHieu: 1, idXuatXu: 1, idChatLieu: 1, idDoCung: 90, idDiemCanBang: 91, anhChinh: '/api/uploads/grip.png', anhPhu: [], moTa: '', hoatDong: true } : undefined) })
     const { w } = await montar('/san-pham/2/sua')
     expect(w.find('#sp-idDoCung').exists()).toBe(false)
     await w.get('form').trigger('submit'); await flushPromises()
@@ -129,17 +131,17 @@ describe('Form sản phẩm theo danh mục', () => {
     expect(mock.calls.put[0][1]).toMatchObject({ idDanhMuc: 5, idDoCung: 90, idDiemCanBang: 91 })
   })
   it('sửa sản phẩm vợt: vẫn hiện độ cứng với giá trị cũ', async () => {
-    mock = mockApi({ get: (url) => (url === '/san-pham/1' ? { id: 1, ma: 'SP001', ten: 'Astrox 99', idDanhMuc: 1, idThuongHieu: 1, idXuatXu: 1, idChatLieu: 1, idDoCung: 1, idDiemCanBang: 1, anhChinh: '', anhPhu: [], moTa: '', hoatDong: true } : undefined) })
+    mock = mockApi({ get: (url) => (url === '/san-pham/1' ? { id: 1, ma: 'SP001', ten: 'Astrox 99', idDanhMuc: 1, idThuongHieu: 1, idXuatXu: 1, idChatLieu: 1, idDoCung: 1, idDiemCanBang: 1, anhChinh: '/api/uploads/astrox.png', anhPhu: [], moTa: '', hoatDong: true } : undefined) })
     const { w } = await montar('/san-pham/1/sua')
-    expect(w.get('#sp-idDoCung').element.value).toBe('1')
-    expect(w.get('#sp-idDiemCanBang').element.value).toBe('1')
+    expect(giaTriSelect2(w, '#sp-idDoCung')).toBe('1')
+    expect(giaTriSelect2(w, '#sp-idDiemCanBang')).toBe('1')
   })
   it('thiếu mục "Không áp dụng" trong CSDL: báo lỗi rõ ràng, không gửi API', async () => {
     const { THUOC_TINH } = await import('./helpersDanhMuc')
     const bak = THUOC_TINH['do-cung']; THUOC_TINH['do-cung'] = bak.filter((x) => x.id !== 90)
     try {
       const { w } = await montar(); await chonDanhMuc(w, 5)
-      await w.get('#sp-ten').setValue('X'); await w.get('#sp-idThuongHieu').setValue(1); await w.get('#sp-idXuatXu').setValue(1); await w.get('#sp-idChatLieu').setValue(1)
+      await w.get('#sp-ten').setValue('X'); await datSelect2(w, '#sp-idThuongHieu', 1); await datSelect2(w, '#sp-idXuatXu', 1); await datSelect2(w, '#sp-idChatLieu', 1)
       await w.get('form').trigger('submit'); await flushPromises()
       expect(w.text()).toContain('chưa có mục')
       expect(mock.calls.post.length).toBe(0)

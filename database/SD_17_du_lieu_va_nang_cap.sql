@@ -14,6 +14,8 @@
 --   PHẦN 3 = SD_17_du_lieu_khach_hang_dot_giam_gia.sql
 --   PHẦN 4 = SD_17_du_lieu_hoa_don.sql
 --   PHẦN 5 = SD_17_nang_cap.sql
+--   PHẦN 6 = ảnh sản phẩm theo màu; PHẦN 7 = khách hàng không trùng email / số điện thoại
+--   PHẦN 8 = hóa đơn: dọn phí vận chuyển của đơn tại quầy + hóa đơn mẫu "Giao hàng thất bại" (HD19)
 -- Các dòng ghi chú bên trong từng phần còn nhắc tên file cũ ở trên: chỉ là chú thích, hiện chỉ dùng SD_17.sql + file này.
 -- Mật khẩu của mọi nhân viên mẫu: Footstyle@123
 -- =================================================================
@@ -213,6 +215,11 @@ GO
 
 IF COL_LENGTH('dia_chi_khach_hang', 'ngay_cap_nhat') IS NULL
     ALTER TABLE dia_chi_khach_hang ADD ngay_cap_nhat DATETIME NULL CONSTRAINT df_dckh_ngay_cap_nhat DEFAULT CURRENT_TIMESTAMP;
+GO
+
+-- Khách hàng: ảnh đại diện (trang Thêm / Sửa khách hàng có ô tải ảnh).
+IF COL_LENGTH('khach_hang', 'anh_dai_dien') IS NULL
+    ALTER TABLE khach_hang ADD anh_dai_dien NVARCHAR(500) NULL;
 GO
 
 IF COL_LENGTH('dot_giam_gia', 'mo_ta') IS NULL
@@ -1066,4 +1073,102 @@ GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_hasp_san_pham_mau' AND object_id = OBJECT_ID('hinh_anh_san_pham'))
     CREATE INDEX ix_hasp_san_pham_mau ON hinh_anh_san_pham (id_san_pham, id_mau_sac);
+GO
+
+-- #################################################################
+-- PHẦN 7: KHÁCH HÀNG KHÔNG ĐƯỢC TRÙNG EMAIL / SỐ ĐIỆN THOẠI (theo nhận xét của cô: validate trùng ở form Khách hàng)
+-- Backend (KhachHangService) đã báo "đã tồn tại" khi lưu; hai chỉ mục này chặn nốt trường hợp hai người lưu cùng lúc.
+-- Chỉ tạo khi dữ liệu hiện có chưa trùng. Nếu có dòng trùng thì in ra để sửa dữ liệu trước rồi chạy lại phần này.
+-- Chạy lại nhiều lần được. Backend cũng tự thêm khi khởi động (SchemaUpgradeRunner).
+-- #################################################################
+USE shop_cau_long_footstyle;
+GO
+
+SET QUOTED_IDENTIFIER ON;
+GO
+
+IF EXISTS (SELECT 1 FROM khach_hang WHERE email IS NOT NULL AND email <> '' GROUP BY email HAVING COUNT(*) > 1)
+BEGIN
+    PRINT N'Không tạo được chỉ mục email khách hàng vì đang có email bị trùng:';
+    SELECT email, COUNT(*) AS so_khach FROM khach_hang WHERE email IS NOT NULL AND email <> '' GROUP BY email HAVING COUNT(*) > 1;
+END
+ELSE IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_khach_hang_email' AND object_id = OBJECT_ID('khach_hang'))
+    EXEC('CREATE UNIQUE INDEX ux_khach_hang_email ON khach_hang (email) WHERE email IS NOT NULL AND email <> ''''');
+GO
+
+IF EXISTS (SELECT 1 FROM khach_hang WHERE sdt IS NOT NULL AND sdt <> '' GROUP BY sdt HAVING COUNT(*) > 1)
+BEGIN
+    PRINT N'Không tạo được chỉ mục số điện thoại khách hàng vì đang có số bị trùng:';
+    SELECT sdt, COUNT(*) AS so_khach FROM khach_hang WHERE sdt IS NOT NULL AND sdt <> '' GROUP BY sdt HAVING COUNT(*) > 1;
+END
+ELSE IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_khach_hang_sdt' AND object_id = OBJECT_ID('khach_hang'))
+    EXEC('CREATE UNIQUE INDEX ux_khach_hang_sdt ON khach_hang (sdt) WHERE sdt IS NOT NULL AND sdt <> ''''');
+GO
+
+-- #################################################################
+-- PHẦN 8: HÓA ĐƠN THEO NHẬN XÉT CỦA CÔ (video review giai đoạn 2)
+-- Không đổi cấu trúc bảng. Cột hoa_don.trang_thai (TINYINT) có thêm mã 8 = "Giao hàng thất bại":
+--   0 Đã hủy, 1 Chờ xác nhận, 2 Đã xác nhận, 3 Chờ giao hàng, 4 Đang giao hàng, 5 Đã giao hàng, 6 Đã hoàn thành,
+--   7 Hoàn tiền (chỉ để dành cho tab "Hoàn tiền", chưa có luồng chuyển sang), 8 Giao hàng thất bại.
+-- 8.1 Đơn TẠI QUẦY (loai_hoa_don = 1) nhận hàng ngay ở cửa hàng nên KHÔNG có phí vận chuyển và đơn vị vận chuyển
+--     (cô: "tại quầy sao lại có phí vận chuyển"): dọn dữ liệu cũ còn sót; thành tiền trừ lại phần phí đã cộng (không để âm).
+--     Backend cũng tự chạy lệnh này khi khởi động (SchemaUpgradeRunner).
+-- 8.2 Hóa đơn mẫu HD19 ở trạng thái "Giao hàng thất bại" (đủ chi tiết + lịch sử, có lý do) để xem ngay nhánh này
+--     trên màn hình Hóa đơn (cô: "trường hợp giao hàng thất bại chưa thể hiện"). Không tạo lại nếu đã có HD19.
+-- Chạy lại nhiều lần được.
+-- #################################################################
+USE shop_cau_long_footstyle;
+GO
+
+SET QUOTED_IDENTIFIER ON;
+GO
+
+-- 8.1 Đơn tại quầy: bỏ phí vận chuyển / đơn vị vận chuyển còn sót
+UPDATE hoa_don
+SET thanh_tien = CASE WHEN thanh_tien > ISNULL(phi_van_chuyen, 0) THEN thanh_tien - ISNULL(phi_van_chuyen, 0) ELSE 0 END,
+    phi_van_chuyen = 0,
+    don_vi_van_chuyen = NULL
+WHERE loai_hoa_don = 1 AND (ISNULL(phi_van_chuyen, 0) <> 0 OR don_vi_van_chuyen IS NOT NULL);
+GO
+
+-- 8.2 Hóa đơn mẫu giao hàng thất bại (đơn COD của KH05, giao qua Giao Hàng Tiết Kiệm, khách không nghe máy)
+IF NOT EXISTS (SELECT 1 FROM hoa_don WHERE ma_hoa_don = 'HD19')
+   AND EXISTS (SELECT 1 FROM nhan_vien WHERE ma_nhan_vien = 'NV04')
+   AND EXISTS (SELECT 1 FROM khach_hang WHERE ma_khach_hang = 'KH05')
+   AND EXISTS (SELECT 1 FROM phuong_thuc_thanh_toan WHERE ma_phuong_thuc = 'PT03')
+   AND EXISTS (SELECT 1 FROM san_pham_chi_tiet WHERE ma_spct = 'SP04-DEN-4U-G5')
+BEGIN
+    DECLARE @tao DATETIME = DATEADD(MINUTE, -3000, GETDATE());
+    DECLARE @gia DECIMAL(18,0) = (SELECT TOP 1 ROUND(gia_ban, 0) FROM san_pham_chi_tiet WHERE ma_spct = 'SP04-DEN-4U-G5');
+    DECLARE @id INT;
+
+    INSERT INTO hoa_don (id_nhan_vien, id_khach_hang, id_phieu_giam_gia, id_phuong_thuc_thanh_toan, ma_hoa_don, loai_hoa_don,
+                         tong_tien, so_tien_giam, phi_van_chuyen, thanh_tien, don_vi_van_chuyen, ho_ten_nguoi_nhan, sdt_nguoi_nhan,
+                         dia_chi_giao_hang, ghi_chu, ngay_giao_du_kien, ngay_tao, ngay_cap_nhat, trang_thai)
+    SELECT nv.id, kh.id, NULL, pt.id, 'HD19', 2,
+           @gia, 0, 30000, @gia + 30000, N'Giao Hàng Tiết Kiệm', N'Hoàng Đức Anh', '0901000005',
+           N'Số 5 Trần Đại Nghĩa, phường Bách Khoa, quận Hai Bà Trưng, Hà Nội', N'Gọi trước khi giao',
+           DATEADD(DAY, 4, @tao), @tao, DATEADD(MINUTE, 2000, @tao), 8
+    FROM nhan_vien nv, khach_hang kh, phuong_thuc_thanh_toan pt
+    WHERE nv.ma_nhan_vien = 'NV04' AND kh.ma_khach_hang = 'KH05' AND pt.ma_phuong_thuc = 'PT03';
+
+    SELECT @id = id FROM hoa_don WHERE ma_hoa_don = 'HD19';
+
+    INSERT INTO hoa_don_chi_tiet (id_hoa_don, id_san_pham_chi_tiet, so_luong, don_gia, thanh_tien, trang_thai)
+    SELECT @id, c.id, 1, @gia, @gia, 1
+    FROM san_pham_chi_tiet c
+    WHERE c.ma_spct = 'SP04-DEN-4U-G5';
+
+    -- Chữ ở cột hanh_dong phải khớp với backend (HoaDonLuongTrangThai): Tạo đơn hàng, Đã xác nhận, Chờ giao hàng, Đang giao hàng, Giao hàng thất bại
+    INSERT INTO lich_su_hoa_don (id_hoa_don, nguoi_thao_tac, hanh_dong, thoi_gian, mo_ta)
+    SELECT @id, CASE WHEN s.code = 1 THEN N'Khách hàng' ELSE nv.ho_ten END, s.hanh_dong, DATEADD(MINUTE, s.phut, @tao), s.mo_ta
+    FROM (VALUES
+        (1, N'Tạo đơn hàng',      0,    N'Khách đặt hàng online'),
+        (2, N'Đã xác nhận',       30,   N'Nhân viên đã gọi xác nhận đơn với khách'),
+        (3, N'Chờ giao hàng',     180,  N'Đã đóng gói, chờ đơn vị vận chuyển đến lấy'),
+        (4, N'Đang giao hàng',    1440, N'Đã bàn giao cho Giao Hàng Tiết Kiệm'),
+        (8, N'Giao hàng thất bại', 2000, N'Khách không nghe máy sau 3 lần gọi')
+    ) AS s(code, hanh_dong, phut, mo_ta)
+    CROSS JOIN (SELECT ho_ten FROM nhan_vien WHERE ma_nhan_vien = 'NV04') nv;
+END
 GO

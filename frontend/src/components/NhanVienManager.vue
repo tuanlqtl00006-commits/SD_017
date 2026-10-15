@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
+import NhanVienImportModal from './nhanVien/NhanVienImportModal.vue'
+import Select2 from './common/Select2.vue'
 import { nhanVienService } from '../services/nhanVienService'
 import { TRANG_THAI } from '../constants/nhanVien'
 import { usePagination } from '../composables/usePagination'
@@ -12,6 +14,7 @@ import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { avatarColors, formatDate, getInitials, todayIso } from '../utils/format'
 import { matchesWords } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
+import { tuDanhSach } from '../utils/luaChon'
 
 const toast = useToast()
 const router = useRouter()
@@ -22,6 +25,12 @@ const loading = ref(false)
 
 /* ----- Bộ lọc (lọc ngay khi thay đổi) ----- */
 // Một ô tìm kiếm chung: gõ mã, họ tên, email hoặc số điện thoại đều tìm được (không phân biệt hoa thường, dấu).
+const dsVaiTroLoc = computed(() => tuDanhSach(vaiTroList.value, { tatCa: 'Tất cả vai trò' }))
+const dsTrangThaiLoc = [
+  { value: '', label: 'Tất cả trạng thái' },
+  { value: 'true', label: 'Còn làm' },
+  { value: 'false', label: 'Đã nghỉ' },
+]
 const defaultFilters = () => ({ keyword: '', idVaiTro: '', trangThai: '' })
 const filters = reactive(defaultFilters())
 
@@ -85,6 +94,9 @@ function openCreate() {
 function openDetail(row) {
   router.push('/nhan-vien/' + row.id)
 }
+
+/* ----- Nhập Excel hàng loạt (hộp thoại riêng: kiểm tra cả file, xem trước, nhập, gửi mail tài khoản) ----- */
+const moNhapExcel = ref(false)
 
 /* ----- Xuất Excel (đúng theo danh sách đang lọc) ----- */
 function exportFile() {
@@ -192,25 +204,21 @@ async function confirmToggle() {
 
         <div>
           <label class="ad-label" for="nv-vai-tro">Vai trò</label>
-          <select id="nv-vai-tro" v-model="filters.idVaiTro" class="form-select ad-control">
-            <option value="">Tất cả vai trò</option>
-            <option v-for="v in vaiTroList" :key="v.id" :value="v.id">{{ v.ten }}</option>
-          </select>
+          <Select2 id="nv-vai-tro" v-model="filters.idVaiTro" :options="dsVaiTroLoc" class="ad-control" />
         </div>
 
         <div>
           <label class="ad-label" for="nv-trang-thai">Trạng thái</label>
-          <select id="nv-trang-thai" v-model="filters.trangThai" class="form-select ad-control">
-            <option value="">Tất cả trạng thái</option>
-            <option value="true">Còn làm</option>
-            <option value="false">Đã nghỉ</option>
-          </select>
+          <Select2 id="nv-trang-thai" v-model="filters.trangThai" :options="dsTrangThaiLoc" class="ad-control" />
         </div>
       </div>
 
       <template #actions>
         <button type="button" class="ad-btn" @click="resetFilters">
           <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại bộ lọc
+        </button>
+        <button type="button" class="ad-btn" data-testid="nv-nhap-excel" @click="moNhapExcel = true">
+          <i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i> Nhập Excel
         </button>
         <button type="button" class="ad-btn" @click="exportFile">
           <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Xuất Excel
@@ -309,6 +317,8 @@ async function confirmToggle() {
 
       <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
     </section>
+
+    <NhanVienImportModal v-if="moNhapExcel" @close="moNhapExcel = false" @imported="load(false, true)" />
 
     <ConfirmDialog
       v-if="confirmItem"

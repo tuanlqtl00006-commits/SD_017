@@ -22,7 +22,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -113,6 +115,24 @@ public class BienTheService {
     public record KetQuaLuu(int moi, int capNhat) {
     }
 
+    /** Sản phẩm đã có ít nhất một biến thể chưa (kể cả biến thể đang ngưng). */
+    @Transactional(readOnly = true)
+    public boolean coBienThe(Integer idSanPham) {
+        return bienTheRepo.existsBySanPhamId(idSanPham);
+    }
+
+    /** Các màu có trong biến thể đã có của sản phẩm (kể cả biến thể đang ngưng), theo thứ tự gặp. */
+    @Transactional(readOnly = true)
+    public Set<Integer> mauCuaSanPham(Integer idSanPham) {
+        Set<Integer> ketQua = new LinkedHashSet<>();
+        for (SanPhamChiTiet b : bienTheRepo.findBySanPhamIdOrderByIdDesc(idSanPham)) {
+            if (b.getMauSac() != null && b.getMauSac().getId() != null) {
+                ketQua.add(b.getMauSac().getId());
+            }
+        }
+        return ketQua;
+    }
+
     /** Có bao nhiêu biến thể trong danh sách TRÙNG (cùng màu + trọng lượng + chu vi) với biến thể đã có của sản phẩm. */
     @Transactional(readOnly = true)
     public int demTrung(Integer idSanPham, List<BienTheMoiRequest> ds) {
@@ -189,8 +209,8 @@ public class BienTheService {
             // Mã biến thể KHÔNG cho sửa tay (bỏ qua req.ma()). Chỉ khi đổi sản phẩm mà mã đang bắt đầu bằng
             // mã sản phẩm cũ (vd SP008-DEN-4U-G5) thì phần đầu mã tự đổi theo (SP007-DEN-4U-G5).
             String tienToCu = sp.getMaSanPham() + "-";
-            if (ma.toUpperCase().startsWith(tienToCu.toUpperCase())) {
-                ma = (spMoi.getMaSanPham() + ma.substring(sp.getMaSanPham().length())).toUpperCase();
+            if (ma.toUpperCase(Locale.ROOT).startsWith(tienToCu.toUpperCase(Locale.ROOT))) {
+                ma = (spMoi.getMaSanPham() + ma.substring(sp.getMaSanPham().length())).toUpperCase(Locale.ROOT);
                 loi(ma.length() > 50, "Mã biến thể mới dài quá 50 ký tự.");
                 // Kiểm tra trước khi sửa b để Hibernate chưa ghi gì xuống DB
                 if (bienTheRepo.existsByMaSpctIgnoreCaseAndIdNot(ma, id)) {
@@ -235,7 +255,7 @@ public class BienTheService {
 
     // Lấy mã từ request: bỏ khoảng trắng, viết hoa, kiểm tra định dạng. Dùng chung cho thêm và sửa.
     private String docMa(BienTheRequest req) {
-        String ma = req.ma() == null ? "" : req.ma().trim().toUpperCase();
+        String ma = req.ma() == null ? "" : req.ma().trim().toUpperCase(Locale.ROOT);
         loi(ma.isEmpty(), "Nhập mã biến thể.");
         loi(!ma.matches("[A-Z0-9-]{3,50}"), "Mã gồm 3-50 ký tự chữ, số hoặc dấu gạch ngang, không dấu, không khoảng trắng.");
         return ma;
@@ -255,6 +275,21 @@ public class BienTheService {
         MauSac mauSac = ThuocTinhChon.chon(mauSacRepo, req.idMauSac(), b.getMauSac(), "màu sắc");
         TrongLuong trongLuong = ThuocTinhChon.chon(trongLuongRepo, req.idTrongLuong(), b.getTrongLuong(), "trọng lượng");
         ChuVi chuVi = ThuocTinhChon.chon(chuViRepo, req.idChuVi(), b.getChuVi(), "chu vi");
+
+        // Trọng lượng / chu vi phải khớp danh mục của sản phẩm (vợt: giá trị thật; khác: "Không áp dụng").
+        // Biến thể cũ giữ nguyên sản phẩm + giá trị thì cho qua để không bắt sửa dữ liệu cũ.
+        boolean doiSanPham = b.getSanPham() == null || !b.getSanPham().getId().equals(sp.getId());
+        String tenDanhMuc = sp.getDanhMuc() == null ? null : sp.getDanhMuc().getTen();
+        if (tenDanhMuc != null) {
+            if (doiSanPham || b.getTrongLuong() == null || !b.getTrongLuong().getId().equals(trongLuong.getId())) {
+                String loiTl = NhomDanhMuc.loiThuocTinhVot(tenDanhMuc, trongLuong.getTen(), "trọng lượng");
+                loi(loiTl != null, loiTl);
+            }
+            if (doiSanPham || b.getChuVi() == null || !b.getChuVi().getId().equals(chuVi.getId())) {
+                String loiCv = NhomDanhMuc.loiThuocTinhVot(tenDanhMuc, chuVi.getTen(), "chu vi");
+                loi(loiCv != null, loiCv);
+            }
+        }
 
         // Một sản phẩm không có 2 biến thể cùng màu + trọng lượng + chu vi
         Integer idHienTai = b.getId() == null ? -1 : b.getId(); // thêm mới chưa có id nên dùng -1
@@ -295,13 +330,13 @@ public class BienTheService {
     }
 
     private static boolean laKhongApDung(String ten) {
-        return ten != null && "Không áp dụng".equalsIgnoreCase(ten.trim());
+        return NhomDanhMuc.laKhongApDung(ten);
     }
 
     // Mã tự sinh: <MÃ SP>-<MÀU>-<TRỌNG LƯỢNG>-<CHU VI>, thêm -2, -3... nếu bị trùng; tối đa 50 ký tự
     private String taoMaBienThe(SanPham sp, SanPhamChiTiet b) {
         String tl = b.getTrongLuong().getTen() == null ? "" : b.getTrongLuong().getTen().trim().split("\\s+")[0];
-        String goc = sp.getMaSanPham().toUpperCase() + "-" + slug(b.getMauSac().getTen());
+        String goc = sp.getMaSanPham().toUpperCase(Locale.ROOT) + "-" + slug(b.getMauSac().getTen());
         // Danh mục không phải vợt không có trọng lượng / chu vi (được gán "Không áp dụng") nên không đưa vào mã
         if (!laKhongApDung(b.getTrongLuong().getTen())) goc += "-" + slug(tl);
         if (!laKhongApDung(b.getChuVi().getTen())) goc += "-" + slug(b.getChuVi().getTen());
@@ -322,7 +357,7 @@ public class BienTheService {
             return "";
         }
         String x = Normalizer.normalize(s, Normalizer.Form.NFD).replaceAll("\\p{M}", "").replace('đ', 'd').replace('Đ', 'D');
-        return x.replaceAll("[^A-Za-z0-9]+", "").toUpperCase();
+        return x.replaceAll("[^A-Za-z0-9]+", "").toUpperCase(Locale.ROOT);
     }
 
     private BienTheResponse toResponse(SanPhamChiTiet b) {

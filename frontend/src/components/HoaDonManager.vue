@@ -8,39 +8,45 @@ import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatMoney, todayIso } from '../utils/format'
 import { exportExcel } from '../utils/exportExcel'
+import DateInput from './common/DateInput.vue'
+import Select2 from './common/Select2.vue'
+import { TAB_TRANG_THAI, trangThaiOf } from '../constants/hoaDon'
 
 const router = useRouter()
 const toast = useToast()
-
-/* ----- Trạng thái hóa đơn: nhãn + màu nhãn (khớp trang chi tiết) ----- */
-const TRANG_THAI = {
-  0: { label: 'Đã hủy', pill: 'ad-pill-red' },
-  1: { label: 'Chờ xác nhận', pill: 'ad-pill-amber' },
-  2: { label: 'Đã xác nhận', pill: 'ad-pill-blue' },
-  3: { label: 'Chờ giao hàng', pill: 'ad-pill-purple' },
-  4: { label: 'Đang giao hàng', pill: 'ad-pill-blue' },
-  5: { label: 'Đã giao hàng', pill: 'ad-pill-green' },
-  6: { label: 'Đã hoàn thành', pill: 'ad-pill-green' },
-  7: { label: 'Hoàn tiền', pill: 'ad-pill-gray' },
-}
-const trangThaiOf = (v) => TRANG_THAI[v] ?? { label: 'Không xác định', pill: 'ad-pill-gray' }
-
-// Thứ tự các tab giống thiết kế
-const TABS = [
-  { value: null, label: 'Tất cả' },
-  { value: 1, label: 'Chờ xác nhận' },
-  { value: 2, label: 'Đã xác nhận' },
-  { value: 3, label: 'Chờ giao hàng' },
-  { value: 4, label: 'Đang giao hàng' },
-  { value: 5, label: 'Đã giao hàng' },
-  { value: 6, label: 'Đã hoàn thành' },
-  { value: 0, label: 'Đã hủy' },
-  { value: 7, label: 'Hoàn tiền' },
+const dsLoaiDon = [
+  { value: '', label: 'Tất cả' },
+  { value: '1', label: 'Tại quầy' },
+  { value: '2', label: 'Trực tuyến' },
 ]
 
+/* ----- Trạng thái hóa đơn: nhãn + màu nhãn dùng chung với trang chi tiết (constants/hoaDon.js) ----- */
+const TABS = TAB_TRANG_THAI
+
 /* ----- Bộ lọc: đổi là tự lọc, không cần bấm Tìm kiếm ----- */
-const defaultFilters = () => ({ maHoaDon: '', tuNgay: '', denNgay: '', loaiDon: '' })
+// Từ ngày / Đến ngày mặc định là NGÀY HIỆN TẠI (theo giờ máy): mở trang thấy ngay hóa đơn hôm nay;
+// "Đặt lại bộ lọc" cũng đưa về hôm nay. Muốn xem mọi ngày thì xóa trống hai ô ngày.
+// Ngày hiện tại được cập nhật liên tục: để trang mở qua 0h (hoặc máy ngủ rồi mở lại) thì ô nào đang
+// là "hôm nay" tự nhảy sang ngày mới và danh sách tải lại; ô người dùng đã tự chọn ngày khác thì giữ nguyên.
+const defaultFilters = () => {
+  const homNay = todayIso()
+  return { maHoaDon: '', tuNgay: homNay, denNgay: homNay, loaiDon: '' }
+}
 const filters = reactive(defaultFilters())
+let homNayDangDung = filters.tuNgay
+const KIEM_TRA_NGAY_MS = 30 * 1000
+
+/** Qua ngày mới thì đưa các ô đang là "hôm nay" sang ngày mới. Trả về true nếu bộ lọc có đổi (watch sẽ tự tải lại). */
+function capNhatNgayHienTai() {
+  const moi = todayIso()
+  if (moi === homNayDangDung) return false
+  const cu = homNayDangDung
+  homNayDangDung = moi
+  let doi = false
+  if (filters.tuNgay === cu) { filters.tuNgay = moi; doi = true }
+  if (filters.denNgay === cu) { filters.denNgay = moi; doi = true }
+  return doi
+}
 const activeTab = ref(null)
 
 const list = ref([])
@@ -96,8 +102,9 @@ async function load(quiet = false) {
     // Đang ở trang không còn dữ liệu (vd lọc ra ít hơn) thì lùi về trang cuối có dữ liệu
     const trangCuoi = Math.max(1, Math.ceil(data.totalElements / pageSize.value))
     if (page.value > trangCuoi) page.value = trangCuoi
-  } catch {
-    if (seq === loadSeq && !quiet) toast.error('Không tải được danh sách hóa đơn. Vui lòng thử lại.')
+  } catch (e) {
+    // Lỗi bộ lọc (vd Từ ngày sau Đến ngày khi gõ tay) thì hiện đúng lý do backend trả về
+    if (seq === loadSeq && !quiet) toast.error(e?.response?.data?.message || 'Không tải được danh sách hóa đơn. Vui lòng thử lại.')
   } finally {
     if (seq === loadSeq) loading.value = false
   }
@@ -119,11 +126,24 @@ watch(
   },
 )
 watch([page, pageSize], () => load())
-onBeforeUnmount(() => clearTimeout(timer))
-onMounted(() => load())
-useAutoRefresh(() => load(true))
+let dongHoNgay = null
+onBeforeUnmount(() => {
+  clearTimeout(timer)
+  clearInterval(dongHoNgay)
+})
+onMounted(() => {
+  load()
+  dongHoNgay = setInterval(capNhatNgayHienTai, KIEM_TRA_NGAY_MS)
+})
+// Quay lại tab: kiểm tra ngày trước (đổi ngày thì watch tải lại), không đổi thì tải lại lặng lẽ như cũ
+useAutoRefresh(() => {
+  if (!capNhatNgayHienTai()) load(true)
+})
 
-const resetFilters = () => Object.assign(filters, defaultFilters())
+const resetFilters = () => {
+  Object.assign(filters, defaultFilters())
+  homNayDangDung = filters.tuNgay
+}
 
 const xemChiTiet = (id) => router.push(`/hoa-don/${id}`)
 
@@ -196,19 +216,15 @@ async function exportFile() {
         </div>
         <div>
           <label class="ad-label" for="hd-tu-ngay">Từ ngày</label>
-          <input id="hd-tu-ngay" v-model="filters.tuNgay" type="date" class="form-control ad-control" :max="filters.denNgay || undefined" />
+          <DateInput id="hd-tu-ngay" v-model="filters.tuNgay" class="form-control ad-control" :max="filters.denNgay || undefined" />
         </div>
         <div>
           <label class="ad-label" for="hd-den-ngay">Đến ngày</label>
-          <input id="hd-den-ngay" v-model="filters.denNgay" type="date" class="form-control ad-control" :min="filters.tuNgay || undefined" />
+          <DateInput id="hd-den-ngay" v-model="filters.denNgay" class="form-control ad-control" :min="filters.tuNgay || undefined" />
         </div>
         <div>
           <label class="ad-label" for="hd-loai">Loại đơn</label>
-          <select id="hd-loai" v-model="filters.loaiDon" class="form-select ad-control">
-            <option value="">Tất cả</option>
-            <option value="1">Tại quầy</option>
-            <option value="2">Trực tuyến</option>
-          </select>
+          <Select2 id="hd-loai" v-model="filters.loaiDon" :options="dsLoaiDon" class="ad-control" />
         </div>
         <div class="ad-filter-reset">
           <button type="button" class="ad-btn" @click="resetFilters">

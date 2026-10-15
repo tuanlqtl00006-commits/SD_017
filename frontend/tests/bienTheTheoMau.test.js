@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import { mockApi, THUOC_TINH } from './helpersDanhMuc'
+import { mockApi, THUOC_TINH, themAnhChung } from './helpersDanhMuc'
 import {
   CHE_DO_HIEN_THI_MAC_DINH,
   apDungMacDinh,
@@ -18,6 +18,7 @@ import {
 } from '../src/utils/bienThe'
 import { mauHex } from '../src/utils/mau'
 import { useToast } from '../src/composables/useToast'
+import { datSelect2 } from './helpersSelect2'
 const thongBao = () => useToast().toasts.map((x) => x.message).join(' | ')
 
 /* ===================== Hàm thuần ===================== */
@@ -34,6 +35,13 @@ describe('Tạo biến thể: đúng tích số và nhóm theo màu', () => {
     expect(nhom.map((g) => g.idMauSac)).toEqual([1, 2, 3, 4])
     expect(nhom.map((g) => g.rows.length)).toEqual([6, 6, 6, 6])
     expect(nhom.reduce((s, g) => s + g.rows.length, 0)).toBe(24)
+  })
+  it('đúng ví dụ cô nói trong video: 2 màu x 2 trọng lượng x 2 chu vi = 8 biến thể (dưới bảng phải có đủ 8 dòng)', () => {
+    const rows = taoBienThe([1, 2], [10, 11], [20, 21])
+    expect(rows.length).toBe(8)
+    expect(new Set(rows.map((r) => `${r.idMauSac}-${r.idTrongLuong}-${r.idChuVi}`)).size).toBe(8)
+    expect(nhomTheoMau(rows, [1, 2]).map((g) => g.rows.length)).toEqual([4, 4])
+    expect(congThucSoBienThe(2, 2, 2, true)).toEqual({ so: 8, congThuc: '2 màu × 2 trọng lượng × 2 chu vi = 8 biến thể' })
   })
   it('ví dụ của cô 3 x 3 x 1 = 9 và công thức hiển thị để tự đếm', () => {
     expect(taoBienThe([1, 2, 3], [10, 11, 12], [20]).length).toBe(9)
@@ -131,12 +139,6 @@ const NHIEU = {
 
 async function montar() {
   mock = mockApi({ get: (url) => { const m = /^\/thuoc-tinh\/(.+)$/.exec(url); return m && NHIEU[m[1]] ? NHIEU[m[1]] : undefined } })
-  let soAnh = 0
-  mock.api.post = vi.fn(async (url, body) => {
-    mock.calls.post.push([url, body])
-    if (url === '/hinh-anh/upload') return { data: { duongDan: `/api/uploads/anh-${++soAnh}.png` } }
-    return { data: { id: 99 } }
-  })
   const router = createRouter({ history: createMemoryHistory(), routes: [
     { path: '/san-pham', component: { template: '<div/>' } },
     { path: '/san-pham/them', component: { template: '<div/>' } },
@@ -150,7 +152,7 @@ async function montar() {
 const bam = async (w, text) => { await w.findAll('button').find((b) => b.text().trim() === text).trigger('click'); await flushPromises() }
 
 async function taoVot24(w) {
-  await w.get('#sp-idDanhMuc').setValue(1); await flushPromises()
+  await datSelect2(w, '#sp-idDanhMuc', 1); await flushPromises()
   const rows = w.findAll('.ad-gen-row')
   for (const c of rows[0].findAll('.ad-gen-chip')) await c.trigger('click') // 4 màu
   for (const c of rows[1].findAll('.ad-gen-chip')) await c.trigger('click') // 3 trọng lượng
@@ -160,7 +162,7 @@ async function taoVot24(w) {
 
 async function dienThongTin(w) {
   await w.get('#sp-ten').setValue('Astrox 100ZZ')
-  for (const id of ['#sp-idThuongHieu', '#sp-idXuatXu', '#sp-idChatLieu', '#sp-idDoCung', '#sp-idDiemCanBang']) await w.get(id).setValue(1)
+  for (const id of ['#sp-idThuongHieu', '#sp-idXuatXu', '#sp-idChatLieu', '#sp-idDoCung', '#sp-idDiemCanBang']) await datSelect2(w, id, 1)
 }
 
 beforeEach(() => { document.body.innerHTML = '' })
@@ -168,7 +170,7 @@ beforeEach(() => { document.body.innerHTML = '' })
 describe('Trang Thêm sản phẩm: biến thể nhóm theo màu', () => {
   it('vợt: hiện công thức 4 × 3 × 2 = 24, tạo đủ 24 dòng chia 4 nhóm màu, mỗi nhóm 6 dòng có tên + chấm màu', async () => {
     const { w } = await montar()
-    await w.get('#sp-idDanhMuc').setValue(1); await flushPromises()
+    await datSelect2(w, '#sp-idDanhMuc', 1); await flushPromises()
     const rows = w.findAll('.ad-gen-row')
     expect(rows[1].findAll('.ad-gen-chip').length).toBe(3) // không có "Không áp dụng"
     for (const r of rows) for (const c of r.findAll('.ad-gen-chip')) await c.trigger('click')
@@ -216,7 +218,7 @@ describe('Trang Thêm sản phẩm: biến thể nhóm theo màu', () => {
   })
 
   it('giá 0 / để trống: báo lỗi rõ, viền đỏ, không gửi API', async () => {
-    const { w } = await montar(); await taoVot24(w); await dienThongTin(w)
+    const { w } = await montar(); await taoVot24(w); await dienThongTin(w); await themAnhChung(w)
     await w.get('#bt-sl').setValue('5'); await w.get('#bt-gia').setValue('2000000'); await bam(w, 'Áp dụng')
     await w.findAll('.ad-gen-group')[0].findAll('input[aria-label="Giá bán"]')[0].setValue('0')
     await w.get('form').trigger('submit'); await flushPromises()
@@ -243,6 +245,7 @@ describe('Trang Thêm sản phẩm: biến thể nhóm theo màu', () => {
     Object.defineProperty(input2.element, 'files', { value: [new File(['x'], 'a.pdf', { type: 'application/pdf' })], configurable: true })
     await input2.trigger('change'); await flushPromises()
     expect(w.findAll('.bt-anh-card')[1].text()).toContain('chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF')
+    await themAnhChung(w) // còn 3 màu chưa có ảnh riêng nên cần ảnh chung (ảnh là bắt buộc)
 
     await w.get('#bt-sl').setValue('5'); await w.get('#bt-gia').setValue('3200000'); await bam(w, 'Áp dụng')
     await w.get('form').trigger('submit'); await flushPromises()
@@ -252,12 +255,13 @@ describe('Trang Thêm sản phẩm: biến thể nhóm theo màu', () => {
     expect(luu[1].bienThes.length).toBe(24)
     expect(luu[1].bienThes.every((b) => b.giaBan === 3200000 && b.soLuongTon === 5)).toBe(true)
     expect(luu[1].anhTheoMau).toEqual([{ idMauSac: 1, anh: ['/api/uploads/anh-1.png', '/api/uploads/anh-2.png'] }])
+    expect(luu[1].anhChinh).toBe('/api/uploads/anh-3.png')
     expect(router.currentRoute.value.path).toBe('/san-pham')
   })
 
   it('danh mục không phải vợt: chỉ chọn màu, mỗi màu 1 dòng, trọng lượng / chu vi gửi "Không áp dụng"', async () => {
     const { w } = await montar()
-    await w.get('#sp-idDanhMuc').setValue(5); await flushPromises()
+    await datSelect2(w, '#sp-idDanhMuc', 5); await flushPromises()
     expect(w.findAll('.ad-gen-row').length).toBe(1)
     for (const c of w.findAll('.ad-gen-chip').slice(0, 3)) await c.trigger('click')
     expect(w.get('[data-testid=du-kien]').text()).toContain('3 màu = 3 biến thể')
@@ -292,6 +296,9 @@ describe('Trang Sửa sản phẩm: ảnh theo màu', () => {
     expect(cards[0].find('img').attributes('src')).toBe('/api/uploads/den.jpg')
     // bỏ ảnh màu Đen rồi lưu -> gửi danh sách rỗng cho màu Đen để backend bỏ ảnh
     await cards[0].get('button[aria-label^="Bỏ ảnh 1"]').trigger('click')
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(mock.calls.put.length).toBe(0) // bỏ hết ảnh thì không cho lưu (ảnh là bắt buộc)
+    await themAnhChung(w) // có ảnh chung rồi thì lưu được
     await w.get('form').trigger('submit'); await flushPromises()
     expect(mock.calls.put[0][1].anhTheoMau).toEqual([{ idMauSac: 1, anh: [] }, { idMauSac: 2, anh: [] }])
     expect(THUOC_TINH['mau-sac'].length).toBe(2) // dữ liệu mẫu dùng chung không bị đổi

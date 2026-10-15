@@ -1,380 +1,108 @@
-<template>
-  <div>
-
-        
-        <!-- Bộ lọc và Công cụ -->
-        <div class="card bg-white rounded-4 shadow-sm border-0 mb-4">
-          <div class="card-body p-4">
-            <div class="d-flex align-items-center mb-3">
-              <i class="bi bi-funnel text-secondary fs-4 me-2"></i>
-              <div>
-                <h5 class="fw-bold mb-0 text-dark">Bộ lọc</h5>
-                <small class="text-muted">Tra cứu nhanh dữ liệu.</small>
-              </div>
-            </div>
-            <div class="d-flex flex-wrap align-items-center gap-3">
-            
-            <div class="input-group" style="flex: 1; min-width: 250px;">
-              <span class="input-group-text border-end-0 text-muted rounded-start-pill bg-light" style="padding-left: 1rem;"><i class="bi bi-search"></i></span>
-              <input type="text" class="form-control border-start-0 rounded-end-pill bg-light ps-0 text-muted" placeholder="Tìm theo tên đăng nhập, họ tên, email, SĐT..." v-model="searchQuery" @keyup.enter="search">
-            </div>
-            
-            <select class="form-select bg-light text-secondary rounded-pill" style="width: 200px;" v-model="statusFilter" @change="currentPage = 1">
-              <option selected value="">Tất cả</option>
-              <option value="1">Hoạt động</option>
-              <option value="0">Ngừng hoạt động</option>
-            </select>
-            
-            <button class="btn btn-outline-secondary d-flex align-items-center rounded-pill fw-medium custom-outline-btn text-muted" @click="reset">
-              <i class="bi bi-arrow-counterclockwise me-2"></i> Đặt lại bộ lọc
-            </button>
-            
-            <button type="button" @click="exportFile" class="btn btn-outline-secondary d-flex align-items-center rounded-pill fw-medium custom-outline-btn text-muted">
-              <i class="bi bi-file-earmark-excel me-2"></i> Xuất Excel
-            </button>
-            
-            <router-link to="/khach-hang/them" class="btn btn-primary d-flex align-items-center rounded-pill fw-medium shadow-sm custom-solid-btn text-decoration-none text-white" style="background-color: #0977ec; border-color: #0977ec;">
-              <i class="bi bi-plus-lg me-2"></i> Thêm khách hàng
-            </router-link>
-          </div>
-        </div>
-      </div>
-
-        <div class="card border-0 shadow-sm rounded-4 bg-white">
-          <div class="card-body p-4">
-            
-            <div class="d-flex align-items-center mb-4">
-               <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 45px; height: 45px;">
-                 <i class="bi bi-people-fill fs-4"></i>
-               </div>
-               <h4 class="fw-bold m-0 text-dark me-auto" style="font-size: 1.25rem;">Danh sách khách hàng</h4>
-               <span class="ad-count">{{ filteredCustomers.length }} khách hàng.</span>
-            </div>
-            
-            <div class="table-responsive">
-              <table class="table align-middle text-start">
-                <thead style="background-color: #f8f9fa;">
-                  <tr>
-                    <th class="py-3 fw-bold text-dark border-0" style="width: 60px;">STT</th>
-                    <th class="py-3 fw-bold text-dark border-0" style="width: 70px;">Ảnh</th>
-                    <th class="py-3 fw-bold text-dark border-0">Họ tên</th>
-                    <th class="py-3 fw-bold text-dark border-0">Tên người nhận</th>
-                    <th class="py-3 fw-bold text-dark border-0">Email</th>
-                    <th class="py-3 fw-bold text-dark border-0" style="width: 250px;">Địa chỉ</th>
-                    <th class="py-3 fw-bold text-dark border-0">Số điện thoại</th>
-                    <th class="py-3 text-center fw-bold text-dark border-0">Trạng thái</th>
-                    <th class="py-3 text-center fw-bold text-dark border-0" style="width: 180px;">Hành động</th>
-                  </tr>
-                </thead>
-                <tbody class="text-dark">
-                  <tr v-if="customers.length === 0">
-                    <td colspan="8" class="text-center py-5">
-                      <div class="d-flex flex-column align-items-center justify-content-center opacity-50">
-                        <i class="bi bi-search mb-3" style="font-size: 3rem; color: #dee2e6;"></i>
-                        <h6 class="text-muted fw-medium">Không tìm thấy khách hàng nào</h6>
-                        <span class="text-muted small">Vui lòng thử lại với từ khóa khác (Tên, SĐT, hoặc Email)</span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-for="(kh, index) in paginatedCustomers" :key="kh.id">
-                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
-                    <td class="py-2" style="border-bottom: 1px solid #f0f0f0;">
-                      <img v-if="kh.anhDaiDien" :src="kh.anhDaiDien" class="rounded-circle shadow-sm" style="width: 38px; height: 38px; object-fit: cover;">
-                      <span v-else class="ad-avatar ad-avatar-soft">{{ initials(kh.hoTen) }}</span>
-                    </td>
-                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.hoTen }}</td>
-                    <td class="py-3 text-muted fw-medium" style="border-bottom: 1px solid #f0f0f0;">{{ getDefaultAddress(kh)?.tenNguoiNhan || "Chưa cập nhật" }}</td>
-                    <td class="py-3" style="border-bottom: 1px solid #f0f0f0;">{{ kh.email }}</td>
-                    <td class="py-3 small" style="border-bottom: 1px solid #f0f0f0; white-space: normal;">
-                      <span v-if="kh.diaChiList && kh.diaChiList.length > 0">
-                        {{ ghepDiaChi(getDefaultAddress(kh)) }}
-                      </span>
-                      <span v-else>
-                        Chưa cập nhật địa chỉ
-                      </span>
-                    </td>
-                    <td class="py-3 text-muted" style="border-bottom: 1px solid #f0f0f0;">{{ kh.sdt }}</td>
-                    <td class="py-3 text-center" style="border-bottom: 1px solid #f0f0f0;">
-                        <span class="badge rounded-pill fw-medium px-3 py-2" 
-                              :class="kh.trangThai === 1 ? 'bg-success bg-opacity-10 text-success border-0' : 'bg-danger bg-opacity-10 text-danger border-0'" 
-                              >
-                          {{ kh.trangThai === 1 ? 'Hoạt động' : 'Ngừng hoạt động' }}
-                        </span>
-                      </td>
-                    <td class="py-3 text-center" style="border-bottom: 1px solid #f0f0f0;">
-                      <div class="d-flex justify-content-center gap-2">
-                                                <button class="btn btn-sm btn-light rounded-circle action-btn" :class="kh.trangThai == 1 ? 'text-success bg-success bg-opacity-10' : 'text-danger bg-danger bg-opacity-10'" @click.prevent="toggleStatus(kh)" :title="kh.trangThai == 1 ? 'Ngừng hoạt động' : 'Kích hoạt'">
-                          <i class="bi bi-power"></i>
-                        </button>
-                        <button class="btn btn-sm btn-light text-success rounded-circle action-btn" @click.prevent="openViewModal(kh)">
-                          <i class="bi bi-eye"></i>
-                        </button>
-                        <button class="btn btn-sm btn-light text-primary rounded-circle action-btn" @click.prevent="openEditModal(kh)" title="Quản lý địa chỉ">
-                          <i class="bi bi-geo-alt-fill"></i>
-                        </button>
-                        <!-- <button class="btn btn-sm btn-light text-danger rounded-circle action-btn" @click.prevent="deleteCustomer(kh)">
-                          <i class="bi bi-trash-fill"></i>
-                        </button> -->
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            
-            <div class="d-flex justify-content-end px-4 py-4 mt-2">
-              <nav>
-                <ul class="pagination custom-pagination m-0 gap-1 border-0">
-                  <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="goToPage(1)"><i class="bi bi-chevron-double-left fs-6"></i></a>
-                  </li>
-                  <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="prevPage"><i class="bi bi-chevron-left fs-6"></i></a>
-                  </li>
-                  
-                  <li v-for="page in totalPages" :key="page" class="page-item" :class="{ active: currentPage === page }">
-                    <a class="page-link border-0 fw-medium" 
-                       :class="currentPage === page ? 'rounded-3 bg-primary bg-opacity-10 text-primary fw-bold' : 'text-muted bg-transparent'" 
-                       href="#" @click.prevent="goToPage(page)">{{ page }}</a>
-                  </li>
-
-                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="nextPage"><i class="bi bi-chevron-right fs-6"></i></a>
-                  </li>
-                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                    <a class="page-link border-0 text-muted bg-transparent" href="#" @click.prevent="goToPage(totalPages)"><i class="bi bi-chevron-double-right fs-6"></i></a>
-                  </li>
-                </ul>
-              </nav>
-            </div>
-
-          </div>
-        </div>
-
-        <!-- Modal Sửa Khách Hàng -->
-        <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: calc(100vw / var(--ui-zoom)); height: calc(100vh / var(--ui-zoom)); background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1050; display: flex; align-items: center; justify-content: center;">
-          <div class="modal-dialog bg-white rounded-4 shadow-lg" style="width: 750px; max-width: 95vw; pointer-events: auto; animation: slideDown 0.3s ease-out;">
-            <div class="modal-header d-flex justify-content-between align-items-center px-4 pt-4 pb-2 border-bottom-0">
-              <h4 class="modal-title fw-bold text-dark m-0">{{ isView ? 'Chi Tiết Khách Hàng' : 'Cập Nhật Khách Hàng' }}</h4>
-              <button type="button" class="btn btn-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;" @click="closeModal"><i class="bi bi-x-lg"></i></button>
-            </div>
-            <div class="modal-body px-4 pb-4 pt-2">
-              <form @submit.prevent="saveCustomer">
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label class="form-label text-dark fw-medium mb-1">Mã KH</label>
-                    <input type="text" class="form-control bg-light border-0 text-muted" v-model="formData.maKH" :disabled="isEdit || isView" placeholder="KH123456789">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label text-dark fw-medium mb-1">Họ và Tên <span class="text-danger" v-if="!isView">*</span></label>
-                    <input type="text" class="form-control bg-light border-0" v-model="formData.ten" required placeholder="Nguyễn Hữu Việt..." :disabled="isView">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label text-dark fw-medium mb-1">Số Điện Thoại <span class="text-danger" v-if="!isView">*</span></label>
-                    <input type="text" class="form-control bg-light border-0" :class="{'is-invalid': phoneErrorMsg}" v-model="formData.sdt" required placeholder="0936..." :disabled="isView" @input="phoneErrorMsg = ''">
-                    <small v-if="phoneErrorMsg" class="text-danger mt-1 d-block">{{ phoneErrorMsg }}</small>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label text-dark fw-medium mb-1">Email</label>
-                    <input type="email" class="form-control bg-light border-0" v-model="formData.email" placeholder="email@gmail.com" :disabled="isView">
-                  </div>
-                  <div class="col-12">
-                    <label class="form-label text-dark fw-medium mb-1">Ngày Sinh</label>
-                    <input type="date" class="form-control bg-light border-0 text-muted" v-model="formData.ngaySinh" :disabled="isView" min="1900-01-01" max="9999-12-31">
-                  </div>
-                  
-                  <!-- Địa chỉ giao hàng đã được gỡ bỏ -->
-                  
-                  <div class="col-12 mt-3">
-                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-0">Thông tin bổ sung</h6>
-                  </div>
-
-                  <div class="col-md-6">
-                    <label class="form-label text-dark fw-medium mb-1">Giới Tính</label>
-                    <select class="form-select bg-light border-0" v-model="formData.gioiTinh" :disabled="isView">
-                      <option :value="1">Nam</option>
-                      <option :value="0">Nữ</option>
-                    </select>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label text-dark fw-medium mb-1">Trạng Thái</label>
-                    <select class="form-select bg-light border-0" v-model="formData.trangThai" :disabled="isView">
-                      <option :value="1">Hoạt động</option>
-                      <option :value="0">Ngừng hoạt động</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="d-flex justify-content-end gap-3 mt-4">
-                  <button type="button" class="btn px-4 py-2 rounded-pill fw-bold border-0" :class="isView ? 'btn-primary text-white' : 'bg-light text-dark'" @click="closeModal" :style="isView ? 'background-color: #0977ec;' : 'background-color: #f1f3f5 !important;'">{{ isView ? 'Đóng' : 'Quay lại' }}</button>
-                  <button v-if="!isView" type="submit" class="btn btn-primary px-5 py-2 rounded-pill fw-bold shadow-sm" style="background-color: #0977ec; border-color: #0977ec;">Lưu thông tin</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        <ConfirmDialog
-          v-if="confirmItem"
-          :title="confirmItem.trangThai === 1 ? 'Ngừng hoạt động khách hàng' : 'Kích hoạt khách hàng'"
-          :message="confirmItem.trangThai === 1
-            ? `Bạn có chắc chắn muốn ngừng hoạt động khách hàng ${confirmItem.hoTen}?`
-            : `Bạn có chắc chắn muốn kích hoạt lại khách hàng ${confirmItem.hoTen}?`"
-          :confirm-text="confirmItem.trangThai === 1 ? 'Ngừng hoạt động' : 'Kích hoạt'"
-          :variant="'primary'"
-          :icon="confirmItem.trangThai === 1 ? 'warning' : 'success'"
-          :loading="confirmLoading"
-          @confirm="confirmToggle"
-          @cancel="confirmItem = null"
-        />
-
-        <!-- Address Management Modal -->
-        <KhachHangAddressModal 
-          v-if="showAddressModal" 
-          :customer="selectedCustomerForAddress" 
-          @close="showAddressModal = false"
-          @address-updated="fetchCustomers()" 
-        />
-      
-  </div>
-</template>
-
 <script setup>
-import { ref, onMounted } from 'vue'
+// Danh sách khách hàng (làm lại cùng kiểu với Nhân viên / Sản phẩm):
+//  - bộ lọc dùng Select2, lọc ngay khi gõ / chọn (không phân biệt hoa thường và dấu);
+//  - phân trang rút gọn "1 2 3 … N", 5 dòng mỗi trang;
+//  - thêm / xem-sửa khách hàng ở trang riêng; địa chỉ quản lý trong cửa sổ riêng.
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import FilterCard from './common/FilterCard.vue'
+import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
+import Select2 from './common/Select2.vue'
 import KhachHangAddressModal from './KhachHangAddressModal.vue'
-import api from '../services/api' // sử dụng cấu hình axios có sẵn
-import DiaChiHanhChinhSelect from './common/DiaChiHanhChinhSelect.vue'
-import { ghepDiaChi } from '../utils/diaChi'
+import { khachHangService } from '../services/khachHangService'
+import { GIOI_TINH_KHACH, TRANG_THAI_KHACH, nhanGioiTinhKhach } from '../constants/khachHang'
+import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
+import { avatarColors, formatDate, getInitials, todayIso } from '../utils/format'
+import { ghepDiaChi } from '../utils/diaChi'
+import { matchesWords } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
+import { ngayTuApi } from '../utils/ngay'
 
 const toast = useToast()
+const router = useRouter()
 
-const showModal = ref(false)
-const showAddressModal = ref(false)
-const selectedCustomerForAddress = ref(null)
-const isEdit = ref(false)
-const formData = ref({
-  maKH: '',
-  ten: '',
-  sdt: '',
-  email: '',
-  ngaySinh: '',
-  gioiTinh: 1,
-  trangThai: 1,
-  tinhThanh: '',
-  phuongXa: '',
-  diaChiCuThe: ''
+const list = ref([])
+const loading = ref(false)
+
+/* ----- Bộ lọc (lọc ngay khi thay đổi) ----- */
+const dsGioiTinhLoc = [
+  { value: '', label: 'Tất cả giới tính' },
+  { value: '1', label: GIOI_TINH_KHACH[1] },
+  { value: '0', label: GIOI_TINH_KHACH[0] },
+]
+const dsTrangThaiLoc = [
+  { value: '', label: 'Tất cả trạng thái' },
+  { value: '1', label: TRANG_THAI_KHACH[1].label },
+  { value: '0', label: TRANG_THAI_KHACH[0].label },
+]
+const defaultFilters = () => ({ keyword: '', gioiTinh: '', trangThai: '' })
+const filters = reactive(defaultFilters())
+const resetFilters = () => Object.assign(filters, defaultFilters())
+
+const filtered = computed(() =>
+  list.value.filter((k) => {
+    const f = filters
+    if (f.keyword && !matchesWords([k.maKhachHang, k.hoTen, k.email, k.sdt].join(' '), f.keyword)) return false
+    if (f.gioiTinh !== '' && String(k.gioiTinh) !== f.gioiTinh) return false
+    if (f.trangThai !== '' && String(k.trangThai) !== f.trangThai) return false
+    return true
+  }),
+)
+
+const { page, pageSize, total, items: pageItems } = usePagination(filtered, 5)
+watch(filters, () => {
+  page.value = 1
 })
 
-const customers = ref([])
-const searchQuery = ref('')
-
-// Chữ cái đầu của họ tên (ký tự đầu + ký tự đầu của tên) để làm avatar
-const initials = (name) => {
-  const w = (name || '').trim().split(/\s+/).filter(Boolean)
-  if (!w.length) return 'KH'
-  return (w[0][0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase()
-}
-
-const fetchCustomers = async (resetPage = false) => {
+/* ----- Tải dữ liệu ----- */
+// loadSeq: lần tải cũ về chậm không được đè lên kết quả của lần tải mới hơn / trạng thái vừa đổi.
+let loadSeq = 0
+async function load(showLoading = true, quiet = false) {
+  const seq = ++loadSeq
+  if (showLoading) loading.value = true
   try {
-    const response = await api.get('/khach-hang', {
-      params: { search: searchQuery.value }
-    })
-    customers.value = response.data
-    if (resetPage) {
-      currentPage.value = 1
-    } else {
-      const totalPages = Math.ceil(customers.value.length / itemsPerPage.value)
-      if (currentPage.value > totalPages && totalPages > 0) {
-        currentPage.value = totalPages
-      }
-    }
-  } catch (error) {
-    console.error("Lỗi khi tải danh sách khách hàng:", error)
-    toast.error(error.message || 'Không tải được danh sách khách hàng.')
+    const ds = await khachHangService.getAll()
+    if (seq === loadSeq) list.value = ds
+  } catch (e) {
+    if (seq === loadSeq && !(quiet && list.value.length)) toast.error(e.message || 'Không tải được danh sách khách hàng.')
+  } finally {
+    if (seq === loadSeq) loading.value = false
   }
 }
+onMounted(load)
+useAutoRefresh(() => load(false, true))
 
-// Cài đặt chức năng phân trang
-const currentPage = ref(1)
-const itemsPerPage = 5
-
-import { computed } from 'vue'
-
-const statusFilter = ref('')
-
-const filteredCustomers = computed(() => {
-  if (statusFilter.value === '') {
-    return customers.value
-  }
-  const statusVal = Number(statusFilter.value)
-  return customers.value.filter(c => c.trangThai === statusVal)
-})
-
-const totalPages = computed(() => {
-  return Math.ceil(filteredCustomers.value.length / itemsPerPage) || 1
-})
-
-const paginatedCustomers = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage
-  return filteredCustomers.value.slice(start, start + itemsPerPage)
-})
-
-const goToPage = (page) => {
-  if (page >= 1 && page <= totalPages.value) {
-    currentPage.value = page
-  }
+/* ----- Địa chỉ mặc định hiển thị ở bảng ----- */
+function diaChiMacDinh(k) {
+  const ds = k.diaChiList ?? []
+  return ds.find((d) => d.laDiaChiMacDinh) ?? ds[0] ?? null
 }
-
-const prevPage = () => {
-  if (currentPage.value > 1) {
-    currentPage.value--
-  }
+const diaChiChu = (k) => {
+  const d = diaChiMacDinh(k)
+  return d ? ghepDiaChi(d) : ''
 }
+// Người nhận hàng của địa chỉ mặc định (có thể khác tên khách hàng, vd mua giúp người thân)
+const tenNguoiNhan = (k) => diaChiMacDinh(k)?.tenNguoiNhan || ''
 
-const nextPage = () => {
-  if (currentPage.value < totalPages.value) {
-    currentPage.value++
-  }
-}
+// Ảnh đại diện không mở được (đường dẫn hỏng) -> quay về hiện chữ cái đầu
+const anhHong = reactive({})
 
-onMounted(() => {
-  fetchCustomers()
-})
+/* ----- Thêm / xem-sửa / địa chỉ ----- */
+const openCreate = () => router.push('/khach-hang/them')
+const openEdit = (k) => router.push(`/khach-hang/${k.id}/sua`)
+const khachDiaChi = ref(null)
 
-const search = () => {
-  fetchCustomers(true)
-}
-
-const getDefaultAddress = (kh) => {
-  if (!kh.diaChiList || kh.diaChiList.length === 0) return null;
-  const defaultAddr = kh.diaChiList.find(addr => addr.laDiaChiMacDinh);
-  return defaultAddr || kh.diaChiList[0];
-};
-
-const reset = () => {
-  searchQuery.value = ''
-  statusFilter.value = ''
-  fetchCustomers(true)
-}
-
-
-const exportFile = () => {
-  if (filteredCustomers.value.length === 0) {
+/* ----- Xuất Excel (đúng theo danh sách đang lọc) ----- */
+function exportFile() {
+  if (!filtered.value.length) {
     toast.error('Không có khách hàng nào để xuất.')
     return
   }
-  const fmtNgaySinh = (v) => {
-    if (!v) return ''
-    if (Array.isArray(v)) return `${String(v[2]).padStart(2, '0')}/${String(v[1]).padStart(2, '0')}/${v[0]}`
-    const parts = String(v).substring(0, 10).split('-')
-    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : String(v)
-  }
   exportExcel({
-    filename: 'danh_sach_khach_hang.xlsx',
+    filename: `khach_hang_${todayIso()}.xlsx`,
     sheetName: 'Khách hàng',
     columns: [
       { header: 'STT', key: 'stt', width: 6 },
@@ -384,222 +112,232 @@ const exportFile = () => {
       { header: 'Email', key: 'email', width: 28 },
       { header: 'Ngày sinh', key: 'ngaySinh', width: 14 },
       { header: 'Giới tính', key: 'gioiTinh', width: 10 },
+      { header: 'Tên người nhận', key: 'nguoiNhan', width: 24 },
       { header: 'Địa chỉ', key: 'diaChi', width: 50 },
       { header: 'Trạng thái', key: 'trangThai', width: 16 },
     ],
-    rows: filteredCustomers.value.map((kh, index) => {
-      const dc = getDefaultAddress(kh)
-      return {
-        stt: index + 1,
-        ma: kh.maKhachHang || '',
-        ten: kh.hoTen || '',
-        sdt: kh.sdt || '',
-        email: kh.email || '',
-        ngaySinh: fmtNgaySinh(kh.ngaySinh),
-        gioiTinh: kh.gioiTinh === 1 ? 'Nam' : 'Nữ',
-        diaChi: dc ? ghepDiaChi(dc) : '',
-        trangThai: kh.trangThai === 1 ? 'Hoạt động' : 'Ngừng hoạt động',
-      }
-    }),
+    rows: filtered.value.map((k, i) => ({
+      stt: i + 1,
+      ma: k.maKhachHang || '',
+      ten: k.hoTen || '',
+      sdt: k.sdt || '',
+      email: k.email || '',
+      ngaySinh: k.ngaySinh ? formatDate(ngayTuApi(k.ngaySinh)) : '',
+      gioiTinh: nhanGioiTinhKhach(k.gioiTinh),
+      nguoiNhan: tenNguoiNhan(k),
+      diaChi: diaChiChu(k),
+      trangThai: (TRANG_THAI_KHACH[k.trangThai] ?? TRANG_THAI_KHACH[1]).label,
+    })),
   })
-  toast.success(`Đã xuất ${filteredCustomers.value.length} khách hàng ra file Excel.`)
+  toast.success(`Đã xuất ${filtered.value.length} khách hàng ra file Excel.`)
 }
 
-const isView = ref(false)
-
-const openEditModal = (kh) => {
-  selectedCustomerForAddress.value = kh;
-  showAddressModal.value = true;
-}
-
-
-const populateForm = (kh) => {
-  phoneErrorMsg.value = ''
-
-  let tinhThanh = ''
-  let phuongXa = ''
-  let diaChiCuThe = ''
-
-  if (kh.diaChiList && kh.diaChiList.length > 0) {
-    const dc = getDefaultAddress(kh) || kh.diaChiList[0]
-    tinhThanh = dc.tinhThanhPho || ''
-    phuongXa = dc.phuongXa || ''
-    diaChiCuThe = dc.diaChiCuThe || ''
-  }
-
-  formData.value = {
-    id: kh.id,
-    maKH: kh.maKhachHang || '',
-    ten: kh.hoTen || '',
-    sdt: kh.sdt || '',
-    email: kh.email || '',
-    ngaySinh: kh.ngaySinh || '',
-    gioiTinh: kh.gioiTinh !== undefined ? kh.gioiTinh : 1,
-    trangThai: kh.trangThai !== undefined ? kh.trangThai : 1,
-    tinhThanh,
-    phuongXa,
-    diaChiCuThe
-  }
-}
-
-
+/* ----- Bật / tắt hoạt động ----- */
 const confirmItem = ref(null)
 const confirmLoading = ref(false)
+const dangHoatDong = (k) => k.trangThai === 1
 
-const toggleStatus = (kh) => {
-  confirmItem.value = kh
-}
+const confirmContent = computed(() => {
+  const k = confirmItem.value
+  if (!k) return {}
+  return dangHoatDong(k)
+    ? {
+        title: 'Ngừng hoạt động khách hàng',
+        message: `Bạn có chắc chắn muốn ngừng hoạt động khách hàng ${k.hoTen}?`,
+        confirmText: 'Ngừng hoạt động',
+        variant: 'danger',
+        icon: 'warning',
+      }
+    : {
+        title: 'Kích hoạt khách hàng',
+        message: `Bạn có chắc chắn muốn kích hoạt lại khách hàng ${k.hoTen}?`,
+        confirmText: 'Kích hoạt',
+        variant: 'primary',
+        icon: 'success',
+      }
+})
+const tieuDeNutBat = (k) => (dangHoatDong(k) ? 'Ngừng hoạt động' : 'Kích hoạt')
 
-const confirmToggle = async () => {
-  const kh = confirmItem.value
-  if (!kh) return
-  const dangHoatDong = kh.trangThai === 1
+async function confirmToggle() {
+  const k = confirmItem.value
+  if (!k) return
   confirmLoading.value = true
   try {
-    await api.put(`/khach-hang/${kh.id}/trang-thai`)
-    await fetchCustomers()
-    toast.success(dangHoatDong ? 'Đã ngừng hoạt động khách hàng.' : 'Đã kích hoạt lại khách hàng.')
+    const daDoi = await khachHangService.toggleActive(k.id)
+    loadSeq++ // hủy các lần tải đang chạy dở (có thể còn chứa trạng thái cũ)
+    const i = list.value.findIndex((x) => x.id === k.id)
+    if (i !== -1 && daDoi) list.value[i] = { ...list.value[i], ...daDoi }
+    toast.success(dangHoatDong(k) ? 'Đã ngừng hoạt động khách hàng.' : 'Đã kích hoạt lại khách hàng.')
     confirmItem.value = null
-  } catch (error) {
-    console.error(error)
-    toast.error(error.message || 'Không thể thay đổi trạng thái khách hàng.')
+    load(false, true)
+  } catch (e) {
+    toast.error(e.message || 'Không thể thay đổi trạng thái khách hàng.')
   } finally {
     confirmLoading.value = false
   }
 }
-
-const openViewModal = (kh) => {
-  populateForm(kh)
-  isEdit.value = true
-  isView.value = false
-  showModal.value = true
-}
-
-const closeModal = () => {
-  showModal.value = false
-}
-
-const phoneErrorMsg = ref('')
-
-const saveCustomer = async () => {
-  phoneErrorMsg.value = ''
-
-  if (!formData.value.ten || formData.value.ten.trim() === '') {
-    toast.error('Họ tên không được để trống hoặc chỉ chứa khoảng trắng.')
-    return
-  }
-
-  if (formData.value.sdt) {
-    // Regex SĐT Việt Nam: bắt đầu bằng 0, theo sau là 3,5,7,8,9 và đúng 8 số nữa (tổng 10 số)
-    const vnPhoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
-    if (!vnPhoneRegex.test(formData.value.sdt.trim())) {
-      phoneErrorMsg.value = 'Số điện thoại không hợp lệ (phải là SĐT Việt Nam 10 số).'
-      return
-    }
-  } else {
-    phoneErrorMsg.value = 'Số điện thoại không được để trống.'
-    return
-  }
-
-  if (formData.value.ngaySinh && formData.value.ngaySinh.length > 10) {
-    toast.error('Vui lòng nhập Ngày Sinh hợp lệ (năm không quá 4 chữ số).')
-    return
-  }
-
-  if (formData.value.ngaySinh) {
-    const selectedDate = new Date(formData.value.ngaySinh)
-    const today = new Date()
-    if (selectedDate > today) {
-      toast.error('Ngày sinh không được lớn hơn ngày hiện tại.')
-      return
-    }
-  }
-
-  const payload = {
-    hoTen: formData.value.ten.trim(),
-    sdt: formData.value.sdt.trim(),
-    email: formData.value.email ? formData.value.email.trim() : null,
-    ngaySinh: formData.value.ngaySinh || null,
-    gioiTinh: formData.value.gioiTinh,
-    trangThai: formData.value.trangThai,
-  }
-  try {
-    await api.put(`/khach-hang/${formData.value.id}`, payload)
-    closeModal()
-    fetchCustomers()
-    toast.success('Đã cập nhật khách hàng.')
-  } catch (error) {
-    console.error('Lỗi khi lưu khách hàng:', error)
-    toast.error(error.message || 'Có lỗi xảy ra khi lưu khách hàng. Vui lòng kiểm tra lại dữ liệu.')
-  }
-}
-
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  const parts = dateString.split('-')
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`
-  }
-  return dateString
-}
 </script>
 
-<style scoped>
-/* Form Input */
-.form-control::placeholder {
-  color: #ced4da;
-}
+<template>
+  <div class="ad-page">
+    <FilterCard subtitle="Tra cứu nhanh dữ liệu.">
+      <div class="ad-filter-grid ad-filter-grid--staff">
+        <div>
+          <label class="ad-label" for="kh-keyword">Tìm kiếm</label>
+          <div class="ad-affix">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input
+              id="kh-keyword"
+              v-model.trim="filters.keyword"
+              type="text"
+              class="form-control ad-control"
+              placeholder="Tìm theo mã, họ tên, email, SĐT…"
+              autocomplete="off"
+            />
+          </div>
+        </div>
 
-/* Action Buttons */
-.action-btn {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #f8f9fa;
-  border: 1px solid transparent;
-  transition: all 0.2s;
-}
-.action-btn:hover {
-  background-color: white;
-  border-color: #dee2e6;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
+        <div>
+          <label class="ad-label" for="kh-loc-gioi-tinh">Giới tính</label>
+          <Select2 id="kh-loc-gioi-tinh" v-model="filters.gioiTinh" :options="dsGioiTinhLoc" :min-search="99" class="ad-control" />
+        </div>
 
-/* Custom Buttons */
-.custom-outline-btn {
-  border-color: #dee2e6;
-  padding: 0.5rem 1.25rem;
-  background-color: white;
-}
-.custom-outline-btn:hover {
-  background-color: #f8f9fa;
-  color: #495057 !important;
-}
+        <div>
+          <label class="ad-label" for="kh-loc-trang-thai">Trạng thái</label>
+          <Select2 id="kh-loc-trang-thai" v-model="filters.trangThai" :options="dsTrangThaiLoc" :min-search="99" class="ad-control" />
+        </div>
+      </div>
 
-.custom-solid-btn {
-  padding: 0.5rem 1.25rem;
-}
-.custom-solid-btn:hover {
-  background-color: #075fc0 !important;
-  border-color: #075fc0 !important;
-}
+      <template #actions>
+        <button type="button" class="ad-btn" @click="resetFilters">
+          <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại bộ lọc
+        </button>
+        <button type="button" class="ad-btn" @click="exportFile">
+          <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Xuất Excel
+        </button>
+        <button type="button" class="ad-btn ad-btn-primary" @click="openCreate">
+          <i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm khách hàng
+        </button>
+      </template>
+    </FilterCard>
 
-/* Pagination */
-.custom-pagination .page-link {
-  color: #495057;
-  border: none !important;
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
-}
-.custom-pagination .page-item.disabled .page-link {
-  color: #adb5bd;
-  background-color: #fff;
-}
-</style>
+    <section class="ad-card">
+      <header class="ad-list-head">
+        <div class="ad-card-head">
+          <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-people"></i></span>
+          <h2 class="ad-card-title">Danh sách khách hàng</h2>
+        </div>
+        <span class="ad-count">{{ total }} bản ghi hiển thị</span>
+      </header>
+
+      <div class="ad-table-wrap">
+        <div class="ad-table-scroll">
+          <table class="ad-table">
+            <thead>
+              <tr>
+                <th class="ad-col-stt">STT</th>
+                <th></th>
+                <th>Mã KH</th>
+                <th>Họ tên</th>
+                <th>Email</th>
+                <th>SĐT</th>
+                <th>Giới tính</th>
+                <th>Tên người nhận</th>
+                <th>Địa chỉ</th>
+                <th>Trạng thái</th>
+                <th class="ad-col-actions">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading">
+                <td colspan="11"><div class="ad-empty">Đang tải dữ liệu…</div></td>
+              </tr>
+              <tr v-else-if="!pageItems.length">
+                <td colspan="11">
+                  <div class="ad-empty">
+                    <i class="bi bi-inbox" aria-hidden="true"></i>
+                    <strong>Không tìm thấy khách hàng</strong>
+                    <span>Thử đổi từ khóa (tên, SĐT hoặc email) hoặc bấm “Đặt lại bộ lọc”.</span>
+                  </div>
+                </td>
+              </tr>
+              <template v-else>
+                <tr v-for="(k, i) in pageItems" :key="k.id">
+                  <td class="ad-col-stt">{{ (page - 1) * pageSize + i + 1 }}</td>
+                  <td>
+                    <span class="ad-avatar" :style="avatarColors(k.hoTen)">
+                      <img v-if="k.anhDaiDien && !anhHong[k.id]" :src="k.anhDaiDien" :alt="`Ảnh đại diện của ${k.hoTen}`" @error="anhHong[k.id] = true" />
+                      <template v-else>{{ getInitials(k.hoTen) }}</template>
+                    </span>
+                  </td>
+                  <td><span class="ad-code ad-nowrap">{{ k.maKhachHang }}</span></td>
+                  <td class="ad-nowrap">{{ k.hoTen }}</td>
+                  <td><span class="ad-ellipsis" :title="k.email">{{ k.email }}</span></td>
+                  <td class="ad-nowrap">{{ k.sdt }}</td>
+                  <td>{{ nhanGioiTinhKhach(k.gioiTinh) }}</td>
+                  <td class="ad-nowrap">
+                    <span v-if="tenNguoiNhan(k)">{{ tenNguoiNhan(k) }}</span>
+                    <span v-else class="text-muted">Chưa cập nhật</span>
+                  </td>
+                  <td>
+                    <span v-if="diaChiChu(k)" class="ad-clamp-2" :title="diaChiChu(k)">{{ diaChiChu(k) }}</span>
+                    <span v-else class="text-muted">Chưa cập nhật địa chỉ</span>
+                  </td>
+                  <td>
+                    <span class="ad-pill" :class="(TRANG_THAI_KHACH[k.trangThai] ?? TRANG_THAI_KHACH[0]).cls">
+                      {{ (TRANG_THAI_KHACH[k.trangThai] ?? TRANG_THAI_KHACH[0]).label }}
+                    </span>
+                  </td>
+                  <td class="ad-col-actions">
+                    <div class="ad-actions">
+                      <button
+                        type="button"
+                        class="ad-icon-btn"
+                        :class="dangHoatDong(k) ? 'is-danger' : 'is-success'"
+                        :title="tieuDeNutBat(k)"
+                        :aria-label="`${tieuDeNutBat(k)}: ${k.hoTen}`"
+                        @click="confirmItem = k"
+                      >
+                        <i class="bi bi-power" aria-hidden="true"></i>
+                      </button>
+                      <button
+                        type="button"
+                        class="ad-icon-btn"
+                        title="Xem / sửa khách hàng"
+                        :aria-label="`Xem hoặc sửa khách hàng ${k.hoTen}`"
+                        @click="openEdit(k)"
+                      >
+                        <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                      </button>
+                      <button
+                        type="button"
+                        class="ad-icon-btn"
+                        title="Quản lý địa chỉ"
+                        :aria-label="`Quản lý địa chỉ của ${k.hoTen}`"
+                        @click="khachDiaChi = k"
+                      >
+                        <i class="bi bi-geo-alt-fill" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
+    </section>
+
+    <ConfirmDialog
+      v-if="confirmItem"
+      v-bind="confirmContent"
+      :loading="confirmLoading"
+      @confirm="confirmToggle"
+      @cancel="confirmItem = null"
+    />
+
+    <KhachHangAddressModal v-if="khachDiaChi" :customer="khachDiaChi" @close="khachDiaChi = null" @address-updated="load(false, true)" />
+  </div>
+</template>

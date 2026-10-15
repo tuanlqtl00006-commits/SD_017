@@ -1,6 +1,6 @@
 package com.footstyle.demo.dto;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -18,8 +18,8 @@ public record PhieuGiamGiaResponse(
         Integer soLuong,
         Integer soLuongDaDung,
         Integer gioiHanMoiKhach,
-        LocalDate ngayBatDau,
-        LocalDate ngayKetThuc,
+        LocalDateTime ngayBatDau,
+        LocalDateTime ngayKetThuc,
         boolean hoatDong,
         List<KhachHangTomTatResponse> khachHangs,
         String ketQuaMail) {

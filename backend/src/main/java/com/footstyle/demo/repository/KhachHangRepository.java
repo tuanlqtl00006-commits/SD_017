@@ -14,6 +14,11 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Integer> {
 
     boolean existsBySdt(String sdt);
 
+    /** Kiểm tra trùng khi THÊM (idBoQua = -1) hoặc SỬA (idBoQua = id khách đang sửa, không tính chính khách này). */
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Integer idBoQua);
+
+    boolean existsBySdtAndIdNot(String sdt, Integer idBoQua);
+
     boolean existsByMaKhachHang(String maKhachHang);
 
     @Query("SELECT k FROM KhachHang k WHERE k.hoTen LIKE %:keyword% OR k.sdt LIKE %:keyword% "

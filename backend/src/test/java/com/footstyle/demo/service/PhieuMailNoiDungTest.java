@@ -114,7 +114,7 @@ class PhieuMailNoiDungTest {
             assertTrue(h.contains("200.000 ₫"), "giảm tối đa " + loai);
             assertTrue(h.contains("Đơn tối thiểu"), "nhãn đơn tối thiểu " + loai);
             assertTrue(h.contains("500.000 ₫"), "đơn tối thiểu " + loai);
-            assertTrue(h.contains("09/10/2026 – 15/10/2026"), "hiệu lực " + loai);
+            assertTrue(h.contains("00:00 09/10/2026 – 23:59 15/10/2026"), "hiệu lực có cả giờ " + loai);
             assertTrue(h.contains("Nguyễn Văn An"), "lời chào " + loai);
         }
     }
@@ -259,7 +259,7 @@ class PhieuMailNoiDungTest {
             assertTrue(t.contains("- Tên phiếu: Tri ân khách hàng thân thiết"));
             assertTrue(t.contains("- Mức giảm: giảm 10% (tối đa 200.000 ₫)"));
             assertTrue(t.contains("- Đơn tối thiểu: 500.000 ₫"));
-            assertTrue(t.contains("- Hiệu lực: 09/10/2026 – 15/10/2026"));
+            assertTrue(t.contains("- Hiệu lực: 00:00 09/10/2026 – 23:59 15/10/2026"));
             assertTrue(t.contains("Cảm ơn bạn đã đồng hành cùng FootStyle."));
         }
     }
