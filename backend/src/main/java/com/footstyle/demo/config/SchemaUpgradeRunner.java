@@ -98,7 +98,21 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
             "IF COL_LENGTH('hinh_anh_san_pham', 'id_mau_sac') IS NULL "
                     + "ALTER TABLE hinh_anh_san_pham ADD id_mau_sac INT NULL CONSTRAINT fk_hasp_mau_sac FOREIGN KEY REFERENCES mau_sac(id)",
             "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_hasp_san_pham_mau' AND object_id = OBJECT_ID('hinh_anh_san_pham')) "
-                    + "CREATE INDEX ix_hasp_san_pham_mau ON hinh_anh_san_pham (id_san_pham, id_mau_sac)");
+                    + "CREATE INDEX ix_hasp_san_pham_mau ON hinh_anh_san_pham (id_san_pham, id_mau_sac)",
+            // Khách hàng: email và số điện thoại không được trùng. KhachHangService đã kiểm tra khi lưu; chỉ mục này chặn nốt trường hợp hai người
+            // lưu cùng lúc. Chỉ tạo khi dữ liệu hiện có chưa trùng (trùng thì bỏ qua, hãy sửa dữ liệu trước rồi khởi động lại / chạy tay file .sql).
+            "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_khach_hang_email' AND object_id = OBJECT_ID('khach_hang')) "
+                    + "AND NOT EXISTS (SELECT 1 FROM khach_hang WHERE email IS NOT NULL AND email <> '' GROUP BY email HAVING COUNT(*) > 1) "
+                    + "CREATE UNIQUE INDEX ux_khach_hang_email ON khach_hang (email) WHERE email IS NOT NULL AND email <> ''",
+            "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_khach_hang_sdt' AND object_id = OBJECT_ID('khach_hang')) "
+                    + "AND NOT EXISTS (SELECT 1 FROM khach_hang WHERE sdt IS NOT NULL AND sdt <> '' GROUP BY sdt HAVING COUNT(*) > 1) "
+                    + "CREATE UNIQUE INDEX ux_khach_hang_sdt ON khach_hang (sdt) WHERE sdt IS NOT NULL AND sdt <> ''",
+            // Hóa đơn: đơn TẠI QUẦY (loai_hoa_don = 1) nhận hàng ngay ở cửa hàng nên không có phí vận chuyển / đơn vị vận chuyển
+            // (cô: "tại quầy sao lại có phí vận chuyển"). Dọn dữ liệu cũ còn sót; thành tiền trừ lại phần phí đã cộng, không để âm.
+            // Giống hệt PHẦN 8.1 trong database/SD_17_du_lieu_va_nang_cap.sql (SchemaUpgradeRunnerHoaDonTest kiểm tra hai bên không lệch).
+            "UPDATE hoa_don SET thanh_tien = CASE WHEN thanh_tien > ISNULL(phi_van_chuyen, 0) THEN thanh_tien - ISNULL(phi_van_chuyen, 0) ELSE 0 END, "
+                    + "phi_van_chuyen = 0, don_vi_van_chuyen = NULL "
+                    + "WHERE loai_hoa_don = 1 AND (ISNULL(phi_van_chuyen, 0) <> 0 OR don_vi_van_chuyen IS NOT NULL)");
 
     /**
      * Các bảng có mã do hệ thống tự cấp: {bảng, cột mã}. Mã cũ nhiều số 0 (HD000001, NV0001, SP001, DGG001, DC000...)

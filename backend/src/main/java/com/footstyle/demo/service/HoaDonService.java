@@ -8,6 +8,7 @@ import com.footstyle.demo.entity.HoaDonChiTiet;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.LichSuHoaDon;
 import com.footstyle.demo.entity.LichSuThanhToan;
+import com.footstyle.demo.entity.PhieuGiamGia;
 import com.footstyle.demo.entity.SanPham;
 import com.footstyle.demo.entity.SanPhamChiTiet;
 import com.footstyle.demo.exception.ApiException;
@@ -16,6 +17,7 @@ import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.LichSuHoaDonRepository;
 import com.footstyle.demo.repository.LichSuThanhToanRepository;
+import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -37,37 +39,35 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class HoaDonService {
 
-    /** Tên hiển thị của từng trạng thái; cũng là chữ ghi vào cột lich_su_hoa_don.hanh_dong. */
-    private static final Map<Integer, String> TEN_TRANG_THAI = Map.of(
-            HoaDon.DA_HUY, "Đã hủy",
-            HoaDon.CHO_XAC_NHAN, "Chờ xác nhận",
-            HoaDon.DA_XAC_NHAN, "Đã xác nhận",
-            HoaDon.CHO_LAY_HANG, "Chờ giao hàng",
-            HoaDon.DANG_GIAO, "Đang giao hàng",
-            HoaDon.DA_GIAO, "Đã giao hàng",
-            HoaDon.HOAN_THANH, "Đã hoàn thành");
+    private static final String KHACH_VANG_LAI = "Khách vãng lai";
 
     private final HoaDonRepository hoaDonRepository;
     private final HoaDonChiTietRepository hoaDonChiTietRepository;
     private final LichSuHoaDonRepository lichSuHoaDonRepository;
     private final LichSuThanhToanRepository lichSuThanhToanRepository;
     private final HinhAnhSanPhamRepository hinhAnhRepository;
+    private final SanPhamChiTietRepository sanPhamChiTietRepository;
 
     /* ===================== Danh sách ===================== */
 
     /** Điều kiện lọc dùng chung cho danh sách và bộ đếm theo trạng thái (trangThai = null: không lọc theo trạng thái). */
     private Specification<HoaDon> boLoc(String maHoaDon, LocalDate tuNgay, LocalDate denNgay,
                                         Integer loaiDon, Integer trangThai) {
+        if (tuNgay != null && denNgay != null && tuNgay.isAfter(denNgay)) {
+            throw ApiException.badRequest("Từ ngày phải trước hoặc cùng ngày với Đến ngày.");
+        }
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (maHoaDon != null && !maHoaDon.trim().isEmpty()) {
-                predicates.add(cb.like(root.get("maHoaDon"), "%" + maHoaDon.trim() + "%"));
+                // Thoát % và _ để gõ "HD_1" không bị hiểu là ký tự đại diện của LIKE
+                predicates.add(cb.like(root.get("maHoaDon"), "%" + thoatLike(maHoaDon.trim()) + "%", '\\'));
             }
             if (tuNgay != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("ngayTao"), tuNgay.atStartOfDay()));
             }
             if (denNgay != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("ngayTao"), denNgay.atTime(23, 59, 59)));
+                // Lấy trọn ngày "đến": < 0h ngày hôm sau (không dùng <= 23:59:59 vì sẽ sót hóa đơn tạo lúc 23:59:59.xxx)
+                predicates.add(cb.lessThan(root.get("ngayTao"), denNgay.plusDays(1).atStartOfDay()));
             }
             if (loaiDon != null) {
                 predicates.add(cb.equal(root.get("loaiDon"), loaiDon));
@@ -84,7 +84,8 @@ public class HoaDonService {
     public Map<String, Long> demTheoTrangThai(String maHoaDon, LocalDate tuNgay, LocalDate denNgay, Integer loaiDon) {
         Map<String, Long> ketQua = new LinkedHashMap<>();
         ketQua.put("tatCa", hoaDonRepository.count(boLoc(maHoaDon, tuNgay, denNgay, loaiDon, null)));
-        for (int tt = HoaDon.DA_HUY; tt <= HoaDon.HOAN_THANH; tt++) {
+        // Mã 0..8, gồm cả 7 (tab "Hoàn tiền", chưa có đơn nào) và 8 (Giao hàng thất bại) để tab nào cũng có số
+        for (int tt = HoaDon.DA_HUY; tt <= HoaDon.GIAO_THAT_BAI; tt++) {
             ketQua.put(String.valueOf(tt), hoaDonRepository.count(boLoc(maHoaDon, tuNgay, denNgay, loaiDon, tt)));
         }
         return ketQua;
@@ -103,8 +104,8 @@ public class HoaDonService {
             request.setSdtKhachHang(sdtKhach(hd));
             request.setMaNhanVien(hd.getNhanVien() != null ? hd.getNhanVien().getMaNhanVien() : null);
             request.setTenNhanVien(hd.getNhanVien() != null ? hd.getNhanVien().getHoTen() : "Không xác định");
-            // Số tiền khách phải trả (đã trừ giảm giá, cộng phí ship)
-            request.setTongTien(hd.getThanhTien() != null ? hd.getThanhTien() : hd.getTongTien());
+            // Số tiền khách phải trả (đã trừ giảm giá, cộng phí ship - đơn tại quầy không có phí ship)
+            request.setTongTien(hd.getThanhTien() != null ? thanhTien(hd) : hd.getTongTien());
             request.setNgayTao(hd.getNgayTao());
             request.setTrangThai(hd.getTrangThai());
             request.setLoaiDon(tenLoaiDon(hd.getLoaiDon()));
@@ -112,25 +113,32 @@ public class HoaDonService {
         });
     }
 
-    /** Tên khách: tên trong hồ sơ khách hàng; hóa đơn không gắn khách thì lấy tên người nhận ghi trên hóa đơn, không có nữa thì "Khách vãng lai". */
+    /**
+     * Tên khách: tên trong hồ sơ khách hàng. Đơn tại quầy không gắn hồ sơ là KHÁCH LẺ -> "Khách vãng lai" (cô: "khách lẻ tại sao có số
+     * điện thoại"). Đơn giao hàng không gắn hồ sơ thì lấy tên người nhận ghi trên hóa đơn, không có nữa thì "Khách vãng lai".
+     */
     private String tenKhach(HoaDon hd) {
-        if (hd.getKhachHang() != null && hd.getKhachHang().getHoTen() != null && !hd.getKhachHang().getHoTen().trim().isEmpty()) {
-            return hd.getKhachHang().getHoTen().trim();
+        KhachHang kh = hd.getKhachHang();
+        if (kh != null && !trong(kh.getHoTen())) {
+            return kh.getHoTen().trim();
         }
-        String nguoiNhan = hd.getHoTenNguoiNhan();
-        return nguoiNhan == null || nguoiNhan.trim().isEmpty() ? "Khách vãng lai" : nguoiNhan.trim();
+        if (kh == null && laTaiQuay(hd)) {
+            return KHACH_VANG_LAI;
+        }
+        return trong(hd.getHoTenNguoiNhan()) ? KHACH_VANG_LAI : hd.getHoTenNguoiNhan().trim();
     }
 
     /**
-     * SĐT khách: ưu tiên SĐT trong hồ sơ khách hàng; khách chưa có SĐT (hoặc khách vãng lai) thì lấy SĐT người nhận ghi trên hóa đơn.
-     * Không có SĐT nào thì trả null (giao diện hiện "—").
+     * SĐT khách: SĐT trong hồ sơ khách hàng. Khách lẻ mua tại quầy KHÔNG có SĐT (trả null, giao diện hiện "—" hoặc ghi chú khách vãng lai).
+     * Chỉ đơn giao hàng mà hồ sơ không có SĐT mới lấy SĐT người nhận ghi trên hóa đơn (cần để liên hệ giao hàng).
      */
     private String sdtKhach(HoaDon hd) {
-        String sdt = hd.getKhachHang() != null ? hd.getKhachHang().getSdt() : null;
-        if (sdt == null || sdt.trim().isEmpty()) {
+        KhachHang kh = hd.getKhachHang();
+        String sdt = kh != null ? kh.getSdt() : null;
+        if (trong(sdt) && !laTaiQuay(hd)) {
             sdt = hd.getSdtNguoiNhan();
         }
-        return sdt == null || sdt.trim().isEmpty() ? null : sdt.trim();
+        return trong(sdt) ? null : sdt.trim();
     }
 
     /* ===================== Chi tiết ===================== */
@@ -146,22 +154,40 @@ public class HoaDonService {
         info.put("maHoaDon", hd.getMaHoaDon());
         info.put("loaiDon", hd.getLoaiDon() == null ? HoaDon.TAI_QUAY : hd.getLoaiDon());
         info.put("tenLoaiDon", tenLoaiDon(hd.getLoaiDon()));
+        int trangThai = hd.getTrangThai() == null ? HoaDon.CHO_XAC_NHAN : hd.getTrangThai();
         info.put("trangThai", hd.getTrangThai());
-        info.put("tenTrangThai", TEN_TRANG_THAI.getOrDefault(hd.getTrangThai(), "Không xác định"));
+        info.put("tenTrangThai", HoaDonLuongTrangThai.ten(hd.getTrangThai()));
+        // Nút đổi trạng thái giao diện được phép hiện: lấy từ đúng bảng luật mà doiTrangThai dùng để kiểm tra
+        info.put("laTrangThaiCuoi", HoaDonLuongTrangThai.laTrangThaiCuoi(trangThai));
+        List<Map<String, Object>> chuyenDuoc = new ArrayList<>();
+        for (int sang : HoaDonLuongTrangThai.chuyenDuoc(hd.getLoaiDon(), trangThai)) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("trangThai", sang);
+            m.put("ten", HoaDonLuongTrangThai.ten(sang));
+            m.put("batBuocLyDo", HoaDonLuongTrangThai.batBuocLyDo(sang));
+            chuyenDuoc.add(m);
+        }
+        info.put("chuyenDuoc", chuyenDuoc);
         info.put("ngayTao", hd.getNgayTao());
         info.put("ngayCapNhat", hd.getNgayCapNhat());
         info.put("tongTien", soTien(hd.getTongTien()));
         info.put("soTienGiam", soTien(hd.getSoTienGiam()));
-        info.put("phiVanChuyen", soTien(hd.getPhiVanChuyen()));
-        info.put("thanhTien", soTien(hd.getThanhTien()));
+        info.put("phiVanChuyen", phiVanChuyen(hd));
+        info.put("thanhTien", thanhTien(hd));
         info.put("ghiChu", hd.getGhiChu());
-        info.put("donViVanChuyen", hd.getDonViVanChuyen());
+        // Đơn tại quầy không có vận chuyển: không đơn vị vận chuyển, phí 0 (cô: "tại quầy sao lại có phí vận chuyển 30 nghìn")
+        info.put("donViVanChuyen", laTaiQuay(hd) ? null : hd.getDonViVanChuyen());
         info.put("ngayGiaoDuKien", hd.getNgayGiaoDuKien());
         info.put("ngayGiaoThucTe", hd.getNgayGiaoThucTe());
         info.put("tenNhanVien", hd.getNhanVien() != null ? hd.getNhanVien().getHoTen() : null);
         info.put("maNhanVien", hd.getNhanVien() != null ? hd.getNhanVien().getMaNhanVien() : null);
-        info.put("maPhieuGiamGia", hd.getPhieuGiamGia() != null ? hd.getPhieuGiamGia().getMaPhieu() : null);
-        info.put("tenPhieuGiamGia", hd.getPhieuGiamGia() != null ? hd.getPhieuGiamGia().getTenPhieu() : null);
+        // Phiếu giảm giá đã dùng: mã + loại + giá trị (để in "mã X, giảm 10%" / "giảm 50.000 ₫") - cô: "giảm dùng mã nào, giảm bao nhiêu phần trăm"
+        PhieuGiamGia phieu = hd.getPhieuGiamGia();
+        info.put("maPhieuGiamGia", phieu != null ? phieu.getMaPhieu() : null);
+        info.put("tenPhieuGiamGia", phieu != null ? phieu.getTenPhieu() : null);
+        info.put("loaiPhieuGiamGia", phieu != null ? phieu.getLoaiGiam() : null);
+        info.put("giaTriPhieuGiamGia", phieu != null ? phieu.getGiaTriGiam() : null);
+        info.put("giamToiDaPhieuGiamGia", phieu != null ? phieu.getGiamToiDa() : null);
         String phuongThuc = hd.getIdPhuongThucThanhToan() == null ? null
                 : hoaDonRepository.findTenPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
         info.put("phuongThucThanhToan", phuongThuc);
@@ -171,16 +197,17 @@ public class HoaDonService {
         KhachHang kh = hd.getKhachHang();
         Map<String, Object> khach = new LinkedHashMap<>();
         khach.put("maKhachHang", kh != null ? kh.getMaKhachHang() : null);
+        khach.put("khachLe", kh == null); // không gắn hồ sơ khách hàng
         khach.put("ten", tenKhach(hd));
-        khach.put("sdt", sdtKhach(hd)); // cùng cách lấy với danh sách: hồ sơ khách, không có thì SĐT người nhận ghi trên hóa đơn
+        khach.put("sdt", sdtKhach(hd)); // cùng cách lấy với danh sách: hồ sơ khách; khách lẻ tại quầy thì không có SĐT
         khach.put("email", kh != null ? kh.getEmail() : null);
         response.put("khachHang", khach);
 
-        // Giao hàng
+        // Giao hàng (đơn tại quầy nhận hàng ngay tại cửa hàng: không có người nhận / địa chỉ giao)
         Map<String, Object> giao = new LinkedHashMap<>();
-        giao.put("hoTenNguoiNhan", hd.getHoTenNguoiNhan());
-        giao.put("sdtNguoiNhan", hd.getSdtNguoiNhan());
-        giao.put("diaChi", hd.getDiaChiGiaoHang());
+        giao.put("hoTenNguoiNhan", laTaiQuay(hd) ? null : hd.getHoTenNguoiNhan());
+        giao.put("sdtNguoiNhan", laTaiQuay(hd) ? null : hd.getSdtNguoiNhan());
+        giao.put("diaChi", laTaiQuay(hd) ? null : hd.getDiaChiGiaoHang());
         response.put("giaoHang", giao);
 
         response.put("sanPham", danhSachSanPham(hd.getId()));
@@ -268,40 +295,39 @@ public class HoaDonService {
     /* ===================== Đổi trạng thái ===================== */
 
     /**
-     * Đơn giao hàng đi lần lượt 1 -> 2 -> 3 -> 4 -> 5 -> 6; đơn tại quầy đi thẳng 1 -> 6.
-     * Chỉ hủy (0) được khi đơn chưa giao cho vận chuyển (trạng thái 1, 2, 3).
+     * Đổi trạng thái theo bảng luật trong {@link HoaDonLuongTrangThai}: đơn giao hàng đi 1 -> 2 -> 3 -> 4 -> 5 -> 6, đơn tại quầy đi thẳng 1 -> 6;
+     * hủy được khi chưa giao cho vận chuyển; Đang giao hàng báo được "Giao hàng thất bại" rồi giao lại hoặc hủy.
+     * Hủy đơn và Giao hàng thất bại bắt buộc ghi lý do. Đã hủy / Đã hoàn thành là trạng thái cuối, không đổi nữa.
      */
     @Transactional
     public Map<String, Object> doiTrangThai(Integer idHoaDon, HoaDonTrangThaiRequest req) {
         HoaDon hd = timHoaDon(idHoaDon);
         Integer moi = req == null ? null : req.trangThaiMoi();
-        if (moi == null || !TEN_TRANG_THAI.containsKey(moi)) {
+        if (!HoaDonLuongTrangThai.hopLe(moi)) {
             throw ApiException.badRequest("Trạng thái mới không hợp lệ.");
         }
         int hienTai = hd.getTrangThai() == null ? HoaDon.CHO_XAC_NHAN : hd.getTrangThai();
-        if (hienTai == HoaDon.DA_HUY || hienTai == HoaDon.HOAN_THANH) {
-            throw ApiException.badRequest(hienTai == HoaDon.DA_HUY
-                    ? "Hóa đơn đã bị hủy, không thể đổi trạng thái nữa."
-                    : "Hóa đơn đã hoàn thành, không thể đổi trạng thái nữa.");
+        if (HoaDonLuongTrangThai.laTrangThaiCuoi(hienTai)) {
+            throw ApiException.badRequest(HoaDonLuongTrangThai.lyDoDaKetThuc(hienTai));
+        }
+        if (!HoaDonLuongTrangThai.chuyenDuoc(hd.getLoaiDon(), hienTai).contains(moi)) {
+            throw ApiException.badRequest(HoaDonLuongTrangThai.lyDoKhongChuyenDuoc(hienTai, moi));
         }
 
         String ghiChu = req.ghiChu() == null ? "" : req.ghiChu().trim();
-        if (moi == HoaDon.DA_HUY) {
-            if (hienTai > HoaDon.CHO_LAY_HANG) {
-                throw ApiException.badRequest("Đơn đã giao cho đơn vị vận chuyển, không thể hủy.");
-            }
-            if (ghiChu.isEmpty()) {
-                throw ApiException.badRequest("Vui lòng nhập lý do hủy đơn.");
-            }
-        } else if (moi != trangThaiTiepTheo(hd.getLoaiDon(), hienTai)) {
-            throw ApiException.badRequest("Không thể chuyển từ \"" + TEN_TRANG_THAI.get(hienTai) + "\" sang \""
-                    + TEN_TRANG_THAI.get(moi) + "\". Vui lòng tải lại trang.");
+        if (ghiChu.isEmpty() && HoaDonLuongTrangThai.batBuocLyDo(moi)) {
+            throw ApiException.badRequest(moi == HoaDon.DA_HUY
+                    ? "Vui lòng nhập lý do hủy đơn."
+                    : "Vui lòng nhập lý do giao hàng thất bại.");
         }
         if (ghiChu.length() > 500) {
             throw ApiException.badRequest("Ghi chú tối đa 500 ký tự.");
         }
 
         LocalDateTime now = LocalDateTime.now();
+        if (moi == HoaDon.DA_HUY) {
+            hoanTonKho(hd); // cả khi hủy sau giao hàng thất bại: hàng đã về cửa hàng
+        }
         hd.setTrangThai(moi);
         hd.setNgayCapNhat(now);
         if (moi == HoaDon.DA_GIAO) {
@@ -317,7 +343,7 @@ public class HoaDonService {
                     daTra = daTra.add(soTien(tt.getSoTien()));
                 }
             }
-            BigDecimal conLai = soTien(hd.getThanhTien()).subtract(daTra);
+            BigDecimal conLai = thanhTien(hd).subtract(daTra);
             if (conLai.signum() > 0) {
                 LichSuThanhToan tt = new LichSuThanhToan();
                 tt.setHoaDon(hd);
@@ -332,9 +358,9 @@ public class HoaDonService {
 
         LichSuHoaDon ls = new LichSuHoaDon();
         ls.setHoaDon(hd);
-        ls.setHanhDong(TEN_TRANG_THAI.get(moi));
+        ls.setHanhDong(HoaDonLuongTrangThai.ten(moi));
         ls.setThoiGian(now);
-        ls.setMoTa(ghiChu.isEmpty() ? "Chuyển sang \"" + TEN_TRANG_THAI.get(moi) + "\"" : ghiChu);
+        ls.setMoTa(ghiChu.isEmpty() ? HoaDonLuongTrangThai.moTaMacDinh(hienTai, moi) : ghiChu);
         String nguoi = req.nguoiThaoTac() == null ? "" : req.nguoiThaoTac().trim();
         ls.setNguoiThaoTac(nguoi.isEmpty() ? "Quản lý" : nguoi);
         lichSuHoaDonRepository.save(ls);
@@ -344,6 +370,32 @@ public class HoaDonService {
 
     /* ===================== Hàm phụ ===================== */
 
+    /** Hủy đơn: trả số lượng của từng dòng hóa đơn về tồn kho biến thể (gộp các dòng cùng biến thể). */
+    private void hoanTonKho(HoaDon hd) {
+        Map<Integer, SanPhamChiTiet> bienThe = new LinkedHashMap<>();
+        Map<Integer, Integer> soLuongHoan = new HashMap<>();
+        for (HoaDonChiTiet ct : hoaDonChiTietRepository.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
+            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
+            int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
+            if (spct == null || spct.getId() == null || sl <= 0) {
+                continue;
+            }
+            bienThe.putIfAbsent(spct.getId(), spct);
+            soLuongHoan.merge(spct.getId(), sl, Integer::sum);
+        }
+        for (Map.Entry<Integer, SanPhamChiTiet> e : bienThe.entrySet()) {
+            SanPhamChiTiet spct = e.getValue();
+            int ton = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
+            spct.setSoLuongTon(ton + soLuongHoan.get(e.getKey()));
+            spct.setNgayCapNhat(LocalDateTime.now());
+            sanPhamChiTietRepository.save(spct);
+        }
+    }
+
+    private static String thoatLike(String s) {
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
     private HoaDon timHoaDon(Integer id) {
         if (id == null) {
             throw ApiException.badRequest("Thiếu mã hóa đơn.");
@@ -352,11 +404,28 @@ public class HoaDonService {
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy hóa đơn. Có thể hóa đơn đã bị xóa."));
     }
 
-    private static int trangThaiTiepTheo(Integer loaiDon, int hienTai) {
-        if (Integer.valueOf(HoaDon.GIAO_HANG).equals(loaiDon)) {
-            return hienTai + 1;
+    /** Đơn tại quầy (kể cả đơn chưa ghi loại): khách nhận hàng ngay tại cửa hàng, không qua đơn vị vận chuyển. */
+    private static boolean laTaiQuay(HoaDon hd) {
+        return !Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon());
+    }
+
+    private static boolean trong(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    /** Phí vận chuyển của hóa đơn: đơn tại quầy luôn 0 dù cột phi_van_chuyen còn giá trị cũ (vd 30.000) trong dữ liệu nhập sai. */
+    private static BigDecimal phiVanChuyen(HoaDon hd) {
+        return laTaiQuay(hd) ? BigDecimal.ZERO : soTien(hd.getPhiVanChuyen());
+    }
+
+    /** Thành tiền phải trả: đơn tại quầy bỏ phần phí vận chuyển còn sót trong dữ liệu cũ để ba con số tổng - giảm + phí = thành tiền luôn khớp. */
+    private static BigDecimal thanhTien(HoaDon hd) {
+        BigDecimal tt = soTien(hd.getThanhTien());
+        BigDecimal phiLuu = soTien(hd.getPhiVanChuyen());
+        if (laTaiQuay(hd) && phiLuu.signum() > 0) {
+            tt = tt.subtract(phiLuu).max(BigDecimal.ZERO);
         }
-        return HoaDon.HOAN_THANH; // tại quầy: thanh toán xong là hoàn thành
+        return tt;
     }
 
     private static String tenLoaiDon(Integer loaiDon) {
@@ -382,7 +451,7 @@ public class HoaDonService {
         if (h.equalsIgnoreCase("Hoàn thành")) {
             return HoaDon.HOAN_THANH;
         }
-        for (Map.Entry<Integer, String> e : TEN_TRANG_THAI.entrySet()) {
+        for (Map.Entry<Integer, String> e : HoaDonLuongTrangThai.tatCaTen().entrySet()) {
             if (e.getValue().equalsIgnoreCase(h)) {
                 return e.getKey();
             }

@@ -6,6 +6,7 @@ import { useRoute } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
+import Select2 from './common/Select2.vue'
 import ThuocTinhFormModal from './thuocTinh/ThuocTinhFormModal.vue'
 import { thuocTinhService } from '../services/thuocTinhService'
 import { THUOC_TINH, TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
@@ -15,10 +16,12 @@ import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { includesExact, includesText } from '../utils/text'
 import { laKhongApDung, NHOM_DANH_MUC } from '../utils/danhMuc'
 import { exportExcel } from '../utils/exportExcel'
+import { tuBangHang } from '../utils/luaChon'
 import { todayIso } from '../utils/format'
 
 const route = useRoute()
 const toast = useToast()
+const dsLocTrangThai = tuBangHang(TRANG_THAI, { tatCa: 'Tất cả trạng thái' })
 const type = route.meta.attr
 const cfg = THUOC_TINH[type]
 const lower = cfg.label.toLowerCase()
@@ -176,10 +179,7 @@ function exportFile() {
         </div>
         <div>
           <label class="ad-label" for="tt-trang-thai">Trạng thái</label>
-          <select id="tt-trang-thai" v-model="filters.trangThai" class="form-select ad-control">
-            <option value="">Tất cả trạng thái</option>
-            <option v-for="(item, key) in TRANG_THAI" :key="key" :value="key">{{ item.label }}</option>
-          </select>
+          <Select2 id="tt-trang-thai" v-model="filters.trangThai" :options="dsLocTrangThai" class="ad-control" />
         </div>
       </div>
 

@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
 import StatusSwitch from './common/StatusSwitch.vue'
+import Select2 from './common/Select2.vue'
 import { useRouter } from 'vue-router'
 import PhieuGiamGiaDetailModal from './phieuGiamGia/PhieuGiamGiaDetailModal.vue'
 import { phieuGiamGiaService } from '../services/phieuGiamGiaService'
@@ -11,13 +12,24 @@ import { HINH_THUC, LOAI_GIAM, TRANG_THAI, tinhTrangThai, isExpired, formatGiaTr
 import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
-import { formatDate, todayIso } from '../utils/format'
+import { todayIso } from '../utils/format'
+import { bayGioDayDu, dinhDangNgayGio } from '../utils/ngayGio'
 import { includesText } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
+import { tuBangHang } from '../utils/luaChon'
+import DateInput from './common/DateInput.vue'
 
 const toast = useToast()
 const router = useRouter()
-const today = todayIso()
+// "Bây giờ" chạy theo đồng hồ: phiếu tới giờ bắt đầu / kết thúc thì trạng thái trên danh sách tự đổi (không cần tải lại trang)
+const bayGio = ref(bayGioDayDu())
+let dongHo = null
+onMounted(() => { dongHo = setInterval(() => (bayGio.value = bayGioDayDu()), 30000) })
+onBeforeUnmount(() => clearInterval(dongHo))
+const ngayCua = (v) => (v ? String(v).substring(0, 10) : '')
+const dsHinhThucLoc = tuBangHang(HINH_THUC, { tatCa: 'Tất cả hình thức' })
+const dsLoaiGiamLoc = tuBangHang(LOAI_GIAM, { tatCa: 'Tất cả loại giảm' })
+const dsTrangThaiLoc = tuBangHang(TRANG_THAI, { tatCa: 'Tất cả trạng thái' })
 
 const list = ref([])
 const loading = ref(false)
@@ -38,7 +50,7 @@ function resetFilters() {
   Object.assign(filters, defaultFilters())
 }
 
-const rows = computed(() => list.value.map((p) => ({ ...p, trangThai: tinhTrangThai(p, today) })))
+const rows = computed(() => list.value.map((p) => ({ ...p, trangThai: tinhTrangThai(p, bayGio.value) })))
 
 const filtered = computed(() =>
   rows.value.filter((p) => {
@@ -47,9 +59,9 @@ const filtered = computed(() =>
     if (f.hinhThuc && p.hinhThuc !== f.hinhThuc) return false
     if (f.loaiGiam && p.loaiGiam !== f.loaiGiam) return false
     if (f.trangThai && p.trangThai !== f.trangThai) return false
-    // Ngày bắt đầu / kết thúc ở bộ lọc: phiếu bắt đầu từ ngày... và kết thúc đến hết ngày...
-    if (f.ngayBatDau && p.ngayBatDau < f.ngayBatDau) return false
-    if (f.ngayKetThuc && p.ngayKetThuc > f.ngayKetThuc) return false
+    // Ngày bắt đầu / kết thúc ở bộ lọc (theo NGÀY): phiếu bắt đầu từ ngày... và kết thúc đến hết ngày...
+    if (f.ngayBatDau && ngayCua(p.ngayBatDau) < f.ngayBatDau) return false
+    if (f.ngayKetThuc && ngayCua(p.ngayKetThuc) > f.ngayKetThuc) return false
     return true
   }),
 )
@@ -132,8 +144,8 @@ function exportFile() {
       { header: 'Số lượng', key: 'soLuong', width: 10 },
       { header: 'Đã dùng', key: 'soLuongDaDung', width: 10 },
       { header: 'Giới hạn mỗi khách', key: 'gioiHanMoiKhach', width: 18 },
-      { header: 'Ngày bắt đầu', key: 'ngayBatDau', width: 14 },
-      { header: 'Ngày kết thúc', key: 'ngayKetThuc', width: 14 },
+      { header: 'Ngày giờ bắt đầu', key: 'ngayBatDau', width: 18 },
+      { header: 'Ngày giờ kết thúc', key: 'ngayKetThuc', width: 18 },
       { header: 'Trạng thái', key: 'trangThai', width: 18 },
     ],
     rows: filtered.value.map((p, i) => ({
@@ -147,8 +159,8 @@ function exportFile() {
       soLuong: p.soLuong ?? '',
       soLuongDaDung: p.soLuongDaDung ?? '',
       gioiHanMoiKhach: p.gioiHanMoiKhach ?? '',
-      ngayBatDau: formatDate(p.ngayBatDau),
-      ngayKetThuc: formatDate(p.ngayKetThuc),
+      ngayBatDau: dinhDangNgayGio(p.ngayBatDau),
+      ngayKetThuc: dinhDangNgayGio(p.ngayKetThuc),
       trangThai: TRANG_THAI[p.trangThai].label,
     })),
   })
@@ -171,17 +183,17 @@ const confirmContent = computed(() => {
       }
     : {
         title: 'Hiện lại phiếu giảm giá?',
-        message: `Phiếu ${p.ma} sẽ áp dụng lại trong khoảng ${formatDate(p.ngayBatDau)} - ${formatDate(p.ngayKetThuc)}.`,
+        message: `Phiếu ${p.ma} sẽ áp dụng lại trong khoảng ${dinhDangNgayGio(p.ngayBatDau)} - ${dinhDangNgayGio(p.ngayKetThuc)}.`,
         confirmText: 'Hiện lại',
         variant: 'primary',
       }
 })
 
-// Phiếu đã quá ngày kết thúc ("Đã kết thúc"): công tắc hiện TẮT và bị khóa, không bật / tắt được nữa.
-const congTacBat = (p) => p.hoatDong && !isExpired(p, today)
-const congTacKhoa = (p) => isExpired(p, today)
+// Phiếu đã quá giờ kết thúc ("Đã kết thúc"): công tắc hiện TẮT và bị khóa, không bật / tắt được nữa.
+const congTacBat = (p) => p.hoatDong && !isExpired(p, bayGio.value)
+const congTacKhoa = (p) => isExpired(p, bayGio.value)
 function toggleTitle(p) {
-  if (isExpired(p, today)) return 'Đã kết thúc - công tắc tắt, không thể bật / tắt'
+  if (isExpired(p, bayGio.value)) return 'Đã kết thúc - công tắc tắt, không thể bật / tắt'
   return p.hoatDong ? 'Đang bật - bấm để ngưng hoạt động' : 'Đang tắt - bấm để bật hoạt động'
 }
 
@@ -223,36 +235,27 @@ async function confirmToggle() {
 
         <div>
           <label class="ad-label" for="pgg-hinh-thuc">Hình thức</label>
-          <select id="pgg-hinh-thuc" v-model="filters.hinhThuc" class="form-select ad-control">
-            <option value="">Tất cả hình thức</option>
-            <option v-for="(item, key) in HINH_THUC" :key="key" :value="key">{{ item.label }}</option>
-          </select>
+          <Select2 id="pgg-hinh-thuc" v-model="filters.hinhThuc" :options="dsHinhThucLoc" class="ad-control" />
         </div>
 
         <div>
           <label class="ad-label" for="pgg-tu-ngay">Ngày bắt đầu</label>
-          <input id="pgg-tu-ngay" v-model="filters.ngayBatDau" type="date" class="form-control ad-control" />
+          <DateInput id="pgg-tu-ngay" v-model="filters.ngayBatDau" class="form-control ad-control" />
         </div>
 
         <div>
           <label class="ad-label" for="pgg-den-ngay">Ngày kết thúc</label>
-          <input id="pgg-den-ngay" v-model="filters.ngayKetThuc" type="date" class="form-control ad-control" />
+          <DateInput id="pgg-den-ngay" v-model="filters.ngayKetThuc" class="form-control ad-control" />
         </div>
 
         <div>
           <label class="ad-label" for="pgg-loai-giam">Loại giảm</label>
-          <select id="pgg-loai-giam" v-model="filters.loaiGiam" class="form-select ad-control">
-            <option value="">Tất cả loại giảm</option>
-            <option v-for="(item, key) in LOAI_GIAM" :key="key" :value="key">{{ item.label }}</option>
-          </select>
+          <Select2 id="pgg-loai-giam" v-model="filters.loaiGiam" :options="dsLoaiGiamLoc" class="ad-control" />
         </div>
 
         <div>
           <label class="ad-label" for="pgg-trang-thai">Trạng thái</label>
-          <select id="pgg-trang-thai" v-model="filters.trangThai" class="form-select ad-control">
-            <option value="">Tất cả trạng thái</option>
-            <option v-for="(item, key) in TRANG_THAI" :key="key" :value="key">{{ item.label }}</option>
-          </select>
+          <Select2 id="pgg-trang-thai" v-model="filters.trangThai" :options="dsTrangThaiLoc" class="ad-control" />
         </div>
       </div>
 
@@ -285,8 +288,8 @@ async function confirmToggle() {
                 <th>Tên phiếu</th>
                 <th>Hình thức</th>
                 <th>Giá trị giảm</th>
-                <th>Ngày bắt đầu</th>
-                <th>Ngày kết thúc</th>
+                <th>Ngày giờ bắt đầu</th>
+                <th>Ngày giờ kết thúc</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
               </tr>
@@ -316,8 +319,8 @@ async function confirmToggle() {
                     </span>
                   </td>
                   <td class="ad-nowrap">{{ formatGiaTri(p) }}</td>
-                  <td class="ad-nowrap">{{ formatDate(p.ngayBatDau) }}</td>
-                  <td class="ad-nowrap">{{ formatDate(p.ngayKetThuc) }}</td>
+                  <td class="ad-nowrap" data-testid="pgg-ngay-bd">{{ dinhDangNgayGio(p.ngayBatDau) }}</td>
+                  <td class="ad-nowrap" data-testid="pgg-ngay-kt">{{ dinhDangNgayGio(p.ngayKetThuc) }}</td>
                   <td>
                     <span class="ad-pill" :class="TRANG_THAI[p.trangThai].cls">{{ TRANG_THAI[p.trangThai].label }}</span>
                   </td>

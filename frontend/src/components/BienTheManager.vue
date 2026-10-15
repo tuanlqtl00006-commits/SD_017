@@ -4,6 +4,7 @@ import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
 import ConfirmQuestion from './common/ConfirmQuestion.vue'
+import Select2 from './common/Select2.vue'
 import BienTheFormModal from './sanPham/BienTheFormModal.vue'
 import QrModal from './common/QrModal.vue'
 import { sanPhamService, bienTheService } from '../services/sanPhamService'
@@ -11,17 +12,27 @@ import { useGiamGiaBienThe } from '../composables/useGiamGiaBienThe'
 import { TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
 import { useThuocTinh } from '../composables/useThuocTinh'
 import { usePagination } from '../composables/usePagination'
+import { useThemNhanh } from '../composables/useThemNhanh'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
-import { formatDate, formatMoney, todayIso } from '../utils/format'
+import { formatMoney, todayIso } from '../utils/format'
 import { includesText } from '../utils/text'
+import { tuBangHang, tuDanhSach } from '../utils/luaChon'
 import { idKhongApDung, laDanhMucVot, laKhongApDung } from '../utils/danhMuc'
 import { mauHex } from '../utils/mau'
+import { dinhDangNgayGio } from '../utils/ngayGio'
 import { exportExcel } from '../utils/exportExcel'
 
 const toast = useToast()
 const today = todayIso()
 const { data: tt, loadThuocTinh, tenOf, optionsOf } = useThuocTinh(['mau-sac', 'trong-luong', 'chu-vi', 'danh-muc'])
+
+// "Thêm nhanh" màu / trọng lượng / chu vi ngay trong form biến thể (khỏi sang trang Danh sách thuộc tính)
+const { themNhanh } = useThemNhanh({
+  layDanhSach: (slug) => tt[slug],
+  themVaoDanhSach: (slug, muc) => { tt[slug] = [muc, ...tt[slug].filter((x) => x.id !== muc.id)] },
+  toast,
+})
 
 const list = ref([])
 const sanPhams = ref([])
@@ -61,6 +72,17 @@ watch(filters, () => { page.value = 1 })
 
 // Lựa chọn trọng lượng / chu vi cho bộ lọc: bỏ mục "Không áp dụng" (của danh mục không phải vợt)
 const luaChonLoc = (slug) => (tt[slug] || []).filter((x) => !laKhongApDung(x))
+// Các ô chọn của bộ lọc (Select2): mục đầu "Tất cả ..." có value rỗng = không lọc
+const dsLocSanPham = computed(() => tuDanhSach(sanPhams.value, { tatCa: 'Tất cả sản phẩm' }))
+const dsLocMau = computed(() => tuDanhSach(tt['mau-sac'], { tatCa: 'Tất cả màu sắc' }))
+const dsLocTrongLuong = computed(() => tuDanhSach(luaChonLoc('trong-luong'), { tatCa: 'Tất cả trọng lượng' }))
+const dsLocChuVi = computed(() => tuDanhSach(luaChonLoc('chu-vi'), { tatCa: 'Tất cả chu vi' }))
+const dsLocTonKho = [
+  { value: '', label: 'Tất cả' },
+  { value: 'CON', label: 'Còn hàng' },
+  { value: 'HET', label: 'Hết hàng' },
+]
+const dsLocTrangThai = tuBangHang(TRANG_THAI, { tatCa: 'Tất cả trạng thái' })
 // Tên hiển thị trong bảng: "Không áp dụng" hiện thành dấu gạch cho gọn
 const tenGon = (slug, id) => { const ten = tenOf(slug, id); return ten === 'Không áp dụng' ? '—' : ten }
 
@@ -179,7 +201,7 @@ function exportFile() {
       { header: 'Trọng lượng', key: 'trongLuong', width: 16 },
       { header: 'Chu vi', key: 'chuVi', width: 10 },
       { header: 'Giá bán (₫)', key: 'giaBan', width: 14 },
-      { header: 'Giảm giá (%)', key: 'giam', width: 14 },
+      { header: 'Giá sau giảm (₫)', key: 'giaSauGiam', width: 18 },
       { header: 'Tồn kho', key: 'soLuongTon', width: 10 },
       { header: 'Trạng thái', key: 'trangThai', width: 18 },
     ],
@@ -191,7 +213,7 @@ function exportFile() {
       trongLuong: tenOf('trong-luong', b.idTrongLuong),
       chuVi: tenOf('chu-vi', b.idChuVi),
       giaBan: b.giaBan,
-      giam: pctOf(b.id) || '',
+      giaSauGiam: giaSauGiam(b),
       soLuongTon: b.soLuongTon,
       trangThai: TRANG_THAI[trangThaiOf(b)].label,
     })),
@@ -213,46 +235,27 @@ function exportFile() {
         </div>
         <div>
           <label class="ad-label" for="bt-f-sp">Sản phẩm</label>
-          <select id="bt-f-sp" v-model="filters.idSanPham" class="form-select ad-control">
-            <option value="">Tất cả sản phẩm</option>
-            <option v-for="p in sanPhams" :key="p.id" :value="p.id">{{ p.ten }}</option>
-          </select>
+          <Select2 id="bt-f-sp" v-model="filters.idSanPham" :options="dsLocSanPham" class="ad-control" />
         </div>
         <div>
           <label class="ad-label" for="bt-f-mau">Màu sắc</label>
-          <select id="bt-f-mau" v-model="filters.idMauSac" class="form-select ad-control">
-            <option value="">Tất cả màu sắc</option>
-            <option v-for="o in tt['mau-sac']" :key="o.id" :value="o.id">{{ o.ten }}</option>
-          </select>
+          <Select2 id="bt-f-mau" v-model="filters.idMauSac" :options="dsLocMau" class="ad-control" />
         </div>
         <div>
           <label class="ad-label" for="bt-f-tl">Trọng lượng</label>
-          <select id="bt-f-tl" v-model="filters.idTrongLuong" class="form-select ad-control">
-            <option value="">Tất cả trọng lượng</option>
-            <option v-for="o in luaChonLoc('trong-luong')" :key="o.id" :value="o.id">{{ o.ten }}</option>
-          </select>
+          <Select2 id="bt-f-tl" v-model="filters.idTrongLuong" :options="dsLocTrongLuong" class="ad-control" />
         </div>
         <div>
           <label class="ad-label" for="bt-f-cv">Chu vi cán</label>
-          <select id="bt-f-cv" v-model="filters.idChuVi" class="form-select ad-control">
-            <option value="">Tất cả chu vi</option>
-            <option v-for="o in luaChonLoc('chu-vi')" :key="o.id" :value="o.id">{{ o.ten }}</option>
-          </select>
+          <Select2 id="bt-f-cv" v-model="filters.idChuVi" :options="dsLocChuVi" class="ad-control" />
         </div>
         <div>
           <label class="ad-label" for="bt-f-ton">Tồn kho</label>
-          <select id="bt-f-ton" v-model="filters.conHang" class="form-select ad-control">
-            <option value="">Tất cả</option>
-            <option value="CON">Còn hàng</option>
-            <option value="HET">Hết hàng</option>
-          </select>
+          <Select2 id="bt-f-ton" v-model="filters.conHang" :options="dsLocTonKho" class="ad-control" />
         </div>
         <div>
           <label class="ad-label" for="bt-f-trang-thai">Trạng thái</label>
-          <select id="bt-f-trang-thai" v-model="filters.trangThai" class="form-select ad-control">
-            <option value="">Tất cả trạng thái</option>
-            <option v-for="(item, key) in TRANG_THAI" :key="key" :value="key">{{ item.label }}</option>
-          </select>
+          <Select2 id="bt-f-trang-thai" v-model="filters.trangThai" :options="dsLocTrangThai" class="ad-control" />
         </div>
       </div>
 
@@ -282,16 +285,15 @@ function exportFile() {
                 <th>Trọng lượng</th>
                 <th>Chu vi</th>
                 <th>Giá bán</th>
-                <th title="% giảm của đợt giảm giá đang diễn ra hôm nay. Thêm biến thể vào một đợt ở trang Đợt giảm giá → Sản phẩm áp dụng thì cột này tự cập nhật.">Giảm giá</th>
                 <th>Tồn kho</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td colspan="12"><div class="ad-empty">Đang tải dữ liệu…</div></td></tr>
+              <tr v-if="loading"><td colspan="11"><div class="ad-empty">Đang tải dữ liệu…</div></td></tr>
               <tr v-else-if="!pageItems.length">
-                <td colspan="12">
+                <td colspan="11">
                   <div class="ad-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
                     <strong>Không tìm thấy biến thể</strong>
@@ -313,17 +315,17 @@ function exportFile() {
                   <td class="ad-nowrap"><span class="bt-dot" :style="{ background: mauHex(tenOf('mau-sac', b.idMauSac)) }" aria-hidden="true"></span>{{ tenOf('mau-sac', b.idMauSac) }}</td>
                   <td class="ad-nowrap">{{ tenGon('trong-luong', b.idTrongLuong) }}</td>
                   <td>{{ tenGon('chu-vi', b.idChuVi) }}</td>
-                  <td class="ad-nowrap">
+                  <td class="ad-nowrap" data-testid="o-gia-ban">
+                    <!-- Có đợt giảm giá đang diễn ra: giá sau giảm + giá gốc gạch ngang (không có cột "Giảm giá" riêng, theo lời cô) -->
                     <template v-if="pctOf(b.id)">
-                      <div class="fw-bold ad-price-sale">{{ formatMoney(giaSauGiam(b)) }}</div>
-                      <div class="text-muted small text-decoration-line-through">{{ formatMoney(b.giaBan) }}</div>
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold ad-price-sale" data-testid="gia-sau-giam">{{ formatMoney(giaSauGiam(b)) }}</span>
+                        <span class="ad-pill ad-pill-blue" data-testid="giam-hien-tai">-{{ pctOf(b.id) }}%</span>
+                      </div>
+                      <div class="text-muted small text-decoration-line-through" data-testid="gia-goc-gach">{{ formatMoney(b.giaBan) }}</div>
                     </template>
                     <template v-else>{{ formatMoney(b.giaBan) }}</template>
-                  </td>
-                  <td>
-                    <span v-if="pctOf(b.id)" class="ad-pill ad-pill-blue" data-testid="giam-hien-tai">-{{ pctOf(b.id) }}%</span>
-                    <span v-else-if="!sapGiamOf(b.id)" class="text-muted">—</span>
-                    <div v-if="sapGiamOf(b.id)" class="small text-muted ad-nowrap" data-testid="giam-sap-dien-ra">Sắp giảm -{{ sapGiamOf(b.id).phanTram }}% từ {{ formatDate(sapGiamOf(b.id).tuNgay) }}</div>
+                    <div v-if="sapGiamOf(b.id)" class="small text-muted ad-nowrap" data-testid="giam-sap-dien-ra">Sắp giảm -{{ sapGiamOf(b.id).phanTram }}% từ {{ dinhDangNgayGio(sapGiamOf(b.id).tuLuc) }}</div>
                   </td>
                   <td>
                     <span v-if="b.soLuongTon === 0" class="ad-pill ad-pill-amber">Hết hàng</span>
@@ -360,7 +362,7 @@ function exportFile() {
       <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
     </section>
 
-    <BienTheFormModal v-if="formState" :item="formState.item" :all="list" :san-phams="sanPhams" :options="optionsOf" :la-vot-fn="laVotCuaSp" :id-kad-fn="idKadOf" :saving="saving" @save="save" @close="formState = null" />
+    <BienTheFormModal v-if="formState" :item="formState.item" :all="list" :san-phams="sanPhams" :options="optionsOf" :la-vot-fn="laVotCuaSp" :id-kad-fn="idKadOf" :saving="saving" :them-nhanh="themNhanh" @save="save" @close="formState = null" />
     <ConfirmQuestion
       v-if="hoiCapNhat"
       title="Biến thể đã tồn tại"

@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import { mockApi, THUOC_TINH } from './helpersDanhMuc'
+import { mockApi, THUOC_TINH, themAnhChung } from './helpersDanhMuc'
 import { nhomDanhMuc, chatLieuHopDanhMuc } from '../src/utils/danhMuc'
+import { cacMucSelect2, chuSelect2, datSelect2, giaTriSelect2 } from './helpersSelect2'
 
 let mock
 vi.mock('../src/services/api', () => ({ default: new Proxy({}, { get: (_, k) => (...a) => mock.api[k](...a) }) }))
@@ -57,21 +58,28 @@ describe('Form sản phẩm: ô Chất liệu theo danh mục', () => {
     await flushPromises()
     return w
   }
-  const chonDanhMuc = async (w, id) => { await w.get('#sp-idDanhMuc').setValue(id); await flushPromises() }
-  const dsChatLieu = (w) => w.findAll('#sp-idChatLieu option').map((o) => o.text()).slice(1) // bỏ dòng "Chọn chất liệu…"
+  const chonDanhMuc = async (w, id) => { await datSelect2(w, '#sp-idDanhMuc', id); await flushPromises() }
+  // Các mục đang có trong ô Chất liệu (ô bị khóa thì không mở được danh sách => rỗng)
+  const dsChatLieu = async (w) => {
+    if (w.get('#sp-idChatLieu').attributes('disabled') !== undefined) return []
+    const ds = await cacMucSelect2(w, '#sp-idChatLieu')
+    w.get('#sp-idChatLieu').element.click() // đóng danh sách
+    await flushPromises()
+    return ds
+  }
 
   it('chưa chọn danh mục: ô Chất liệu bị khóa, không có lựa chọn nào', async () => {
     const w = await montar()
     expect(w.get('#sp-idChatLieu').attributes('disabled')).toBeDefined()
-    expect(w.get('#sp-idChatLieu').text()).toContain('Chọn danh mục trước')
-    expect(dsChatLieu(w)).toEqual([])
+    expect(chuSelect2(w, '#sp-idChatLieu')).toContain('Chọn danh mục trước')
+    expect(await dsChatLieu(w)).toEqual([])
   })
 
   it('Quần áo thể thao: chỉ có Cotton, Polyester, Thun lạnh (và chất liệu chưa gắn nhóm) - KHÔNG có Nhôm / Titanium / Carbon', async () => {
     const w = await montar()
     await chonDanhMuc(w, 3)
     expect(w.get('#sp-idChatLieu').attributes('disabled')).toBeUndefined()
-    const ds = dsChatLieu(w)
+    const ds = await dsChatLieu(w)
     expect(ds).toEqual(expect.arrayContaining(['Cotton', 'Polyester', 'Thun lạnh']))
     for (const sai of ['Nhôm', 'Titanium', 'Carbon', 'Graphite', 'Da PU', 'Lông ngỗng']) expect(ds).not.toContain(sai)
   })
@@ -85,27 +93,28 @@ describe('Form sản phẩm: ô Chất liệu theo danh mục', () => {
   ])('danh mục id %i: đúng bộ chất liệu', async (id, mong) => {
     const w = await montar()
     await chonDanhMuc(w, id)
-    const ds = dsChatLieu(w).filter((x) => x !== 'Chất liệu cũ chưa gắn nhóm')
+    const ds = (await dsChatLieu(w)).filter((x) => x !== 'Chất liệu cũ chưa gắn nhóm')
     expect(ds.sort()).toEqual([...mong].sort())
   })
 
   it('đổi danh mục: chất liệu đã chọn không còn hợp thì bị bỏ chọn (bắt chọn lại); còn hợp thì giữ', async () => {
     const w = await montar()
     await chonDanhMuc(w, 1)
-    await w.get('#sp-idChatLieu').setValue(3) // Nhôm (khung vợt)
-    expect(w.get('#sp-idChatLieu').element.value).toBe('3')
+    await datSelect2(w, '#sp-idChatLieu', 3) // Nhôm (khung vợt)
+    expect(giaTriSelect2(w, '#sp-idChatLieu')).toBe('3')
     await chonDanhMuc(w, 3) // sang Quần áo thể thao
-    expect(w.get('#sp-idChatLieu').element.value).toBe('')
-    await w.get('#sp-idChatLieu').setValue(7) // Polyester
+    expect(giaTriSelect2(w, '#sp-idChatLieu')).toBe('')
+    await datSelect2(w, '#sp-idChatLieu', 7) // Polyester
     await chonDanhMuc(w, 5) // sang Phụ kiện: Polyester vẫn dùng được
-    expect(w.get('#sp-idChatLieu').element.value).toBe('7')
+    expect(giaTriSelect2(w, '#sp-idChatLieu')).toBe('7')
   })
 
   it('lưu quần áo với chất liệu hợp danh mục: gửi đúng idChatLieu', async () => {
     const w = await montar()
     await chonDanhMuc(w, 3)
-    await w.get('#sp-ten').setValue('Áo Yonex'); await w.get('#sp-idThuongHieu').setValue(1); await w.get('#sp-idXuatXu').setValue(1)
-    await w.get('#sp-idChatLieu').setValue(8)
+    await w.get('#sp-ten').setValue('Áo Yonex'); await datSelect2(w, '#sp-idThuongHieu', 1); await datSelect2(w, '#sp-idXuatXu', 1)
+    await datSelect2(w, '#sp-idChatLieu', 8)
+    await themAnhChung(w)
     await w.get('form').trigger('submit'); await flushPromises()
     const nut = [...document.body.querySelectorAll('button')].find((b) => b.textContent.includes('Xác nhận lưu'))
     nut.click(); await flushPromises()
@@ -115,13 +124,13 @@ describe('Form sản phẩm: ô Chất liệu theo danh mục', () => {
   it('sửa sản phẩm cũ giữ danh mục: chất liệu cũ (dù lệch nhóm) vẫn còn trong ô để không mất dữ liệu', async () => {
     const sp = { id: 9, ma: 'SP009', ten: 'Áo cũ', idDanhMuc: 3, idThuongHieu: 1, idXuatXu: 1, idChatLieu: 3, idDoCung: 90, idDiemCanBang: 91, hoatDong: true, anhPhu: [] }
     const w = await montar('/san-pham/9/sua', sp)
-    expect(w.get('#sp-idChatLieu').element.value).toBe('3')
-    expect(dsChatLieu(w)).toContain('Nhôm')
+    expect(giaTriSelect2(w, '#sp-idChatLieu')).toBe('3')
+    expect(await dsChatLieu(w)).toContain('Nhôm')
     await chonDanhMuc(w, 5) // đổi sang danh mục khác: phải chọn lại chất liệu hợp danh mục mới
-    expect(dsChatLieu(w)).not.toContain('Nhôm')
-    expect(w.get('#sp-idChatLieu').element.value).toBe('')
+    expect(await dsChatLieu(w)).not.toContain('Nhôm')
+    expect(giaTriSelect2(w, '#sp-idChatLieu')).toBe('')
     await chonDanhMuc(w, 3) // quay về đúng danh mục gốc thì tổ hợp cũ được phép giữ (cùng luật với backend)
-    expect(dsChatLieu(w)).toContain('Nhôm')
+    expect(await dsChatLieu(w)).toContain('Nhôm')
   })
 })
 

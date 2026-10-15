@@ -99,7 +99,7 @@ class SanPhamServiceAnhTheoMauTest {
             default -> NONE;
         });
         MauSacRepository mauRepo = proxy(MauSacRepository.class, (ten, a) -> "existsById".equals(ten) ? List.of(1, 2).contains(a[0]) : NONE);
-        BienTheService bienThe = new BienTheService(proxy(SanPhamChiTietRepository.class, (t, a) -> NONE), spRepo, mauRepo,
+        BienTheService bienThe = new BienTheService(proxy(SanPhamChiTietRepository.class, (t, a) -> "findBySanPhamIdOrderByIdDesc".equals(t) ? List.of() : NONE), spRepo, mauRepo,
                 proxy(TrongLuongRepository.class, (t, a) -> NONE), proxy(ChuViRepository.class, (t, a) -> NONE), anhRepo);
         service = new SanPhamService(spRepo, anhRepo,
                 khoThuocTinh(DanhMucRepository.class, tt(DanhMuc::new, "Vợt cầu lông")),

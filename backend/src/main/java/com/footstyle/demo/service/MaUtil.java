@@ -1,5 +1,6 @@
 package com.footstyle.demo.service;
 
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,7 +23,8 @@ public final class MaUtil {
 
     /** 1 -> "01", 9 -> "09", 10 -> "10", 100 -> "100". */
     public static String soThuTu(long n) {
-        return String.format("%0" + SO_CHU_SO_TOI_THIEU + "d", n);
+        // Locale.ROOT: luôn là chữ số 0-9, không phụ thuộc ngôn ngữ của máy (máy đặt tiếng Ả Rập / Thái sẽ ra "NV٠٣" nếu để mặc định)
+        return String.format(Locale.ROOT, "%0" + SO_CHU_SO_TOI_THIEU + "d", n);
     }
 
     /** ("HD", 1) -> "HD01"; ("HD", 100) -> "HD100". */

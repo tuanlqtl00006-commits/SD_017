@@ -5,7 +5,8 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.0</version>
+        <!-- 3.3.13 = bản vá cuối của dòng 3.3.x (cùng API với 3.3.0, chỉ sửa lỗi / lỗ hổng, chạy được JDK 17 đến 23) -->
+        <version>3.3.13</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.example</groupId>
@@ -27,7 +28,14 @@
         <url/>
     </scm>
     <properties>
+        <!-- Biên dịch ra bytecode Java 17 (maven.compiler.release) nên chạy được trên JDK 17 trở lên: đã thử JDK 17 và 21. -->
         <java.version>17</java.version>
+        <!-- Hai thư viện dưới đây Spring Boot 3.3 quản lý bản cũ, KHÔNG biết JDK mới -> đặt bản mới để máy cài JDK 23 / 24 / 25 / 26 / 27 vẫn biên dịch và chạy được:
+             - Lombok cũ báo lỗi lúc biên dịch trên JDK 23 trở lên (NoSuchFieldError ... JCTree$JCImport.qualid);
+               1.18.40 hỗ trợ JDK 25, 1.18.46 hỗ trợ JDK 26, 1.18.48 hỗ trợ JDK 27 (và vẫn chạy tốt trên JDK 17, 21).
+             - Byte Buddy (Hibernate dùng để tạo lớp proxy) cũ báo "Java NN is not supported" lúc khởi động trên JDK mới. -->
+        <lombok.version>1.18.48</lombok.version>
+        <byte-buddy.version>1.17.8</byte-buddy.version>
     </properties>
     <dependencies>
         <dependency>
@@ -81,6 +89,14 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Test chạy trên JDK mới hơn bản Byte Buddy biết thì vẫn chạy (xem BackendApplication.choPhepJdkMoiHon) -->
+                    <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

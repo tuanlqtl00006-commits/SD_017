@@ -1,9 +1,11 @@
 package com.footstyle.demo.service;
 
 import com.footstyle.demo.dto.AnhTheoMauRequest;
+import com.footstyle.demo.dto.BienTheMoiRequest;
 import com.footstyle.demo.dto.SanPhamRequest;
 import com.footstyle.demo.dto.SanPhamResponse;
 import com.footstyle.demo.entity.HinhAnhSanPham;
+import com.footstyle.demo.entity.MauSac;
 import com.footstyle.demo.entity.SanPham;
 import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.ChatLieuRepository;
@@ -17,10 +19,15 @@ import com.footstyle.demo.repository.ThuongHieuRepository;
 import com.footstyle.demo.repository.XuatXuRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -107,6 +114,7 @@ public class SanPhamService {
         sp.setTrangThai(SanPham.HOAT_DONG);
         sp.setNgayTao(LocalDateTime.now());
         napDuLieu(sp, req, true);
+        batBuocCoAnh(List.of(), anh, true, anhMau, true, () -> mauCuaBienTheMoi(req));
         sp.setNgayCapNhat(LocalDateTime.now());
         sp = sanPhamRepo.save(sp);
         dongBoAnh(sp, anh);
@@ -122,6 +130,13 @@ public class SanPhamService {
         if (sp.getMoTa() == null) {
             sp.setMoTa(moTaCu); // form để trống mô tả thì giữ mô tả cũ, không xóa
         }
+        // Ảnh cũ vẫn tính: không gửi ảnh mới thì giữ ảnh cũ, nhưng sau khi cập nhật sản phẩm vẫn phải có ảnh
+        final Integer idSp = sp.getId();
+        batBuocCoAnh(hinhAnhRepo.findBySanPhamId(idSp), anh, false, anhMau, false, () -> {
+            Set<Integer> mauCan = new LinkedHashSet<>(bienTheService.mauCuaSanPham(idSp));
+            mauCan.addAll(mauCuaBienTheMoi(req));
+            return mauCan;
+        });
         sp.setNgayCapNhat(LocalDateTime.now());
         sp = sanPhamRepo.save(sp);
         if (!anh.isEmpty()) {
@@ -163,7 +178,15 @@ public class SanPhamService {
         SanPham sp = timSanPham(id);
         List<String> anh = layDanhSachAnh(req);
         Map<Integer, List<String>> anhMau = layAnhTheoMau(req); // null trong request = giữ nguyên ảnh theo màu
+        // Đổi tên / danh mục / thương hiệu thành đúng bộ của một sản phẩm KHÁC thì thành 2 sản phẩm trùng nhau
+        SanPham trung = timSanPhamTrung(req);
+        if (trung != null && !trung.getId().equals(sp.getId())) {
+            throw ApiException.conflict("Đã có sản phẩm \"" + trung.getTenSanPham() + "\" (" + trung.getMaSanPham()
+                    + ") cùng tên, danh mục và thương hiệu. Hãy đặt tên khác.");
+        }
         napDuLieu(sp, req, false);
+        // Sửa sản phẩm cũng phải còn ảnh: ảnh chung gửi lên thay hoàn toàn ảnh chung cũ, ảnh theo màu gửi lên thì thay ảnh của màu đó
+        batBuocCoAnh(hinhAnhRepo.findBySanPhamId(id), anh, true, anhMau, true, () -> bienTheService.mauCuaSanPham(id));
         sp.setNgayCapNhat(LocalDateTime.now());
         sp = sanPhamRepo.save(sp);
         dongBoAnh(sp, anh);
@@ -219,7 +242,7 @@ public class SanPhamService {
     private void napDuLieu(SanPham sp, SanPhamRequest req, boolean taoMoi) {
         // Mã: chỉ xử lý khi thêm mới (sửa thì giữ mã cũ). Để trống thì tự sinh.
         if (taoMoi) {
-            String ma = req.ma() == null ? "" : req.ma().trim().toUpperCase();
+            String ma = req.ma() == null ? "" : req.ma().trim().toUpperCase(Locale.ROOT);
             if (ma.isEmpty()) {
                 ma = taoMaMoi();
             }
@@ -244,6 +267,9 @@ public class SanPhamService {
         // Danh mục + chất liệu cũ (null khi thêm mới), để biết người dùng có đổi hay không
         Integer idDanhMucCu = sp.getDanhMuc() == null ? null : sp.getDanhMuc().getId();
         Integer idChatLieuCu = sp.getChatLieu() == null ? null : sp.getChatLieu().getId();
+        Integer idDoCungCu = sp.getDoCung() == null ? null : sp.getDoCung().getId();
+        Integer idDiemCanBangCu = sp.getDiemCanBang() == null ? null : sp.getDiemCanBang().getId();
+        Boolean laVotCu = sp.getDanhMuc() == null ? null : NhomDanhMuc.laVot(sp.getDanhMuc().getTen());
 
         // 6 thuộc tính: phải chọn, phải tồn tại, mục mới chọn phải đang hoạt động
         sp.setDanhMuc(ThuocTinhChon.chon(danhMucRepo, req.idDanhMuc(), sp.getDanhMuc(), "danh mục"));
@@ -259,9 +285,74 @@ public class SanPhamService {
         }
         sp.setDoCung(ThuocTinhChon.chon(doCungRepo, req.idDoCung(), sp.getDoCung(), "độ cứng"));
         sp.setDiemCanBang(ThuocTinhChon.chon(diemCanBangRepo, req.idDiemCanBang(), sp.getDiemCanBang(), "điểm cân bằng"));
+
+        // Độ cứng / điểm cân bằng phải khớp danh mục (vợt: giá trị thật; khác: "Không áp dụng").
+        // Dữ liệu cũ giữ nguyên danh mục + giá trị thì cho qua, giống chất liệu ở trên.
+        String tenDanhMuc = sp.getDanhMuc().getTen();
+        boolean doiDanhMuc = !sp.getDanhMuc().getId().equals(idDanhMucCu);
+        if (doiDanhMuc || !sp.getDoCung().getId().equals(idDoCungCu)) {
+            String loiDoCung = NhomDanhMuc.loiThuocTinhVot(tenDanhMuc, sp.getDoCung().getTen(), "độ cứng");
+            loi(loiDoCung != null, loiDoCung);
+        }
+        if (doiDanhMuc || !sp.getDiemCanBang().getId().equals(idDiemCanBangCu)) {
+            String loiCanBang = NhomDanhMuc.loiThuocTinhVot(tenDanhMuc, sp.getDiemCanBang().getTen(), "điểm cân bằng");
+            loi(loiCanBang != null, loiCanBang);
+        }
+        // Đã có biến thể (theo trọng lượng + chu vi nếu là vợt, chỉ theo màu nếu không) thì không đổi qua lại giữa vợt và loại khác,
+        // nếu không các biến thể cũ sẽ sai bộ thuộc tính
+        if (!taoMoi && laVotCu != null && laVotCu != NhomDanhMuc.laVot(tenDanhMuc) && sp.getId() != null
+                && bienTheService.coBienThe(sp.getId())) {
+            throw ApiException.conflict("Sản phẩm đã có biến thể nên không thể đổi giữa danh mục vợt và danh mục khác. "
+                    + "Hãy tạo sản phẩm mới cho danh mục \"" + tenDanhMuc + "\".");
+        }
     }
 
     /* ----- Hình ảnh (bảng hinh_anh_san_pham) ----- */
+
+    // Màu của các biến thể gửi kèm trong request (không trùng, đúng thứ tự gửi)
+    private Set<Integer> mauCuaBienTheMoi(SanPhamRequest req) {
+        Set<Integer> mau = new LinkedHashSet<>();
+        if (req.bienThes() != null) {
+            for (BienTheMoiRequest b : req.bienThes()) {
+                if (b != null && b.idMauSac() != null) {
+                    mau.add(b.idMauSac());
+                }
+            }
+        }
+        return mau;
+    }
+
+    /*
+     * Ảnh là BẮT BUỘC (cô yêu cầu: "chưa có ảnh mà tại sao vẫn thành công"): sau khi lưu, sản phẩm phải có ít nhất 1 ảnh CHUNG,
+     * hoặc mọi màu của biến thể đều có ảnh riêng (chưa có biến thể nào thì cần ít nhất 1 ảnh theo màu bất kỳ).
+     *  - hienCo        : các dòng ảnh đang có của sản phẩm (sản phẩm mới: rỗng).
+     *  - anhChung      : ảnh chung gửi lên; thayAnhChung = true thì danh sách này thay hẳn ảnh chung cũ (kể cả rỗng = bỏ hết),
+     *                    false thì rỗng nghĩa là giữ ảnh chung cũ.
+     *  - anhMau        : ảnh theo màu gửi lên; choPhepBoHet = true thì màu gửi danh sách rỗng bị bỏ hết ảnh.
+     *  - layMauCan     : lấy các màu bắt buộc có ảnh (chỉ gọi khi không có ảnh chung, đỡ truy vấn CSDL).
+     */
+    private void batBuocCoAnh(List<HinhAnhSanPham> hienCo, List<String> anhChung, boolean thayAnhChung,
+                              Map<Integer, List<String>> anhMau, boolean choPhepBoHet, Supplier<Collection<Integer>> layMauCan) {
+        boolean coAnhChung = !anhChung.isEmpty() || (!thayAnhChung && !AnhSanPham.anhChung(hienCo).isEmpty());
+        if (coAnhChung) {
+            return;
+        }
+        Map<Integer, List<String>> anhMauCuoi = AnhSanPham.anhTheoMauSauKhiLuu(hienCo, anhMau, choPhepBoHet);
+        Collection<Integer> mauCan = layMauCan.get();
+        if (mauCan.isEmpty()) {
+            loi(!AnhSanPham.coAnhTheoMau(anhMauCuoi), "Sản phẩm phải có ít nhất 1 ảnh. Hãy thêm ảnh chung của sản phẩm.");
+            return;
+        }
+        List<Integer> thieu = AnhSanPham.mauChuaCoAnh(mauCan, anhMauCuoi);
+        if (!thieu.isEmpty()) {
+            List<String> ten = new ArrayList<>();
+            for (Integer id : thieu) {
+                ten.add(mauSacRepo.findById(id).map(MauSac::getTen).orElse("#" + id));
+            }
+            throw ApiException.badRequest("Chưa có ảnh cho màu " + String.join(", ", ten)
+                    + ". Hãy thêm ảnh chung của sản phẩm hoặc ảnh riêng cho từng màu.");
+        }
+    }
 
     // Gộp ảnh chính + ảnh phụ thành 1 danh sách không trùng, phần tử đầu tiên là ảnh chính.
     private List<String> layDanhSachAnh(SanPhamRequest req) {

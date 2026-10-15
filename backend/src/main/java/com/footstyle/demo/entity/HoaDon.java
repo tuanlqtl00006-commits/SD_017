@@ -21,6 +21,10 @@ public class HoaDon {
     public static final int DANG_GIAO = 4;
     public static final int DA_GIAO = 5;
     public static final int HOAN_THANH = 6;
+    /** Mã 7 dành cho tab "Hoàn tiền" của giao diện (thiết kế của nhóm); hiện chưa có luồng nào chuyển đơn sang trạng thái này. */
+    public static final int HOAN_TIEN = 7;
+    /** Đơn giao hàng đã giao cho vận chuyển nhưng không giao được (khách không nghe máy, từ chối nhận, sai địa chỉ...). */
+    public static final int GIAO_THAT_BAI = 8;
 
     // Loại hóa đơn (cột loai_hoa_don)
     public static final int TAI_QUAY = 1;

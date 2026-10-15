@@ -14,15 +14,15 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Integer> {
 
     boolean existsBySdt(String sdt);
 
+    /** Kiểm tra trùng khi THÊM (idBoQua = -1) hoặc SỬA (idBoQua = id khách đang sửa, không tính chính khách này). */
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Integer idBoQua);
+
+    boolean existsBySdtAndIdNot(String sdt, Integer idBoQua);
+
     boolean existsByMaKhachHang(String maKhachHang);
 
     /** Trùng email không phân biệt hoa / thường (An@Gmail.com trùng an@gmail.com). */
     boolean existsByEmailIgnoreCase(String email);
-
-    /** Dùng khi sửa: trùng với khách hàng khác (bỏ qua chính khách đang sửa). */
-    boolean existsByEmailIgnoreCaseAndIdNot(String email, Integer id);
-
-    boolean existsBySdtAndIdNot(String sdt, Integer id);
 
     @Query("SELECT k FROM KhachHang k WHERE k.hoTen LIKE %:keyword% OR k.sdt LIKE %:keyword% "
             + "OR k.email LIKE %:keyword% OR k.maKhachHang LIKE %:keyword% ORDER BY k.id ASC")

@@ -1,28 +1,63 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
-import BaseModal from '../common/BaseModal.vue'
-import FormPageShell from '../common/FormPageShell.vue'
+// Form thêm / sửa phiếu giảm giá (làm lại theo bố cục form mẫu của nhóm đầu mà cô khen):
+//   thẻ "Thông tin chung"  : mã, tên, loại giảm, giá trị, giảm tối đa, đơn tối thiểu, số lượng (CHỈ phiếu công khai),
+//                            ngày GIỜ bắt đầu / kết thúc + "Trạng thái dự kiến" cập nhật ngay khi chọn giờ;
+//   thẻ "Đối tượng áp dụng" : Tất cả (công khai) / Nhóm chỉ định (cá nhân) -> bảng chọn khách có Tổng đơn, Mua gần nhất, bộ lọc;
+//   thẻ "Quy tắc áp dụng"   : cách chồng đợt giảm giá + phiếu (ví dụ tính tiền ngay trên form) và cảnh báo phiếu trùng thời gian.
+// Lỗi hiện ngay dưới từng ô (khi đã chạm vào ô hoặc sau khi bấm lưu); form SỬA kiểm tra giống hệt form THÊM
+// và khớp các điều kiện của backend (PhieuGiamGiaService + ThoiGianPhut).
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import MoneyInput from '../common/MoneyInput.vue'
-import { HINH_THUC, LOAI_GIAM, taoMaPhieu } from '../../constants/phieuGiamGia'
+import Select2 from '../common/Select2.vue'
+import DateTimeInput from '../common/DateTimeInput.vue'
+import KhachHangChonBang from './KhachHangChonBang.vue'
+import { HINH_THUC, TRANG_THAI, formatGiaTri, isExpired, taoMaPhieu, tinhTrangThai } from '../../constants/phieuGiamGia'
 import { phieuGiamGiaService } from '../../services/phieuGiamGiaService'
-import { includesText } from '../../utils/text'
-import { formatMoney, todayIso } from '../../utils/format'
+import { dotGiamGiaService } from '../../services/dotGiamGiaService'
+import { formatMoney } from '../../utils/format'
+import {
+  bayGioDayDu,
+  bayGioIso,
+  dinhDangKhoangPhut,
+  dinhDangNgayGio,
+  giaoNhau,
+  kiemTraKhoangThoiGian,
+  mocBatDau,
+  mocKetThuc,
+  ngayGioGuiApi,
+  soPhutGiua,
+} from '../../utils/ngayGio'
+import { viDuDonHang } from '../../utils/tinhPhieu'
 
 const props = defineProps({
   item: { type: Object, default: null }, // null: tạo mới; khi sửa có kèm khachHangs (lấy từ API chi tiết)
-  all: { type: Array, default: () => [] }, // toàn bộ phiếu, dùng để kiểm tra trùng mã
+  all: { type: Array, default: () => [] }, // toàn bộ phiếu: kiểm tra trùng mã + cảnh báo phiếu trùng thời gian
   saving: { type: Boolean, default: false },
-  asPage: { type: Boolean, default: false }, // true: hiển thị như một trang (không phải cửa sổ nổi)
+  asPage: { type: Boolean, default: true }, // form luôn hiển thị như một trang (giữ prop cho nơi gọi cũ)
 })
 const emit = defineEmits(['save', 'close'])
 
+// Giới hạn giá trị (khớp PhieuGiamGiaService)
+const TIEN_GIAM_TOI_DA = 100_000_000
+const DON_TOI_THIEU_TOI_DA = 1_000_000_000
+const SO_LUONG_TOI_DA = 1_000_000
+
 const isEdit = computed(() => !!props.item)
-const titleText = computed(() => (isEdit.value ? 'Chỉnh sửa phiếu giảm giá' : props.asPage ? 'Thông tin phiếu' : 'Tạo phiếu giảm giá'))
+const titleText = computed(() => (isEdit.value ? 'Chỉnh sửa phiếu giảm giá' : 'Thêm mới phiếu giảm giá'))
 // Phiếu đã có người dùng thì không đổi hình thức (công khai / cá nhân) và không bỏ được khách đã dùng.
 const daCoNguoiDung = computed(
   () => (props.item?.soLuongDaDung ?? 0) > 0 || (props.item?.khachHangs ?? []).some((k) => k.daDung),
 )
 const khachDaDung = computed(() => new Set((props.item?.khachHangs ?? []).filter((k) => k.daDung).map((k) => k.id)))
+
+const dsLoaiGiam = [
+  { value: 'PHAN_TRAM', label: 'Giảm theo phần trăm (%)' },
+  { value: 'TIEN_MAT', label: 'Giảm theo số tiền (₫)' },
+]
+const DOI_TUONG = {
+  CONG_KHAI: 'Tất cả (Công khai)',
+  CA_NHAN: 'Nhóm chỉ định (Cá nhân)',
+}
 
 const form = reactive(
   props.item
@@ -33,9 +68,10 @@ const form = reactive(
         loaiGiam: props.item.loaiGiam,
         giaTri: props.item.giaTri,
         giamToiDa: props.item.giamToiDa ?? '',
-        donToiThieu: props.item.donToiThieu ?? 0,
-        soLuong: props.item.soLuong,
-        gioiHanMoiKhach: props.item.gioiHanMoiKhach ?? '',
+        donToiThieu: props.item.donToiThieu ?? '',
+        // Số lượng chỉ có ở phiếu công khai; phiếu cá nhân thì số lượng = số khách được chọn nên không nhập
+        soLuong: props.item.hinhThuc === 'CONG_KHAI' ? (props.item.soLuong ?? '') : '',
+        gioiHanMoiKhach: props.item.hinhThuc === 'CONG_KHAI' ? (props.item.gioiHanMoiKhach ?? '') : '',
         ngayBatDau: props.item.ngayBatDau,
         ngayKetThuc: props.item.ngayKetThuc,
         khachHangIds: (props.item.khachHangs ?? []).map((k) => k.id),
@@ -47,10 +83,10 @@ const form = reactive(
         loaiGiam: 'PHAN_TRAM',
         giaTri: '',
         giamToiDa: '',
-        donToiThieu: 0,
-        soLuong: 1,
+        donToiThieu: '',
+        soLuong: '',
         gioiHanMoiKhach: '',
-        ngayBatDau: todayIso(),
+        ngayBatDau: bayGioIso(), // mặc định: bắt đầu ngay bây giờ (đổi được)
         ngayKetThuc: '',
         khachHangIds: [],
       },
@@ -59,18 +95,32 @@ const form = reactive(
 const isPercent = computed(() => form.loaiGiam === 'PHAN_TRAM')
 const isCaNhan = computed(() => form.hinhThuc === 'CA_NHAN')
 
+/* ----- "Bây giờ" chạy theo đồng hồ (trạng thái dự kiến, khóa giờ bắt đầu, cảnh báo quá khứ cập nhật theo) ----- */
+const bayGio = ref(bayGioDayDu())
+let dongHo = null
+onMounted(() => {
+  dongHo = setInterval(() => (bayGio.value = bayGioDayDu()), 20000)
+  document.getElementById('pgg-ten')?.focus()
+})
+onBeforeUnmount(() => clearInterval(dongHo))
+
+// Phiếu đã bắt đầu (khi SỬA) thì không đổi được giờ bắt đầu
+const khoaBatDau = computed(() => isEdit.value && !!props.item?.ngayBatDau && mocBatDau(props.item.ngayBatDau) <= bayGio.value)
+
 /* ----- Chọn khách hàng (chỉ phiếu cá nhân) ----- */
 const khachHangAll = ref([])
 const khachLoading = ref(false)
 const khachError = ref('')
-const khachKeyword = ref('')
 
 async function loadKhachHang() {
   if (khachHangAll.value.length || khachLoading.value) return
   khachLoading.value = true
   khachError.value = ''
   try {
-    khachHangAll.value = await phieuGiamGiaService.getKhachHang()
+    const ds = await phieuGiamGiaService.getKhachHang()
+    // Khách đã được tặng phiếu này nhưng nay không còn "đang hoạt động" vẫn phải hiện trong bảng (để thấy / giữ đúng lựa chọn cũ)
+    const daCo = new Set(ds.map((k) => k.id))
+    khachHangAll.value = [...ds, ...(props.item?.khachHangs ?? []).filter((k) => !daCo.has(k.id))]
   } catch (e) {
     khachError.value = e.message || 'Không tải được danh sách khách hàng.'
   } finally {
@@ -78,46 +128,11 @@ async function loadKhachHang() {
   }
 }
 
-const khachFiltered = computed(() =>
-  khachHangAll.value.filter((k) => !khachKeyword.value || includesText(`${k.ma} ${k.hoTen} ${k.soDienThoai ?? ''} ${k.email ?? ''}`, khachKeyword.value)),
-)
-
 // Phiếu cá nhân gửi mail cho khách được tặng: đếm khách có / chưa có email để báo trước khi lưu
 const khachDuocChon = computed(() => khachHangAll.value.filter((k) => form.khachHangIds.includes(k.id)))
 const soKhachCoEmail = computed(() => khachDuocChon.value.filter((k) => String(k.email ?? '').trim()).length)
 const soKhachThieuEmail = computed(() => khachDuocChon.value.length - soKhachCoEmail.value)
 
-function toggleKhach(id) {
-  if (khachDaDung.value.has(id)) return
-  const i = form.khachHangIds.indexOf(id)
-  if (i === -1) form.khachHangIds.push(id)
-  else form.khachHangIds.splice(i, 1)
-}
-function chonTatCaDangLoc() {
-  for (const k of khachFiltered.value) if (!form.khachHangIds.includes(k.id)) form.khachHangIds.push(k.id)
-}
-function boChonDangLoc() {
-  const giuLai = new Set(khachFiltered.value.filter((k) => khachDaDung.value.has(k.id)).map((k) => k.id))
-  const dangLoc = new Set(khachFiltered.value.map((k) => k.id))
-  form.khachHangIds = form.khachHangIds.filter((id) => !dangLoc.has(id) || giuLai.has(id))
-}
-
-// Phiếu cá nhân: mỗi khách được tặng 1 phiếu nên số lượng = số khách được chọn.
-watch(
-  () => [isCaNhan.value, form.khachHangIds.length],
-  ([caNhan, n]) => {
-    if (caNhan) form.soLuong = n
-  },
-  { immediate: true },
-)
-watch(
-  isCaNhan,
-  (v) => {
-    if (v) loadKhachHang()
-    else if (form.soLuong < 1) form.soLuong = 1
-  },
-  { immediate: true },
-)
 /* ----- Trạng thái gửi mail (chỉ phiếu cá nhân): cảnh báo TRƯỚC khi lưu nếu Gmail chưa cấu hình / đăng nhập lỗi ----- */
 const trangThaiMail = ref(null)
 async function taiTrangThaiMail() {
@@ -128,47 +143,75 @@ async function taiTrangThaiMail() {
     trangThaiMail.value = { dangNhap: 'KHONG_RO' } // backend cũ chưa có API này: không cảnh báo
   }
 }
-watch(isCaNhan, (v) => { if (v) taiTrangThaiMail() }, { immediate: true })
 // Sửa phiếu đã / đang diễn ra thì backend không gửi mail (chỉ phiếu còn "Sắp diễn ra" mới gửi khi sửa)
-const suaKhongGuiMail = computed(() => isEdit.value && props.item?.ngayBatDau && props.item.ngayBatDau <= todayIso())
+const suaKhongGuiMail = computed(() => isEdit.value && khoaBatDau.value)
 
-const errors = reactive({})
-const submitted = ref(false)
-
-// Đổi sang giảm theo số tiền thì bỏ "giảm tối đa" (chỉ dùng cho giảm theo %).
+// Chuyển sang Cá nhân: số lượng + giới hạn mỗi khách biến mất và số đã nhập bị xóa (số lượng = số khách được chọn)
 watch(
-  () => form.loaiGiam,
-  (value) => {
-    if (value !== 'PHAN_TRAM') form.giamToiDa = ''
+  isCaNhan,
+  (caNhan) => {
+    if (caNhan) {
+      form.soLuong = ''
+      form.gioiHanMoiKhach = ''
+      loadKhachHang()
+      taiTrangThaiMail()
+    }
   },
+  { immediate: true },
 )
+
 
 function regenerateCode() {
   form.ma = taoMaPhieu(props.all.map((p) => p.ma))
 }
+
+/* ----- Kiểm tra dữ liệu (cùng một bộ luật cho THÊM và SỬA) ----- */
+const chamVao = reactive({}) // ô người dùng đã nhập / rời khỏi -> mới hiện lỗi của ô đó
+const submitted = ref(false)
+const cham = (khoa) => {
+  chamVao[khoa] = true
+}
+watch(() => form.ngayBatDau, () => cham('ngayBatDau'))
+watch(() => form.ngayKetThuc, () => cham('ngayKetThuc'))
+watch(() => form.khachHangIds.length, () => cham('khachHang'))
+
+// Đổi loại giảm thì giá trị cũ hết nghĩa (10% khác 10 ₫) nên xóa để nhập lại; giảm theo số tiền thì bỏ "giảm tối đa" (chỉ dùng cho giảm theo %).
+watch(
+  () => form.loaiGiam,
+  (value) => {
+    form.giaTri = ''
+    chamVao.giaTri = false
+    if (value !== 'PHAN_TRAM') form.giamToiDa = ''
+  },
+)
 
 function validate() {
   const e = {}
   const ma = String(form.ma).trim().toUpperCase()
   if (!ma) e.ma = 'Nhập mã phiếu.'
   else if (!/^[A-Z0-9]{4,20}$/.test(ma)) e.ma = 'Mã gồm 4-20 ký tự chữ hoặc số, không dấu, không khoảng trắng.'
-  else if (!isEdit.value && props.all.some((p) => p.ma === ma)) e.ma = 'Mã phiếu đã tồn tại.'
+  else if (!isEdit.value && props.all.some((p) => String(p.ma).toUpperCase() === ma)) e.ma = 'Mã phiếu đã tồn tại.'
 
   const ten = String(form.ten).trim()
   if (!ten) e.ten = 'Nhập tên phiếu.'
   else if (ten.length > 100) e.ten = 'Tên phiếu tối đa 100 ký tự.'
 
   const giaTri = Number(form.giaTri)
-  if (form.giaTri === '' || Number.isNaN(giaTri)) e.giaTri = 'Nhập giá trị giảm.'
+  if (form.giaTri === '' || form.giaTri === null || Number.isNaN(giaTri)) e.giaTri = 'Nhập giá trị giảm.'
+  else if (isPercent.value && !Number.isInteger(giaTri)) e.giaTri = 'Phần trăm giảm phải là số nguyên từ 1 đến 100.'
   else if (isPercent.value && (giaTri < 1 || giaTri > 100)) e.giaTri = 'Phần trăm giảm từ 1 đến 100.'
   else if (!isPercent.value && giaTri < 1000) e.giaTri = 'Số tiền giảm tối thiểu 1.000 ₫.'
+  else if (!isPercent.value && giaTri > TIEN_GIAM_TOI_DA) e.giaTri = 'Số tiền giảm tối đa 100.000.000 ₫.'
 
-  if (isPercent.value && form.giamToiDa !== '' && !(Number(form.giamToiDa) > 0)) {
-    e.giamToiDa = 'Giảm tối đa phải lớn hơn 0, hoặc để trống nếu không giới hạn.'
+  if (isPercent.value && form.giamToiDa !== '' && form.giamToiDa !== null) {
+    const toiDa = Number(form.giamToiDa)
+    if (!(toiDa > 0)) e.giamToiDa = 'Giảm tối đa phải lớn hơn 0, hoặc để trống nếu không giới hạn.'
+    else if (toiDa > TIEN_GIAM_TOI_DA) e.giamToiDa = 'Giảm tối đa không quá 100.000.000 ₫.'
   }
 
-  const donToiThieu = Number(form.donToiThieu === '' ? 0 : form.donToiThieu)
+  const donToiThieu = Number(form.donToiThieu === '' || form.donToiThieu === null ? 0 : form.donToiThieu)
   if (Number.isNaN(donToiThieu) || donToiThieu < 0) e.donToiThieu = 'Đơn tối thiểu không được âm.'
+  else if (donToiThieu > DON_TOI_THIEU_TOI_DA) e.donToiThieu = 'Đơn tối thiểu không quá 1.000.000.000 ₫.'
   else if (!isPercent.value && !e.giaTri && donToiThieu > 0 && giaTri > donToiThieu) {
     e.donToiThieu = 'Đơn tối thiểu phải lớn hơn hoặc bằng số tiền giảm.'
   }
@@ -178,7 +221,9 @@ function validate() {
   } else {
     const soLuong = Number(form.soLuong)
     const daDung = props.item?.soLuongDaDung ?? 0
-    if (form.soLuong === '' || !Number.isInteger(soLuong) || soLuong < 1) e.soLuong = 'Số lượng là số nguyên từ 1 trở lên.'
+    if (form.soLuong === '' || form.soLuong === null) e.soLuong = 'Nhập số lượng phiếu phát hành.'
+    else if (!Number.isInteger(soLuong) || soLuong < 1) e.soLuong = 'Số lượng là số nguyên từ 1 trở lên.'
+    else if (soLuong > SO_LUONG_TOI_DA) e.soLuong = 'Số lượng tối đa 1.000.000 phiếu.'
     else if (soLuong < daDung) e.soLuong = `Số lượng không được nhỏ hơn số phiếu đã dùng (${daDung}).`
 
     if (form.gioiHanMoiKhach !== '' && form.gioiHanMoiKhach !== null) {
@@ -188,31 +233,92 @@ function validate() {
     }
   }
 
-  if (!form.ngayBatDau) e.ngayBatDau = 'Chọn ngày bắt đầu.'
-  if (!form.ngayKetThuc) e.ngayKetThuc = 'Chọn ngày kết thúc.'
-  else if (form.ngayBatDau && form.ngayKetThuc < form.ngayBatDau) e.ngayKetThuc = 'Ngày kết thúc phải sau hoặc cùng ngày bắt đầu.'
-  else if (!isEdit.value && form.ngayKetThuc < todayIso()) e.ngayKetThuc = 'Ngày kết thúc không được ở quá khứ.'
+  const loiGio = kiemTraKhoangThoiGian({
+    batDau: form.ngayBatDau,
+    ketThuc: form.ngayKetThuc,
+    batDauCu: props.item?.ngayBatDau ?? null,
+    ketThucCu: props.item?.ngayKetThuc ?? null,
+    taoMoi: !isEdit.value,
+    ten: 'Phiếu',
+    bayGio: bayGio.value,
+  })
+  if (loiGio.batDau) e.ngayBatDau = loiGio.batDau
+  if (loiGio.ketThuc) e.ngayKetThuc = loiGio.ketThuc
 
   return e
 }
 
-function refreshErrors() {
-  const e = validate()
-  Object.keys(errors).forEach((k) => delete errors[k])
-  Object.assign(errors, e)
-  return e
-}
+const loiTatCa = computed(validate)
+// Chỉ hiện lỗi của ô đã chạm vào (hoặc tất cả sau khi bấm lưu)
+const errors = computed(() => {
+  const kq = {}
+  for (const [khoa, noiDung] of Object.entries(loiTatCa.value)) {
+    if (submitted.value || chamVao[khoa]) kq[khoa] = noiDung
+  }
+  return kq
+})
 
-// Sau lần bấm lưu đầu tiên, báo lỗi theo thời gian thực để người dùng thấy ngay khi đã sửa đúng.
-watch(form, () => {
-  if (submitted.value) refreshErrors()
+/* ----- Trạng thái dự kiến (xem trước ngay khi chọn giờ) ----- */
+const khoangHopLe = computed(() => !!mocBatDau(form.ngayBatDau) && !!mocKetThuc(form.ngayKetThuc) && mocKetThuc(form.ngayKetThuc) > mocBatDau(form.ngayBatDau))
+const trangThaiDuKien = computed(() => {
+  if (!khoangHopLe.value) return null
+  const hoatDong = isEdit.value ? props.item.hoatDong !== false : true
+  return tinhTrangThai({ hoatDong, ngayBatDau: form.ngayBatDau, ngayKetThuc: form.ngayKetThuc }, bayGio.value)
+})
+const moTaTrangThai = computed(() => {
+  const tt = trangThaiDuKien.value
+  if (!tt) return ''
+  if (tt === 'SAP_DIEN_RA') return `Bắt đầu lúc ${dinhDangNgayGio(form.ngayBatDau)}, còn ${dinhDangKhoangPhut(soPhutGiua(bayGio.value, form.ngayBatDau))} nữa.`
+  if (tt === 'DANG_HOAT_DONG') return `Đang áp dụng, kết thúc lúc ${dinhDangNgayGio(form.ngayKetThuc)} (còn ${dinhDangKhoangPhut(soPhutGiua(bayGio.value, mocKetThuc(form.ngayKetThuc)))}).`
+  if (tt === 'DA_KET_THUC') return `Đã quá giờ kết thúc ${dinhDangNgayGio(form.ngayKetThuc)}.`
+  return 'Công tắc của phiếu đang tắt nên phiếu chưa áp dụng (bật lại ở danh sách phiếu).'
+})
+
+/* ----- Quy tắc chồng ưu đãi + ví dụ tính tiền + phiếu trùng thời gian ----- */
+const cheDoChongDot = ref(null) // { cheDo, moTa } lấy từ backend (cấu hình app.giam-gia.che-do-chong-dot)
+onMounted(async () => {
+  try {
+    const kq = await dotGiamGiaService.cheDo()
+    cheDoChongDot.value = kq?.cheDo ? kq : null
+  } catch {
+    cheDoChongDot.value = null // backend cũ chưa có API này: chỉ không hiện dòng cấu hình
+  }
+})
+
+const viDu = reactive({ tienHang: 2000000, phanTramDot: 10 })
+const phieuDangSoan = computed(() => ({
+  loaiGiam: form.loaiGiam,
+  giaTri: form.giaTri === '' ? 0 : Number(form.giaTri),
+  giamToiDa: form.giamToiDa === '' ? 0 : Number(form.giamToiDa),
+  donToiThieu: form.donToiThieu === '' ? 0 : Number(form.donToiThieu),
+}))
+const ketQuaViDu = computed(() => viDuDonHang(phieuDangSoan.value, viDu.tienHang, viDu.phanTramDot))
+// Chỉ tính ví dụ khi các ô giá trị đang hợp lệ (tránh hiện số vô nghĩa như giảm 150%)
+const coGiaTriDeTinh = computed(
+  () => Number(form.giaTri) > 0 && !loiTatCa.value.giaTri && !loiTatCa.value.giamToiDa && !loiTatCa.value.donToiThieu,
+)
+
+// Các phiếu KHÁC đang bật, chưa kết thúc và trùng thời gian với phiếu đang soạn
+const phieuTrung = computed(() => {
+  if (!khoangHopLe.value) return []
+  const cua = { batDau: form.ngayBatDau, ketThuc: form.ngayKetThuc }
+  return props.all.filter(
+    (p) => p.id !== props.item?.id && p.hoatDong && !isExpired(p, bayGio.value) && giaoNhau(cua, { batDau: p.ngayBatDau, ketThuc: p.ngayKetThuc }),
+  )
 })
 
 function submit() {
+  // Ô bắt đầu còn là giờ mặc định (chưa ai đụng tới): lấy lại "bây giờ" mới nhất để không bị báo quá khứ khi điền form lâu
+  if (!isEdit.value && !chamVao.ngayBatDau) form.ngayBatDau = bayGioIso()
   submitted.value = true
-  const e = refreshErrors()
+  bayGio.value = bayGioDayDu()
+  const e = validate()
   if (Object.keys(e).length) {
-    nextTick(() => document.querySelector('#pgg-form .is-invalid')?.focus())
+    nextTick(() => {
+      const o = document.querySelector('#pgg-form .is-invalid, #pgg-form [aria-invalid="true"]')
+      o?.scrollIntoView?.({ block: 'center' })
+      o?.focus?.()
+    })
     return
   }
   emit('save', {
@@ -221,27 +327,29 @@ function submit() {
     hinhThuc: form.hinhThuc,
     loaiGiam: form.loaiGiam,
     giaTri: Number(form.giaTri),
-    giamToiDa: isPercent.value && form.giamToiDa !== '' ? Number(form.giamToiDa) : null,
-    donToiThieu: Number(form.donToiThieu === '' ? 0 : form.donToiThieu),
-    soLuong: Number(form.soLuong),
+    giamToiDa: isPercent.value && form.giamToiDa !== '' && form.giamToiDa !== null ? Number(form.giamToiDa) : null,
+    donToiThieu: Number(form.donToiThieu === '' || form.donToiThieu === null ? 0 : form.donToiThieu),
+    soLuong: isCaNhan.value ? form.khachHangIds.length : Number(form.soLuong),
     gioiHanMoiKhach: !isCaNhan.value && form.gioiHanMoiKhach !== '' && form.gioiHanMoiKhach !== null ? Number(form.gioiHanMoiKhach) : null,
-    ngayBatDau: form.ngayBatDau,
-    ngayKetThuc: form.ngayKetThuc,
+    ngayBatDau: ngayGioGuiApi(form.ngayBatDau, '00:00'),
+    ngayKetThuc: ngayGioGuiApi(form.ngayKetThuc, '23:59'),
     khachHangIds: isCaNhan.value ? [...form.khachHangIds] : [],
   })
 }
-
-onMounted(() => {
-  document.getElementById('pgg-ten')?.focus()
-})
 </script>
 
 <template>
-  <component
-    :is="asPage ? FormPageShell : BaseModal"
-    v-bind="asPage ? { title: titleText } : { title: titleText, size: 'lg', staticBackdrop: true, onClose: () => emit('close') }"
-  >
-    <form id="pgg-form" novalidate @submit.prevent="submit">
+  <form id="pgg-form" class="ad-page" novalidate @submit.prevent="submit">
+    <!-- ===== Thông tin chung ===== -->
+    <section class="ad-card" data-testid="pgg-thong-tin-chung">
+      <div class="ad-card-head">
+        <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-ticket-detailed"></i></span>
+        <div>
+          <h2 class="ad-card-title">{{ titleText }}</h2>
+          <p class="ad-card-sub">Thông tin chung. Các ô có dấu <span class="ad-required">*</span> là bắt buộc.</p>
+        </div>
+      </div>
+
       <div class="row g-3">
         <div class="col-md-5">
           <label class="ad-label" for="pgg-ma">Mã phiếu <span class="ad-required">*</span></label>
@@ -257,24 +365,20 @@ onMounted(() => {
               autocomplete="off"
               :aria-invalid="!!errors.ma"
               aria-describedby="pgg-ma-msg"
+              @input="cham('ma')"
+              @blur="cham('ma')"
             />
-            <button
-              v-if="!isEdit"
-              type="button"
-              class="ad-affix-btn"
-              title="Tạo mã khác"
-              aria-label="Tạo mã khác"
-              @click="regenerateCode"
-            >
+            <button v-if="!isEdit" type="button" class="ad-affix-btn" title="Tạo mã khác" aria-label="Tạo mã khác" @click="regenerateCode">
               <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
             </button>
           </div>
           <p v-if="errors.ma" id="pgg-ma-msg" class="ad-error">{{ errors.ma }}</p>
           <p v-else-if="isEdit" id="pgg-ma-msg" class="ad-hint">Không thể đổi mã sau khi tạo.</p>
+          <p v-else id="pgg-ma-msg" class="ad-hint">Hệ thống tự tạo mã, có thể bấm nút bên phải để tạo mã khác hoặc tự nhập.</p>
         </div>
 
         <div class="col-md-7">
-          <label class="ad-label" for="pgg-ten">Tên phiếu <span class="ad-required">*</span></label>
+          <label class="ad-label" for="pgg-ten">Tên phiếu giảm giá <span class="ad-required">*</span></label>
           <input
             id="pgg-ten"
             v-model="form.ten"
@@ -286,29 +390,15 @@ onMounted(() => {
             autocomplete="off"
             :aria-invalid="!!errors.ten"
             aria-describedby="pgg-ten-msg"
+            @input="cham('ten')"
+            @blur="cham('ten')"
           />
           <p v-if="errors.ten" id="pgg-ten-msg" class="ad-error">{{ errors.ten }}</p>
         </div>
 
         <div class="col-md-6">
-          <span id="pgg-hinh-thuc-label" class="ad-label">Hình thức</span>
-          <div class="ad-segment" role="radiogroup" aria-labelledby="pgg-hinh-thuc-label">
-            <label v-for="(opt, key) in HINH_THUC" :key="key" class="ad-segment-item" :class="{ active: form.hinhThuc === key }">
-              <input v-model="form.hinhThuc" type="radio" class="visually-hidden" name="hinhThuc" :value="key" :disabled="isEdit && daCoNguoiDung" />
-              <i class="bi" :class="opt.icon" aria-hidden="true"></i> {{ opt.label }}
-            </label>
-          </div>
-          <p v-if="isEdit && daCoNguoiDung" class="ad-hint">Phiếu đã có người dùng nên không đổi được hình thức.</p>
-        </div>
-
-        <div class="col-md-6">
-          <span id="pgg-loai-giam-label" class="ad-label">Loại giảm</span>
-          <div class="ad-segment" role="radiogroup" aria-labelledby="pgg-loai-giam-label">
-            <label v-for="(opt, key) in LOAI_GIAM" :key="key" class="ad-segment-item" :class="{ active: form.loaiGiam === key }">
-              <input v-model="form.loaiGiam" type="radio" class="visually-hidden" name="loaiGiam" :value="key" />
-              {{ opt.label }}
-            </label>
-          </div>
+          <label class="ad-label" for="pgg-loai-giam">Loại giảm <span class="ad-required">*</span></label>
+          <Select2 id="pgg-loai-giam" v-model="form.loaiGiam" :options="dsLoaiGiam" class="ad-control" />
         </div>
 
         <div class="col-md-6">
@@ -326,6 +416,8 @@ onMounted(() => {
               placeholder="Từ 1 đến 100"
               :aria-invalid="!!errors.giaTri"
               aria-describedby="pgg-gia-tri-msg"
+              @input="cham('giaTri')"
+              @blur="cham('giaTri')"
             />
             <span class="ad-suffix" aria-hidden="true">%</span>
           </div>
@@ -336,6 +428,7 @@ onMounted(() => {
             placeholder="Ví dụ: 50.000"
             aria-label="Giá trị giảm"
             :invalid="!!errors.giaTri"
+            @update:model-value="cham('giaTri')"
           />
           <p v-if="errors.giaTri" id="pgg-gia-tri-msg" class="ad-error">{{ errors.giaTri }}</p>
           <p v-else-if="!isPercent && form.giaTri" class="ad-hint">Giảm {{ formatMoney(form.giaTri) }} cho mỗi đơn.</p>
@@ -350,232 +443,272 @@ onMounted(() => {
             :placeholder="isPercent ? 'Để trống nếu không giới hạn' : 'Chỉ áp dụng khi giảm theo %'"
             aria-label="Giảm tối đa"
             :invalid="!!errors.giamToiDa"
+            @update:model-value="cham('giamToiDa')"
           />
           <p v-if="errors.giamToiDa" id="pgg-giam-toi-da-msg" class="ad-error">{{ errors.giamToiDa }}</p>
         </div>
 
         <div class="col-md-6">
-          <label class="ad-label" for="pgg-don-toi-thieu">Đơn tối thiểu</label>
+          <label class="ad-label" for="pgg-don-toi-thieu">Đơn hàng tối thiểu</label>
           <MoneyInput
             id="pgg-don-toi-thieu"
             v-model="form.donToiThieu"
-            placeholder="0 nếu không yêu cầu"
+            placeholder="Để trống nếu không yêu cầu"
             aria-label="Đơn tối thiểu"
             :invalid="!!errors.donToiThieu"
+            @update:model-value="cham('donToiThieu')"
           />
           <p v-if="errors.donToiThieu" id="pgg-don-toi-thieu-msg" class="ad-error">{{ errors.donToiThieu }}</p>
         </div>
 
-        <div class="col-md-6">
-          <label class="ad-label" for="pgg-so-luong">Số lượng phát hành <span class="ad-required">*</span></label>
-          <input
-            id="pgg-so-luong"
-            v-model.number="form.soLuong"
-            type="number"
-            :min="Math.max(1, item?.soLuongDaDung ?? 1)"
-            step="1"
-            class="form-control ad-control"
-            :class="{ 'is-invalid': errors.soLuong }"
-            :readonly="isCaNhan"
-            :aria-invalid="!!errors.soLuong"
-            aria-describedby="pgg-so-luong-msg"
-          />
-          <p v-if="errors.soLuong" id="pgg-so-luong-msg" class="ad-error">{{ errors.soLuong }}</p>
-          <p v-else-if="isCaNhan" id="pgg-so-luong-msg" class="ad-hint">Tự tính theo số khách hàng được chọn (mỗi khách 1 phiếu).</p>
-        </div>
+        <!-- Số lượng + giới hạn mỗi khách: CHỈ phiếu công khai (chuyển sang cá nhân thì ẩn và xóa số đã nhập) -->
+        <template v-if="!isCaNhan">
+          <div class="col-md-6" data-testid="pgg-o-so-luong">
+            <label class="ad-label" for="pgg-so-luong">Số lượng phát hành <span class="ad-required">*</span></label>
+            <input
+              id="pgg-so-luong"
+              v-model.number="form.soLuong"
+              type="number"
+              :min="Math.max(1, item?.soLuongDaDung ?? 1)"
+              :max="SO_LUONG_TOI_DA"
+              step="1"
+              class="form-control ad-control"
+              :class="{ 'is-invalid': errors.soLuong }"
+              placeholder="Nhập số lượng phiếu phát hành…"
+              :aria-invalid="!!errors.soLuong"
+              aria-describedby="pgg-so-luong-msg"
+              @input="cham('soLuong')"
+              @blur="cham('soLuong')"
+            />
+            <p v-if="errors.soLuong" id="pgg-so-luong-msg" class="ad-error">{{ errors.soLuong }}</p>
+          </div>
 
-        <div v-if="!isCaNhan" class="col-md-6">
-          <label class="ad-label" for="pgg-gioi-han">Giới hạn mỗi khách</label>
-          <input
-            id="pgg-gioi-han"
-            v-model.number="form.gioiHanMoiKhach"
-            type="number"
-            min="1"
-            step="1"
-            class="form-control ad-control"
-            :class="{ 'is-invalid': errors.gioiHanMoiKhach }"
-            placeholder="Để trống nếu không giới hạn"
-            :aria-invalid="!!errors.gioiHanMoiKhach"
-            aria-describedby="pgg-gioi-han-msg"
-          />
-          <p v-if="errors.gioiHanMoiKhach" id="pgg-gioi-han-msg" class="ad-error">{{ errors.gioiHanMoiKhach }}</p>
-        </div>
+          <div class="col-md-6">
+            <label class="ad-label" for="pgg-gioi-han">Giới hạn mỗi khách</label>
+            <input
+              id="pgg-gioi-han"
+              v-model.number="form.gioiHanMoiKhach"
+              type="number"
+              min="1"
+              step="1"
+              class="form-control ad-control"
+              :class="{ 'is-invalid': errors.gioiHanMoiKhach }"
+              placeholder="Để trống nếu không giới hạn"
+              :aria-invalid="!!errors.gioiHanMoiKhach"
+              aria-describedby="pgg-gioi-han-msg"
+              @input="cham('gioiHanMoiKhach')"
+              @blur="cham('gioiHanMoiKhach')"
+            />
+            <p v-if="errors.gioiHanMoiKhach" id="pgg-gioi-han-msg" class="ad-error">{{ errors.gioiHanMoiKhach }}</p>
+          </div>
+        </template>
 
         <div class="col-md-6">
-          <label class="ad-label" for="pgg-ngay-bd">Ngày bắt đầu <span class="ad-required">*</span></label>
-          <input
-            id="pgg-ngay-bd"
-            v-model="form.ngayBatDau"
-            type="date"
-            class="form-control ad-control"
-            :class="{ 'is-invalid': errors.ngayBatDau }"
-            :aria-invalid="!!errors.ngayBatDau"
-            aria-describedby="pgg-ngay-bd-msg"
-          />
+          <label class="ad-label" for="pgg-ngay-bd">Ngày giờ bắt đầu <span class="ad-required">*</span></label>
+          <DateTimeInput id="pgg-ngay-bd" v-model="form.ngayBatDau" :invalid="!!errors.ngayBatDau" :disabled="khoaBatDau" default-time="00:00" />
           <p v-if="errors.ngayBatDau" id="pgg-ngay-bd-msg" class="ad-error">{{ errors.ngayBatDau }}</p>
+          <p v-else-if="khoaBatDau" class="ad-hint" data-testid="pgg-khoa-bat-dau">Phiếu đã bắt đầu nên không đổi được ngày giờ bắt đầu.</p>
         </div>
 
         <div class="col-md-6">
-          <label class="ad-label" for="pgg-ngay-kt">Ngày kết thúc <span class="ad-required">*</span></label>
-          <input
-            id="pgg-ngay-kt"
-            v-model="form.ngayKetThuc"
-            type="date"
-            :min="form.ngayBatDau || undefined"
-            class="form-control ad-control"
-            :class="{ 'is-invalid': errors.ngayKetThuc }"
-            :aria-invalid="!!errors.ngayKetThuc"
-            aria-describedby="pgg-ngay-kt-msg"
-          />
+          <label class="ad-label" for="pgg-ngay-kt">Ngày giờ kết thúc <span class="ad-required">*</span></label>
+          <DateTimeInput id="pgg-ngay-kt" v-model="form.ngayKetThuc" :min="form.ngayBatDau || undefined" :invalid="!!errors.ngayKetThuc" :show-now="false" default-time="23:59" />
           <p v-if="errors.ngayKetThuc" id="pgg-ngay-kt-msg" class="ad-error">{{ errors.ngayKetThuc }}</p>
         </div>
 
-        <div v-if="isCaNhan" class="col-12">
-          <span id="pgg-khach-label" class="ad-label">
-            Khách hàng được tặng <span class="ad-required">*</span>
-            <span class="pgg-count">Đã chọn {{ form.khachHangIds.length }}</span>
-          </span>
-          <div class="pgg-picker" :class="{ 'is-invalid': errors.khachHang }" role="group" aria-labelledby="pgg-khach-label">
-            <div class="pgg-picker-tools">
-              <div class="ad-affix pgg-search">
-                <i class="bi bi-search" aria-hidden="true"></i>
-                <input
-                  v-model.trim="khachKeyword"
-                  type="text"
-                  class="form-control ad-control"
-                  placeholder="Tìm theo mã, tên, SĐT, email"
-                  autocomplete="off"
-                  aria-label="Tìm khách hàng"
-                />
-              </div>
-              <button type="button" class="ad-btn" @click="chonTatCaDangLoc">Chọn tất cả</button>
-              <button type="button" class="ad-btn" @click="boChonDangLoc">Bỏ chọn</button>
-            </div>
-            <div class="pgg-picker-list">
-              <p v-if="khachLoading" class="pgg-picker-note">Đang tải danh sách khách hàng…</p>
-              <p v-else-if="khachError" class="pgg-picker-note text-danger" role="alert">{{ khachError }}</p>
-              <p v-else-if="!khachHangAll.length" class="pgg-picker-note">Chưa có khách hàng nào đang hoạt động.</p>
-              <p v-else-if="!khachFiltered.length" class="pgg-picker-note">Không tìm thấy khách hàng phù hợp.</p>
-              <label
-                v-for="k in khachFiltered"
-                :key="k.id"
-                class="pgg-picker-item"
-                :class="{ 'is-locked': khachDaDung.has(k.id) }"
-              >
-                <input
-                  type="checkbox"
-                  :checked="form.khachHangIds.includes(k.id)"
-                  :disabled="khachDaDung.has(k.id)"
-                  @change="toggleKhach(k.id)"
-                />
-                <span class="pgg-picker-name">{{ k.hoTen }}</span>
-                <span class="ad-code">{{ k.ma }}</span>
-                <span class="pgg-picker-sub">{{ k.soDienThoai || '' }}</span>
-                <span v-if="String(k.email ?? '').trim()" class="pgg-picker-mail" :title="k.email"><i class="bi bi-envelope" aria-hidden="true"></i> {{ k.email }}</span>
-                <span v-else class="ad-pill ad-pill-amber">Chưa có email</span>
-                <span v-if="khachDaDung.has(k.id)" class="ad-pill ad-pill-gray">Đã dùng</span>
-              </label>
-            </div>
-          </div>
-          <p v-if="errors.khachHang" class="ad-error">{{ errors.khachHang }}</p>
-          <p v-else-if="form.khachHangIds.length && suaKhongGuiMail" class="ad-hint">
-            <i class="bi bi-info-circle" aria-hidden="true"></i>
-            Phiếu đã bắt đầu nên lưu thay đổi sẽ không gửi mail cho khách (chỉ phiếu còn "Sắp diễn ra" mới gửi mail khi sửa).
-          </p>
-          <p v-else-if="form.khachHangIds.length" class="ad-hint" data-testid="pgg-mail-note">
-            <i class="bi bi-envelope-paper" aria-hidden="true"></i>
-            Khi lưu, hệ thống gửi mail tặng phiếu cho {{ soKhachCoEmail }} khách đã chọn<template v-if="soKhachThieuEmail"> ({{ soKhachThieuEmail }} khách chưa có email nên không nhận được mail)</template>.
-          </p>
-          <p v-if="trangThaiMail?.dangNhap === 'CHUA_CAU_HINH'" class="pgg-mail-status is-warn" role="status" data-testid="pgg-mail-status">
-            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-            Chưa cấu hình Gmail: phiếu vẫn lưu bình thường nhưng mail <strong>chưa được gửi thật</strong>. Cách bật: điền email + mật khẩu ứng dụng vào <code>backend/src/main/resources/mail.properties</code> rồi chạy lại backend.
-          </p>
-          <p v-else-if="trangThaiMail?.dangNhap === 'THAT_BAI'" class="pgg-mail-status is-error" role="alert" data-testid="pgg-mail-status">
-            <i class="bi bi-x-octagon" aria-hidden="true"></i>
-            Gmail đăng nhập thử thất bại: {{ trangThaiMail.lyDo || 'xem log backend' }}. Phiếu vẫn lưu được nhưng mail sẽ không tới khách.
-          </p>
-          <p v-else-if="trangThaiMail?.dangNhap === 'THANH_CONG'" class="pgg-mail-status is-ok" data-testid="pgg-mail-status">
-            <i class="bi bi-check-circle" aria-hidden="true"></i> Gmail đã sẵn sàng gửi mail.
-          </p>
+        <div class="col-12 pgg-du-kien" data-testid="pgg-trang-thai-du-kien" role="status">
+          <span class="pgg-du-kien-nhan">Trạng thái dự kiến:</span>
+          <template v-if="trangThaiDuKien">
+            <span class="ad-pill" :class="TRANG_THAI[trangThaiDuKien].cls" data-testid="pgg-trang-thai-nhan">{{ TRANG_THAI[trangThaiDuKien].label }}</span>
+            <span class="pgg-du-kien-mo-ta">{{ moTaTrangThai }}</span>
+          </template>
+          <span v-else class="pgg-du-kien-mo-ta">Chọn ngày giờ bắt đầu và kết thúc hợp lệ để xem trạng thái dự kiến.</span>
+        </div>
+        <p class="ad-hint col-12 pgg-quy-uoc-gio">
+          Thời gian tính theo phút: bắt đầu từ đầu phút bắt đầu, kết thúc tới hết phút kết thúc (kết thúc 17:00 là dùng được tới 17:00:59).
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== Đối tượng áp dụng ===== -->
+    <section class="ad-card" data-testid="pgg-doi-tuong">
+      <div class="ad-card-head">
+        <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-people"></i></span>
+        <h2 class="ad-card-title">Đối tượng áp dụng</h2>
+      </div>
+
+      <div class="pgg-radios" role="radiogroup" aria-label="Đối tượng áp dụng">
+        <label v-for="(nhan, key) in DOI_TUONG" :key="key" class="pgg-radio" :class="{ 'is-chon': form.hinhThuc === key, 'is-khoa': isEdit && daCoNguoiDung }">
+          <input v-model="form.hinhThuc" type="radio" name="hinhThuc" :value="key" :disabled="isEdit && daCoNguoiDung" />
+          <i class="bi" :class="HINH_THUC[key].icon" aria-hidden="true"></i>
+          <span>{{ nhan }}</span>
+        </label>
+      </div>
+      <p v-if="isEdit && daCoNguoiDung" class="ad-hint">Phiếu đã có người dùng nên không đổi được đối tượng áp dụng.</p>
+      <p v-else-if="!isCaNhan" class="ad-hint">Mọi khách hàng đều dùng được cho tới khi hết số lượng phát hành.</p>
+      <p v-else class="ad-hint">Chỉ những khách hàng được chọn mới nhận phiếu (qua email) và dùng được 1 lần. Số lượng phiếu tự bằng số khách đã chọn nên không cần nhập.</p>
+
+      <div v-if="isCaNhan" class="pgg-khach-khung">
+        <KhachHangChonBang
+          v-model="form.khachHangIds"
+          :khach-hangs="khachHangAll"
+          :da-dung="khachDaDung"
+          :dang-tai="khachLoading"
+          :loi="khachError"
+          :invalid="!!errors.khachHang"
+        />
+        <p v-if="errors.khachHang" class="ad-error" data-testid="pgg-loi-khach">{{ errors.khachHang }}</p>
+        <p v-else-if="form.khachHangIds.length && suaKhongGuiMail" class="ad-hint">
+          <i class="bi bi-info-circle" aria-hidden="true"></i>
+          Phiếu đã bắt đầu nên lưu thay đổi sẽ không gửi mail cho khách (chỉ phiếu còn "Sắp diễn ra" mới gửi mail khi sửa).
+        </p>
+        <p v-else-if="form.khachHangIds.length" class="ad-hint" data-testid="pgg-mail-note">
+          <i class="bi bi-envelope-paper" aria-hidden="true"></i>
+          Khi lưu, hệ thống gửi mail tặng phiếu cho {{ soKhachCoEmail }} khách đã chọn<template v-if="soKhachThieuEmail"> ({{ soKhachThieuEmail }} khách chưa có email nên không nhận được mail)</template>.
+        </p>
+        <p v-if="trangThaiMail?.dangNhap === 'CHUA_CAU_HINH'" class="pgg-mail-status is-warn" role="status" data-testid="pgg-mail-status">
+          <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+          Chưa cấu hình Gmail: phiếu vẫn lưu bình thường nhưng mail <strong>chưa được gửi thật</strong>. Cách bật: điền email + mật khẩu ứng dụng vào <code>backend/src/main/resources/mail.properties</code> rồi chạy lại backend.
+        </p>
+        <p v-else-if="trangThaiMail?.dangNhap === 'THAT_BAI'" class="pgg-mail-status is-error" role="alert" data-testid="pgg-mail-status">
+          <i class="bi bi-x-octagon" aria-hidden="true"></i>
+          Gmail đăng nhập thử thất bại: {{ trangThaiMail.lyDo || 'xem log backend' }}. Phiếu vẫn lưu được nhưng mail sẽ không tới khách.
+        </p>
+        <p v-else-if="trangThaiMail?.dangNhap === 'THANH_CONG'" class="pgg-mail-status is-ok" data-testid="pgg-mail-status">
+          <i class="bi bi-check-circle" aria-hidden="true"></i> Gmail đã sẵn sàng gửi mail.
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== Quy tắc khi chồng ưu đãi (đợt giảm giá + phiếu) ===== -->
+    <section class="ad-card" data-testid="pgg-quy-tac">
+      <div class="ad-card-head">
+        <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-layers"></i></span>
+        <div>
+          <h2 class="ad-card-title">Khi có nhiều ưu đãi cùng lúc thì tính thế nào?</h2>
+          <p class="ad-card-sub">Quy tắc của cửa hàng, áp dụng cho cả phiếu giảm giá và đợt giảm giá.</p>
         </div>
       </div>
-    </form>
 
-    <template #footer>
-      <button type="button" class="ad-btn" :disabled="saving" @click="emit('close')">Hủy</button>
-      <button type="submit" form="pgg-form" class="ad-btn ad-btn-primary" :disabled="saving">
+      <ul class="pgg-quy-tac">
+        <li><strong>Mỗi đơn chỉ dùng 1 phiếu</strong> giảm giá: các phiếu <strong>không cộng dồn</strong> với nhau.</li>
+        <li>
+          <strong>Đợt giảm giá giảm trước, phiếu giảm sau:</strong> đợt giảm trên giá từng biến thể, phiếu tính trên tổng tiền hàng <em>đã trừ</em> giảm giá của đợt
+          (đơn tối thiểu cũng xét trên số tiền này).
+        </li>
+        <li data-testid="pgg-che-do">
+          <strong>Nhiều đợt cùng áp cho một biến thể trong cùng thời gian:</strong>
+          <template v-if="cheDoChongDot">{{ cheDoChongDot.moTa }} <span class="pgg-che-do">Cấu hình hiện tại: {{ cheDoChongDot.cheDo }}</span></template>
+          <template v-else>hệ thống lấy mức giảm cao nhất (không cộng dồn) trừ khi được cấu hình khác ở backend.</template>
+        </li>
+      </ul>
+
+      <div class="pgg-vi-du" data-testid="pgg-vi-du">
+        <h3 class="pgg-vi-du-tieu-de">Ví dụ với phiếu này</h3>
+        <div class="row g-3 align-items-end">
+          <div class="col-md-5">
+            <label class="ad-label" for="pgg-vd-tien">Tổng tiền hàng của đơn</label>
+            <MoneyInput id="pgg-vd-tien" v-model="viDu.tienHang" aria-label="Tổng tiền hàng của đơn thử" />
+          </div>
+          <div class="col-md-4">
+            <label class="ad-label" for="pgg-vd-dot">Đợt giảm giá đang áp (%)</label>
+            <div class="ad-affix">
+              <input id="pgg-vd-dot" v-model.number="viDu.phanTramDot" type="number" min="0" max="100" step="1" class="form-control ad-control has-suffix" aria-label="Phần trăm giảm của đợt giảm giá" />
+              <span class="ad-suffix" aria-hidden="true">%</span>
+            </div>
+          </div>
+        </div>
+        <dl v-if="coGiaTriDeTinh" class="pgg-bang-tinh">
+          <div><dt>Tiền hàng</dt><dd>{{ formatMoney(ketQuaViDu.tienHang) }}</dd></div>
+          <div><dt>Giảm theo đợt giảm giá ({{ viDu.phanTramDot || 0 }}%)</dt><dd>− {{ formatMoney(ketQuaViDu.giamDot) }}</dd></div>
+          <div><dt>Tiền hàng sau đợt giảm giá</dt><dd>{{ formatMoney(ketQuaViDu.sauDot) }}</dd></div>
+          <div>
+            <dt>Phiếu {{ String(form.ma).toUpperCase() }} ({{ formatGiaTri(phieuDangSoan) }})</dt>
+            <dd v-if="ketQuaViDu.phieu.duDieuKien" data-testid="pgg-vd-giam-phieu">− {{ formatMoney(ketQuaViDu.phieu.giam) }}</dd>
+            <dd v-else class="pgg-khong-du" data-testid="pgg-vd-giam-phieu">{{ ketQuaViDu.phieu.lyDo }}</dd>
+          </div>
+          <div class="pgg-tong"><dt>Khách phải trả</dt><dd data-testid="pgg-vd-khach-tra">{{ formatMoney(ketQuaViDu.khachTra) }}</dd></div>
+        </dl>
+        <p v-else class="ad-hint" data-testid="pgg-vd-chua-co">Nhập giá trị giảm hợp lệ ở trên để xem ví dụ tính tiền.</p>
+      </div>
+
+      <div v-if="phieuTrung.length" class="pgg-trung" role="status" data-testid="pgg-phieu-trung">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        <div>
+          Có <strong>{{ phieuTrung.length }}</strong> phiếu khác đang bật và trùng thời gian với phiếu này:
+          <ul>
+            <li v-for="p in phieuTrung.slice(0, 5)" :key="p.id">
+              <span class="ad-code">{{ p.ma }}</span> {{ p.ten }} - giảm {{ formatGiaTri(p) }} ({{ HINH_THUC[p.hinhThuc].label.toLowerCase() }}, {{ dinhDangNgayGio(p.ngayBatDau) }} → {{ dinhDangNgayGio(p.ngayKetThuc) }})
+            </li>
+            <li v-if="phieuTrung.length > 5">… và {{ phieuTrung.length - 5 }} phiếu khác.</li>
+          </ul>
+          Khách đủ điều kiện nhiều phiếu vẫn chỉ được dùng <strong>1 phiếu cho mỗi đơn</strong> (không cộng dồn).
+        </div>
+      </div>
+    </section>
+
+    <div class="pgg-footer">
+      <button type="submit" class="ad-btn ad-btn-primary" :disabled="saving" data-testid="pgg-luu">
         <span v-if="saving" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-        {{ isEdit ? 'Lưu thay đổi' : 'Tạo phiếu' }}
+        {{ isEdit ? 'Lưu thay đổi' : 'Thêm mới phiếu giảm giá' }}
       </button>
-    </template>
-  </component>
+      <button type="button" class="ad-btn" :disabled="saving" @click="emit('close')">Hủy bỏ</button>
+    </div>
+  </form>
 </template>
 
 <style scoped>
-.pgg-count {
-  margin-left: 0.5rem;
-  font-weight: 500;
-  color: var(--fs-text-2);
-}
-.pgg-picker {
-  border: 1px solid #dfe5ec;
-  border-radius: 12px;
-  overflow: hidden;
-}
-.pgg-picker.is-invalid {
-  border-color: #dc3545;
-}
-.pgg-picker-tools {
+.pgg-du-kien {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.6rem;
-  background: #f7f9fb;
-  border-bottom: 1px solid #dfe5ec;
-}
-.pgg-search {
-  flex: 1;
-  min-width: 0;
-}
-.pgg-picker-list {
-  max-height: 220px;
-  overflow-y: auto;
-}
-.pgg-picker-item {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
-  margin: 0;
-  padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
+}
+.pgg-du-kien-nhan {
+  font-weight: 600;
+  color: var(--fs-text);
+}
+.pgg-du-kien-mo-ta {
+  color: var(--fs-text-2);
+}
+.pgg-quy-uoc-gio {
+  margin-top: 0 !important;
+}
+.pgg-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+.pgg-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.65rem 1rem;
+  border: 1px solid #dce3ec;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fs-text);
   cursor: pointer;
-  border-bottom: 1px solid #eef1f5;
+  background: #fff;
 }
-.pgg-picker-item:last-child {
-  border-bottom: 0;
-}
-.pgg-picker-item:hover {
+.pgg-radio:hover:not(.is-khoa) {
   background: var(--fs-hover-bg);
 }
-.pgg-picker-item.is-locked {
+.pgg-radio.is-chon {
+  border-color: var(--fs-primary);
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+}
+.pgg-radio.is-khoa {
   cursor: not-allowed;
   opacity: 0.7;
 }
-.pgg-picker-name {
-  font-weight: 600;
-  flex: 1;
-  min-width: 0;
-}
-.pgg-picker-sub {
-  color: var(--fs-text-2);
-  white-space: nowrap;
-}
-.pgg-picker-mail {
-  color: var(--fs-text-2);
-  font-size: 0.8rem;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.pgg-khach-khung {
+  margin-top: 1rem;
 }
 .pgg-mail-status {
   margin: 0.5rem 0 0;
@@ -586,11 +719,91 @@ onMounted(() => {
 .pgg-mail-status.is-warn { background: #fff7e6; color: #8a5a00; border: 1px solid #f3d9a4; }
 .pgg-mail-status.is-error { background: #fdecee; color: #a61b29; border: 1px solid #f3c2c8; }
 .pgg-mail-status.is-ok { background: #e9f7ef; color: #146c43; border: 1px solid #b7e2c8; }
-.pgg-picker-note {
-  margin: 0;
+.pgg-quy-tac {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+  color: var(--fs-text);
+  display: grid;
+  gap: 0.4rem;
+}
+.pgg-che-do {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+.pgg-vi-du {
   padding: 1rem;
-  text-align: center;
+  border: 1px dashed var(--fs-primary-line);
+  border-radius: 14px;
+  background: #fafcff;
+}
+.pgg-vi-du-tieu-de {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.pgg-bang-tinh {
+  margin: 1rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}
+.pgg-bang-tinh > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.pgg-bang-tinh dt {
+  font-weight: 500;
   color: var(--fs-text-2);
+}
+.pgg-bang-tinh dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+.pgg-bang-tinh .pgg-tong {
+  margin-top: 0.3rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--fs-line);
+  font-size: 0.95rem;
+}
+.pgg-bang-tinh .pgg-tong dt {
+  color: var(--fs-text);
+  font-weight: 700;
+}
+.pgg-bang-tinh .pgg-tong dd {
+  color: var(--fs-primary-dark);
+}
+.pgg-khong-du {
+  color: #a8610a;
+  font-weight: 500 !important;
+}
+.pgg-trung {
+  display: flex;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  background: #fff7e6;
+  border: 1px solid #f3d9a4;
+  color: #6f4a00;
   font-size: 0.85rem;
+}
+.pgg-trung ul {
+  margin: 0.4rem 0;
+  padding-left: 1.1rem;
+}
+.pgg-footer {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  gap: 0.75rem;
 }
 </style>

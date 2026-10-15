@@ -2,6 +2,8 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import MoneyInput from '../common/MoneyInput.vue'
+import Select2 from '../common/Select2.vue'
+import { tuDanhSach } from '../../utils/luaChon'
 
 const props = defineProps({
   item: { type: Object, default: null }, // null: tạo mới
@@ -11,6 +13,7 @@ const props = defineProps({
   laVotFn: { type: Function, default: () => true }, // (idSanPham) => sản phẩm thuộc danh mục vợt (có trọng lượng + chu vi)?
   idKadFn: { type: Function, default: () => null }, // (slug) => id mục "Không áp dụng" của bảng thuộc tính
   saving: { type: Boolean, default: false },
+  themNhanh: { type: Function, default: null }, // (slug, ten) => Promise<mục mới | null>: "Thêm nhanh" màu / trọng lượng / chu vi ngay trong ô chọn
 })
 const emit = defineEmits(['save', 'close'])
 
@@ -43,6 +46,13 @@ lamSachTheoDanhMuc()
 watch(laVot, lamSachTheoDanhMuc)
 
 const sanPhamOptions = computed(() => props.sanPhams.filter((p) => p.hoatDong || p.id === props.item?.idSanPham))
+const dsSanPham = computed(() => sanPhamOptions.value.map((p) => ({ value: p.id, label: `${p.ma} - ${p.ten}` })))
+const dsThuocTinh = (slug) => tuDanhSach(props.options(slug, props.item?.[{ 'mau-sac': 'idMauSac', 'trong-luong': 'idTrongLuong', 'chu-vi': 'idChuVi' }[slug]]))
+// "Thêm nhanh": tạo thuộc tính mới rồi chọn luôn vào ô
+async function themNhanhVaChon(slug, field, ten) {
+  const moi = await props.themNhanh?.(slug, ten)
+  if (moi) form[field] = moi.id
+}
 
 // Mã biến thể không sửa tay được khi sửa. Nhưng nếu đổi sản phẩm mà mã gốc đang bắt đầu bằng mã sản phẩm gốc
 // (vd SP008-DEN-4U-G5) thì phần đầu mã tự đổi sang mã sản phẩm mới (SP007-DEN-4U-G5), giống cách backend xử lý.
@@ -145,10 +155,15 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
       <div class="row g-3">
         <div class="col-12">
           <label class="ad-label" for="bt-san-pham">Sản phẩm <span class="ad-required">*</span></label>
-          <select id="bt-san-pham" v-model="form.idSanPham" class="form-select ad-control" :class="{ 'is-invalid': errors.idSanPham }" :aria-invalid="!!errors.idSanPham">
-            <option value="">Chọn sản phẩm</option>
-            <option v-for="p in sanPhamOptions" :key="p.id" :value="p.id">{{ p.ma }} - {{ p.ten }}</option>
-          </select>
+          <Select2
+            id="bt-san-pham"
+            v-model="form.idSanPham"
+            :options="dsSanPham"
+            class="ad-control"
+            :class="{ 'is-invalid': errors.idSanPham }"
+            placeholder="Chọn sản phẩm"
+            :aria-invalid="!!errors.idSanPham"
+          />
           <p v-if="errors.idSanPham" class="ad-error">{{ errors.idSanPham }}</p>
           <p v-else-if="isEdit" class="ad-hint">Có thể đổi sang sản phẩm khác (chỉ chọn được sản phẩm đang hoạt động).</p>
         </div>
@@ -156,26 +171,47 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
         <div class="col-12"><h3 class="ad-form-section">Thuộc tính biến thể</h3></div>
         <div :class="laVot ? 'col-md-4' : 'col-md-12'">
           <label class="ad-label" for="bt-mau">Màu sắc <span class="ad-required">*</span></label>
-          <select id="bt-mau" v-model="form.idMauSac" class="form-select ad-control" :class="{ 'is-invalid': errors.idMauSac }" :aria-invalid="!!errors.idMauSac">
-            <option value="">Chọn màu sắc</option>
-            <option v-for="o in options('mau-sac', item?.idMauSac)" :key="o.id" :value="o.id">{{ o.ten }}</option>
-          </select>
+          <Select2
+            id="bt-mau"
+            v-model="form.idMauSac"
+            :options="dsThuocTinh('mau-sac')"
+            class="ad-control"
+            :class="{ 'is-invalid': errors.idMauSac }"
+            placeholder="Chọn màu sắc"
+            :allow-create="!!themNhanh"
+            :aria-invalid="!!errors.idMauSac"
+            @create="themNhanhVaChon('mau-sac', 'idMauSac', $event)"
+          />
           <p v-if="errors.idMauSac" class="ad-error">{{ errors.idMauSac }}</p>
         </div>
         <div v-if="laVot" class="col-md-4">
           <label class="ad-label" for="bt-tl">Trọng lượng <span class="ad-required">*</span></label>
-          <select id="bt-tl" v-model="form.idTrongLuong" class="form-select ad-control" :class="{ 'is-invalid': errors.idTrongLuong }" :aria-invalid="!!errors.idTrongLuong">
-            <option value="">Chọn trọng lượng</option>
-            <option v-for="o in options('trong-luong', item?.idTrongLuong)" :key="o.id" :value="o.id">{{ o.ten }}</option>
-          </select>
+          <Select2
+            id="bt-tl"
+            v-model="form.idTrongLuong"
+            :options="dsThuocTinh('trong-luong')"
+            class="ad-control"
+            :class="{ 'is-invalid': errors.idTrongLuong }"
+            placeholder="Chọn trọng lượng"
+            :allow-create="!!themNhanh"
+            :aria-invalid="!!errors.idTrongLuong"
+            @create="themNhanhVaChon('trong-luong', 'idTrongLuong', $event)"
+          />
           <p v-if="errors.idTrongLuong" class="ad-error">{{ errors.idTrongLuong }}</p>
         </div>
         <div v-if="laVot" class="col-md-4">
           <label class="ad-label" for="bt-cv">Chu vi <span class="ad-required">*</span></label>
-          <select id="bt-cv" v-model="form.idChuVi" class="form-select ad-control" :class="{ 'is-invalid': errors.idChuVi }" :aria-invalid="!!errors.idChuVi">
-            <option value="">Chọn chu vi</option>
-            <option v-for="o in options('chu-vi', item?.idChuVi)" :key="o.id" :value="o.id">{{ o.ten }}</option>
-          </select>
+          <Select2
+            id="bt-cv"
+            v-model="form.idChuVi"
+            :options="dsThuocTinh('chu-vi')"
+            class="ad-control"
+            :class="{ 'is-invalid': errors.idChuVi }"
+            placeholder="Chọn chu vi"
+            :allow-create="!!themNhanh"
+            :aria-invalid="!!errors.idChuVi"
+            @create="themNhanhVaChon('chu-vi', 'idChuVi', $event)"
+          />
           <p v-if="errors.idChuVi" class="ad-error">{{ errors.idChuVi }}</p>
         </div>
 

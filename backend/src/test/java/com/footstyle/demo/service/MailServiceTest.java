@@ -114,13 +114,13 @@ class MailServiceTest {
     }
 
     /** Ghi thư ra dạng chữ thô rồi đọc lại như máy nhận thư. */
-    private static MimeMessage docLai(MimeMessage m) throws Exception {
+    static MimeMessage docLai(MimeMessage m) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         m.writeTo(out);
         return new MimeMessage(Session.getInstance(new Properties()), new ByteArrayInputStream(out.toByteArray()));
     }
 
-    private static void thuThapPhan(Part p, List<Part> ra) throws Exception {
+    static void thuThapPhan(Part p, List<Part> ra) throws Exception {
         if (p.isMimeType("multipart/*")) {
             Multipart mp = (Multipart) p.getContent();
             for (int i = 0; i < mp.getCount(); i++) thuThapPhan(mp.getBodyPart(i), ra);
@@ -129,18 +129,18 @@ class MailServiceTest {
         }
     }
 
-    private static List<Part> cacPhanLa(MimeMessage m) throws Exception {
+    static List<Part> cacPhanLa(MimeMessage m) throws Exception {
         List<Part> ra = new ArrayList<>();
         thuThapPhan(m, ra);
         return ra;
     }
 
-    private static Part phanLoai(List<Part> ds, String kieu) throws Exception {
+    static Part phanLoai(List<Part> ds, String kieu) throws Exception {
         for (Part p : ds) if (p.isMimeType(kieu)) return p;
         return null;
     }
 
-    private static void doiDuThu(GhiThu g, int soThu) throws Exception {
+    static void doiDuThu(GhiThu g, int soThu) throws Exception {
         for (int i = 0; i < 200 && g.daGui.size() < soThu; i++) Thread.sleep(25);
     }
 

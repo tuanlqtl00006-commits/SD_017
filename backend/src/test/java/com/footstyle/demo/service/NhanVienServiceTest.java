@@ -286,7 +286,7 @@ class NhanVienServiceTest {
 
     @Test
     void khongDoiVaiTroCuaQuanLyCuoiCung() {
-        NhanVienRequest doiVaiTro = new NhanVienRequest("Nguyễn Hoàng Long", "Nam", null, "0912000001", null, null, null, 2, null, "079203001234", mot());
+        NhanVienRequest doiVaiTro = new NhanVienRequest("Nguyễn Hoàng Long", "Nam", LocalDate.of(1992, 3, 14), "0912000001", null, null, null, 2, null, "079203001234", mot());
         assertEquals(HttpStatus.CONFLICT, loi(() -> service.sua(1, doiVaiTro)).getStatus());
     }
 
@@ -300,5 +300,43 @@ class NhanVienServiceTest {
     @Test
     void nhanVienKhongTimThayBaoLoi404() {
         assertEquals(HttpStatus.NOT_FOUND, loi(() -> service.getById(9999)).getStatus());
+    }
+
+    // ---------- case khó ----------
+    @Test
+    void ngaySinhQua100TuoiLaGoNhamNam_100TuoiVanDuoc() {
+        LocalDate homNay = LocalDate.now();
+        NhanVienRequest gia = new NhanVienRequest("Lê Quốc Tuấn", "Nam", homNay.minusYears(101), "0987000001", "tuan@footstyle.vn", null,
+                homNay, 2, "Footstyle@123", null, mot());
+        assertTrue(loi(() -> service.them(gia)).getMessage().contains("quá 100 tuổi"));
+        NhanVienRequest dung100 = new NhanVienRequest("Lê Quốc Tuấn", "Nam", homNay.minusYears(101).plusDays(1), "0987000001", "tuan@footstyle.vn", null,
+                homNay, 2, "Footstyle@123", null, mot());
+        assertEquals("LQT01", service.them(dung100).ma());
+    }
+
+    @Test
+    void cungMotDiaChiGuiHaiLan_baoLoiKhongDeDe() {
+        NhanVienResponse goc = taoMau();
+        Integer id1 = goc.diaChis().get(0).id();
+        NhanVienRequest trung = new NhanVienRequest("Lê Quốc Tuấn", "Nam", LocalDate.of(1999, 5, 20), "0987000001", null, null, null, 2, null,
+                "001099012345", List.of(dc(id1, null, null, "Số 1", true), dc(id1, null, null, "Số 2", false)));
+        assertTrue(loi(() -> service.sua(goc.id(), trung)).getMessage().contains("trùng"));
+    }
+
+    @Test
+    void sinhNgay29Thang2_du18TuoiDungNgay() {
+        // Sinh 29/02/2008: đủ 18 tuổi vào 28/02/2026 (Java cộng năm rơi về ngày cuối tháng 2)
+        NhanVienRequest r = new NhanVienRequest("Đỗ Hải", "Nam", LocalDate.of(2008, 2, 29), "0987000009", "hai@footstyle.vn", null,
+                LocalDate.of(2026, 2, 27), 2, "Footstyle@123", null, mot());
+        assertTrue(loi(() -> service.them(r)).getMessage().contains("Ngày vào làm"));
+        NhanVienRequest ok = new NhanVienRequest("Đỗ Hải", "Nam", LocalDate.of(2008, 2, 29), "0987000009", "hai@footstyle.vn", null,
+                LocalDate.of(2026, 2, 28), 2, "Footstyle@123", null, mot());
+        assertEquals("DH01", service.them(ok).ma());
+    }
+
+    @Test
+    void emailKhacHoaThuongVanTinhLaTrung() {
+        NhanVienRequest r = them("Phạm An", "0987000002", "  LONG@FootStyle.VN ", null, mot());
+        assertEquals(HttpStatus.CONFLICT, loi(() -> service.them(r)).getStatus());
     }
 }

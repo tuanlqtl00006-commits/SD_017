@@ -3,6 +3,7 @@ package com.footstyle.demo.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
 /** Quy tắc chung của mọi mã tự cấp: tiền tố + số thứ tự tối thiểu 2 chữ số (HD01, HD99, HD100), không đệm thêm số 0. */
@@ -18,6 +19,25 @@ class MaUtilTest {
         assertEquals("HD1000", MaUtil.dinhDang("HD", 1000));
         assertEquals("DGG01", MaUtil.dinhDang("DGG", 1));
         assertEquals("01", MaUtil.dinhDang(null, 1));
+    }
+
+    /**
+     * Máy đặt ngôn ngữ Ả Rập / Thái / Hindi... thì String.format mặc định in chữ số của ngôn ngữ đó ("NV٠٣", "NV๐๓"),
+     * mã không còn khớp với mã trong CSDL. Mã luôn phải là chữ số 0-9 bất kể ngôn ngữ của máy.
+     */
+    @Test
+    void maLuonLaChuSo0Den9DuMayDatNgonNguNao() {
+        Locale cu = Locale.getDefault();
+        try {
+            for (String the : new String[] {"ar-EG", "th-TH-u-nu-thai", "hi-IN-u-nu-deva", "fa-IR", "vi-VN", "tr-TR", "en-US"}) {
+                Locale.setDefault(Locale.forLanguageTag(the));
+                assertEquals("NV03", MaUtil.dinhDang("NV", 3), the);
+                assertEquals("HD100", MaUtil.dinhDang("HD", 100), the);
+                assertEquals("LQT01", MaUtil.rutGon("LQT0001"), the);
+            }
+        } finally {
+            Locale.setDefault(cu);
+        }
     }
 
     @Test

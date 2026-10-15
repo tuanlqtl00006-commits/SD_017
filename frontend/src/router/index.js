@@ -66,12 +66,18 @@ const routes = [
         component: () => import('../components/KhachHangManager.vue'),
         meta: { title: 'Khách hàng' },
       },
-      // Thêm khách hàng là một trang riêng (có nút "Quay lại")
+      // Thêm / sửa khách hàng là trang riêng (có nút "Quay lại"); form sửa kiểm tra dữ liệu y hệt form thêm
       {
         path: 'khach-hang/them',
         name: 'khach-hang-them',
         component: () => import('../components/KhachHangAdd.vue'),
         meta: { parent: 'Khách hàng', parentTo: '/khach-hang', title: 'Thêm khách hàng' },
+      },
+      {
+        path: 'khach-hang/:id(\\d+)/sua',
+        name: 'khach-hang-sua',
+        component: () => import('../components/khachHang/KhachHangFormPage.vue'),
+        meta: { parent: 'Khách hàng', parentTo: '/khach-hang', title: 'Chỉnh sửa khách hàng' },
       },
       {
         path: 'dot-giam-gia',

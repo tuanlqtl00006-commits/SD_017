@@ -2,6 +2,8 @@
 import { computed, reactive, ref } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import QrModal from '../common/QrModal.vue'
+import Select2 from '../common/Select2.vue'
+import { tuDanhSach } from '../../utils/luaChon'
 import { TRANG_THAI, trangThaiOf } from '../../constants/thuocTinh'
 import { formatDate, formatMoney } from '../../utils/format'
 import { layTen } from '../../utils/text'
@@ -32,6 +34,9 @@ const bienTheLoc = computed(() =>
     (b) => (loc.mau === '' || b.idMauSac === loc.mau) && (loc.tl === '' || b.idTrongLuong === loc.tl) && (loc.cv === '' || b.idChuVi === loc.cv),
   ),
 )
+const dsLocMau = computed(() => tuDanhSach(dsMau.value, { tatCa: 'Tất cả màu sắc' }))
+const dsLocTl = computed(() => tuDanhSach(dsTl.value, { tatCa: 'Tất cả trọng lượng' }))
+const dsLocCv = computed(() => tuDanhSach(dsCv.value, { tatCa: 'Tất cả chu vi' }))
 const dangLoc = computed(() => loc.mau !== '' || loc.tl !== '' || loc.cv !== '')
 const datLai = () => Object.assign(loc, { mau: '', tl: '', cv: '' })
 
@@ -84,18 +89,9 @@ const anhDaiDien = computed(() => props.item.anhChinh || props.item.anhDaiDien |
     <div v-if="!bienThes.length" class="ad-hint">Sản phẩm chưa có biến thể. Thêm trong mục “Biến thể sản phẩm”.</div>
     <template v-else>
       <div class="sp-loc" data-testid="loc-bien-the">
-        <select v-model="loc.mau" class="form-select ad-control" aria-label="Lọc theo màu sắc">
-          <option value="">Tất cả màu sắc</option>
-          <option v-for="o in dsMau" :key="o.id" :value="o.id">{{ o.ten }}</option>
-        </select>
-        <select v-if="dsTl.length" v-model="loc.tl" class="form-select ad-control" aria-label="Lọc theo trọng lượng">
-          <option value="">Tất cả trọng lượng</option>
-          <option v-for="o in dsTl" :key="o.id" :value="o.id">{{ o.ten }}</option>
-        </select>
-        <select v-if="dsCv.length" v-model="loc.cv" class="form-select ad-control" aria-label="Lọc theo chu vi">
-          <option value="">Tất cả chu vi</option>
-          <option v-for="o in dsCv" :key="o.id" :value="o.id">{{ o.ten }}</option>
-        </select>
+        <Select2 v-model="loc.mau" :options="dsLocMau" class="ad-control sp-loc-chon" aria-label="Lọc theo màu sắc" />
+        <Select2 v-if="dsTl.length" v-model="loc.tl" :options="dsLocTl" class="ad-control sp-loc-chon" aria-label="Lọc theo trọng lượng" />
+        <Select2 v-if="dsCv.length" v-model="loc.cv" :options="dsLocCv" class="ad-control sp-loc-chon" aria-label="Lọc theo chu vi" />
         <button v-if="dangLoc" type="button" class="ad-btn" @click="datLai"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại</button>
         <span class="text-muted small ms-auto">{{ bienTheLoc.length }}/{{ bienThes.length }} biến thể</span>
       </div>
@@ -138,7 +134,7 @@ const anhDaiDien = computed(() => props.item.anhChinh || props.item.anhDaiDien |
 
 <style scoped>
 .sp-loc { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
-.sp-loc .form-select { width: auto; min-width: 160px; }
+.sp-loc > .s2-wrap { flex: 0 1 190px; min-width: 160px; }
 .sp-dot { display: inline-block; width: 12px; height: 12px; margin-right: 0.4rem; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.18); vertical-align: -1px; }
 .sp-mau-ten { display: inline-flex; align-items: center; min-width: 90px; font-size: 0.85rem; font-weight: 600; }
 .sp-thumb { width: 36px; height: 36px; display: inline-grid; place-items: center; overflow: hidden; border-radius: 8px; border: 1px solid var(--fs-line-soft, #eef1f5); background: var(--fs-surface, #f5f8fc); color: #b8c0cc; }

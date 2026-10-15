@@ -23,28 +23,44 @@ function gia(y, m, d) {
 /** Phiếu 9/10 -> 15/10 giống ví dụ của cô. */
 const phieu = (over = {}) => ({
   id: 1, ma: 'VCH0001', ten: 'Tri ân', hinhThuc: 'CA_NHAN', loaiGiam: 'PHAN_TRAM', giaTri: 10, giamToiDa: 200000,
-  donToiThieu: 500000, soLuong: 3, soLuongDaDung: 0, gioiHanMoiKhach: 1, ngayBatDau: '2026-10-09', ngayKetThuc: '2026-10-15',
+  donToiThieu: 500000, soLuong: 3, soLuongDaDung: 0, gioiHanMoiKhach: 1, ngayBatDau: '2026-10-09T00:00:00', ngayKetThuc: '2026-10-15T23:59:59',
   hoatDong: true, khachHangs: [], ...over,
 })
 
-describe('Quy tắc công tắc theo khoảng ngày (hàm thuần)', () => {
-  it('quá ngày kết thúc: hết ngày 15/10 thì từ 16/10 là đã hết hạn (công tắc tắt và khóa)', () => {
-    expect(isExpired(phieu(), '2026-10-09')).toBe(false)
-    expect(isExpired(phieu(), '2026-10-14')).toBe(false)
-    expect(isExpired(phieu(), '2026-10-15')).toBe(false)
-    expect(isExpired(phieu(), '2026-10-16')).toBe(true)
+describe('Quy tắc công tắc theo khoảng ngày giờ (hàm thuần)', () => {
+  it('quá giờ kết thúc: hết ngày 15/10 (23:59:59) thì từ 16/10 là đã hết hạn (công tắc tắt và khóa)', () => {
+    expect(isExpired(phieu(), '2026-10-09T00:00:00')).toBe(false)
+    expect(isExpired(phieu(), '2026-10-14T12:00:00')).toBe(false)
+    expect(isExpired(phieu(), '2026-10-15T23:59:59')).toBe(false)
+    expect(isExpired(phieu(), '2026-10-16T00:00:00')).toBe(true)
+  })
+  it('phiếu cũ lưu theo ngày (không có giờ) vẫn chạy đúng: bắt đầu 00:00, kết thúc hết ngày', () => {
+    const cu = phieu({ ngayBatDau: '2026-10-09', ngayKetThuc: '2026-10-15' })
+    expect(isExpired(cu, '2026-10-15')).toBe(false)
+    expect(isExpired(cu, '2026-10-16')).toBe(true)
+    expect(tinhTrangThai(cu, '2026-10-08')).toBe('SAP_DIEN_RA')
+    expect(tinhTrangThai(cu, '2026-10-09')).toBe('DANG_HOAT_DONG')
   })
   it('từ 16/10: công tắc bật = "Đã kết thúc", công tắc tắt = "Ngưng hoạt động"', () => {
-    expect(tinhTrangThai(phieu({ hoatDong: true }), '2026-10-16')).toBe('DA_KET_THUC')
-    expect(tinhTrangThai(phieu({ hoatDong: true }), '2027-01-01')).toBe('DA_KET_THUC')
-    expect(tinhTrangThai(phieu({ hoatDong: false }), '2026-10-16')).toBe('NGUNG_HOAT_DONG')
-    expect(tinhTrangThai(phieu({ hoatDong: false }), '2027-01-01')).toBe('NGUNG_HOAT_DONG')
+    expect(tinhTrangThai(phieu({ hoatDong: true }), '2026-10-16T00:00:00')).toBe('DA_KET_THUC')
+    expect(tinhTrangThai(phieu({ hoatDong: true }), '2027-01-01T00:00:00')).toBe('DA_KET_THUC')
+    expect(tinhTrangThai(phieu({ hoatDong: false }), '2026-10-16T00:00:00')).toBe('NGUNG_HOAT_DONG')
+    expect(tinhTrangThai(phieu({ hoatDong: false }), '2027-01-01T00:00:00')).toBe('NGUNG_HOAT_DONG')
   })
   it('trước 16/10: sắp diễn ra / đang hoạt động / ngưng hoạt động', () => {
-    expect(tinhTrangThai(phieu(), '2026-10-08')).toBe('SAP_DIEN_RA')
-    expect(tinhTrangThai(phieu(), '2026-10-09')).toBe('DANG_HOAT_DONG')
-    expect(tinhTrangThai(phieu(), '2026-10-15')).toBe('DANG_HOAT_DONG')
-    expect(tinhTrangThai(phieu({ hoatDong: false }), '2026-10-12')).toBe('NGUNG_HOAT_DONG')
+    expect(tinhTrangThai(phieu(), '2026-10-08T23:59:59')).toBe('SAP_DIEN_RA')
+    expect(tinhTrangThai(phieu(), '2026-10-09T00:00:00')).toBe('DANG_HOAT_DONG')
+    expect(tinhTrangThai(phieu(), '2026-10-15T12:00:00')).toBe('DANG_HOAT_DONG')
+    expect(tinhTrangThai(phieu({ hoatDong: false }), '2026-10-12T12:00:00')).toBe('NGUNG_HOAT_DONG')
+  })
+  it('tính tới từng giờ phút: bắt đầu 08:00 / kết thúc 17:00 (hết 17:00:59)', () => {
+    const p = phieu({ ngayBatDau: '2026-10-15T08:00:00', ngayKetThuc: '2026-10-15T17:00:59' })
+    expect(tinhTrangThai(p, '2026-10-15T07:59:59')).toBe('SAP_DIEN_RA')
+    expect(tinhTrangThai(p, '2026-10-15T08:00:00')).toBe('DANG_HOAT_DONG')
+    expect(tinhTrangThai(p, '2026-10-15T17:00:59')).toBe('DANG_HOAT_DONG')
+    expect(tinhTrangThai(p, '2026-10-15T17:01:00')).toBe('DA_KET_THUC')
+    expect(isExpired(p, '2026-10-15T17:00:59')).toBe(false)
+    expect(isExpired(p, '2026-10-15T17:01:00')).toBe(true)
   })
 })
 
@@ -132,7 +148,7 @@ describe('Danh sách phiếu giảm giá: công tắc và trạng thái', () => 
 })
 
 describe('Lưu phiếu giảm giá: thông báo kèm kết quả gửi mail', () => {
-  const payload = { ma: 'VCH0001', ten: 'Tri ân', hinhThuc: 'CA_NHAN', loaiGiam: 'PHAN_TRAM', giaTri: 10, giamToiDa: 200000, donToiThieu: 500000, soLuong: 3, gioiHanMoiKhach: null, ngayBatDau: '2026-10-09', ngayKetThuc: '2026-10-15', khachHangIds: [2, 4, 5] }
+  const payload = { ma: 'VCH0001', ten: 'Tri ân', hinhThuc: 'CA_NHAN', loaiGiam: 'PHAN_TRAM', giaTri: 10, giamToiDa: 200000, donToiThieu: 500000, soLuong: 3, gioiHanMoiKhach: null, ngayBatDau: '2026-10-09T00:00:00', ngayKetThuc: '2026-10-15T23:59:00', khachHangIds: [2, 4, 5] }
 
   async function montarForm(path, { get = {}, post, put } = {}) {
     mock = {

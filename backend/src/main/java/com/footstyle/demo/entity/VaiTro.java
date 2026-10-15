@@ -23,4 +23,10 @@ public class VaiTro {
 
     /** Tên vai trò dùng để nhận biết tài khoản quản lý (khớp dữ liệu mẫu trong database/SD_17_du_lieu_va_nang_cap.sql). */
     public static final String TEN_QUAN_LY = "Quản lý";
+    public static final String TEN_NHAN_VIEN = "Nhân viên";
+
+    /** Hệ thống chỉ có HAI quyền: Quản lý (đủ chức năng) và Nhân viên (bán hàng, khách hàng, hóa đơn). */
+    public static boolean laVaiTroHopLe(String ten) {
+        return ten != null && (TEN_QUAN_LY.equalsIgnoreCase(ten.trim()) || TEN_NHAN_VIEN.equalsIgnoreCase(ten.trim()));
+    }
 }

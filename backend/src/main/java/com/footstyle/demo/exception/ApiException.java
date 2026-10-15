@@ -12,16 +12,23 @@ public class ApiException extends RuntimeException {
     // Mã lỗi để frontend nhận biết trường hợp đặc biệt (vd "SAN_PHAM_DA_TON_TAI" -> hỏi người dùng có muốn cập nhật không)
     private final String code;
     private final Map<String, Object> chiTiet;
+    // Lỗi theo từng ô nhập: { "email": "Email đã tồn tại.", "soDienThoai": "..." } để giao diện hiện đúng dưới từng ô (xem LoiForm)
+    private final Map<String, String> loiTheoTruong;
 
     public ApiException(HttpStatus status, String message) {
         this(status, message, null, null);
     }
 
     public ApiException(HttpStatus status, String message, String code, Map<String, Object> chiTiet) {
+        this(status, message, code, chiTiet, null);
+    }
+
+    public ApiException(HttpStatus status, String message, String code, Map<String, Object> chiTiet, Map<String, String> loiTheoTruong) {
         super(message);
         this.status = status;
         this.code = code;
         this.chiTiet = chiTiet;
+        this.loiTheoTruong = loiTheoTruong;
     }
 
     public HttpStatus getStatus() {
@@ -34,6 +41,11 @@ public class ApiException extends RuntimeException {
 
     public Map<String, Object> getChiTiet() {
         return chiTiet;
+    }
+
+    /** Lỗi theo từng ô nhập (tên ô -> câu báo lỗi); null nếu lỗi này không gắn với ô nào. */
+    public Map<String, String> getLoiTheoTruong() {
+        return loiTheoTruong;
     }
 
     /** Dữ liệu đã tồn tại (409) kèm mã lỗi: frontend hỏi "bạn muốn cập nhật?" rồi gửi lại với xacNhanCapNhat = true. */

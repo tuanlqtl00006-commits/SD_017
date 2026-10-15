@@ -404,6 +404,14 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   border-color: var(--fs-primary-dark);
   color: #fff;
 }
+/* Nút nhỏ (thanh công cụ trong bảng / ô chọn) */
+.ad-btn-sm {
+  height: 34px;
+  padding: 0 0.8rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  box-shadow: none;
+}
 .ad-btn-danger {
   background: var(--fs-danger);
   border-color: var(--fs-danger);
@@ -605,9 +613,17 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
   background: #eef0f3;
   color: #4b5563;
 }
+.ad-pill-orange {
+  background: #ffe9d6;
+  color: #a1400a;
+}
 .ad-pill-red {
   background: #fdecee;
   color: #c62836;
+}
+.ad-pill-pink {
+  background: #fdeaf3;
+  color: #b0235f;
 }
 
 /* Avatar nhân viên */
@@ -676,6 +692,15 @@ input[type='number'].ad-control::-webkit-inner-spin-button {
 .ad-page-btn:disabled {
   color: #c3c9d2;
   cursor: not-allowed;
+}
+.ad-page-gap {
+  display: inline-block;
+  min-width: 28px;
+  text-align: center;
+  color: var(--fs-muted);
+  font-weight: 600;
+  letter-spacing: 1px;
+  user-select: none;
 }
 .ad-page-btn:focus-visible {
   outline: 2px solid var(--fs-primary);

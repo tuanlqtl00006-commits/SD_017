@@ -71,7 +71,7 @@ public class DotGiamGiaController {
         for (DotGiamGiaChiTiet ct : chiTietRepository.findApDung(LocalDateTime.now())) {
             DotGiamGia d = ct.getDotGiamGia();
             muc.add(new GiamGiaApDungResponse.Muc(ct.getIdSanPhamChiTiet(), d.getId(), d.getMaDot(), d.getTenDot(),
-                    ct.getPhanTramGiamBienThe(), d.getNgayBatDau().toLocalDate(), d.getNgayKetThuc().toLocalDate()));
+                    ct.getPhanTramGiamBienThe(), d.getNgayBatDau(), d.getNgayKetThuc()));
         }
         return new GiamGiaApDungResponse(giamGiaApDungService.cheDo().name(), muc);
     }

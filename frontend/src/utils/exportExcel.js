@@ -26,8 +26,10 @@ function columnName(index) {
 
 function sheetXml(columns, rows) {
   const lastCell = `${columnName(columns.length - 1)}${rows.length + 1}`
+  // Cột văn bản (text: true) có định dạng "@" cho CẢ cột: ô còn trống cũng là văn bản, nên người dùng gõ 0912345678 hay 25/12/2000
+  // vào file mẫu thì Excel giữ nguyên chữ số 0 đầu và không tự đổi sang ngày theo kiểu tháng/ngày của máy.
   const cols = columns
-    .map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width || 16}" customWidth="1"/>`)
+    .map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width || 16}" customWidth="1"${c.text ? ' style="3"' : ''}/>`)
     .join('')
 
   const header = columns
@@ -44,7 +46,7 @@ function sheetXml(columns, rows) {
           // Cột tiền (money: true) dùng định dạng số có ngăn cách hàng nghìn (#,##0) nhưng vẫn là SỐ để Excel cộng được
           return typeof value === 'number'
             ? `<c r="${ref}"${c.money ? ' s="2"' : ''}><v>${value}</v></c>`
-            : `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`
+            : `<c r="${ref}"${c.text ? ' s="3"' : ''} t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`
         })
         .join('')
       return `<row r="${r + 2}">${cells}</row>`
@@ -70,9 +72,10 @@ const STYLES_XML =
   '<fill><patternFill patternType="solid"><fgColor rgb="FFE7F0FF"/><bgColor indexed="64"/></patternFill></fill></fills>' +
   '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
   '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-  '<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+  '<cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
   '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
-  '<xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>' +
+  '<xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+  '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>' +
   '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
   '</styleSheet>'
 
@@ -151,7 +154,9 @@ function zipStore(files) {
 
 /**
  * Tạo Blob .xlsx.
- * columns: [{ header, key, width, money }]  rows: [{ [key]: string | number }]  (money: true = cột tiền, hiện 3.861.000)
+ * columns: [{ header, key, width, money, text }]  rows: [{ [key]: string | number }]
+ *   money: true = cột tiền, hiện 3.861.000 (vẫn là SỐ để Excel cộng được)
+ *   text : true = cả cột là văn bản (định dạng "@"): giữ số 0 đầu của số điện thoại / căn cước và ngày dd/mm/yyyy dạng chữ
  */
 export function buildXlsx({ sheetName = 'Sheet1', columns, rows }) {
   const safeName = sheetName.replace(/[[\]:*?/\\]/g, ' ').slice(0, 31) || 'Sheet1'

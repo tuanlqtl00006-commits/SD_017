@@ -29,6 +29,7 @@ vi.mock('../src/services/diaChiHanhChinhService', () => {
 
 import NhanVienFormPage from '../src/components/nhanVien/NhanVienFormPage.vue'
 import { useToast } from '../src/composables/useToast'
+import { cacMucSelect2, datSelect2, giaTriSelect2 } from './helpersSelect2'
 
 const QR = '001099012345|123456789|NGUYỄN VĂN AN|20051999|Nam|Thôn Cầu, Xã Đông Quý, Huyện Tiền Hải, Tỉnh Thái Bình|15032021'
 const VAI_TRO = [{ id: 1, ten: 'Quản lý' }, { id: 2, ten: 'Nhân viên' }]
@@ -36,8 +37,14 @@ const NV_CO_SAN = [
   { id: 1, ma: 'NV01', hoTen: 'Nguyễn Hoàng Long', email: 'long@footstyle.vn', soDienThoai: '0912000001', canCuoc: '079203001234', idVaiTro: 1, vaiTro: 'Quản lý', hoatDong: true, gioiTinh: 'Nam', ngayVaoLam: '2022-01-10', diaChi: 'x', diaChis: [] },
 ]
 
+// Ô nhập thường thì setValue; ô chọn Select2 (có data-gia-tri) thì chọn mục có value tương ứng
 const set = async (w, sel, v) => {
-  await w.find(sel).setValue(v)
+  const el = w.find(sel)
+  if (el.attributes('data-gia-tri') !== undefined) {
+    await datSelect2(w, sel, v)
+    return
+  }
+  await el.setValue(v)
 }
 const dom = (sel) => document.body.querySelector(sel)
 
@@ -139,12 +146,12 @@ describe('Thêm nhân viên', () => {
     expect(w.text()).not.toContain('Quận/Huyện')
     await set(w, '#nv-dc-tinh', 'Thành phố Hà Nội')
     await flushPromises()
-    expect(w.findAll('#nv-dc-phuong option').map((o) => o.text())).toEqual(['Chọn Phường/Xã', 'Phường Hồng Hà', 'Phường Hà Đông'])
+    expect(await cacMucSelect2(w, '#nv-dc-phuong')).toEqual(['Phường Hồng Hà', 'Phường Hà Đông'])
     await set(w, '#nv-dc-phuong', 'Phường Hà Đông')
     await set(w, '#nv-dc-tinh', 'Tỉnh Hưng Yên')
     await flushPromises()
-    expect(w.find('#nv-dc-phuong').element.value).toBe('')
-    expect(w.findAll('#nv-dc-phuong option').map((o) => o.text())).toEqual(['Chọn Phường/Xã', 'Phường Thái Bình'])
+    expect(giaTriSelect2(w, '#nv-dc-phuong')).toBe('')
+    expect(await cacMucSelect2(w, '#nv-dc-phuong')).toEqual(['Phường Thái Bình'])
     w.unmount()
   })
 
@@ -206,6 +213,7 @@ describe('Thêm nhân viên', () => {
     expect(p.hoTen).toBe('Nguyễn Văn An')
     expect(p.canCuoc).toBe('001099012345')
     expect(p.email).toBe('an@footstyle.vn')
+    expect(p.ngaySinh).toBe('1999-05-20') // ô hiện 20/05/1999 nhưng gửi đi dạng yyyy-mm-dd
     expect(p).not.toHaveProperty('ma')
     expect(p).not.toHaveProperty('diaChi')
     expect(p.diaChis).toEqual([
@@ -224,6 +232,7 @@ describe('Thêm nhân viên', () => {
     await set(w, '#nv-email', 'an@footstyle.vn')
     await set(w, '#nv-sdt', '0987654321')
     await set(w, '#nv-mat-khau', 'Footstyle@123')
+    await set(w, '#nv-ngay-sinh', '1999-05-20')
     await themDiaChi(w, 'Thành phố Hà Nội', 'Phường Hà Đông', 'Số 1')
     await w.find('form').trigger('submit')
     await flushPromises()
@@ -255,11 +264,22 @@ describe('Quét căn cước công dân', () => {
     expect(dom('.modal')).toBeNull() // modal tự đóng
     expect(w.find('#nv-ho-ten').element.value).toBe('Nguyễn Văn An')
     expect(w.find('#nv-cccd').element.value).toBe('001099012345')
-    expect(w.find('#nv-ngay-sinh').element.value).toBe('1999-05-20')
+    expect(w.find('#nv-ngay-sinh').element.value).toBe('20/05/1999') // ô ngày hiện dd/mm/yyyy, giá trị gửi đi vẫn là 1999-05-20
     expect(w.find('#nv-ma').element.value).toBe('NVA01')
     // địa chỉ trên thẻ đã nằm sẵn trong danh sách địa chỉ (không cần bấm nút gợi ý)
     expect(w.findAll('.nv-dc')).toHaveLength(1)
     expect(w.find('.nv-dc-form').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('thẻ có ngày sinh chưa đủ 18 tuổi / số CCCD trùng: lỗi hiện NGAY dưới ô, không phải chờ bấm lưu', async () => {
+    const w = await moForm()
+    await quet(w, '079203001234|123456789|TRẦN MINH KHOA|20052015|Nam|Số 1, Phường Hà Đông, Thành phố Hà Nội|15032021')
+    expect(w.find('#nv-ngay-sinh').element.value).toBe('20/05/2015')
+    const loi = (id) => (w.find(`#${id}`).classes().includes('ad-error') ? w.find(`#${id}`).text() : '')
+    expect(loi('nv-ngay-sinh-msg')).toBe('Nhân viên phải từ đủ 18 tuổi.')
+    expect(loi('nv-cccd-msg')).toBe('Số căn cước công dân đã được sử dụng.') // trùng NV01
+    expect(w.find('#nv-ho-ten').classes()).not.toContain('is-invalid')
     w.unmount()
   })
 
@@ -313,8 +333,8 @@ describe('Quét căn cước công dân', () => {
     await quet(w, QR.replace(/\|[^|]*\|15032021$/, '|Phường Hà Đông, Thành phố Hà Nội|15032021'))
     expect(w.findAll('.nv-dc')).toHaveLength(0)
     expect(w.find('.nv-dc-form').exists()).toBe(true)
-    expect(w.find('#nv-dc-tinh').element.value).toBe('Thành phố Hà Nội')
-    expect(w.find('#nv-dc-phuong').element.value).toBe('Phường Hà Đông')
+    expect(giaTriSelect2(w, '#nv-dc-tinh')).toBe('Thành phố Hà Nội')
+    expect(giaTriSelect2(w, '#nv-dc-phuong')).toBe('Phường Hà Đông')
     expect(w.find('#nv-dc-chi-tiet').element.value).toBe('')
     w.unmount()
   })
@@ -395,6 +415,7 @@ describe('Đã bỏ vị trí làm việc', () => {
     await set(w, '#nv-email', 'tuan@footstyle.vn')
     await set(w, '#nv-sdt', '0987654321')
     await set(w, '#nv-mat-khau', 'Footstyle@123')
+    await set(w, '#nv-ngay-sinh', '1999-05-20')
     await themDiaChi(w, 'Thành phố Hà Nội', 'Phường Hà Đông', 'Số 1')
     await w.find('form').trigger('submit')
     await flushPromises()

@@ -13,6 +13,9 @@ import java.time.LocalDateTime;
 @Table(name = "khach_hang")
 public class KhachHang {
 
+    /** Tuổi tối thiểu của khách hàng: từ đủ 15 tuổi (Bộ luật Dân sự 2015, Điều 21 khoản 4). Xem QuyTacDuLieu. */
+    public static final int TUOI_TOI_THIEU = 15;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
@@ -51,6 +54,7 @@ public class KhachHang {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
+    /** Ảnh đại diện: đường dẫn ảnh đã tải lên (/api/uploads/...) hoặc link http(s). Có thể để trống. */
     @Column(name = "anh_dai_dien")
     private String anhDaiDien;
 

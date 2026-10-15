@@ -14,6 +14,8 @@ public interface SanPhamRepository extends JpaRepository<SanPham, Integer> {
     /** Sản phẩm cùng danh mục + thương hiệu (dùng để tìm sản phẩm trùng tên khi thêm mới). */
     List<SanPham> findByDanhMucIdAndThuongHieuId(Integer idDanhMuc, Integer idThuongHieu);
 
+    boolean existsByDanhMucId(Integer idDanhMuc);
+
     @Query("select s.maSanPham from SanPham s")
     List<String> findAllMaSanPham();
 }

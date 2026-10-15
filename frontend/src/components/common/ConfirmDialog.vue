@@ -9,22 +9,19 @@ defineProps({
   loading: { type: Boolean, default: false },
   // Tùy chọn: 'warning' | 'success'. Có icon thì hộp thoại dùng giao diện căn giữa (biểu tượng tròn, 2 nút bằng nhau).
   // Không truyền thì giữ giao diện cũ như các trang khác đang dùng.
-  icon: { type: String, default: '' },
+  icon: { type: String, default: '', validator: (v) => ['', 'warning', 'success'].includes(v) },
 })
 const emit = defineEmits(['confirm', 'cancel'])
 </script>
 
 <template>
-  <BaseModal
-    :title="title"
-    :size="icon ? 'md' : 'sm'"
-    :content-class="icon ? 'cf-dialog' : ''"
-    @close="emit('cancel')"
-  >
-    <!-- Giao diện mới: ẩn tiêu đề trên header, chỉ giữ nút đóng -->
-    <template v-if="icon" #header><span></span></template>
+  <BaseModal :title="title" :size="icon ? 'md' : 'sm'" :content-class="icon ? 'cf-dialog' : ''" @close="emit('cancel')">
+    <!-- Giao diện có icon: tiêu đề hiện trong thân hộp thoại nên ở header chỉ giữ tên ẩn (cho trình đọc màn hình) và nút đóng -->
+    <template v-if="icon" #header="{ titleId }">
+      <span :id="titleId" class="visually-hidden">{{ title }}</span>
+    </template>
 
-    <div v-if="icon" class="cf-body">
+    <div v-if="icon" class="cf-body" data-testid="cf-icon-dialog">
       <div class="cf-icon" :class="`cf-icon-${icon}`" aria-hidden="true">
         <svg v-if="icon === 'success'" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12" />
@@ -34,7 +31,7 @@ const emit = defineEmits(['confirm', 'cancel'])
           <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
       </div>
-      <h3 class="cf-title">{{ title }}</h3>
+      <h3 class="cf-title" aria-hidden="true">{{ title }}</h3>
       <p class="cf-text">{{ message }}</p>
     </div>
     <p v-else class="ad-confirm-text">{{ message }}</p>

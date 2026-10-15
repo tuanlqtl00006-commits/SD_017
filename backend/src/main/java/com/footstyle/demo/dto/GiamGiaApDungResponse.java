@@ -1,6 +1,6 @@
 package com.footstyle.demo.dto;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -8,7 +8,7 @@ import java.util.List;
  * Frontend dùng danh sách này để tính giá hiển thị và dựng "lịch giảm giá" theo từng khoảng ngày.
  *
  * @param chinhSach cách tính khi một biến thể nằm trong nhiều đợt cùng thời điểm:
- *                  "MAX" (lấy mức cao nhất) hoặc "TRUNG_BINH" (trung bình cộng các đợt đang chồng nhau).
+ *                  "MAX" (lấy mức cao nhất), "CONG_DON" (cộng dồn, tối đa 100%) hoặc "TRUNG_BINH" (trung bình cộng các đợt đang chồng nhau).
  */
 public record GiamGiaApDungResponse(String chinhSach, List<Muc> muc) {
 
@@ -18,7 +18,7 @@ public record GiamGiaApDungResponse(String chinhSach, List<Muc> muc) {
             String maDot,
             String tenDot,
             Integer phanTram,
-            LocalDate ngayBatDau,
-            LocalDate ngayKetThuc) {
+            LocalDateTime ngayBatDau,
+            LocalDateTime ngayKetThuc) {
     }
 }

@@ -4,6 +4,7 @@ import com.footstyle.demo.dto.AnhTheoMauResponse;
 import com.footstyle.demo.entity.HinhAnhSanPham;
 import com.footstyle.demo.entity.SanPham;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -85,6 +86,40 @@ public final class AnhSanPham {
         }
         List<HinhAnhSanPham> chung = anhChung(anhCuaSanPham);
         return chung.isEmpty() ? "" : chung.get(0).getDuongDanHinhAnh();
+    }
+
+    /**
+     * Ảnh theo màu SAU KHI lưu: lấy ảnh đang dùng của sản phẩm, rồi áp danh sách gửi lên (màu nào có trong danhSachMoi thì
+     * thay bằng danh sách đó; danh sách rỗng nghĩa là bỏ hết ảnh của màu, chỉ khi choPhepBoHet = true, ngược lại bỏ qua màu đó).
+     */
+    public static Map<Integer, List<String>> anhTheoMauSauKhiLuu(List<HinhAnhSanPham> hienCo, Map<Integer, List<String>> danhSachMoi, boolean choPhepBoHet) {
+        Map<Integer, List<String>> ketQua = new LinkedHashMap<>(anhTheoMau(hienCo));
+        danhSachMoi.forEach((idMau, ds) -> {
+            if (!ds.isEmpty()) {
+                ketQua.put(idMau, ds);
+            } else if (choPhepBoHet) {
+                ketQua.remove(idMau);
+            }
+        });
+        return ketQua;
+    }
+
+    /** Các màu trong mauCan mà chưa có ảnh riêng nào (theo thứ tự mauCan). */
+    public static List<Integer> mauChuaCoAnh(Collection<Integer> mauCan, Map<Integer, List<String>> anhTheoMau) {
+        List<Integer> thieu = new ArrayList<>();
+        for (Integer id : mauCan) {
+            List<String> ds = anhTheoMau.get(id);
+            if (ds == null || ds.isEmpty()) thieu.add(id);
+        }
+        return thieu;
+    }
+
+    /** Có ít nhất một màu đang có ảnh riêng không. */
+    public static boolean coAnhTheoMau(Map<Integer, List<String>> anhTheoMau) {
+        for (List<String> ds : anhTheoMau.values()) {
+            if (!ds.isEmpty()) return true;
+        }
+        return false;
     }
 
     /**
