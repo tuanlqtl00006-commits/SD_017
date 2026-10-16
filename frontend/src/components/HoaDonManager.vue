@@ -113,17 +113,17 @@ async function load(quiet = false) {
 // Đổi bộ lọc / tab: về trang 1 rồi tải lại. Ô mã hóa đơn chờ 300ms sau khi ngừng gõ.
 let timer = null
 watch(
-  () => [filters.maHoaDon, filters.tuNgay, filters.denNgay, filters.loaiDon, activeTab.value],
-  (moi, cu) => {
-    clearTimeout(timer)
-    const chiDoiMa = moi[0] !== cu[0] && moi.slice(1).every((v, i) => v === cu[i + 1])
-    const chay = () => {
-      if (page.value !== 1) page.value = 1 // đổi trang sẽ tự tải lại
-      else load()
-    }
-    if (chiDoiMa) timer = setTimeout(chay, 300)
-    else chay()
-  },
+    () => [filters.maHoaDon, filters.tuNgay, filters.denNgay, filters.loaiDon, activeTab.value],
+    (moi, cu) => {
+      clearTimeout(timer)
+      const chiDoiMa = moi[0] !== cu[0] && moi.slice(1).every((v, i) => v === cu[i + 1])
+      const chay = () => {
+        if (page.value !== 1) page.value = 1 // đổi trang sẽ tự tải lại
+        else load()
+      }
+      if (chiDoiMa) timer = setTimeout(chay, 300)
+      else chay()
+    },
 )
 watch([page, pageSize], () => load())
 let dongHoNgay = null
@@ -246,14 +246,14 @@ async function exportFile() {
 
       <div class="ad-status-tabs" role="tablist" aria-label="Lọc theo trạng thái hóa đơn">
         <button
-          v-for="t in TABS"
-          :key="String(t.value)"
-          type="button"
-          role="tab"
-          class="ad-status-tab"
-          :class="{ active: activeTab === t.value }"
-          :aria-selected="activeTab === t.value"
-          @click="activeTab = t.value"
+            v-for="t in TABS"
+            :key="String(t.value)"
+            type="button"
+            role="tab"
+            class="ad-status-tab"
+            :class="{ active: activeTab === t.value }"
+            :aria-selected="activeTab === t.value"
+            @click="activeTab = t.value"
         >
           {{ t.label }}
           <span v-if="demCua(t) !== undefined" class="ad-status-tab-count">{{ demCua(t) }}</span>
@@ -264,60 +264,60 @@ async function exportFile() {
         <div class="ad-table-scroll">
           <table class="ad-table">
             <thead>
-              <tr>
-                <th class="ad-col-stt">STT</th>
-                <th>Mã HD</th>
-                <th>Mã NV</th>
-                <th>Tên KH</th>
-                <th>SĐT KH</th>
-                <th>Tổng tiền TT</th>
-                <th>Loại đơn</th>
-                <th>Ngày tạo</th>
-                <th>Trạng thái</th>
-                <th class="ad-col-actions">Hành động</th>
-              </tr>
+            <tr>
+              <th class="ad-col-stt">STT</th>
+              <th>Mã HD</th>
+              <th>Mã NV</th>
+              <th>Tên KH</th>
+              <th>SĐT KH</th>
+              <th>Tổng tiền TT</th>
+              <th>Loại đơn</th>
+              <th>Ngày tạo</th>
+              <th>Trạng thái</th>
+              <th class="ad-col-actions">Hành động</th>
+            </tr>
             </thead>
             <tbody>
-              <tr v-if="loading">
-                <td colspan="10">
-                  <div class="ad-empty">
-                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Đang tải dữ liệu...
-                  </div>
+            <tr v-if="loading">
+              <td colspan="10">
+                <div class="ad-empty">
+                  <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Đang tải dữ liệu...
+                </div>
+              </td>
+            </tr>
+            <tr v-else-if="!list.length">
+              <td colspan="10">
+                <div class="ad-empty">Không tìm thấy hóa đơn nào phù hợp với điều kiện lọc.</div>
+              </td>
+            </tr>
+            <template v-else>
+              <tr v-for="(hd, i) in list" :key="hd.id">
+                <td class="ad-col-stt">{{ (page - 1) * pageSize + i + 1 }}</td>
+                <td><span class="ad-code ad-nowrap">{{ hd.maHoaDon }}</span></td>
+                <td class="ad-nowrap">{{ hd.maNhanVien || '—' }}</td>
+                <td class="ad-cell-wrap">{{ tenKhach(hd) }}</td>
+                <td class="ad-nowrap">{{ hd.sdtKhachHang || '—' }}</td>
+                <td class="ad-nowrap hd-money">{{ formatMoney(hd.tongTien) }}</td>
+                <td class="ad-nowrap">{{ hd.loaiDon }}</td>
+                <td class="ad-nowrap">{{ formatNgay(hd.ngayTao) }}</td>
+                <td>
+                  <span class="ad-pill" :class="trangThaiOf(hd.trangThai).pill">{{ trangThaiOf(hd.trangThai).label }}</span>
                 </td>
-              </tr>
-              <tr v-else-if="!list.length">
-                <td colspan="10">
-                  <div class="ad-empty">Không tìm thấy hóa đơn nào phù hợp với điều kiện lọc.</div>
-                </td>
-              </tr>
-              <template v-else>
-                <tr v-for="(hd, i) in list" :key="hd.id">
-                  <td class="ad-col-stt">{{ (page - 1) * pageSize + i + 1 }}</td>
-                  <td><span class="ad-code ad-nowrap">{{ hd.maHoaDon }}</span></td>
-                  <td class="ad-nowrap">{{ hd.maNhanVien || '—' }}</td>
-                  <td class="ad-cell-wrap">{{ tenKhach(hd) }}</td>
-                  <td class="ad-nowrap">{{ hd.sdtKhachHang || '—' }}</td>
-                  <td class="ad-nowrap hd-money">{{ formatMoney(hd.tongTien) }}</td>
-                  <td class="ad-nowrap">{{ hd.loaiDon }}</td>
-                  <td class="ad-nowrap">{{ formatNgay(hd.ngayTao) }}</td>
-                  <td>
-                    <span class="ad-pill" :class="trangThaiOf(hd.trangThai).pill">{{ trangThaiOf(hd.trangThai).label }}</span>
-                  </td>
-                  <td class="ad-col-actions">
-                    <div class="ad-actions">
-                      <button
+                <td class="ad-col-actions">
+                  <div class="ad-actions">
+                    <button
                         type="button"
                         class="ad-icon-btn"
                         title="Xem chi tiết"
                         :aria-label="`Xem chi tiết hóa đơn ${hd.maHoaDon}`"
                         @click="xemChiTiet(hd.id)"
-                      >
-                        <i class="bi bi-eye" aria-hidden="true"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </template>
+                    >
+                      <i class="bi bi-eye" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </template>
             </tbody>
           </table>
         </div>

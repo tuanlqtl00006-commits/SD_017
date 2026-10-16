@@ -53,16 +53,16 @@ const hd = computed(() => data.value?.hoaDon ?? {})
 // QR chứa mã hóa đơn (vd HD01) để quét tra cứu nhanh; tạo ngay trên trình duyệt, không cần mạng.
 const qrUrl = ref('')
 watch(
-  () => hd.value.maHoaDon,
-  async (ma) => {
-    if (!ma) { qrUrl.value = ''; return }
-    try {
-      qrUrl.value = await QRCode.toDataURL(String(ma), { width: 240, margin: 1, errorCorrectionLevel: 'M' })
-    } catch {
-      qrUrl.value = ''
-    }
-  },
-  { immediate: true },
+    () => hd.value.maHoaDon,
+    async (ma) => {
+      if (!ma) { qrUrl.value = ''; return }
+      try {
+        qrUrl.value = await QRCode.toDataURL(String(ma), { width: 240, margin: 1, errorCorrectionLevel: 'M' })
+      } catch {
+        qrUrl.value = ''
+      }
+    },
+    { immediate: true },
 )
 const khach = computed(() => data.value?.khachHang ?? {})
 const giao = computed(() => data.value?.giaoHang ?? {})
@@ -142,9 +142,9 @@ const timeline = computed(() => {
 
 const THU_TU_NUT = { nguyhiem: 0, canhbao: 1, chinh: 2 }
 const dsNut = computed(() =>
-  (hd.value.chuyenDuoc ?? [])
-    .map((c) => ({ ...c, ...nutChuyen(hd.value.loaiDon, hd.value.trangThai, c.trangThai) }))
-    .sort((a, b) => THU_TU_NUT[a.kieu] - THU_TU_NUT[b.kieu]),
+    (hd.value.chuyenDuoc ?? [])
+        .map((c) => ({ ...c, ...nutChuyen(hd.value.loaiDon, hd.value.trangThai, c.trangThai) }))
+        .sort((a, b) => THU_TU_NUT[a.kieu] - THU_TU_NUT[b.kieu]),
 )
 const LOP_NUT = { chinh: 'ad-btn-primary', canhbao: 'hd-btn-outline-warning', nguyhiem: 'hd-btn-outline-danger' }
 const daKhoa = computed(() => (hd.value.laTrangThaiCuoi ?? laTrangThaiCuoi(hd.value.trangThai)) === true)
@@ -384,13 +384,13 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
               <i class="bi bi-lock-fill" aria-hidden="true"></i> {{ thongBaoKhoa }}
             </p>
             <button
-              v-for="n in dsNut"
-              :key="n.trangThai"
-              type="button"
-              class="ad-btn"
-              :class="LOP_NUT[n.kieu]"
-              :data-chuyen="n.trangThai"
-              @click="moXacNhan(n.trangThai)"
+                v-for="n in dsNut"
+                :key="n.trangThai"
+                type="button"
+                class="ad-btn"
+                :class="LOP_NUT[n.kieu]"
+                :data-chuyen="n.trangThai"
+                @click="moXacNhan(n.trangThai)"
             >
               <i class="bi" :class="n.icon" aria-hidden="true"></i> {{ n.text }}
             </button>
@@ -552,57 +552,57 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
           <div class="ad-table-scroll">
             <table class="ad-table">
               <thead>
-                <tr>
-                  <th class="ad-col-stt">STT</th>
-                  <th>Mã SPCT</th>
-                  <th class="text-center">Ảnh</th>
-                  <th>Sản phẩm</th>
-                  <th>Màu sắc</th>
-                  <th>Thông số</th>
-                  <th class="text-center">Số lượng</th>
-                  <th class="text-center">Giảm giá</th>
-                  <th class="text-end">Đơn giá</th>
-                  <th class="text-end">Thành tiền</th>
-                </tr>
+              <tr>
+                <th class="ad-col-stt">STT</th>
+                <th>Mã SPCT</th>
+                <th class="text-center">Ảnh</th>
+                <th>Sản phẩm</th>
+                <th>Màu sắc</th>
+                <th>Thông số</th>
+                <th class="text-center">Số lượng</th>
+                <th class="text-center">Giảm giá</th>
+                <th class="text-end">Đơn giá</th>
+                <th class="text-end">Thành tiền</th>
+              </tr>
               </thead>
               <tbody>
-                <tr v-if="!sanPhamHienThi.length">
-                  <td colspan="10">
-                    <div class="ad-empty">
-                      <i class="bi bi-inbox" aria-hidden="true"></i>
-                      <strong>{{ sanPham.length ? 'Không có sản phẩm phù hợp' : 'Hóa đơn chưa có sản phẩm' }}</strong>
-                      <span v-if="sanPham.length">Thử đổi từ khóa hoặc khoảng giá.</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-for="(x, i) in sanPhamHienThi" :key="x.id">
-                  <td class="ad-col-stt">{{ i + 1 }}</td>
-                  <td class="ad-code ad-nowrap">{{ x.maSpct }}</td>
-                  <td class="text-center">
+              <tr v-if="!sanPhamHienThi.length">
+                <td colspan="10">
+                  <div class="ad-empty">
+                    <i class="bi bi-inbox" aria-hidden="true"></i>
+                    <strong>{{ sanPham.length ? 'Không có sản phẩm phù hợp' : 'Hóa đơn chưa có sản phẩm' }}</strong>
+                    <span v-if="sanPham.length">Thử đổi từ khóa hoặc khoảng giá.</span>
+                  </div>
+                </td>
+              </tr>
+              <tr v-for="(x, i) in sanPhamHienThi" :key="x.id">
+                <td class="ad-col-stt">{{ i + 1 }}</td>
+                <td class="ad-code ad-nowrap">{{ x.maSpct }}</td>
+                <td class="text-center">
                     <span class="hd-thumb">
                       <img v-if="x.hinhAnh" :src="x.hinhAnh" :alt="x.tenSanPham" loading="lazy">
                       <i v-else class="bi bi-image" aria-hidden="true"></i>
                     </span>
-                  </td>
-                  <td class="ad-cell-wrap">
-                    <div class="fw-semibold">{{ x.tenSanPham }}</div>
-                    <div class="hd-sub">{{ [x.tenThuongHieu, x.tenDanhMuc].filter(Boolean).join(' · ') }}</div>
-                  </td>
-                  <td class="ad-nowrap">
-                    <span class="hd-swatch" :style="{ background: mauHex(x.mauSac) }" aria-hidden="true"></span>{{ x.mauSac || '—' }}
-                  </td>
-                  <td class="ad-nowrap">{{ thongSo(x) }}</td>
-                  <td class="text-center fw-semibold">{{ x.soLuong }}</td>
-                  <td class="text-center">
-                    <span v-if="x.phanTramGiam > 0" class="ad-pill ad-pill-red">-{{ x.phanTramGiam }}%</span>
-                    <span v-else class="text-muted">—</span>
-                  </td>
-                  <td class="text-end ad-nowrap">
-                    <div v-if="x.phanTramGiam > 0" class="hd-old-price">{{ money(x.giaGoc) }}</div>
-                    <div>{{ money(x.donGia) }}</div>
-                  </td>
-                  <td class="text-end ad-nowrap fw-semibold hd-money">{{ money(x.thanhTien) }}</td>
-                </tr>
+                </td>
+                <td class="ad-cell-wrap">
+                  <div class="fw-semibold">{{ x.tenSanPham }}</div>
+                  <div class="hd-sub">{{ [x.tenThuongHieu, x.tenDanhMuc].filter(Boolean).join(' · ') }}</div>
+                </td>
+                <td class="ad-nowrap">
+                  <span class="hd-swatch" :style="{ background: mauHex(x.mauSac) }" aria-hidden="true"></span>{{ x.mauSac || '—' }}
+                </td>
+                <td class="ad-nowrap">{{ thongSo(x) }}</td>
+                <td class="text-center fw-semibold">{{ x.soLuong }}</td>
+                <td class="text-center">
+                  <span v-if="x.phanTramGiam > 0" class="ad-pill ad-pill-red">-{{ x.phanTramGiam }}%</span>
+                  <span v-else class="text-muted">—</span>
+                </td>
+                <td class="text-end ad-nowrap">
+                  <div v-if="x.phanTramGiam > 0" class="hd-old-price">{{ money(x.giaGoc) }}</div>
+                  <div>{{ money(x.donGia) }}</div>
+                </td>
+                <td class="text-end ad-nowrap fw-semibold hd-money">{{ money(x.thanhTien) }}</td>
+              </tr>
               </tbody>
             </table>
           </div>
@@ -634,25 +634,25 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
         <div class="ad-table-scroll">
           <table class="ad-table">
             <thead>
-              <tr>
-                <th class="ad-col-stt">STT</th>
-                <th>Hành động</th>
-                <th>Người thao tác</th>
-                <th>Thời gian</th>
-                <th>Ghi chú</th>
-              </tr>
+            <tr>
+              <th class="ad-col-stt">STT</th>
+              <th>Hành động</th>
+              <th>Người thao tác</th>
+              <th>Thời gian</th>
+              <th>Ghi chú</th>
+            </tr>
             </thead>
             <tbody>
-              <tr v-if="!lichSuMoiTruoc.length">
-                <td colspan="5"><div class="ad-empty"><i class="bi bi-clock" aria-hidden="true"></i><span>Chưa có thao tác nào</span></div></td>
-              </tr>
-              <tr v-for="(ls, i) in lichSuMoiTruoc" :key="ls.id">
-                <td class="ad-col-stt">{{ i + 1 }}</td>
-                <td><span class="ad-pill" :class="trangThaiOf(ls.trangThai).pill">{{ ls.hanhDong }}</span></td>
-                <td class="ad-nowrap">{{ ls.nguoiThaoTac || '—' }}</td>
-                <td class="ad-nowrap">{{ fmtDateTime(ls.thoiGian) }}</td>
-                <td class="ad-cell-wrap">{{ ls.moTa || '—' }}</td>
-              </tr>
+            <tr v-if="!lichSuMoiTruoc.length">
+              <td colspan="5"><div class="ad-empty"><i class="bi bi-clock" aria-hidden="true"></i><span>Chưa có thao tác nào</span></div></td>
+            </tr>
+            <tr v-for="(ls, i) in lichSuMoiTruoc" :key="ls.id">
+              <td class="ad-col-stt">{{ i + 1 }}</td>
+              <td><span class="ad-pill" :class="trangThaiOf(ls.trangThai).pill">{{ ls.hanhDong }}</span></td>
+              <td class="ad-nowrap">{{ ls.nguoiThaoTac || '—' }}</td>
+              <td class="ad-nowrap">{{ fmtDateTime(ls.thoiGian) }}</td>
+              <td class="ad-cell-wrap">{{ ls.moTa || '—' }}</td>
+            </tr>
             </tbody>
           </table>
         </div>
@@ -681,24 +681,24 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
         <span v-if="action.batBuoc" class="ad-required">*</span>
       </label>
       <textarea
-        id="hd-ghi-chu"
-        v-model="action.ghiChu"
-        class="form-control"
-        :class="{ 'is-invalid': action.error }"
-        rows="3"
-        maxlength="500"
-        :placeholder="GOI_Y_GHI_CHU[action.trangThai] ?? 'Không bắt buộc'"
-        @input="action.error = ''"
+          id="hd-ghi-chu"
+          v-model="action.ghiChu"
+          class="form-control"
+          :class="{ 'is-invalid': action.error }"
+          rows="3"
+          maxlength="500"
+          :placeholder="GOI_Y_GHI_CHU[action.trangThai] ?? 'Không bắt buộc'"
+          @input="action.error = ''"
       ></textarea>
       <div v-if="action.error" class="ad-error mt-1" role="alert">{{ action.error }}</div>
       <template #footer>
         <button type="button" class="ad-btn" :disabled="action.saving" @click="action.open = false">Đóng</button>
         <button
-          type="button"
-          class="ad-btn"
-          :class="action.trangThai === TT.DA_HUY ? 'ad-btn-danger' : action.trangThai === TT.GIAO_THAT_BAI ? 'hd-btn-warning' : 'ad-btn-primary'"
-          :disabled="action.saving"
-          @click="xacNhanDoiTrangThai"
+            type="button"
+            class="ad-btn"
+            :class="action.trangThai === TT.DA_HUY ? 'ad-btn-danger' : action.trangThai === TT.GIAO_THAT_BAI ? 'hd-btn-warning' : 'ad-btn-primary'"
+            :disabled="action.saving"
+            @click="xacNhanDoiTrangThai"
         >
           <span v-if="action.saving" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
           {{ action.trangThai === TT.DA_HUY ? 'Hủy đơn' : action.trangThai === TT.GIAO_THAT_BAI ? 'Ghi nhận thất bại' : 'Xác nhận' }}
