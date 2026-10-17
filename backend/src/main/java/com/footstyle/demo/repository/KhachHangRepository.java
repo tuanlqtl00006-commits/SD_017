@@ -21,9 +21,6 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Integer> {
 
     boolean existsByMaKhachHang(String maKhachHang);
 
-    /** Trùng email không phân biệt hoa / thường (An@Gmail.com trùng an@gmail.com). */
-    boolean existsByEmailIgnoreCase(String email);
-
     @Query("SELECT k FROM KhachHang k WHERE k.hoTen LIKE %:keyword% OR k.sdt LIKE %:keyword% "
             + "OR k.email LIKE %:keyword% OR k.maKhachHang LIKE %:keyword% ORDER BY k.id ASC")
     List<KhachHang> searchKhachHang(@Param("keyword") String keyword);

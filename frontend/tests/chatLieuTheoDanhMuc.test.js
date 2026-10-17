@@ -9,7 +9,7 @@ let mock
 vi.mock('../src/services/api', () => ({ default: new Proxy({}, { get: (_, k) => (...a) => mock.api[k](...a) }) }))
 beforeEach(() => { document.body.innerHTML = '' })
 
-// Chất liệu giống dữ liệu thật sau khi gắn nhóm danh mục (SD_17_tong.sql)
+// Chất liệu giống dữ liệu thật sau khi gắn nhóm danh mục (database/SD_17_2_du_lieu.sql)
 const t = (id, ma, ten, nhom) => ({ id, ma, ten, hoatDong: true, nhom })
 const CHAT_LIEU = [
   t(1, 'CL001', 'Carbon', ['VOT']), t(2, 'CL002', 'Graphite', ['VOT']), t(3, 'CL003', 'Nhôm', ['VOT']), t(4, 'CL004', 'Titanium', ['VOT']),

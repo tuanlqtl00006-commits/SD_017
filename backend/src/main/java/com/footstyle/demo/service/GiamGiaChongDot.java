@@ -54,10 +54,6 @@ public final class GiamGiaChongDot {
 
     /** Một đợt áp dụng cho biến thể: khoảng thời gian (gồm cả hai đầu) + % giảm của biến thể trong đợt đó. */
     public record DotApDung(Long idDot, LocalDateTime batDau, LocalDateTime ketThuc, int phanTram) {
-        public DotApDung(Long idDot, java.time.LocalDate tuNgay, java.time.LocalDate denNgay, int phanTram) {
-            this(idDot, tuNgay.atStartOfDay(), denNgay.atTime(23, 59, 59), phanTram);
-        }
-
         boolean chua(LocalDateTime thoiDiem) {
             return !thoiDiem.isBefore(batDau) && !thoiDiem.isAfter(ketThuc);
         }
@@ -65,18 +61,6 @@ public final class GiamGiaChongDot {
 
     /** Một đoạn thời gian liên tiếp có cùng mức giảm và cùng các đợt đang chạy (tuLuc, denLuc đều tính). */
     public record Doan(LocalDateTime tuLuc, LocalDateTime denLuc, double phanTram, List<Long> idDots) {
-        public Doan(java.time.LocalDate tuNgay, java.time.LocalDate denNgay, double phanTram, List<Long> idDots) {
-            this(tuNgay.atStartOfDay(), denNgay.atTime(23, 59, 59), phanTram, idDots);
-        }
-
-        public java.time.LocalDate tuNgay() {
-            return tuLuc.toLocalDate();
-        }
-
-        public java.time.LocalDate denNgay() {
-            return denLuc.toLocalDate();
-        }
-
         public boolean trungDot() {
             return idDots.size() > 1;
         }
@@ -107,11 +91,6 @@ public final class GiamGiaChongDot {
             if (d.chua(thoiDiem)) dangChay.add(d.phanTram());
         }
         return gop(dangChay, cheDo);
-    }
-
-    /** Mức giảm của biến thể tại một ngày cụ thể (tính theo mốc giữa ngày 12:00:00). */
-    public static double phanTramTaiNgay(List<DotApDung> dots, java.time.LocalDate ngay, CheDo cheDo) {
-        return phanTramTaiThoiDiem(dots, ngay.atTime(12, 0), cheDo);
     }
 
     /** Lịch giảm giá của biến thể: các đoạn thời gian liên tiếp, không chồng nhau, theo thứ tự thời gian. */

@@ -1,5 +1,6 @@
 package com.footstyle.demo.controller;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -96,5 +97,67 @@ class DiaChiKhachHangControllerTest {
         assertTrue(loi(dc("An", "0912345678", "Hà Nội", "Hà Đông", "x".repeat(256))).contains("255"));
         assertTrue(loi(dc("x".repeat(101), "0912345678", "Hà Nội", "Hà Đông", "Số 1")).contains("100"));
         assertTrue(loi(null).contains("Thiếu"));
+    }
+
+    // ---------- địa chỉ cụ thể phải có chữ hoặc số ----------
+    @Test
+    void diaChiCuTheChiToanKyTuDacBiet_baoLoiTaiOdiaChiCuThe() {
+        for (String sai : new String[] {"---", "...", "@#$%", "- . -"}) {
+            ApiException e = assertThrows(ApiException.class,
+                    () -> DiaChiKhachHangController.chuanHoa(dc("An", "0912345678", "Hà Nội", "Hà Đông", sai)));
+            assertEquals(DiaChiKhachHangController.LOI_DIA_CHI_CHI_TIET_CHU_SO, e.getLoiTheoTruong().get("diaChiCuThe"), sai);
+        }
+        for (String dung : new String[] {"12", "Ngõ 5", "Số 1/2 Trần Phú", "Thôn Đoài"}) {
+            assertDoesNotThrow(() -> DiaChiKhachHangController.chuanHoa(dc("An", "0912345678", "Hà Nội", "Hà Đông", dung)), dung);
+        }
+    }
+
+    // ---------- giới hạn số địa chỉ ----------
+    @Test
+    void toiDaMuoiDiaChi_themDiaChiThuMuoiMotBiChan() {
+        assertEquals(10, DiaChiKhachHangController.SO_DIA_CHI_MAX);
+        assertDoesNotThrow(() -> DiaChiKhachHangController.kiemTraSoLuong(0));
+        assertDoesNotThrow(() -> DiaChiKhachHangController.kiemTraSoLuong(9), "đang có 9 thì thêm được địa chỉ thứ 10");
+        ApiException e = assertThrows(ApiException.class, () -> DiaChiKhachHangController.kiemTraSoLuong(10));
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
+        assertTrue(e.getMessage().contains("10"));
+    }
+
+    // ---------- địa chỉ trùng ----------
+    private static DiaChiKhachHang coId(Integer id, DiaChiKhachHang d) {
+        d.setId(id);
+        return d;
+    }
+
+    @Test
+    void diaChiTrungTinhPhuongChiTietVaSdt_baoTrung409_khongPhanBietHoaThuong() {
+        List<DiaChiKhachHang> hienCo = List.of(coId(1, dc("An", "0912345678", "Thành phố Hà Nội", "Phường Hà Đông", "Số 1 Trần Phú")));
+        DiaChiKhachHang trung = dc("Bình", "0912345678", "thành phố hà nội", "PHƯỜNG HÀ ĐÔNG", "số 1   trần phú");
+        ApiException e = assertThrows(ApiException.class, () -> DiaChiKhachHangController.kiemTraTrung(trung, hienCo, null));
+        assertEquals(HttpStatus.CONFLICT, e.getStatus());
+        assertEquals(DiaChiKhachHangController.LOI_TRUNG, e.getMessage());
+    }
+
+    @Test
+    void khacMotTrongBonTruong_khongPhaiDiaChiTrung() {
+        List<DiaChiKhachHang> hienCo = List.of(coId(1, dc("An", "0912345678", "Thành phố Hà Nội", "Phường Hà Đông", "Số 1 Trần Phú")));
+        // khác SĐT (cùng nhà nhưng người nhận khác số), khác số nhà, khác phường, khác tỉnh
+        assertDoesNotThrow(() -> DiaChiKhachHangController.kiemTraTrung(dc("An", "0912345679", "Thành phố Hà Nội", "Phường Hà Đông", "Số 1 Trần Phú"), hienCo, null));
+        assertDoesNotThrow(() -> DiaChiKhachHangController.kiemTraTrung(dc("An", "0912345678", "Thành phố Hà Nội", "Phường Hà Đông", "Số 2 Trần Phú"), hienCo, null));
+        assertDoesNotThrow(() -> DiaChiKhachHangController.kiemTraTrung(dc("An", "0912345678", "Thành phố Hà Nội", "Phường Cầu Giấy", "Số 1 Trần Phú"), hienCo, null));
+        assertDoesNotThrow(() -> DiaChiKhachHangController.kiemTraTrung(dc("An", "0912345678", "Thành phố Huế", "Phường Hà Đông", "Số 1 Trần Phú"), hienCo, null));
+    }
+
+    @Test
+    void suaChinhDiaChiDo_khongTinhLaTrungVoiChinNo_nhungTrungDiaChiKhacThiBao() {
+        DiaChiKhachHang a = coId(1, dc("An", "0912345678", "Thành phố Hà Nội", "Phường Hà Đông", "Số 1 Trần Phú"));
+        DiaChiKhachHang b = coId(2, dc("An", "0912345678", "Thành phố Hà Nội", "Phường Hà Đông", "Số 2 Trần Phú"));
+        List<DiaChiKhachHang> hienCo = List.of(a, b);
+        // Sửa địa chỉ 1 mà giữ nguyên nội dung: bỏ qua chính nó
+        assertDoesNotThrow(() -> DiaChiKhachHangController.kiemTraTrung(
+                dc("An", "0912345678", "Thành phố Hà Nội", "Phường Hà Đông", "Số 1 Trần Phú"), hienCo, 1));
+        // Sửa địa chỉ 1 thành giống hệt địa chỉ 2: trùng
+        assertEquals(HttpStatus.CONFLICT, assertThrows(ApiException.class, () -> DiaChiKhachHangController.kiemTraTrung(
+                dc("An", "0912345678", "Thành phố Hà Nội", "Phường Hà Đông", "Số 2 Trần Phú"), hienCo, 1)).getStatus());
     }
 }

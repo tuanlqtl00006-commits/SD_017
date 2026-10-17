@@ -1,20 +1,18 @@
 # Chạy project FootStyle (Thống kê, Quản lý hóa đơn, sản phẩm, phiếu giảm giá, đợt giảm giá, khách hàng, nhân viên)
 
-1. SQL Server (chỉ 2 file, chạy lần lượt trong SSMS):
-   - `database/SD_17.sql` — tạo database `shop_cau_long_footstyle` và toàn bộ bảng. File này giữ nguyên, không sửa. Chạy MỘT LẦN khi tạo CSDL mới.
-   - `database/SD_17_du_lieu_va_nang_cap.sql` — dữ liệu mẫu + nâng cấp, gộp từ 5 file cũ theo đúng thứ tự chạy: dữ liệu mẫu (vai trò, 10 nhân viên, 6 khách hàng, 11 phiếu giảm giá),
-     sản phẩm (9 bảng thuộc tính, 6 sản phẩm, 14 biến thể), địa chỉ khách hàng + 8 đợt giảm giá, phương thức thanh toán + hóa đơn mẫu, và phần nâng cấp CSDL cũ; **(mới 15/10)** PHẦN 6 ảnh theo màu, PHẦN 7 chỉ mục chống trùng email / SĐT khách hàng, PHẦN 8 hóa đơn: dọn phí vận chuyển của đơn tại quầy + hóa đơn mẫu **HD19 ở trạng thái "Giao hàng thất bại"**. Chạy lại nhiều lần được (bản ghi đã có thì bỏ qua).
+1. SQL Server — **(16/10/2026) gộp còn đúng 2 file** trong thư mục `database/`, chạy lần lượt trong SSMS (mở file → Execute / F5):
+   - `database/SD_17_1_cau_truc.sql` — **chỉ CẤU TRÚC**: tạo database `shop_cau_long_footstyle`, toàn bộ 29 bảng, khóa chính, khóa ngoại, UNIQUE, chỉ mục chống trùng (email / SĐT / căn cước nhân viên, email / SĐT khách hàng, biến thể không trùng màu - trọng lượng - chu vi). **Không có dữ liệu.**
+     Gồm PHẦN 1 – 4 tạo bảng (theo thứ tự khóa ngoại), PHẦN 5 thêm cột còn thiếu cho CSDL tạo từ bản cũ (`can_cuoc_cong_dan`, `anh_dai_dien`, `nhom_ap_dung`, `id_mau_sac`...), PHẦN 6 chỉ mục.
+   - `database/SD_17_2_du_lieu.sql` — **chỉ DỮ LIỆU** (không tạo / sửa bảng): PHẦN 0 sửa dữ liệu cũ (rút gọn mã `HD000001` → `HD01`, chép số căn cước cột cũ), PHẦN 1 vai trò + 10 nhân viên + 6 khách hàng (+ địa chỉ), PHẦN 2 sản phẩm (9 bảng thuộc tính, mục "Không áp dụng", 6 sản phẩm, 14 biến thể), PHẦN 3 11 phiếu giảm giá + 8 đợt giảm giá, PHẦN 4 sửa dữ liệu mẫu cũ (giày → vợt, đơn tại quầy còn phí vận chuyển), PHẦN 5 phương thức thanh toán + hóa đơn mẫu HD01 – HD18 và **HD19 "Giao hàng thất bại"**, PHẦN 6 thêm **25 hóa đơn Chờ xác nhận + 20 hóa đơn Đang giao hàng** (ngẫu nhiên từ dữ liệu đang có, chỉ thêm 1 lần; đặt `@them_lai = 1` nếu muốn thêm lô nữa, cuối file có khối lệnh đang comment để xóa lô này). Cuối file in bảng đếm số dòng các bảng chính.
+   **Cả 2 file dùng được cho CSDL mới lẫn CSDL đang có dữ liệu** và chạy lại nhiều lần không lỗi: cái gì đã có thì bỏ qua, chỉ thêm phần còn thiếu, không xóa dữ liệu của bạn. Vì vậy các file cũ (`SD_17.sql`, `SD_17_du_lieu_va_nang_cap.sql`, `SD_17_them_anh_dai_dien.sql`, `SD_17_them_hoa_don_cho_xac_nhan_dang_giao.sql`) đã được gộp vào 2 file này và bỏ đi. Test `FileSqlTest` giữ đúng quy tắc: file cấu trúc không có lệnh dữ liệu, file dữ liệu không tạo / sửa bảng, mọi cột của entity đều có trong bảng.
    Mật khẩu nhân viên mẫu: `Footstyle@123`.
-   **Đã có CSDL từ trước?** Không chạy lại `SD_17.sql` (database đã tồn tại), chỉ chạy `database/SD_17_du_lieu_va_nang_cap.sql` (hoặc khởi động lại backend, backend tự bổ sung phần thiếu). Phần nâng cấp bổ sung:
-   2 cột `ngay_tao`, `ngay_cap_nhat` của bảng `dia_chi_khach_hang`; cột `anh_dai_dien` của bảng `khach_hang` (ảnh đại diện, gộp từ bản của nhóm); cột `can_cuoc_cong_dan` cho `nhan_vien` (CSDL cũ đang có cột `cccd` thì số đã nhập được CHÉP sang, cột `cccd` cũ vẫn được giữ, không xóa dữ liệu);
-   bảng `dia_chi_nhan_vien` (mỗi nhân viên nhiều địa chỉ, địa chỉ cũ ở cột `dia_chi` được chuyển thành địa chỉ chính);
-   cột `mo_ta` cho `dot_giam_gia`; cột `nhom_ap_dung` cho `chat_lieu` (chất liệu theo danh mục, kèm chất liệu cho quần áo / túi - balo / phụ kiện / quả cầu lông); đổi dữ liệu mẫu giày cũ (nếu có) thành vợt cầu lông;
-   **(mới 12/10)** cột `id_mau_sac` cho `hinh_anh_san_pham` (ảnh sản phẩm THEO MÀU, PHẦN 6 cuối file; ảnh cũ có `id_mau_sac = NULL` = ảnh chung, vẫn hiện như trước);
-   **(mới 15/10)** chỉ mục UNIQUE `ux_khach_hang_email`, `ux_khach_hang_sdt` (PHẦN 7: khách hàng không trùng email / SĐT; chỉ tạo được khi dữ liệu hiện có chưa trùng, nếu đang trùng thì SQL in danh sách trùng ra để sửa rồi chạy lại), dọn phí vận chuyển của đơn tại quầy (PHẦN 8.1, backend cũng tự chạy khi khởi động) và hóa đơn mẫu HD19 "Giao hàng thất bại" (PHẦN 8.2, chỉ có trong file SQL).
-   **Thuộc tính theo danh mục sản phẩm:** CSDL cần 4 mục "Không áp dụng" (`DC00`, `CB00`, `TL00`, `CV00`) cho độ cứng, điểm cân bằng, trọng lượng, chu vi. File `SD_17_du_lieu_va_nang_cap.sql` đã có sẵn; CSDL cũ thì khởi động lại backend (tự bổ sung) hoặc chạy file này.
-   **Quy tắc mã (HD01, NV01, SP01, DGG01...):** mọi mã tự cấp = tiền tố + số thứ tự tối thiểu 2 chữ số, KHÔNG đệm thêm số 0; quá 99 thì viết thẳng (HD99 -> HD100). Mã nhân viên = chữ cái đầu của họ tên + số thứ tự (Lê Quốc Tuấn -> `LQT01`). **Mã cũ nhiều số 0** (`HD000001`, `NV0001`, `SP001`, `DGG001`, `SP001-DEN-4U-G5`...) được đổi sang mã gọn tự động khi khởi động lại backend (log: "Đã rút gọn N mã cũ nhiều số 0"), hoặc chạy PHẦN 0 của `SD_17_du_lieu_va_nang_cap.sql`. Chỉ đổi cột mã, không mất liên kết dữ liệu (các bảng nối nhau bằng id); chạy lại nhiều lần vẫn an toàn. Mã phiếu giảm giá do người dùng đặt / sinh ngẫu nhiên (`VCH...`) không bị đổi.
+   **Đã có CSDL từ trước?** Cứ chạy lần lượt 2 file như trên (database đã tồn tại thì file 1 không tạo lại), hoặc chỉ cần khởi động lại backend (backend tự bổ sung bảng / cột / chỉ mục còn thiếu, ghi dòng "Đã kiểm tra / nâng cấp cấu trúc CSDL" vào log; riêng dữ liệu mẫu mới như HD19 thì phải chạy file 2).
+   Phần nâng cấp bổ sung cho CSDL cũ: 2 cột `ngay_tao`, `ngay_cap_nhat` của `dia_chi_khach_hang`; cột `anh_dai_dien` của `khach_hang`; cột `can_cuoc_cong_dan` cho `nhan_vien` (CSDL cũ đang có cột `cccd` thì số đã nhập được CHÉP sang, cột `cccd` cũ vẫn giữ); bảng `dia_chi_nhan_vien` (địa chỉ cũ ở cột `nhan_vien.dia_chi` thành địa chỉ chính); cột `mo_ta` cho `dot_giam_gia`; cột `nhom_ap_dung` cho `chat_lieu`; cột `id_mau_sac` cho `hinh_anh_san_pham` (ảnh cũ có `id_mau_sac = NULL` = ảnh chung, vẫn hiện như trước).
+   Chỉ mục UNIQUE `ux_khach_hang_email`, `ux_khach_hang_sdt` chỉ tạo được khi dữ liệu hiện có chưa trùng; nếu đang trùng thì file 1 in danh sách trùng ra để sửa rồi chạy lại.
+   **Thuộc tính theo danh mục sản phẩm:** CSDL cần 4 mục "Không áp dụng" (`DC00`, `CB00`, `TL00`, `CV00`) cho độ cứng, điểm cân bằng, trọng lượng, chu vi. File `SD_17_2_du_lieu.sql` đã có sẵn; CSDL cũ thì khởi động lại backend (tự bổ sung) hoặc chạy file này.
+   **Quy tắc mã (HD01, NV01, SP01, DGG01...):** mọi mã tự cấp = tiền tố + số thứ tự tối thiểu 2 chữ số, KHÔNG đệm thêm số 0; quá 99 thì viết thẳng (HD99 -> HD100). Mã nhân viên = chữ cái đầu của họ tên + số thứ tự (Lê Quốc Tuấn -> `LQT01`). **Mã cũ nhiều số 0** (`HD000001`, `NV0001`, `SP001`, `DGG001`, `SP001-DEN-4U-G5`...) được đổi sang mã gọn tự động khi khởi động lại backend (log: "Đã rút gọn N mã cũ nhiều số 0"), hoặc chạy PHẦN 0 của `SD_17_2_du_lieu.sql`. Chỉ đổi cột mã, không mất liên kết dữ liệu (các bảng nối nhau bằng id); chạy lại nhiều lần vẫn an toàn. Mã phiếu giảm giá do người dùng đặt / sinh ngẫu nhiên (`VCH...`) không bị đổi.
    **Gặp lỗi "Invalid column name 'can_cuoc_cong_dan'" / "Invalid column name 'id_mau_sac'" / "Invalid object name 'dia_chi_nhan_vien'" / trang Hóa đơn báo "Không tải được danh sách hóa đơn"?** Nghĩa là CSDL được tạo từ bản SQL cũ.
-   Cách xử lý: khởi động lại backend (backend tự bổ sung phần còn thiếu và ghi dòng "Đã kiểm tra / nâng cấp cấu trúc CSDL" vào log), hoặc chạy `database/SD_17_du_lieu_va_nang_cap.sql`.
+   Cách xử lý: khởi động lại backend (backend tự bổ sung phần còn thiếu), hoặc chạy `database/SD_17_1_cau_truc.sql` rồi `database/SD_17_2_du_lieu.sql`.
 2. Backend (JDK 17 trở lên, cổng 8081; xem mục "Phiên bản được hỗ trợ" bên dưới): sửa user/mật khẩu SQL Server trong `backend/src/main/resources/application.properties`
    (hoặc đặt biến môi trường `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`), rồi `cd backend && ./mvnw spring-boot:run`.
    **Chạy thêm một backend khi backend đã chạy sẵn / báo "Port 8081 was already in use" / backend "tự nhiên biến mất"?** Từ 13/10/2026 backend **không bao giờ tự tắt bản đang chạy**
@@ -74,7 +72,7 @@
    Cả hai script đều **kiểm tra Node.js, Java và SQL Server trước khi chạy** và nói rõ thiếu / quá cũ cái nào, cần làm gì (chi tiết ở mục "Phiên bản được hỗ trợ").
    Kiểm thử giao diện: `cd frontend && npm test` (vitest, không cần backend). Kiểm thử backend: `cd backend && ./mvnw test`
    (cần SQL Server đang chạy cho test `BackendApplicationTests.contextLoads`, các test còn lại không cần CSDL; muốn bỏ qua test đó: `./mvnw test -Dtest='!BackendApplicationTests'`).
-   **Kết quả lần kiểm cuối (15/10/2026):** giao diện **729 test / 34 file đạt** và `npm run build` thành công; backend **429 test đạt** (36 nhóm test, đã loại `BackendApplicationTests` vì nó khởi động cả ứng dụng và cần SQL Server; khi bạn chạy `./mvnw test` thật thì test đó cũng được chạy). Lưu ý: môi trường làm bài không tải được thư viện từ Maven Central nên phần Java được biên dịch và chạy test bằng bộ giả lập Spring + JUnit; bạn hãy chạy `./mvnw test` một lần trên máy có Internet để chắc chắn.
+   **Kết quả lần kiểm cuối (16/10/2026):** giao diện **759 test / 36 file đạt** và `npm run build` thành công; backend **449 test đạt** (38 nhóm test, đã loại `BackendApplicationTests` vì nó khởi động cả ứng dụng và cần SQL Server; khi bạn chạy `./mvnw test` thật thì test đó cũng được chạy). Lưu ý: môi trường làm bài không tải được thư viện từ Maven Central nên phần Java được biên dịch và chạy test bằng bộ giả lập Spring + JUnit; bạn hãy chạy `./mvnw test` một lần trên máy có Internet để chắc chắn.
    **Địa chỉ Tỉnh/Thành phố → Phường/Xã** (thêm khách hàng, địa chỉ khách hàng, địa chỉ nhân viên) lấy từ API đơn vị hành chính **sau sáp nhập 07/2025**
    `https://provinces.open-api.vn/api/v2` (không còn cấp Quận/Huyện) nên máy chạy giao diện cần có Internet. Địa chỉ cũ đã lưu (có Quận/Huyện) vẫn hiển thị bình thường,
    khi sửa thì giao diện nhắc chọn lại theo danh sách mới.
@@ -192,7 +190,8 @@ Quy ước chung ở `ThoiGianPhut.java`.
 | POST / PUT | /api/khach-hang[/{id}] | Thêm (kèm địa chỉ mặc định nếu gửi tinhThanh, phuongXa, diaChiCuThe; `quanHuyen` không còn dùng cho địa chỉ mới vì đã sáp nhập) / sửa. Mật khẩu tạm được băm, không trả về |
 | PUT | /api/khach-hang/{id}/trang-thai | Bật / tắt hoạt động khách hàng |
 | GET | /api/dia-chi/khach-hang/{idKhachHang} | Địa chỉ của khách hàng |
-| POST / PUT / DELETE | /api/dia-chi/khach-hang/{idKhachHang}, /api/dia-chi/{id} | Thêm / sửa / xóa địa chỉ (luôn có đúng 1 địa chỉ mặc định) |
+| POST / PUT / DELETE | /api/dia-chi/khach-hang/{idKhachHang}, /api/dia-chi/{id} | Thêm / sửa / xóa địa chỉ (luôn có đúng 1 địa chỉ mặc định; tối đa 10 địa chỉ mỗi khách, địa chỉ trùng bị chặn 409, xóa địa chỉ mặc định thì địa chỉ còn lại đầu tiên thành mặc định) |
+| PUT | /api/dia-chi/{id}/mac-dinh | Chỉ đặt địa chỉ làm mặc định (không cần gửi lại cả form; địa chỉ cũ nhập thiếu thông tin vẫn đặt được) |
 | GET | /api/dot-giam-gia | Danh sách đợt giảm giá, đợt mới thêm nằm trên cùng |
 | GET | /api/dot-giam-gia/ma-moi | Mã đợt do hệ thống sinh (DGG + số thứ tự, vd DGG09, DGG100), không trùng mã đã có |
 | GET | /api/dot-giam-gia/{id} | Chi tiết một đợt giảm giá |
@@ -221,7 +220,7 @@ Lưu ý: hệ thống không xóa cứng dữ liệu. Nút "Ẩn" chỉ đổi c
 
 - **Chất liệu theo danh mục**: bảng `chat_lieu` có thêm cột `nhom_ap_dung` (VOT, QUAN_AO, TUI_BALO, PHU_KIEN, QUA_CAU). Form sản phẩm chỉ hiện chất liệu hợp danh mục đã chọn
   (Quần áo thể thao -> Cotton, Polyester, Thun lạnh...; Vợt -> Carbon, Graphite, Nhôm, Titanium) và backend cũng chặn lưu sai. Quản lý chất liệu có thêm phần chọn "Dùng cho danh mục".
-  Cột này nằm trong `database/SD_17_du_lieu_va_nang_cap.sql` (vì `SD_17.sql` giữ nguyên); khi chạy backend, `SchemaUpgradeRunner` cũng tự thêm cột + chất liệu mới.
+  Cột này nằm trong `database/SD_17_1_cau_truc.sql`, chất liệu mẫu theo nhóm trong `database/SD_17_2_du_lieu.sql`; khi chạy backend, `SchemaUpgradeRunner` cũng tự thêm cột + chất liệu mới.
 - **Cột "Giảm giá" (trang Biến thể sản phẩm)** = % giảm của đợt giảm giá **đang diễn ra hôm nay** mà biến thể nằm trong đó. Thêm biến thể ở Đợt giảm giá -> "Sản phẩm áp dụng":
   đợt đang diễn ra thì hiện ngay; đợt sắp diễn ra hiện "Sắp giảm -x% từ ngày..."; đợt ngừng hoạt động / đã kết thúc thì không giảm. Đợt đã kết thúc thì không thêm được biến thể mới;
   biến thể đang ngừng bán không áp dụng giảm giá được (backend chặn, giao diện báo rõ).
@@ -234,18 +233,34 @@ Bản của nhóm là nhánh làm song song, **cũ hơn** ở hầu hết các t
 
 | Lấy từ bản nhóm | Ghi chú |
 |---|---|
-| **Ảnh đại diện khách hàng** | Thêm cột `khach_hang.anh_dai_dien` (entity, DTO, `SchemaUpgradeRunner` tự thêm khi chạy backend, `SD_17.sql` và `SD_17_du_lieu_va_nang_cap.sql`). Trang Thêm / Sửa khách hàng có nút "Tải ảnh lên / Đổi ảnh / Bỏ ảnh" (JPG, PNG, WEBP, GIF, tối đa 5 MB, dùng lại `POST /api/hinh-anh/upload`). Danh sách khách hàng hiện ảnh, chưa có ảnh hoặc ảnh hỏng thì hiện chữ cái đầu. Backend kiểm tra đường dẫn (chỉ `/api/uploads/...` hoặc `http(s)://`, tối đa 500 ký tự); khi sửa, không gửi trường này = giữ ảnh cũ, gửi chuỗi rỗng = bỏ ảnh. |
+| **Ảnh đại diện khách hàng** | Thêm cột `khach_hang.anh_dai_dien` (entity, DTO, `SchemaUpgradeRunner` tự thêm khi chạy backend, `SD_17_1_cau_truc.sql`). Trang Thêm / Sửa khách hàng có nút "Tải ảnh lên / Đổi ảnh / Bỏ ảnh" (JPG, PNG, WEBP, GIF, tối đa 5 MB, dùng lại `POST /api/hinh-anh/upload`). Danh sách khách hàng hiện ảnh, chưa có ảnh hoặc ảnh hỏng thì hiện chữ cái đầu. Backend kiểm tra đường dẫn (chỉ `/api/uploads/...` hoặc `http(s)://`, tối đa 500 ký tự); khi sửa, không gửi trường này = giữ ảnh cũ, gửi chuỗi rỗng = bỏ ảnh. |
 | **Cột "Tên người nhận"** ở danh sách khách hàng (và trong file Excel xuất) | Lấy theo địa chỉ mặc định; chưa có địa chỉ thì ghi "Chưa cập nhật". |
 | **Hộp xác nhận có icon** (`ConfirmDialog` nhận thêm `icon="warning"` hoặc `"success"`, `BaseModal` nhận `contentClass` và slot `header`) | Chỉ bật ở nơi truyền `icon`: ngừng / kích hoạt khách hàng, ngừng / bật đợt giảm giá. Các trang khác giữ hộp thoại cũ. Nút "Ngừng hoạt động" vẫn màu đỏ (nhóm đổi sang xanh, bản này giữ như cũ). Có thêm tên ẩn cho trình đọc màn hình. |
 | **CORS cho mọi cổng của localhost** | `CorsConfig` dùng `allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")`: Vite tự nhảy sang cổng 5174, 5175... khi 5173 đang bận mà gọi API vẫn không bị chặn. |
 
 **Không lấy** (bản của nhóm là bản cũ hơn hoặc kém hơn bản đang có): mật khẩu tạm của khách hàng lưu chữ thường (bản này vẫn băm BCrypt); SĐT 10-11 số và bỏ kiểm tra email / họ tên (bản này đúng 10 số, đầu số 03/05/07/08/09); ô ngày thường `type="date"` thay `DateInput`; màn hình xem khách hàng cho sửa trực tiếp và bỏ phần địa chỉ; các trang Đợt giảm giá, Hóa đơn, Nhân viên, Phiếu giảm giá bản cũ (thiếu các sửa theo lời cô); mất `GiaiPhongCong`, `MethodArgumentTypeMismatchException` handler và nhiều test. Hai file ghi chú `GIAI_THICH_NGAY_2.md` (nhắc `SanPhamFormModal.vue` đã không còn) và `GIAI_THICH_SAN_PHAM.md` (ghi "chưa làm quét CCCD" trong khi đã có), `KIEM_TRA_HOP_NHAT.txt` (biên bản gộp cũ) và `logo.jpg` (trùng `backend/src/main/resources/static/logo.jpg`) cũng không đưa vào để khỏi gây hiểu nhầm.
 
-CSDL đã có sẵn: khởi động lại backend là cột `anh_dai_dien` tự được thêm; hoặc chạy lại `database/SD_17_du_lieu_va_nang_cap.sql`.
+CSDL đã có sẵn: khởi động lại backend là cột `anh_dai_dien` tự được thêm; hoặc chạy lại `database/SD_17_1_cau_truc.sql`.
+
+### Gộp lần 2 với bản mới của nhóm (15/10/2026)
+
+Bản nhóm gửi lần 2 vẫn gần giống bản đang có (chỉ khác 17 file, phần lớn là bản cũ của Đợt giảm giá / Khách hàng). Cũng chỉ lấy phần **mới thật sự, nhỏ và an toàn**, viết lại cho khớp cách báo lỗi theo từng ô và có test:
+
+| Lấy từ bản nhóm | Ghi chú |
+|---|---|
+| **Xóa khách hàng đã có hóa đơn / phiếu giảm giá** | `KhachHangService.xoa` bắt lỗi khóa ngoại của SQL Server và trả **409** câu dễ hiểu: "Khách hàng đã phát sinh hóa đơn hoặc phiếu giảm giá nên không thể xóa. Hãy chuyển sang trạng thái "Ngừng hoạt động"." (trước đây lộ lỗi SQL). |
+| **Sổ địa chỉ: tối đa 10 địa chỉ / khách** | Backend chặn (400) và giao diện khóa nút "Thêm địa chỉ mới" kèm lời nhắc xóa bớt. Sửa / xóa địa chỉ vẫn dùng được khi đã đủ 10. |
+| **Sổ địa chỉ: chặn địa chỉ trùng** | Cùng Tỉnh/Thành phố + Phường/Xã + địa chỉ cụ thể (không phân biệt hoa thường) + SĐT người nhận với một địa chỉ khác của khách thì báo 409 "Địa chỉ này đã có trong sổ địa chỉ của khách hàng." Sửa chính địa chỉ đó mà giữ nguyên nội dung thì không bị tính là trùng. |
+| **Nút "Đặt làm địa chỉ mặc định" ở danh sách + `PUT /api/dia-chi/{id}/mac-dinh`** | Đặt mặc định ngay tại danh sách bằng nút ngôi sao, không phải mở form sửa; API riêng chỉ đổi cờ mặc định nên địa chỉ cũ nhập thiếu thông tin vẫn đặt được. |
+| **Địa chỉ cụ thể phải có chữ hoặc số** | Chặn các giá trị như `---`, `...` (báo ngay dưới ô, cả ở form lẫn backend). |
+
+**Không lấy:** lớp kiểm tra `KhachHangRules` / `khachHangValidate.js` chạy song song (báo lỗi một câu chung, tuổi tối thiểu 10, mật khẩu chữ thường, SĐT cho phép +84 / dấu cách) — bản này đã có `QuyTacDuLieu` + `kiemTra.js` báo từng ô, tuổi tối thiểu 15, SĐT đúng 10 số theo yêu cầu của cô; **không cho xóa địa chỉ mặc định** (bản này cho xóa rồi tự chuyển mặc định sang địa chỉ còn lại, tiện hơn); tên / SĐT người nhận để trống thì lấy của khách (bản này bắt nhập rõ, form đã điền sẵn tên + SĐT khách); `KhachHangAdd.vue` và route cũ; danh sách khách hàng bản cũ; **toàn bộ Đợt giảm giá** (bản nhóm tính theo ngày, bản này theo ngày giờ đến phút, chế độ CONG_DON; bản nhóm còn thêm API đổi chế độ chống trùng lúc chạy và kế hoạch sửa TH1/TH2/TH3 — chưa cần); hộp xác nhận xóa địa chỉ bằng `confirm()` của trình duyệt (bản này dùng `ConfirmDialog`); `GIAI_THICH_*.md`, `KIEM_TRA_HOP_NHAT.txt`, `logo.jpg` (như lần trước).
+
+Test thêm: backend +8 (`KhachHangServiceTest` xóa khách, `DiaChiKhachHangControllerTest` giới hạn / trùng / ký tự), giao diện +10 (`frontend/tests/diaChiKhachHangModal.test.js`).
 
 ## Sửa lỗi + case khó từng module (13/10/2026)
 
-Backend chặn thêm các trường hợp trước đây lọt qua (kể cả khi gọi thẳng API, không qua form). Test: `backend/src/test/.../*Test.java` (đến 15/10/2026 là 429 test không cần CSDL, cộng thêm `BackendApplicationTests` cần SQL Server).
+Backend chặn thêm các trường hợp trước đây lọt qua (kể cả khi gọi thẳng API, không qua form). Test: `backend/src/test/.../*Test.java` (đến 16/10/2026 là 449 test không cần CSDL, cộng thêm `BackendApplicationTests` cần SQL Server).
 - **Chung:** tham số sai kiểu (`/api/hoa-don/abc`, `?tuNgay=13-10-2026`) trả 400 kèm câu báo lỗi thay vì 500.
 - **Hóa đơn:** *Từ ngày* sau *Đến ngày* → 400 (giao diện hiện đúng lý do); tìm mã có `%` / `_` không còn bị hiểu là ký tự đại diện; **hủy đơn trả số lượng về tồn kho** của từng biến thể (nhiều dòng cùng biến thể được cộng gộp).
 - **Phiếu giảm giá:** không tặng phiếu cá nhân cho khách đã ngừng hoạt động (khách đã được tặng từ trước thì vẫn giữ); sửa phiếu không được dời ngày kết thúc sang một ngày khác trong quá khứ (giữ nguyên ngày cũ hoặc gia hạn thì được).

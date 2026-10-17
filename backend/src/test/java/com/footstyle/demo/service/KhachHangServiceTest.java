@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
@@ -27,6 +28,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 class KhachHangServiceTest {
 
     private final List<KhachHang> khachs = new ArrayList<>();
+    /** true: giả lập khách đã có hóa đơn / phiếu giảm giá, khóa ngoại làm lệnh xóa thất bại khi flush. */
+    private boolean khoaNgoaiChan = false;
     private final KhachHangService service;
 
     KhachHangServiceTest() {
@@ -35,6 +38,14 @@ class KhachHangServiceTest {
             case "existsBySdtAndIdNot" -> khachs.stream().anyMatch(k -> a[0].equals(k.getSdt()) && !k.getId().equals(a[1]));
             case "existsByMaKhachHang" -> khachs.stream().anyMatch(k -> k.getMaKhachHang().equalsIgnoreCase((String) a[0]));
             case "count" -> (long) khachs.size();
+            case "delete" -> {
+                khachs.remove((KhachHang) a[0]);
+                yield null;
+            }
+            case "flush" -> {
+                if (khoaNgoaiChan) throw new DataIntegrityViolationException("FK_hoa_don_khach_hang");
+                yield null;
+            }
             case "findById" -> khachs.stream().filter(k -> k.getId().equals(a[0])).findFirst();
             case "save" -> {
                 KhachHang k = (KhachHang) a[0];
@@ -385,5 +396,29 @@ class KhachHangServiceTest {
         String mk = service.them(r).getMatKhau();
         assertNotNull(mk);
         assertTrue(mk.startsWith("$2"), "mật khẩu tạm vẫn được băm BCrypt, không lưu chữ thường");
+    }
+
+    // ---------- xóa khách hàng ----------
+    @Test
+    void xoaKhachChuaPhatSinhGiaoDich_xoaDuoc() {
+        KhachHang k = mau();
+        service.xoa(k.getId());
+        assertTrue(khachs.isEmpty());
+    }
+
+    @Test
+    void xoaKhachDaCoHoaDon_baoLoi409DeHieu_khongLoSql() {
+        KhachHang k = mau();
+        khoaNgoaiChan = true;
+        ApiException e = loi(() -> service.xoa(k.getId()));
+        assertEquals(HttpStatus.CONFLICT, e.getStatus());
+        assertEquals(KhachHangService.LOI_XOA_DA_PHAT_SINH, e.getMessage());
+        assertTrue(e.getMessage().contains("Ngừng hoạt động"), "gợi ý cách xử lý thay vì để lộ lỗi khóa ngoại");
+        assertFalse(e.getMessage().toLowerCase().contains("fk_"));
+    }
+
+    @Test
+    void xoaKhachKhongTonTai_baoKhongTim() {
+        assertEquals(HttpStatus.NOT_FOUND, loi(() -> service.xoa(999)).getStatus());
     }
 }

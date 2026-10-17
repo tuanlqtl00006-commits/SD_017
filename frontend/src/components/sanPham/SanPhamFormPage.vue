@@ -49,7 +49,7 @@ const SELECTS = [
   { field: 'idDoCung', slug: 'do-cung', label: 'Độ cứng', chiVot: true }, // chỉ danh mục vợt mới có
   { field: 'idDiemCanBang', slug: 'diem-can-bang', label: 'Điểm cân bằng', chiVot: true }, // chỉ danh mục vợt mới có
 ]
-const THIEU_KHONG_AP_DUNG = 'CSDL chưa có mục "Không áp dụng" (độ cứng, điểm cân bằng, trọng lượng, chu vi). Hãy khởi động lại backend (hoặc chạy database/SD_17_du_lieu_va_nang_cap.sql) rồi tải lại trang.'
+const THIEU_KHONG_AP_DUNG = 'CSDL chưa có mục "Không áp dụng" (độ cứng, điểm cân bằng, trọng lượng, chu vi). Hãy khởi động lại backend (hoặc chạy database/SD_17_2_du_lieu.sql) rồi tải lại trang.'
 
 const TOI_DA_ANH = 10 // giống backend (gồm cả ảnh chính)
 const TOI_DA_MB = 5 // giống backend

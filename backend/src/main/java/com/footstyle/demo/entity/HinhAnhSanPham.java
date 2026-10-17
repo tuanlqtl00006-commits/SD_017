@@ -8,7 +8,7 @@ import lombok.Setter;
  * Bảng hinh_anh_san_pham: một sản phẩm có nhiều ảnh.
  *  - id_mau_sac = NULL: ảnh chung của sản phẩm (đúng một ảnh có la_anh_chinh = 1).
  *  - id_mau_sac = id màu: ảnh của riêng màu đó, dùng cho MỌI biến thể cùng màu (mỗi màu có một ảnh chính).
- * Cột id_mau_sac nằm trong database/SD_17_du_lieu_va_nang_cap.sql (SD_17.sql giữ nguyên); backend cũng tự thêm khi khởi động.
+ * Cột id_mau_sac nằm trong database/SD_17_1_cau_truc.sql (CSDL cũ được thêm cột ở PHẦN 6 của file đó); backend cũng tự thêm khi khởi động.
  */
 @Entity
 @Getter

@@ -7,7 +7,7 @@ import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.DotGiamGiaChiTietRepository;
 import com.footstyle.demo.repository.DotGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -30,8 +30,8 @@ public class DotGiamGiaChiTietController {
     public DotGiamGiaChiTiet addProductToCampaign(@PathVariable Long campaignId, @RequestBody DotGiamGiaChiTiet chiTiet) {
         DotGiamGia campaign = dotGiamGiaRepository.findById(campaignId)
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy đợt giảm giá."));
-        // Đợt đã qua ngày kết thúc thì thêm biến thể cũng không bao giờ được giảm (giống công tắc bật / tắt: so theo NGÀY)
-        if (campaign.getNgayKetThuc() != null && campaign.getNgayKetThuc().toLocalDate().isBefore(LocalDate.now())) {
+        // Đợt đã qua giờ kết thúc thì thêm biến thể cũng không bao giờ được giảm
+        if (campaign.getNgayKetThuc() != null && campaign.getNgayKetThuc().isBefore(LocalDateTime.now())) {
             throw ApiException.conflict("Đợt giảm giá đã kết thúc, không thể thêm sản phẩm.");
         }
         if (chiTiet.getIdSanPhamChiTiet() == null) {

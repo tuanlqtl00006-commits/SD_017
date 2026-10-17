@@ -28,6 +28,8 @@ import {
   soPhutGiua,
 } from '../../utils/ngayGio'
 import { viDuDonHang } from '../../utils/tinhPhieu'
+import { formatPhanTram } from '../../utils/giamGia'
+import { CHE_DO_CHONG_DOT } from '../../constants/dotGiamGia'
 
 const props = defineProps({
   item: { type: Object, default: null }, // null: tạo mới; khi sửa có kèm khachHangs (lấy từ API chi tiết)
@@ -285,6 +287,9 @@ onMounted(async () => {
   }
 })
 
+// Tên dễ hiểu của cách tính đang cấu hình (vd 'Lấy mức cao nhất'), mã cấu hình để trong ngoặc cho người cài đặt đối chiếu
+const tenCheDo = computed(() => CHE_DO_CHONG_DOT[cheDoChongDot.value?.cheDo]?.label || '')
+
 const viDu = reactive({ tienHang: 2000000, phanTramDot: 10 })
 const phieuDangSoan = computed(() => ({
   loaiGiam: form.loaiGiam,
@@ -293,6 +298,13 @@ const phieuDangSoan = computed(() => ({
   donToiThieu: form.donToiThieu === '' ? 0 : Number(form.donToiThieu),
 }))
 const ketQuaViDu = computed(() => viDuDonHang(phieuDangSoan.value, viDu.tienHang, viDu.phanTramDot))
+// "VCH123 (10%, tối đa 200.000 ₫)" - hiện cả trần giảm để người xem hiểu vì sao số tiền giảm dừng ở đó
+const nhanPhieuViDu = computed(() => {
+  const ma = String(form.ma ?? '').trim().toUpperCase()
+  const p = phieuDangSoan.value
+  const giaTri = formatGiaTri(p) + (p.loaiGiam === 'PHAN_TRAM' && p.giamToiDa > 0 ? `, tối đa ${formatMoney(p.giamToiDa)}` : '')
+  return `Phiếu ${ma || 'này'} (${giaTri})`
+})
 // Chỉ tính ví dụ khi các ô giá trị đang hợp lệ (tránh hiện số vô nghĩa như giảm 150%)
 const coGiaTriDeTinh = computed(
   () => Number(form.giaTri) > 0 && !loiTatCa.value.giaTri && !loiTatCa.value.giamToiDa && !loiTatCa.value.donToiThieu,
@@ -597,13 +609,17 @@ function submit() {
           (đơn tối thiểu cũng xét trên số tiền này).
         </li>
         <li data-testid="pgg-che-do">
-          <strong>Nhiều đợt cùng áp cho một biến thể trong cùng thời gian:</strong>
-          <template v-if="cheDoChongDot">{{ cheDoChongDot.moTa }} <span class="pgg-che-do">Cấu hình hiện tại: {{ cheDoChongDot.cheDo }}</span></template>
+          <strong>Nhiều đợt cùng áp cho một biến thể trong cùng thời gian:</strong>{{ ' ' }}
+          <template v-if="cheDoChongDot">
+            {{ cheDoChongDot.moTa }}
+            <span class="pgg-che-do">Đang dùng: {{ tenCheDo || cheDoChongDot.cheDo }}<template v-if="tenCheDo"> ({{ cheDoChongDot.cheDo }})</template></span>
+          </template>
           <template v-else>hệ thống lấy mức giảm cao nhất (không cộng dồn) trừ khi được cấu hình khác ở backend.</template>
         </li>
       </ul>
 
-      <div class="pgg-vi-du" data-testid="pgg-vi-du">
+      <!-- Enter trong ô ví dụ không được lưu phiếu (ô ví dụ nằm trong form phiếu) -->
+      <div class="pgg-vi-du" data-testid="pgg-vi-du" @keydown.enter.prevent>
         <h3 class="pgg-vi-du-tieu-de">Ví dụ với phiếu này</h3>
         <div class="row g-3 align-items-end">
           <div class="col-md-5">
@@ -613,17 +629,21 @@ function submit() {
           <div class="col-md-4">
             <label class="ad-label" for="pgg-vd-dot">Đợt giảm giá đang áp (%)</label>
             <div class="ad-affix">
-              <input id="pgg-vd-dot" v-model.number="viDu.phanTramDot" type="number" min="0" max="100" step="1" class="form-control ad-control has-suffix" aria-label="Phần trăm giảm của đợt giảm giá" />
+              <input id="pgg-vd-dot" v-model.number="viDu.phanTramDot" type="number" min="0" max="100" step="any" class="form-control ad-control has-suffix" aria-label="Phần trăm giảm của đợt giảm giá" />
               <span class="ad-suffix" aria-hidden="true">%</span>
             </div>
           </div>
         </div>
+        <p class="ad-hint mb-0 mt-2" data-testid="pgg-vd-gia-su">
+          Giả sử mọi sản phẩm trong đơn cùng giảm theo một mức đợt. Sản phẩm nằm trong nhiều đợt cùng lúc thì nhập mức đã gộp theo quy tắc ở trên
+          (vd đợt 10% và đợt 15%: cao nhất 15%, cộng dồn 25%, trung bình cộng 12,5%).
+        </p>
         <dl v-if="coGiaTriDeTinh" class="pgg-bang-tinh">
           <div><dt>Tiền hàng</dt><dd>{{ formatMoney(ketQuaViDu.tienHang) }}</dd></div>
-          <div><dt>Giảm theo đợt giảm giá ({{ viDu.phanTramDot || 0 }}%)</dt><dd>− {{ formatMoney(ketQuaViDu.giamDot) }}</dd></div>
-          <div><dt>Tiền hàng sau đợt giảm giá</dt><dd>{{ formatMoney(ketQuaViDu.sauDot) }}</dd></div>
+          <div><dt>Giảm theo đợt giảm giá ({{ formatPhanTram(ketQuaViDu.phanTramDot) }})</dt><dd data-testid="pgg-vd-giam-dot">− {{ formatMoney(ketQuaViDu.giamDot) }}</dd></div>
+          <div><dt>Tiền hàng sau đợt giảm giá</dt><dd data-testid="pgg-vd-sau-dot">{{ formatMoney(ketQuaViDu.sauDot) }}</dd></div>
           <div>
-            <dt>Phiếu {{ String(form.ma).toUpperCase() }} ({{ formatGiaTri(phieuDangSoan) }})</dt>
+            <dt data-testid="pgg-vd-nhan-phieu">{{ nhanPhieuViDu }}</dt>
             <dd v-if="ketQuaViDu.phieu.duDieuKien" data-testid="pgg-vd-giam-phieu">− {{ formatMoney(ketQuaViDu.phieu.giam) }}</dd>
             <dd v-else class="pgg-khong-du" data-testid="pgg-vd-giam-phieu">{{ ketQuaViDu.phieu.lyDo }}</dd>
           </div>

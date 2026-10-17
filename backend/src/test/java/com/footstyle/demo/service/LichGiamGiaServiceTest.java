@@ -219,4 +219,34 @@ class LichGiamGiaServiceTest {
         cheDo = CheDo.TRUNG_BINH;
         assertEquals(12.5, service().giamHomNay().get(1L));
     }
+
+    @Test
+    void giaSauGiamTrenLich_khopGiaSauGiamOFrontend() {
+        // 3 đợt chồng nhau 39% + 40% + 40%, trung bình 39,67%: 5.000 x 60,33% = 3.016,5 -> 3.017 (giống tinhGiaSauGiam ở frontend;
+        // công thức cũ gia * (1 - pt / 100) bị sai số dấu phẩy động nên ra 3.016)
+        bienThe(7, 5_000);
+        DotGiamGia d1 = dot(11, 39, t(1, 0, 0, 0), t(5, 23, 59, 59), 1);
+        DotGiamGia d2 = dot(12, 40, t(1, 0, 0, 0), t(5, 23, 59, 59), 1);
+        DotGiamGia d3 = dot(13, 40, t(1, 0, 0, 0), t(5, 23, 59, 59), 1);
+        chiTiet(d1, 7, 39);
+        chiTiet(d2, 7, 40);
+        chiTiet(d3, 7, 40);
+        cheDo = CheDo.TRUNG_BINH;
+        DoanGiam d = cua(service().lichCuaDot(11L), 7).doan().get(0);
+        assertEquals(39.67, d.phanTramApDung());
+        assertEquals(3_017L, d.giaSauGiam());
+
+        // mọi đoạn, mọi cách tính: giá trên lịch = công thức chung giaSauGiam
+        dungKichBanCuaNhom();
+        for (CheDo c : CheDo.values()) {
+            cheDo = c;
+            for (long idDot : new long[] {1L, 2L, 11L}) {
+                for (LichBienThe b : service().lichCuaDot(idDot)) {
+                    for (DoanGiam x : b.doan()) {
+                        assertEquals(LichGiamGiaService.giaSauGiam(b.giaBan(), x.phanTramApDung()), x.giaSauGiam(), c + " " + b.maSpct() + " " + x);
+                    }
+                }
+            }
+        }
+    }
 }

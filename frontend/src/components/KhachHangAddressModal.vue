@@ -1,354 +1,461 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
-import BaseModal from './common/BaseModal.vue'
-import DiaChiHanhChinhSelect from './common/DiaChiHanhChinhSelect.vue'
+// Cửa sổ quản lý địa chỉ giao hàng của một khách hàng: xem danh sách, xem chi tiết, thêm (tối đa 10 địa chỉ), sửa, xóa,
+// đặt địa chỉ mặc định (nút ngôi sao ngay ở danh sách). Địa chỉ trùng địa chỉ đã có thì backend báo (409).
+// Form địa chỉ kiểm tra từng ô và báo lỗi ngay dưới ô (tên người nhận, SĐT đúng đầu số, tỉnh, phường/xã, địa chỉ cụ thể),
+// khớp backend DiaChiKhachHangController.chuanHoa. Địa chỉ theo đơn vị hành chính SAU sáp nhập (Tỉnh/Thành phố -> Phường/Xã).
+import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../services/api'
+import BaseModal from './common/BaseModal.vue'
+import ConfirmDialog from './common/ConfirmDialog.vue'
+import DiaChiHanhChinhSelect from './common/DiaChiHanhChinhSelect.vue'
+import { ghepDiaChi } from '../utils/diaChi'
+import { SO_DIA_CHI_MAX, cat, chuanHoaHoTen, loiDiaChiCuThe, loiHoTen, loiSdt } from '../utils/kiemTra'
+import { useLoiForm } from '../composables/useLoiForm'
 import { useToast } from '../composables/useToast'
-import {
-  SO_DIA_CHI_MAX, TEN_MAX, DIA_CHI_MAX,
-  chuanHoaKhoangTrang, chuanHoaSdt,
-  kiemTraHoTen, kiemTraSdt, kiemTraTinhThanh, kiemTraPhuongXa, kiemTraDiaChiCuThe,
-} from '../utils/khachHangValidate'
 
-const props = defineProps({
-  customer: {
-    type: Object,
-    required: true
-  }
-})
-
-const emit = defineEmits(['close', 'address-updated'])
 const toast = useToast()
 
+const props = defineProps({
+  customer: { type: Object, required: true },
+})
+const emit = defineEmits(['close', 'address-updated'])
+
 const addresses = ref([])
-const loading = ref(false)
-
-const formData = ref({
-  id: null,
-  tenNguoiNhan: '',
-  sdtNguoiNhan: '',
-  tinhThanhPho: '',
-  quanHuyen: '',
-  phuongXa: '',
-  diaChiCuThe: '',
-  laDiaChiMacDinh: false
-})
-
-const fetchAddresses = async () => {
-  loading.value = true
-  try {
-    const { data } = await api.get(`/dia-chi/khach-hang/${props.customer.id}`)
-    addresses.value = data
-  } catch (error) {
-    console.error(error)
-    toast.error('Không thể tải danh sách địa chỉ!')
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(() => {
-  fetchAddresses()
-})
-
-const ghepDiaChi = (addr) => {
-  if (!addr) return ''
-  const parts = [addr.diaChiCuThe, addr.phuongXa, addr.quanHuyen, addr.tinhThanhPho]
-  return parts.filter(p => p && p.trim() !== '').join(', ')
-}
-
+const dangTai = ref(true)
+const showForm = ref(false)
+const formTitle = ref('')
+const xemDiaChi = ref(null) // địa chỉ đang xem chi tiết (chỉ đọc), null: đang ở danh sách
 const saving = ref(false)
-const busyId = ref(null) // id địa chỉ đang xóa / đặt mặc định, tránh bấm liên tục
-const daDuDiaChi = computed(() => !formData.value.id && addresses.value.length >= SO_DIA_CHI_MAX)
+const idDangDatMacDinh = ref(null) // id địa chỉ đang gọi "đặt mặc định" (chặn bấm liên tục)
+const daDuDiaChi = computed(() => addresses.value.length >= SO_DIA_CHI_MAX)
 
-// Lỗi của từng ô
-const errors = ref({ tenNguoiNhan: '', sdtNguoiNhan: '', tinhThanhPho: '', phuongXa: '', diaChiCuThe: '' })
-const xoaLoi = () => {
-  errors.value = { tenNguoiNhan: '', sdtNguoiNhan: '', tinhThanhPho: '', phuongXa: '', diaChiCuThe: '' }
-}
-watch(() => formData.value.tinhThanhPho, () => { errors.value.tinhThanhPho = '' })
-watch(() => formData.value.phuongXa, () => { errors.value.phuongXa = '' })
-
-const kiemTra = (field) => {
-  const f = formData.value
-  const luat = {
-    // Tên / SĐT người nhận để trống thì lấy của khách hàng, có nhập thì phải hợp lệ
-    tenNguoiNhan: () => (chuanHoaKhoangTrang(f.tenNguoiNhan) ? kiemTraHoTen(f.tenNguoiNhan, 'Tên người nhận') : ''),
-    sdtNguoiNhan: () => (chuanHoaSdt(f.sdtNguoiNhan) ? kiemTraSdt(f.sdtNguoiNhan, 'Số điện thoại người nhận') : ''),
-    tinhThanhPho: () => kiemTraTinhThanh(f.tinhThanhPho),
-    phuongXa: () => kiemTraPhuongXa(f.phuongXa),
-    diaChiCuThe: () => kiemTraDiaChiCuThe(f.diaChiCuThe),
-  }
-  errors.value[field] = luat[field]()
-  return !errors.value[field]
-}
-
-const formTrong = () => ({
+const f = reactive({
   id: null,
   tenNguoiNhan: '',
   sdtNguoiNhan: '',
   tinhThanhPho: '',
-  quanHuyen: '',
   phuongXa: '',
+  quanHuyen: '',
   diaChiCuThe: '',
-  laDiaChiMacDinh: addresses.value.length === 0
+  laDiaChiMacDinh: false,
 })
 
-const huySua = () => {
-  formData.value = formTrong()
-  xoaLoi()
+/* ----- Luật kiểm tra từng ô (cùng câu chữ với backend) ----- */
+function tinhLoi() {
+  if (!showForm.value) return {}
+  const e = {}
+  const ten = loiHoTen(f.tenNguoiNhan, { thieu: 'Vui lòng nhập tên người nhận.', toiDa: 100 })
+  if (ten) e.tenNguoiNhan = ten
+  const sdt = loiSdt(f.sdtNguoiNhan, 'Vui lòng nhập số điện thoại người nhận.')
+  if (sdt) e.sdtNguoiNhan = sdt
+  if (!cat(f.tinhThanhPho)) e.tinhThanhPho = 'Vui lòng chọn Tỉnh/Thành phố.'
+  if (!cat(f.phuongXa)) e.phuongXa = 'Vui lòng chọn Phường/Xã.'
+  const chiTiet = loiDiaChiCuThe(f.diaChiCuThe)
+  if (chiTiet) e.diaChiCuThe = chiTiet
+  return e
+}
+const { loi, cham, sua, batDauGui, datLoiMayChu, focusLoiDau, datLai } = useLoiForm(tinhLoi)
+
+/* ----- Danh sách ----- */
+async function fetchAddresses() {
+  try {
+    const response = await api.get(`/dia-chi/khach-hang/${props.customer.id}`)
+    const ds = [...(response.data || [])]
+    ds.sort((a, b) => Number(!!b.laDiaChiMacDinh) - Number(!!a.laDiaChiMacDinh)) // địa chỉ mặc định lên đầu
+    addresses.value = ds
+  } catch (error) {
+    toast.error(error.message || 'Không tải được danh sách địa chỉ.')
+  } finally {
+    dangTai.value = false
+  }
+}
+onMounted(fetchAddresses)
+
+function moForm(tieuDe, du) {
+  Object.assign(f, du)
+  datLai()
+  formTitle.value = tieuDe
+  xemDiaChi.value = null
+  showForm.value = true
 }
 
-const saveAddress = async () => {
-  if (saving.value) return
+function addNewAddress() {
   if (daDuDiaChi.value) {
     toast.error(`Mỗi khách hàng chỉ lưu tối đa ${SO_DIA_CHI_MAX} địa chỉ. Hãy xóa bớt địa chỉ không dùng.`)
     return
   }
-  const hopLe = Object.keys(errors.value).map(kiemTra).every(Boolean)
-  if (!hopLe) {
-    toast.error('Vui lòng kiểm tra lại các ô được đánh dấu đỏ.')
+  moForm('Thêm địa chỉ mới', {
+    id: null,
+    tenNguoiNhan: props.customer.hoTen || '',
+    sdtNguoiNhan: props.customer.sdt || '',
+    tinhThanhPho: '',
+    phuongXa: '',
+    quanHuyen: '',
+    diaChiCuThe: '',
+    laDiaChiMacDinh: addresses.value.length === 0,
+  })
+}
+
+function viewAddress(addr) {
+  xemDiaChi.value = addr
+}
+
+// Tên tỉnh / phường xã lấy nguyên từ địa chỉ đã lưu. Địa chỉ cũ (trước sáp nhập) không còn trong danh sách mới thì ô chọn vẫn
+// hiện giá trị cũ kèm lời nhắc chọn lại; địa chỉ có Quận/Huyện cũ vẫn được giữ nguyên khi lưu.
+function editAddress(addr) {
+  moForm('Cập nhật địa chỉ', {
+    id: addr.id,
+    tenNguoiNhan: addr.tenNguoiNhan || '',
+    sdtNguoiNhan: addr.sdtNguoiNhan || '',
+    tinhThanhPho: addr.tinhThanhPho || '',
+    phuongXa: addr.phuongXa || '',
+    quanHuyen: addr.quanHuyen || '',
+    diaChiCuThe: addr.diaChiCuThe || '',
+    laDiaChiMacDinh: !!addr.laDiaChiMacDinh,
+  })
+}
+
+function huyForm() {
+  showForm.value = false
+}
+
+async function saveAddress() {
+  if (saving.value) return
+  if (!batDauGui()) {
+    focusLoiDau('#kh-dc-form')
     return
   }
-
-  const ten = chuanHoaKhoangTrang(formData.value.tenNguoiNhan) || props.customer.hoTen || ''
-  const sdt = chuanHoaSdt(formData.value.sdtNguoiNhan) || chuanHoaSdt(props.customer.sdt)
-  // Để trống thì lấy của khách hàng, nhưng dữ liệu khách hàng cũ có thể không hợp lệ -> báo để nhập tay
-  const loiTen = kiemTraHoTen(ten, 'Tên người nhận')
-  const loiSdt = kiemTraSdt(sdt, 'Số điện thoại người nhận')
-  if (loiTen || loiSdt) {
-    errors.value.tenNguoiNhan = loiTen
-    errors.value.sdtNguoiNhan = loiSdt
-    toast.error('Thông tin người nhận của khách hàng chưa hợp lệ, vui lòng nhập tay.')
-    return
+  // Địa chỉ mới (sau sáp nhập) không có Quận/Huyện: chỉ giữ lại quận/huyện cũ khi tỉnh / phường xã vẫn là giá trị cũ chưa đổi
+  const goc = addresses.value.find((a) => a.id === f.id)
+  const giuQuanHuyenCu = goc && goc.tinhThanhPho === f.tinhThanhPho && goc.phuongXa === f.phuongXa
+  const payload = {
+    id: f.id,
+    tenNguoiNhan: chuanHoaHoTen(f.tenNguoiNhan),
+    sdtNguoiNhan: cat(f.sdtNguoiNhan),
+    tinhThanhPho: cat(f.tinhThanhPho),
+    phuongXa: cat(f.phuongXa),
+    quanHuyen: giuQuanHuyenCu ? goc.quanHuyen || '' : '',
+    diaChiCuThe: cat(f.diaChiCuThe),
+    laDiaChiMacDinh: f.laDiaChiMacDinh,
   }
-
   saving.value = true
   try {
-    const payload = {
-      ...formData.value,
-      tenNguoiNhan: ten,
-      sdtNguoiNhan: sdt,
-      diaChiCuThe: chuanHoaKhoangTrang(formData.value.diaChiCuThe),
-    }
-
-    if (payload.id) {
-      await api.put(`/dia-chi/${payload.id}`, payload)
+    if (f.id) {
+      await api.put(`/dia-chi/${f.id}`, payload)
       toast.success('Đã cập nhật địa chỉ.')
     } else {
       await api.post(`/dia-chi/khach-hang/${props.customer.id}`, payload)
       toast.success('Đã thêm địa chỉ mới.')
     }
-
+    showForm.value = false
     await fetchAddresses()
-    // Reset form after saving
-    huySua()
     emit('address-updated')
   } catch (error) {
-    console.error(error)
-    toast.error(error.message || 'Có lỗi xảy ra khi lưu địa chỉ!')
+    // Backend báo lỗi theo từng ô thì gắn xuống đúng ô; không có thì báo chung
+    if (datLoiMayChu(error)) focusLoiDau('#kh-dc-form')
+    else toast.error(error.message || 'Có lỗi xảy ra khi lưu địa chỉ.')
   } finally {
     saving.value = false
   }
 }
 
-const deleteAddress = async (addr) => {
-  if (busyId.value) return
-  if (addr.laDiaChiMacDinh) {
-    toast.error('Không thể xóa địa chỉ mặc định!')
-    return
+/* ----- Đặt mặc định (API riêng, chỉ đổi cờ mặc định nên địa chỉ cũ nhập thiếu thông tin vẫn đặt được) ----- */
+async function datMacDinh(addr) {
+  if (addr.laDiaChiMacDinh || idDangDatMacDinh.value) return
+  idDangDatMacDinh.value = addr.id
+  try {
+    await api.put(`/dia-chi/${addr.id}/mac-dinh`)
+    toast.success('Đã đặt làm địa chỉ mặc định.')
+    await fetchAddresses()
+    emit('address-updated')
+  } catch (error) {
+    toast.error(error.message || 'Không đặt được địa chỉ mặc định.')
+  } finally {
+    idDangDatMacDinh.value = null
   }
-  if (!confirm('Bạn có chắc chắn muốn xóa địa chỉ này không?')) return
-  busyId.value = addr.id
+}
+
+/* ----- Xóa ----- */
+const confirmDelete = ref(null)
+const deleting = ref(false)
+
+async function doDeleteAddress() {
+  const addr = confirmDelete.value
+  if (!addr) return
+  deleting.value = true
   try {
     await api.delete(`/dia-chi/${addr.id}`)
     toast.success('Đã xóa địa chỉ.')
-    // Đang sửa đúng địa chỉ vừa xóa thì đưa form về trạng thái thêm mới
-    if (formData.value.id === addr.id) huySua()
+    confirmDelete.value = null
     await fetchAddresses()
     emit('address-updated')
   } catch (error) {
-    console.error(error)
-    toast.error(error.message || 'Lỗi khi xóa địa chỉ!')
+    toast.error(error.message || 'Không thể xóa địa chỉ này.')
   } finally {
-    busyId.value = null
+    deleting.value = false
   }
 }
 
-const setAsDefault = async (addr) => {
-  if (addr.laDiaChiMacDinh || busyId.value) return
-  busyId.value = addr.id
-  try {
-    // API riêng chỉ đổi mặc định, địa chỉ cũ nhập thiếu thông tin vẫn đặt được
-    await api.put(`/dia-chi/${addr.id}/mac-dinh`)
-    toast.success('Đã thiết lập địa chỉ mặc định.')
-    await fetchAddresses()
-    emit('address-updated')
-  } catch (error) {
-    console.error(error)
-    toast.error(error.message || 'Lỗi khi thiết lập mặc định!')
-  } finally {
-    busyId.value = null
-  }
-}
-
-const editAddress = (addr) => {
-  formData.value = { ...addr }
-  xoaLoi()
-}
+const tieuDe = computed(() => `Địa chỉ của ${props.customer?.hoTen || 'khách hàng'}`)
 </script>
 
 <template>
-  <BaseModal title="" size="xl" @close="emit('close')">
-    <template #header>
-      <div>
-        <div class="d-flex align-items-center gap-2 mb-1">
-          <i class="bi bi-geo-alt text-danger fs-5"></i>
-          <h5 class="fw-bold mb-0 text-dark">Sổ địa chỉ khách hàng</h5>
+  <BaseModal :title="tieuDe" size="lg" :static-backdrop="showForm" @close="emit('close')">
+    <!-- ===== Form thêm / sửa ===== -->
+    <form v-if="showForm" id="kh-dc-form" class="kh-dc-form" novalidate @submit.prevent="saveAddress">
+      <h3 class="kh-dc-form-title">{{ formTitle }}</h3>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="ad-label" for="kh-dc-ten">Tên người nhận <span class="ad-required">*</span></label>
+          <input
+            id="kh-dc-ten"
+            v-model="f.tenNguoiNhan"
+            type="text"
+            class="form-control ad-control"
+            :class="{ 'is-invalid': loi.tenNguoiNhan }"
+            maxlength="100"
+            autocomplete="off"
+            :aria-invalid="!!loi.tenNguoiNhan"
+            aria-describedby="kh-dc-ten-msg"
+            @input="sua('tenNguoiNhan')"
+            @blur="cham('tenNguoiNhan')"
+          />
+          <p v-if="loi.tenNguoiNhan" id="kh-dc-ten-msg" class="ad-error">{{ loi.tenNguoiNhan }}</p>
         </div>
-        <div class="text-muted small ms-4">
-          {{ customer.hoTen }} - {{ customer.sdt || 'Chưa có SĐT' }}
+
+        <div class="col-md-6">
+          <label class="ad-label" for="kh-dc-sdt">Số điện thoại <span class="ad-required">*</span></label>
+          <input
+            id="kh-dc-sdt"
+            v-model="f.sdtNguoiNhan"
+            type="text"
+            inputmode="numeric"
+            class="form-control ad-control"
+            :class="{ 'is-invalid': loi.sdtNguoiNhan }"
+            maxlength="15"
+            autocomplete="off"
+            :aria-invalid="!!loi.sdtNguoiNhan"
+            aria-describedby="kh-dc-sdt-msg"
+            @input="sua('sdtNguoiNhan')"
+            @blur="cham('sdtNguoiNhan')"
+          />
+          <p v-if="loi.sdtNguoiNhan" id="kh-dc-sdt-msg" class="ad-error">{{ loi.sdtNguoiNhan }}</p>
+        </div>
+
+        <!-- Tỉnh/Thành phố -> Phường/Xã theo đơn vị hành chính sau sáp nhập (không còn Quận/Huyện) -->
+        <DiaChiHanhChinhSelect
+          v-model:tinh-thanh="f.tinhThanhPho"
+          v-model:phuong-xa="f.phuongXa"
+          id-prefix="kh-dc"
+          required
+          col-class="col-md-6"
+          select-class="ad-control"
+          label-class="ad-label"
+          :error-tinh="loi.tinhThanhPho"
+          :error-phuong="loi.phuongXa"
+          @update:tinh-thanh="sua('tinhThanhPho')"
+          @update:phuong-xa="sua('phuongXa')"
+        />
+
+        <div class="col-12">
+          <label class="ad-label" for="kh-dc-chi-tiet">Địa chỉ cụ thể <span class="ad-required">*</span></label>
+          <input
+            id="kh-dc-chi-tiet"
+            v-model="f.diaChiCuThe"
+            type="text"
+            class="form-control ad-control"
+            :class="{ 'is-invalid': loi.diaChiCuThe }"
+            maxlength="255"
+            placeholder="Số nhà, tên đường..."
+            autocomplete="off"
+            :aria-invalid="!!loi.diaChiCuThe"
+            aria-describedby="kh-dc-chi-tiet-msg"
+            @input="sua('diaChiCuThe')"
+            @blur="cham('diaChiCuThe')"
+          />
+          <p v-if="loi.diaChiCuThe" id="kh-dc-chi-tiet-msg" class="ad-error">{{ loi.diaChiCuThe }}</p>
+        </div>
+
+        <div class="col-12">
+          <div class="form-check">
+            <input id="kh-dc-mac-dinh" v-model="f.laDiaChiMacDinh" class="form-check-input" type="checkbox" />
+            <label class="form-check-label" for="kh-dc-mac-dinh">Đặt làm địa chỉ mặc định</label>
+          </div>
         </div>
       </div>
-    </template>
 
-    <div class="row g-4">
-      <!-- Left Column: Address List -->
-      <div class="col-md-6">
-        <div class="card border-0 shadow-sm rounded-3 h-100">
-          <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-            <h6 class="fw-bold mb-0"><i class="bi bi-list-ul me-2"></i> Danh sách địa chỉ <span class="text-muted fw-normal small">({{ addresses.length }}/{{ SO_DIA_CHI_MAX }})</span></h6>
-          </div>
-          <div class="card-body p-0">
-            <div v-if="loading" class="text-center py-4">
-              <span class="spinner-border text-primary" role="status"></span>
-            </div>
-            <div v-else-if="addresses.length > 0" class="mt-3">
-              <table class="table align-middle mb-0" style="font-size: 0.9rem;">
-                <thead>
-                  <tr class="text-muted" style="border-bottom: 2px solid #dee2e6;">
-                    <th class="ps-3 border-0 pb-2" style="width: 50px;">STT</th>
-                    <th class="border-0 pb-2">Địa chỉ</th>
-                    <th class="pe-3 border-0 pb-2 text-end" style="width: 120px; white-space: nowrap;">Mặc định</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(addr, index) in addresses" :key="addr.id" class="border-bottom">
-                    <td class="ps-3 py-3">{{ index + 1 }}</td>
-                    <td class="py-3">
-                      <div class="fw-medium text-dark mb-1">{{ ghepDiaChi(addr) }}</div>
-                      <div class="text-muted small">Người nhận: {{ addr.tenNguoiNhan }} - SĐT: {{ addr.sdtNguoiNhan }}</div>
-                      
-                      <!-- Hidden actions on hover -->
-                      <div class="mt-2 address-actions">
-                        <button class="btn btn-sm btn-link text-primary p-0 me-3 text-decoration-none" @click="editAddress(addr)">Cập nhật</button>
-                        <button v-if="!addr.laDiaChiMacDinh" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" :disabled="!!busyId" @click="deleteAddress(addr)">Xóa</button>
-                      </div>
-                    </td>
-                    <td class="pe-3 py-3 text-end">
-                      <span v-if="addr.laDiaChiMacDinh" class="badge bg-danger bg-opacity-10 text-danger rounded-pill d-inline-flex align-items-center justify-content-center m-0" style="width: 85px; height: 30px; font-size: 0.8rem; font-weight: 500;">Mặc định</span>
-                      <button v-else class="btn btn-outline-secondary rounded-pill d-inline-flex align-items-center justify-content-center m-0" style="width: 85px; height: 30px; font-size: 0.8rem; font-weight: 500; padding: 0;" :disabled="!!busyId" @click="setAsDefault(addr)">Thiết lập</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div v-else class="text-center py-5 text-muted">
-              Khách hàng chưa có địa chỉ nào.
-            </div>
-          </div>
-        </div>
+      <div class="kh-dc-form-actions">
+        <button type="button" class="ad-btn" :disabled="saving" @click="huyForm">Hủy</button>
+        <button type="submit" class="ad-btn ad-btn-primary" :disabled="saving">
+          <span v-if="saving" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          Lưu địa chỉ
+        </button>
       </div>
+    </form>
 
-      <!-- Right Column: Add/Edit Form -->
-      <div class="col-md-6">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-white" style="border: 1px solid #e9ecef !important;">
-          <div class="card-header bg-white border-bottom-0 pt-3 pb-2">
-            <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-cursor me-2"></i> {{ formData.id ? 'Cập nhật địa chỉ' : 'Thêm nhanh địa chỉ' }}</h6>
-          </div>
-          <div class="card-body">
-            <div class="row g-3">
-              <div v-if="daDuDiaChi" class="col-12">
-                <div class="alert alert-warning py-2 px-3 small mb-0">
-                  Khách hàng đã có đủ {{ SO_DIA_CHI_MAX }} địa chỉ. Hãy xóa bớt địa chỉ không dùng để thêm mới.
-                </div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label small text-muted mb-1">Họ tên người nhận</label>
-                <input type="text" class="form-control form-control-sm ad-input" :class="{ 'is-invalid': errors.tenNguoiNhan }" v-model="formData.tenNguoiNhan" placeholder="Lấy tên KH nếu trống" :maxlength="TEN_MAX + 20" @input="errors.tenNguoiNhan = ''" @blur="kiemTra('tenNguoiNhan')">
-                <small v-if="errors.tenNguoiNhan" class="text-danger d-block mt-1">{{ errors.tenNguoiNhan }}</small>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label small text-muted mb-1">Số điện thoại</label>
-                <input type="text" class="form-control form-control-sm ad-input" :class="{ 'is-invalid': errors.sdtNguoiNhan }" v-model="formData.sdtNguoiNhan" placeholder="Lấy SĐT KH nếu trống" maxlength="20" @input="errors.sdtNguoiNhan = ''" @blur="kiemTra('sdtNguoiNhan')">
-                <small v-if="errors.sdtNguoiNhan" class="text-danger d-block mt-1">{{ errors.sdtNguoiNhan }}</small>
-              </div>
-              
-              <DiaChiHanhChinhSelect
-                v-model:tinhThanh="formData.tinhThanhPho"
-                v-model:phuongXa="formData.phuongXa"
-                required
-                select-class="form-select form-select-sm ad-input"
-                :invalid-tinh="!!errors.tinhThanhPho"
-                :invalid-phuong="!!errors.phuongXa"
-              />
-              <div v-if="errors.tinhThanhPho || errors.phuongXa" class="col-12 mt-1">
-                <small class="text-danger d-block">{{ errors.tinhThanhPho || errors.phuongXa }}</small>
-              </div>
-              
-              <div class="col-12 mt-3">
-                <label class="form-label small text-muted mb-1">Địa chỉ cụ thể <span class="text-danger">*</span></label>
-                <input type="text" class="form-control form-control-sm ad-input" :class="{ 'is-invalid': errors.diaChiCuThe }" v-model="formData.diaChiCuThe" placeholder="Số nhà, đường..." :maxlength="DIA_CHI_MAX + 20" @input="errors.diaChiCuThe = ''" @blur="kiemTra('diaChiCuThe')">
-                <small v-if="errors.diaChiCuThe" class="text-danger d-block mt-1">{{ errors.diaChiCuThe }}</small>
-              </div>
-              
-              <div class="col-12 mt-2">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="defaultAddressCb" v-model="formData.laDiaChiMacDinh" :disabled="addresses.length === 0">
-                  <label class="form-check-label small text-muted" for="defaultAddressCb">
-                    Đặt làm địa chỉ mặc định
-                  </label>
-                </div>
-              </div>
-              
-              <div class="col-12 mt-4 d-flex gap-2">
-                <button v-if="formData.id" class="btn btn-sm btn-light flex-grow-1" :disabled="saving" @click="huySua">Hủy</button>
-                <button class="btn btn-sm btn-primary text-white flex-grow-1" :disabled="saving || daDuDiaChi" @click="saveAddress">
-                  {{ saving ? 'Đang lưu...' : (formData.id ? 'Cập nhật' : 'Thêm nhanh') }}
+    <!-- ===== Xem chi tiết một địa chỉ (chỉ đọc) ===== -->
+    <div v-else-if="xemDiaChi" class="kh-dc-form" data-testid="xem-dia-chi">
+      <h3 class="kh-dc-form-title">
+        Chi tiết địa chỉ
+        <span v-if="xemDiaChi.laDiaChiMacDinh" class="ad-pill ad-pill-green">Mặc định</span>
+      </h3>
+      <dl class="ad-dl">
+        <div><dt>Tên người nhận</dt><dd>{{ xemDiaChi.tenNguoiNhan || '—' }}</dd></div>
+        <div><dt>Số điện thoại</dt><dd>{{ xemDiaChi.sdtNguoiNhan || '—' }}</dd></div>
+        <div><dt>Tỉnh/Thành phố</dt><dd>{{ xemDiaChi.tinhThanhPho || '—' }}</dd></div>
+        <div v-if="xemDiaChi.quanHuyen"><dt>Quận/Huyện (cũ)</dt><dd>{{ xemDiaChi.quanHuyen }}</dd></div>
+        <div><dt>Phường/Xã</dt><dd>{{ xemDiaChi.phuongXa || '—' }}</dd></div>
+        <div><dt>Địa chỉ cụ thể</dt><dd>{{ xemDiaChi.diaChiCuThe || '—' }}</dd></div>
+        <div class="ad-dl-full"><dt>Địa chỉ đầy đủ</dt><dd>{{ ghepDiaChi(xemDiaChi) || '—' }}</dd></div>
+      </dl>
+      <div class="kh-dc-form-actions">
+        <button type="button" class="ad-btn" @click="xemDiaChi = null">Quay lại</button>
+        <button type="button" class="ad-btn ad-btn-primary" @click="editAddress(xemDiaChi)">Sửa địa chỉ</button>
+      </div>
+    </div>
+
+    <!-- ===== Danh sách ===== -->
+    <div v-else>
+      <div v-if="dangTai" class="ad-empty">Đang tải địa chỉ…</div>
+      <template v-else>
+        <div v-if="addresses.length" class="kh-dc-list">
+          <article v-for="addr in addresses" :key="addr.id" class="kh-dc-item" :class="{ 'is-mac-dinh': addr.laDiaChiMacDinh }">
+            <div class="kh-dc-item-head">
+              <h3 class="kh-dc-item-ten">
+                {{ addr.tenNguoiNhan }}
+                <span v-if="addr.laDiaChiMacDinh" class="ad-pill ad-pill-green">Mặc định</span>
+              </h3>
+              <div class="ad-actions">
+                <button
+                  v-if="!addr.laDiaChiMacDinh"
+                  type="button"
+                  class="ad-icon-btn"
+                  title="Đặt làm địa chỉ mặc định"
+                  :aria-label="`Đặt địa chỉ của ${addr.tenNguoiNhan} làm mặc định`"
+                  :disabled="!!idDangDatMacDinh"
+                  @click="datMacDinh(addr)"
+                >
+                  <i class="bi bi-star" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="ad-icon-btn" title="Xem chi tiết" :aria-label="`Xem địa chỉ của ${addr.tenNguoiNhan}`" @click="viewAddress(addr)">
+                  <i class="bi bi-eye" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="ad-icon-btn" title="Sửa địa chỉ" :aria-label="`Sửa địa chỉ của ${addr.tenNguoiNhan}`" @click="editAddress(addr)">
+                  <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="ad-icon-btn is-danger" title="Xóa địa chỉ" :aria-label="`Xóa địa chỉ của ${addr.tenNguoiNhan}`" @click="confirmDelete = addr">
+                  <i class="bi bi-trash" aria-hidden="true"></i>
                 </button>
               </div>
             </div>
-          </div>
+            <p class="kh-dc-item-dong">{{ addr.sdtNguoiNhan }}</p>
+            <p class="kh-dc-item-dong">{{ ghepDiaChi(addr) }}</p>
+          </article>
         </div>
-      </div>
+        <p v-else class="kh-dc-trong">Khách hàng chưa có địa chỉ nào.</p>
+
+        <button type="button" class="kh-dc-them" :disabled="daDuDiaChi" @click="addNewAddress">
+          <i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm địa chỉ mới
+        </button>
+        <p v-if="daDuDiaChi" class="kh-dc-gioi-han" role="status">
+          Khách hàng đã có đủ {{ SO_DIA_CHI_MAX }} địa chỉ. Hãy xóa bớt địa chỉ không dùng để thêm mới.
+        </p>
+      </template>
     </div>
   </BaseModal>
+
+  <ConfirmDialog
+    v-if="confirmDelete"
+    title="Xóa địa chỉ"
+    message="Bạn có chắc chắn muốn xóa địa chỉ này không?"
+    confirm-text="Xóa"
+    variant="danger"
+    :loading="deleting"
+    @confirm="doDeleteAddress"
+    @cancel="confirmDelete = null"
+  />
 </template>
 
 <style scoped>
-.address-actions {
-  opacity: 0;
-  transition: opacity 0.2s;
+.kh-dc-list {
+  display: grid;
+  gap: 0.75rem;
 }
-tr:hover .address-actions {
-  opacity: 1;
+.kh-dc-item {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--fs-line, #e6eaf0);
+  border-radius: 14px;
+  background: #fff;
 }
-.ad-input {
-  border-radius: 6px;
-  border: 1px solid #ced4da;
-  padding: 0.4rem 0.75rem;
+.kh-dc-item.is-mac-dinh {
+  border-color: #86d3a3;
+  background: #f6fcf8;
 }
-.ad-input:focus {
-  border-color: #86b7fe;
-  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+.kh-dc-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
-.ad-input.is-invalid {
-  border-color: #dc3545;
-  background-color: #fff8f8;
+.kh-dc-item-ten {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
-select:disabled {
-  background-color: #f8f9fa !important;
-  opacity: 1 !important;
-  color: #6c757d !important;
+.kh-dc-item-dong {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+  color: var(--fs-muted, #5b6573);
+}
+.kh-dc-trong {
+  margin: 0 0 1rem;
+  padding: 1.25rem 0;
+  text-align: center;
+  color: var(--fs-muted, #5b6573);
+}
+.kh-dc-them {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.8rem;
+  border: 2px dashed #d5dce6;
+  border-radius: 14px;
+  background: #f8fafc;
+  font-weight: 600;
+  color: #4b5563;
+}
+.kh-dc-them:hover {
+  border-color: var(--fs-primary, #0977ec);
+  color: var(--fs-primary-dark, #075fc0);
+  background: var(--fs-primary-soft, #e7f1fd);
+}
+.kh-dc-them:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: #d5dce6;
+  color: #6b7280;
+  background: #f8fafc;
+}
+.kh-dc-gioi-han {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #92400e;
+}
+.kh-dc-form-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.kh-dc-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
 }
 </style>

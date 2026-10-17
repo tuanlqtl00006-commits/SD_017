@@ -77,6 +77,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleDataAccess(DataAccessException ex) {
         log.error("Lỗi truy cập CSDL", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("message", "Lỗi cơ sở dữ liệu. Hãy chạy database/SD_17_du_lieu_va_nang_cap.sql (hoặc khởi động lại backend) rồi thử lại."));
+                .body(Map.of("message", "Lỗi cơ sở dữ liệu. Hãy chạy database/SD_17_1_cau_truc.sql rồi database/SD_17_2_du_lieu.sql (hoặc khởi động lại backend) rồi thử lại."));
     }
 }

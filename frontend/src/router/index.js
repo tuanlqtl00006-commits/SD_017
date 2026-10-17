@@ -70,7 +70,7 @@ const routes = [
       {
         path: 'khach-hang/them',
         name: 'khach-hang-them',
-        component: () => import('../components/KhachHangAdd.vue'),
+        component: () => import('../components/khachHang/KhachHangFormPage.vue'),
         meta: { parent: 'Khách hàng', parentTo: '/khach-hang', title: 'Thêm khách hàng' },
       },
       {

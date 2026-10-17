@@ -21,7 +21,7 @@ public class VaiTro {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
-    /** Tên vai trò dùng để nhận biết tài khoản quản lý (khớp dữ liệu mẫu trong database/SD_17_du_lieu_va_nang_cap.sql). */
+    /** Tên vai trò dùng để nhận biết tài khoản quản lý (khớp dữ liệu mẫu trong database/SD_17_2_du_lieu.sql). */
     public static final String TEN_QUAN_LY = "Quản lý";
     public static final String TEN_NHAN_VIEN = "Nhân viên";
 

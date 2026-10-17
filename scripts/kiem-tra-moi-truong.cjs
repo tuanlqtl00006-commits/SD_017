@@ -178,7 +178,7 @@ async function kiemTraSqlServer(moiTruong, noiDungProperties, thu = thuNoiTcp) {
     loi: [],
     canhBao: [
       'Backend se khong len duoc cho toi khi SQL Server san sang: bat dich vu SQL Server, bat TCP/IP cong 1433 trong "SQL Server Configuration Manager" ' +
-        '(ban Express mac dinh tat TCP/IP), da chay database/SD_17.sql va database/SD_17_du_lieu_va_nang_cap.sql, dung tai khoan / mat khau trong ' +
+        '(ban Express mac dinh tat TCP/IP), da chay database/SD_17_1_cau_truc.sql va database/SD_17_2_du_lieu.sql, dung tai khoan / mat khau trong ' +
         'backend/src/main/resources/application.properties (hoac bien DB_URL, DB_USERNAME, DB_PASSWORD).',
     ],
   }

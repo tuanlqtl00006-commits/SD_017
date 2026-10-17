@@ -178,7 +178,7 @@ public class LichGiamGiaService {
             double congDon = Math.min(100, tong);
             double apDung = cheDo == CheDo.TRUNG_BINH ? trungBinh : cheDo == CheDo.CONG_DON ? congDon : cao;
             long gia = giaBan == null ? 0 : giaBan;
-            long giaSau = Math.round(gia * (1 - apDung / 100.0));
+            long giaSau = giaSauGiam(gia, apDung);
 
             // Đoạn liền kề có cùng tập đợt (và cùng mức giảm) thì gộp lại cho gọn
             DoanGiam truoc = ketQua.isEmpty() ? null : ketQua.get(ketQua.size() - 1);
@@ -189,6 +189,17 @@ public class LichGiamGiaService {
             }
         }
         return ketQua;
+    }
+
+    /**
+     * Giá sau giảm của một biến thể, làm tròn tới đồng (.5 làm tròn lên). Cùng công thức với frontend tinhGiaSauGiam
+     * (danh sách sản phẩm / biến thể, ví dụ trên form phiếu và form đợt giảm giá) nên số trên lịch khớp từng đồng.
+     * Vd 2.500.000 giảm 15% -> 2.125.000; giảm 12,5% -> 2.187.500; 5.000 giảm 39,67% -> 3.017.
+     */
+    static long giaSauGiam(long giaBan, double phanTram) {
+        if (phanTram <= 0) return giaBan;
+        if (phanTram >= 100) return 0;
+        return Math.round((giaBan * (100 - phanTram)) / 100);
     }
 
     private boolean cungTapDot(List<DotTrongDoan> a, List<DotTrongDoan> b) {

@@ -11,7 +11,7 @@ import { nhanDienVanChuyen } from './vanChuyen'
 
 /** Thoát ký tự HTML: dữ liệu khách nhập (tên, địa chỉ, ghi chú...) không được chèn được thẻ vào bản in. */
 export const esc = (v) =>
-    String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+  String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
 const money = (v) => formatMoney(v ?? 0)
 const LOAI_PHAN_TRAM = 1 // khớp PhieuGiamGia.LOAI_PHAN_TRAM bên backend
@@ -51,8 +51,8 @@ export function htmlVanChuyen(tenDonVi, goc = '') {
   if (!dv) return '—'
   if (!dv.logo) return `<span class="vc-badge">${esc(dv.ten)}</span>`
   return `<span class="vc-logo-wrap"><img class="vc-logo" src="${esc(goc + dv.logo)}" alt="Logo ${esc(dv.ma)}" `
-      + `onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'">`
-      + `<span class="vc-badge" style="display:none">${esc(dv.ma)}</span></span> <span class="vc-ten">${esc(dv.ten)}</span>`
+    + `onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'">`
+    + `<span class="vc-badge" style="display:none">${esc(dv.ma)}</span></span> <span class="vc-ten">${esc(dv.ten)}</span>`
 }
 
 const CSS = `
@@ -108,18 +108,18 @@ export function taoHtmlHoaDon({ hd = {}, khach = {}, giao = {}, sanPham = [], da
 
   // Khách lẻ (không gắn hồ sơ khách hàng) chỉ ghi "Khách vãng lai": không SĐT, không email
   const thongTinKhach = khach.khachLe && !khach.sdt
-      ? `<p><b>Tên:</b> ${esc(khach.ten || 'Khách vãng lai')}</p><p class="m">Khách lẻ, không lưu số điện thoại.</p>`
-      : `<p><b>Tên:</b> ${esc(khach.ten || '—')}</p>
+    ? `<p><b>Tên:</b> ${esc(khach.ten || 'Khách vãng lai')}</p><p class="m">Khách lẻ, không lưu số điện thoại.</p>`
+    : `<p><b>Tên:</b> ${esc(khach.ten || '—')}</p>
         <p><b>SĐT:</b> ${esc(khach.sdt || '—')}</p>
         <p><b>Email:</b> ${esc(khach.email || '—')}</p>`
 
   // Đơn tại quầy: nhận hàng ngay tại cửa hàng, không có người nhận / địa chỉ / đơn vị vận chuyển
   const phanGiaoHang = laGiaoHang
-      ? `<p><b>Người nhận:</b> ${esc(giao.hoTenNguoiNhan || khach.ten)}</p>
+    ? `<p><b>Người nhận:</b> ${esc(giao.hoTenNguoiNhan || khach.ten)}</p>
        <p><b>SĐT nhận:</b> ${esc(giao.sdtNguoiNhan || '—')}</p>
        <p><b>Địa chỉ:</b> ${esc(giao.diaChi || '—')}</p>
        <p class="vc-dong"><b>Vận chuyển:</b> ${htmlVanChuyen(hd.donViVanChuyen, goc)}</p>`
-      : '<p>Nhận hàng tại cửa hàng</p>'
+    : '<p>Nhận hàng tại cửa hàng</p>'
 
   const conPhaiTra = Math.max(0, Number(hd.thanhTien ?? 0) - Number(daThanhToan ?? 0))
   const qr = qrUrl ? `<img class="qr" src="${qrUrl}" alt="QR ${esc(hd.maHoaDon)}">` : ''

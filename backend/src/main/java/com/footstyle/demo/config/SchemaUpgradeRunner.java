@@ -17,10 +17,11 @@ import org.springframework.stereotype.Component;
 /**
  * Tự bổ sung phần còn thiếu của CSDL cũ khi backend khởi động (chạy lại nhiều lần vẫn an toàn).
  *
- * Vì sao cần: nếu CSDL được tạo từ bản SD_17.sql cũ thì bảng nhan_vien chưa có cột can_cuoc_cong_dan và chưa có
+ * Vì sao cần: nếu CSDL được tạo từ file SQL bản cũ thì bảng nhan_vien chưa có cột can_cuoc_cong_dan và chưa có
  * bảng dia_chi_nhan_vien. Khi đó mọi câu truy vấn có đọc nhan_vien (danh sách nhân viên,
  * danh sách hóa đơn...) báo lỗi "Invalid column name 'can_cuoc_cong_dan'". Các lệnh dưới đây giống hệt phần
- * tương ứng trong database/SD_17_du_lieu_va_nang_cap.sql; CSDL đã đủ cột / bảng thì không có gì thay đổi.
+ * tương ứng trong database/SD_17_1_cau_truc.sql (bảng / cột / chỉ mục) và database/SD_17_2_du_lieu.sql (dữ liệu);
+ * CSDL đã đủ cột / bảng thì không có gì thay đổi (FileSqlTest kiểm tra hai bên không lệch).
  *
  * Mỗi lệnh chạy riêng (không gộp batch) vì SQL Server không cho dùng cột vừa ALTER ADD
  * ở cùng một batch (tạo chỉ mục theo cột can_cuoc_cong_dan phải nằm ở lệnh sau).
@@ -109,7 +110,7 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
                     + "CREATE UNIQUE INDEX ux_khach_hang_sdt ON khach_hang (sdt) WHERE sdt IS NOT NULL AND sdt <> ''",
             // Hóa đơn: đơn TẠI QUẦY (loai_hoa_don = 1) nhận hàng ngay ở cửa hàng nên không có phí vận chuyển / đơn vị vận chuyển
             // (cô: "tại quầy sao lại có phí vận chuyển"). Dọn dữ liệu cũ còn sót; thành tiền trừ lại phần phí đã cộng, không để âm.
-            // Giống hệt PHẦN 8.1 trong database/SD_17_du_lieu_va_nang_cap.sql (SchemaUpgradeRunnerHoaDonTest kiểm tra hai bên không lệch).
+            // Giống hệt mục 4.2 trong database/SD_17_2_du_lieu.sql (SchemaUpgradeRunnerHoaDonTest kiểm tra hai bên không lệch).
             "UPDATE hoa_don SET thanh_tien = CASE WHEN thanh_tien > ISNULL(phi_van_chuyen, 0) THEN thanh_tien - ISNULL(phi_van_chuyen, 0) ELSE 0 END, "
                     + "phi_van_chuyen = 0, don_vi_van_chuyen = NULL "
                     + "WHERE loai_hoa_don = 1 AND (ISNULL(phi_van_chuyen, 0) <> 0 OR don_vi_van_chuyen IS NOT NULL)");
@@ -148,8 +149,8 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
                 // Lệnh INSERT cần QUOTED_IDENTIFIER ON khi bảng có chỉ mục lọc; JDBC mặc định đã bật.
                 jdbc.execute(sql);
             } catch (Exception ex) {
-                // Không làm backend chết: ghi log để người chạy biết cần chạy tay database/SD_17_du_lieu_va_nang_cap.sql.
-                log.warn("Không tự nâng cấp được CSDL ({}). Hãy chạy tay database/SD_17_du_lieu_va_nang_cap.sql. Lệnh: {}",
+                // Không làm backend chết: ghi log để người chạy biết cần chạy tay 2 file SQL trong thư mục database.
+                log.warn("Không tự nâng cấp được CSDL ({}). Hãy chạy tay database/SD_17_1_cau_truc.sql rồi database/SD_17_2_du_lieu.sql. Lệnh: {}",
                         ex.getMessage(), sql);
             }
         }

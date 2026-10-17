@@ -29,6 +29,10 @@ export const LOI_SDT = 'Số điện thoại gồm 10 chữ số, bắt đầu b
 export const LOI_EMAIL = 'Email chưa đúng định dạng, ví dụ: ten@gmail.com.'
 export const LOI_HO_TEN_KY_TU = 'Họ tên chỉ gồm chữ cái và khoảng trắng, không có chữ số hay ký tự đặc biệt.'
 export const LOI_CCCD = 'Số căn cước công dân gồm đúng 12 chữ số.'
+export const LOI_DIA_CHI_CHI_TIET_CHU_SO = 'Địa chỉ cụ thể phải có chữ hoặc số (ví dụ: 12 Trần Phú).'
+
+// Mỗi khách hàng lưu tối đa bấy nhiêu địa chỉ giao hàng (cùng giá trị với backend DiaChiKhachHangController.SO_DIA_CHI_MAX)
+export const SO_DIA_CHI_MAX = 10
 
 /** Dòng hướng dẫn đặt dưới ô Ngày sinh (có căn cứ pháp lý). */
 export const HUONG_DAN_TUOI_KHACH = `Khách hàng phải từ đủ ${TUOI_KHACH_TOI_THIEU} tuổi (Bộ luật Dân sự 2015, Điều 21 khoản 4: từ đủ 15 tuổi tự xác lập giao dịch mua bán thông thường). Có thể bỏ trống.`
@@ -127,6 +131,15 @@ export function loiEmail(giaTri, { thieu = 'Vui lòng nhập email.', dinhDang =
 }
 
 /** Số căn cước (không bắt buộc): để trống thì hợp lệ, đã nhập thì phải đủ 12 chữ số. */
+/** Địa chỉ cụ thể (số nhà, tên đường...): bắt buộc, tối đa 255 ký tự và phải có ít nhất một chữ cái hoặc chữ số (không chỉ toàn dấu như "---"). */
+export function loiDiaChiCuThe(giaTri) {
+  const v = cat(giaTri)
+  if (!v) return 'Vui lòng nhập địa chỉ cụ thể (số nhà, tên đường...).'
+  if (v.length > 255) return 'Địa chỉ cụ thể tối đa 255 ký tự.'
+  if (!/[\p{L}\p{Nd}]/u.test(v)) return LOI_DIA_CHI_CHI_TIET_CHU_SO
+  return ''
+}
+
 export function loiCccd(giaTri) {
   const so = cat(giaTri)
   if (!so) return ''

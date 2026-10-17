@@ -9,16 +9,15 @@ import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.DotGiamGiaChiTietRepository;
 import com.footstyle.demo.repository.DotGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
-import com.footstyle.demo.service.DotCapNhatKeHoach;
 import com.footstyle.demo.service.GiamGiaApDungService;
 import com.footstyle.demo.service.LichGiamGiaService;
 import com.footstyle.demo.service.MaUtil;
+import com.footstyle.demo.service.ThoiGianPhut;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -45,7 +44,7 @@ public class DotGiamGiaController {
     private final DotGiamGiaChiTietRepository chiTietRepository;
     private final SanPhamChiTietRepository sanPhamChiTietRepository;
     private final LichGiamGiaService lichGiamGiaService;
-    private final GiamGiaApDungService giamGiaApDungService; // chế độ gộp khi đợt chồng nhau (MAX / TRUNG_BINH)
+    private final GiamGiaApDungService giamGiaApDungService; // chế độ gộp khi đợt chồng nhau (MAX / CONG_DON / TRUNG_BINH)
 
     /** Mới nhất lên đầu (đợt vừa thêm nằm trên cùng). */
     @GetMapping
@@ -76,25 +75,20 @@ public class DotGiamGiaController {
         return new GiamGiaApDungResponse(giamGiaApDungService.cheDo().name(), muc);
     }
 
-    /** Đọc hoặc đổi cách tính khi biến thể nằm trong nhiều đợt chồng ngày nhau: MAX (lấy mức cao nhất) hoặc TRUNG_BINH (trung bình cộng). */
-    @GetMapping("/che-do-chong-dot")
-    public Map<String, String> layCheDoChongDot() {
-        return Map.of("cheDo", giamGiaApDungService.cheDo().name());
+    /** Cách gộp khi nhiều đợt chồng nhau đang cấu hình ở backend: { cheDo: "MAX" | "CONG_DON" | "TRUNG_BINH", moTa } (form phiếu / đợt hiển thị cho người dùng). */
+    @GetMapping("/che-do")
+    public Map<String, String> cheDo() {
+        var cheDo = giamGiaApDungService.cheDo();
+        return Map.of("cheDo", cheDo.name(), "moTa", cheDo.moTa());
     }
 
-    @PutMapping("/che-do-chong-dot")
-    public Map<String, String> doiCheDoChongDot(@RequestBody(required = false) Map<String, String> body) {
-        String raw = body == null ? null : body.getOrDefault("cheDo", body.get("chinhSach"));
-        return Map.of("cheDo", giamGiaApDungService.doiCheDo(raw).name());
-    }
-
-    /** Mức giảm đang áp dụng HÔM NAY của từng biến thể: { "idBienThe": phần trăm }. Nhiều đợt chồng nhau thì gộp theo MAX / TRUNG_BINH (application.properties). */
+    /** Mức giảm đang áp dụng NGAY LÚC NÀY (tính tới giờ phút) của từng biến thể: { "idBienThe": phần trăm }. Nhiều đợt chồng nhau thì gộp theo MAX / CONG_DON / TRUNG_BINH (application.properties). */
     @GetMapping("/ap-dung-hom-nay")
     public Map<Long, Double> apDungHomNay() {
         return lichGiamGiaService.giamHomNay();
     }
 
-    /** Lịch giảm giá theo khoảng ngày của từng biến thể trong đợt (có tính các đợt khác chồng lên). */
+    /** Lịch giảm giá theo khoảng ngày giờ của từng biến thể trong đợt (có tính các đợt khác chồng lên). */
     @GetMapping("/{id}/lich-giam-gia")
     public List<LichGiamGiaService.LichBienThe> lichGiamGia(@PathVariable Long id) {
         return lichGiamGiaService.lichCuaDot(id);
@@ -114,9 +108,12 @@ public class DotGiamGiaController {
         if (req.idBienThe() == null || req.idBienThe().isEmpty()) {
             throw ApiException.badRequest("Vui lòng chọn ít nhất một biến thể sản phẩm áp dụng.");
         }
+        kiemTraThoiGian(req, null, true);
         String ma = req.maDot() == null ? "" : req.maDot().trim().toUpperCase(Locale.ROOT);
         if (ma.isEmpty()) {
             ma = sinhMa();
+        } else if (!ma.matches("[A-Z0-9_-]{2,20}")) {
+            throw ApiException.badRequest("Mã đợt gồm 2-20 ký tự chữ, số, gạch ngang hoặc gạch dưới, không dấu, không khoảng trắng.");
         } else if (dotGiamGiaRepository.existsByMaDot(ma)) {
             throw ApiException.conflict("Mã đợt giảm giá đã tồn tại. Hãy bấm làm mới để lấy mã khác.");
         }
@@ -133,10 +130,8 @@ public class DotGiamGiaController {
 
     /**
      * Sửa đợt giảm giá (không đổi mã). Có gửi idBienThe thì đồng bộ luôn danh sách biến thể áp dụng.
-     * Xử lý theo switch-case tương tự Phiếu giảm giá (xem DotCapNhatKeHoach, không gửi mail):
-     *  - TH1: đổi thông tin đợt (% giảm), danh sách biến thể giữ nguyên -> cập nhật lại % giảm cho mọi biến thể trong đợt.
-     *  - TH2: thông tin giữ nguyên, danh sách biến thể thay đổi       -> biến thể mới: thêm; biến thể bị bỏ: gỡ; biến thể giữ lại: giữ nguyên mức giảm riêng.
-     *  - TH3: đổi cả hai                                             -> biến thể mới: thêm; biến thể bị bỏ: gỡ; biến thể giữ lại: cập nhật % theo đợt.
+     * Đổi % giảm của đợt thì áp % mới cho mọi biến thể trong đợt; không đổi % thì giữ mức giảm riêng
+     * của từng biến thể (đặt ở cửa sổ "Sản phẩm áp dụng").
      */
     @PutMapping("/{id}")
     @Transactional
@@ -146,6 +141,9 @@ public class DotGiamGiaController {
         if (req.idBienThe() != null && req.idBienThe().isEmpty()) {
             throw ApiException.badRequest("Vui lòng chọn ít nhất một biến thể sản phẩm áp dụng.");
         }
+        // Đợt đã bắt đầu thì không đổi giờ bắt đầu; đợt đã kết thúc vẫn sửa được thông tin khác nhưng không được dời
+        // giờ kết thúc sang một thời điểm khác trong quá khứ (muốn dừng ngay thì tắt công tắc)
+        kiemTraThoiGian(req, existing, false);
         Integer phanTramCu = existing.getPhanTramGiamDot();
         apDungThongTin(existing, req);
         if (req.trangThai() != null) existing.setTrangThai(req.trangThai());
@@ -155,7 +153,7 @@ public class DotGiamGiaController {
         if (req.idBienThe() != null) {
             dongBoBienThe(saved, req.idBienThe(), doiPhanTram);
         } else if (doiPhanTram) {
-            // Không gửi danh sách biến thể (TH1): giữ nguyên biến thể, chỉ cập nhật lại % giảm cho khớp đợt.
+            // Không gửi danh sách biến thể: giữ nguyên biến thể, chỉ cập nhật lại % giảm cho khớp đợt.
             for (DotGiamGiaChiTiet ct : chiTietRepository.findByDotGiamGiaId(saved.getId())) {
                 ct.setPhanTramGiamBienThe(saved.getPhanTramGiamDot());
                 chiTietRepository.save(ct);
@@ -211,11 +209,11 @@ public class DotGiamGiaController {
 
     /**
      * Đọc ngày giờ từ chuỗi gửi lên. "yyyy-MM-dd" -> đầu ngày (00:00:00) hoặc cuối ngày (23:59:59);
-     * "yyyy-MM-ddTHH:mm:ss" -> đúng thời điểm đó.
+     * "yyyy-MM-ddTHH:mm[:ss]" -> theo PHÚT: bắt đầu tính từ đầu phút, kết thúc tính tới hết phút (xem ThoiGianPhut).
      */
     private LocalDateTime docThoiDiem(String s, boolean cuoiNgay) {
         if (s == null || s.trim().length() < 10) {
-            throw ApiException.badRequest("Vui lòng chọn ngày bắt đầu và ngày kết thúc.");
+            throw ApiException.badRequest("Vui lòng chọn ngày giờ bắt đầu và ngày giờ kết thúc.");
         }
         String v = s.trim();
         try {
@@ -223,18 +221,28 @@ public class DotGiamGiaController {
                 LocalDate ngay = LocalDate.parse(v);
                 return cuoiNgay ? ngay.atTime(LocalTime.of(23, 59, 59)) : ngay.atStartOfDay();
             }
-            return LocalDateTime.parse(v);
+            LocalDateTime t = LocalDateTime.parse(v);
+            return cuoiNgay ? ThoiGianPhut.cuoiPhut(t) : ThoiGianPhut.dauPhut(t);
         } catch (DateTimeParseException e) {
-            throw ApiException.badRequest("Ngày không hợp lệ.");
+            throw ApiException.badRequest("Ngày giờ không hợp lệ.");
+        }
+    }
+
+    /** Quy tắc ngày giờ chung với phiếu giảm giá (ThoiGianPhut). existing = null khi tạo mới. */
+    private void kiemTraThoiGian(DotGiamGiaRequest req, DotGiamGia existing, boolean taoMoi) {
+        String loi = ThoiGianPhut.kiemTra("Đợt", docThoiDiem(req.ngayBatDau(), false), docThoiDiem(req.ngayKetThuc(), true),
+                existing == null ? null : existing.getNgayBatDau(), existing == null ? null : existing.getNgayKetThuc(),
+                taoMoi, LocalDateTime.now());
+        if (loi != null) {
+            throw ApiException.badRequest(loi);
         }
     }
 
     /**
-     * Đồng bộ biến thể áp dụng của đợt theo kế hoạch switch-case (DotCapNhatKeHoach):
-     *  - Biến thể trong goBo: xóa khỏi đợt.
-     *  - Biến thể trong capNhat (TH1, TH3): đặt lại % giảm bằng % mới của đợt.
-     *  - Biến thể trong giuNguyen (TH2, KHONG_DOI): giữ nguyên mức giảm riêng.
-     *  - Biến thể trong moi (TH2, TH3): kiểm tra đang bán rồi thêm vào đợt với % giảm của đợt.
+     * Đồng bộ biến thể áp dụng của đợt theo danh sách id gửi lên:
+     * giữ biến thể đã có, gỡ biến thể không còn trong danh sách, thêm biến thể mới (nhận % giảm của đợt).
+     * ghiDePhanTram = true thì đặt lại % giảm của mọi biến thể còn lại bằng % của đợt.
+     * Biến thể mới thêm phải đang hoạt động (đang bán).
      */
     private void dongBoBienThe(DotGiamGia dot, List<Long> idMoi, boolean ghiDePhanTram) {
         Set<Long> moi = new LinkedHashSet<>();
@@ -244,33 +252,23 @@ public class DotGiamGiaController {
         }
 
         List<DotGiamGiaChiTiet> hienCo = chiTietRepository.findByDotGiamGiaId(dot.getId());
-        Map<Long, DotGiamGiaChiTiet> theoIdBt = new HashMap<>();
-        List<Long> idCu = new ArrayList<>();
+        Set<Long> daCo = new HashSet<>();
+        List<DotGiamGiaChiTiet> canGo = new ArrayList<>();
         for (DotGiamGiaChiTiet ct : hienCo) {
-            idCu.add(ct.getIdSanPhamChiTiet());
-            theoIdBt.put(ct.getIdSanPhamChiTiet(), ct);
-        }
-
-        DotCapNhatKeHoach.KeHoach keHoach = DotCapNhatKeHoach.lap(idCu, moi, ghiDePhanTram);
-
-        if (!keHoach.goBo().isEmpty()) {
-            Set<Long> canXoa = new HashSet<>(keHoach.goBo());
-            List<DotGiamGiaChiTiet> dongXoa = new ArrayList<>();
-            for (DotGiamGiaChiTiet ct : hienCo) {
-                if (canXoa.contains(ct.getIdSanPhamChiTiet())) dongXoa.add(ct);
-            }
-            chiTietRepository.deleteAll(dongXoa);
-        }
-
-        for (Long idBienThe : keHoach.capNhat()) {
-            DotGiamGiaChiTiet ct = theoIdBt.get(idBienThe);
-            if (ct != null && !dot.getPhanTramGiamDot().equals(ct.getPhanTramGiamBienThe())) {
-                ct.setPhanTramGiamBienThe(dot.getPhanTramGiamDot());
-                chiTietRepository.save(ct);
+            if (moi.contains(ct.getIdSanPhamChiTiet())) {
+                daCo.add(ct.getIdSanPhamChiTiet());
+                if (ghiDePhanTram && !dot.getPhanTramGiamDot().equals(ct.getPhanTramGiamBienThe())) {
+                    ct.setPhanTramGiamBienThe(dot.getPhanTramGiamDot());
+                    chiTietRepository.save(ct);
+                }
+            } else {
+                canGo.add(ct);
             }
         }
+        if (!canGo.isEmpty()) chiTietRepository.deleteAll(canGo);
 
-        for (Long idBienThe : keHoach.moi()) {
+        for (Long idBienThe : moi) {
+            if (daCo.contains(idBienThe)) continue;
             SanPhamChiTiet bienThe = sanPhamChiTietRepository.findById(idBienThe.intValue())
                     .orElseThrow(() -> ApiException.badRequest("Có biến thể được chọn không còn tồn tại."));
             if (!Integer.valueOf(SanPhamChiTiet.HOAT_DONG).equals(bienThe.getTrangThai())) {
@@ -301,8 +299,11 @@ public class DotGiamGiaController {
         }
         LocalDateTime bd = docThoiDiem(d.ngayBatDau(), false);
         LocalDateTime kt = docThoiDiem(d.ngayKetThuc(), true);
-        if (kt.isBefore(bd)) {
-            throw ApiException.badRequest("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.");
+        if (!kt.truncatedTo(java.time.temporal.ChronoUnit.MINUTES).isAfter(bd)) {
+            throw ApiException.badRequest("Ngày giờ kết thúc phải sau ngày giờ bắt đầu.");
+        }
+        if (d.trangThai() != null && d.trangThai() != 0 && d.trangThai() != 1) {
+            throw ApiException.badRequest("Trạng thái chỉ nhận 1 (đang hoạt động) hoặc 0 (ngừng hoạt động).");
         }
     }
 }

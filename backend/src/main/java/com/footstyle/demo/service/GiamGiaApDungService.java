@@ -28,17 +28,10 @@ public class GiamGiaApDungService {
     private final DotGiamGiaChiTietRepository chiTietRepository;
 
     @Value("${app.giam-gia.che-do-chong-dot:MAX}")
-    private volatile String cheDoCauHinh;
+    private String cheDoCauHinh;
 
     public CheDo cheDo() {
         return CheDo.tuChuoi(cheDoCauHinh);
-    }
-
-    /** Đổi cách tính khi nhiều đợt chồng nhau ngay lúc chạy (MAX = lấy mức cao nhất, TRUNG_BINH = trung bình cộng). */
-    public CheDo doiCheDo(String cheDoMoi) {
-        CheDo cd = CheDo.tuChuoi(cheDoMoi);
-        this.cheDoCauHinh = cd.name();
-        return cd;
     }
 
     /** Chi tiết còn hiệu lực (đợt đang bật, dòng chi tiết đang bật) của một biến thể, đổi sang DotApDung. */
@@ -66,11 +59,6 @@ public class GiamGiaApDungService {
             if (pt > 0) ketQua.put(e.getKey(), pt);
         }
         return ketQua;
-    }
-
-    @Transactional(readOnly = true)
-    public Map<Long, Double> phanTramTheoBienThe(java.time.LocalDate ngay) {
-        return phanTramTheoBienThe(ngay.atTime(12, 0));
     }
 
     /** Lịch giảm giá của một biến thể theo từng đoạn thời gian (kể cả đợt chưa bắt đầu). */

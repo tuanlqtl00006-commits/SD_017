@@ -189,7 +189,7 @@ describe('Tính phiếu giảm giá trên đơn (đợt giảm trước, phiếu
     expect(du.phieu.giam).toBe(180000)
     const chuaDu = viDuDonHang(p10, 1600000, 10) // sau đợt 1.440.000 < 1.500.000
     expect(chuaDu.phieu.duDieuKien).toBe(false)
-    expect(chuaDu.phieu.lyDo).toContain('đơn tối thiểu')
+    expect(chuaDu.phieu.lyDo).toBe('Chưa đủ điều kiện: đơn tối thiểu 1.500.000 ₫ (còn thiếu 60.000 ₫).')
     expect(chuaDu.khachTra).toBe(1440000)
   })
   it('giảm tiền không vượt tổng đơn; % tròn xuống; giá trị 0 thì không giảm', () => {
@@ -545,14 +545,14 @@ describe('Form phiếu: quy tắc chồng ưu đãi (ví dụ tính tiền + c�
     expect(t).toContain('không cộng dồn')
     expect(t).toContain('Đợt giảm giá giảm trước, phiếu giảm sau')
     expect(w.get('[data-testid=pgg-che-do]').text()).toContain('CAO NHẤT')
-    expect(w.get('[data-testid=pgg-che-do]').text()).toContain('Cấu hình hiện tại: MAX')
+    expect(w.get('[data-testid=pgg-che-do]').text()).toContain('Đang dùng: Lấy mức cao nhất (MAX)')
     w.unmount()
   })
 
   it('backend cấu hình CỘNG DỒN: form hiển thị đúng chế độ', async () => {
     const w = await montarForm({ api: apiForm({ cheDo: { cheDo: 'CONG_DON', moTa: 'CỘNG DỒN mức giảm của các đợt đang chồng nhau (tối đa 100%).' } }) })
     expect(w.get('[data-testid=pgg-che-do]').text()).toContain('CỘNG DỒN')
-    expect(w.get('[data-testid=pgg-che-do]').text()).toContain('Cấu hình hiện tại: CONG_DON')
+    expect(w.get('[data-testid=pgg-che-do]').text()).toContain('Đang dùng: Cộng dồn (CONG_DON)')
     w.unmount()
   })
 
@@ -580,6 +580,64 @@ describe('Form phiếu: quy tắc chồng ưu đãi (ví dụ tính tiền + c�
     expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('1.440.000 ₫')
     await w.get('#pgg-vd-dot').setValue('0')
     expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toBe('− 160.000 ₫')
+    w.unmount()
+  })
+
+  it('ví dụ: % đợt có số lẻ hiện "12,5%", % ngoài 0-100 kẹp lại; nhãn phiếu có trần giảm; câu "giả sử" luôn hiện', async () => {
+    const w = await montarForm()
+    await w.get('#pgg-gia-tri').setValue('10')
+    await w.get('#pgg-giam-toi-da').setValue('200000')
+    const vd = w.get('[data-testid=pgg-vi-du]')
+    expect(vd.get('[data-testid=pgg-vd-gia-su]').text()).toContain('Giả sử mọi sản phẩm trong đơn cùng giảm theo một mức đợt')
+    expect(vd.get('[data-testid=pgg-vd-nhan-phieu]').text()).toMatch(/^Phiếu VCH[A-Z0-9]{6} \(10%, tối đa 200\.000 ₫\)$/)
+    // 2.000.000 giảm 12,5% (trung bình cộng 10% và 15%) = 1.750.000; phiếu 10% = 175.000
+    await w.get('#pgg-vd-dot').setValue('12.5')
+    expect(vd.text()).toContain('Giảm theo đợt giảm giá (12,5%)')
+    expect(vd.get('[data-testid=pgg-vd-giam-dot]').text()).toBe('− 250.000 ₫')
+    expect(vd.get('[data-testid=pgg-vd-sau-dot]').text()).toBe('1.750.000 ₫')
+    expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toBe('− 175.000 ₫')
+    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('1.575.000 ₫')
+    // nhập 150% -> coi là 100%, nhãn cũng hiện 100% (không hiện số vô nghĩa)
+    await w.get('#pgg-vd-dot').setValue('150')
+    expect(vd.text()).toContain('Giảm theo đợt giảm giá (100%)')
+    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('0 ₫')
+    await w.get('#pgg-vd-dot').setValue('-5')
+    expect(vd.text()).toContain('Giảm theo đợt giảm giá (0%)')
+    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('1.800.000 ₫')
+    // giảm tiền: nhãn không có "tối đa"; xóa mã thì gọi là "Phiếu này"
+    await w.get('#pgg-ma').setValue('')
+    await datSelect2(w, '#pgg-loai-giam', 'TIEN_MAT')
+    await w.get('#pgg-gia-tri').setValue('50000')
+    await flushPromises()
+    expect(vd.get('[data-testid=pgg-vd-nhan-phieu]').text()).toBe('Phiếu này (50.000 ₫)')
+    expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toBe('− 50.000 ₫')
+    w.unmount()
+  })
+
+  it('ví dụ khớp từng đồng với giá sau giảm của biến thể khi làm tròn .5 (1.250.005 giảm 10% còn 1.125.005)', async () => {
+    const w = await montarForm()
+    await w.get('#pgg-gia-tri').setValue('15')
+    await w.get('#pgg-vd-tien').setValue('1250005')
+    const vd = w.get('[data-testid=pgg-vi-du]')
+    expect(vd.get('[data-testid=pgg-vd-sau-dot]').text()).toBe('1.125.005 ₫') // giống tinhGiaSauGiam và LichGiamGiaService ở backend
+    expect(vd.get('[data-testid=pgg-vd-giam-dot]').text()).toBe('− 125.000 ₫')
+    expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toBe('− 168.750 ₫') // 15% làm tròn xuống
+    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('956.255 ₫')
+    w.unmount()
+  })
+
+  it('bấm Enter trong ô ví dụ không lưu phiếu (ô ví dụ nằm trong form phiếu)', async () => {
+    const w = await montarForm()
+    for (const id of ['#pgg-vd-tien', '#pgg-vd-dot']) {
+      const ev = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      w.get(id).element.dispatchEvent(ev)
+      expect(ev.defaultPrevented).toBe(true)
+    }
+    // ô thật của phiếu vẫn để Enter hoạt động bình thường (lưu form như mọi khi)
+    const evTen = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    w.get('#pgg-ten').element.dispatchEvent(evTen)
+    expect(evTen.defaultPrevented).toBe(false)
+    expect(w.emitted('save')).toBeUndefined()
     w.unmount()
   })
 
