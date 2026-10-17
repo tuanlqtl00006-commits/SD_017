@@ -29,6 +29,9 @@ GO
 CREATE DATABASE shop_cau_long_footstyle;
 GO
 
+ALTER AUTHORIZATION ON DATABASE::shop_cau_long_footstyle TO sa;
+GO
+
 USE shop_cau_long_footstyle;
 GO
 
@@ -921,3 +924,41 @@ WHERE l.ngay_su_dung IS NULL AND hd.trang_thai <> 0;
 DROP TABLE #buoc;
 DROP TABLE #hd;
 GO
+
+-- Hóa đơn mẫu HD19 "Giao hàng thất bại": đơn COD của KH05, giao qua Giao Hàng Tiết Kiệm, khách không nghe máy
+IF NOT EXISTS (SELECT 1 FROM hoa_don WHERE ma_hoa_don = 'HD19')
+BEGIN
+    DECLARE @tao DATETIME = DATEADD(MINUTE, -3000, GETDATE());
+    DECLARE @gia DECIMAL(18,0) = (SELECT TOP 1 ROUND(gia_ban, 0) FROM san_pham_chi_tiet WHERE ma_spct = 'SP04-DEN-4U-G5');
+    DECLARE @id INT;
+
+    INSERT INTO hoa_don (id_nhan_vien, id_khach_hang, id_phieu_giam_gia, id_phuong_thuc_thanh_toan, ma_hoa_don, loai_hoa_don,
+                         tong_tien, so_tien_giam, phi_van_chuyen, thanh_tien, don_vi_van_chuyen, ho_ten_nguoi_nhan, sdt_nguoi_nhan,
+                         dia_chi_giao_hang, ghi_chu, ngay_giao_du_kien, ngay_tao, ngay_cap_nhat, trang_thai)
+    SELECT nv.id, kh.id, NULL, pt.id, 'HD19', 2,
+           @gia, 0, 30000, @gia + 30000, N'Giao Hàng Tiết Kiệm', N'Hoàng Đức Anh', '0901000005',
+           N'Số 102 Nguyễn Văn Cừ, Phường Hồng Bàng, Hải Phòng', N'Gọi trước khi giao',
+           DATEADD(DAY, 4, @tao), @tao, DATEADD(MINUTE, 2000, @tao), 8
+    FROM nhan_vien nv, khach_hang kh, phuong_thuc_thanh_toan pt
+    WHERE nv.ma_nhan_vien = 'NV04' AND kh.ma_khach_hang = 'KH05' AND pt.ma_phuong_thuc = 'PT03';
+
+    SELECT @id = id FROM hoa_don WHERE ma_hoa_don = 'HD19';
+
+    INSERT INTO hoa_don_chi_tiet (id_hoa_don, id_san_pham_chi_tiet, so_luong, don_gia, thanh_tien, trang_thai)
+    SELECT @id, c.id, 1, @gia, @gia, 1
+    FROM san_pham_chi_tiet c
+    WHERE c.ma_spct = 'SP04-DEN-4U-G5';
+
+    INSERT INTO lich_su_hoa_don (id_hoa_don, nguoi_thao_tac, hanh_dong, thoi_gian, mo_ta)
+    SELECT @id, CASE WHEN s.code = 1 THEN N'Khách hàng' ELSE nv.ho_ten END, s.hanh_dong, DATEADD(MINUTE, s.phut, @tao), s.mo_ta
+    FROM (VALUES
+        (1, N'Tạo đơn hàng',       0,    N'Khách đặt hàng online'),
+        (2, N'Đã xác nhận',        30,   N'Nhân viên đã gọi xác nhận đơn với khách'),
+        (3, N'Chờ giao hàng',      180,  N'Đã đóng gói, chờ đơn vị vận chuyển đến lấy'),
+        (4, N'Đang giao hàng',     1440, N'Đã bàn giao cho Giao Hàng Tiết Kiệm'),
+        (8, N'Giao hàng thất bại', 2000, N'Khách không nghe máy sau 3 lần gọi')
+    ) AS s(code, hanh_dong, phut, mo_ta)
+    CROSS JOIN (SELECT ho_ten FROM nhan_vien WHERE ma_nhan_vien = 'NV04') nv;
+END
+GO
+

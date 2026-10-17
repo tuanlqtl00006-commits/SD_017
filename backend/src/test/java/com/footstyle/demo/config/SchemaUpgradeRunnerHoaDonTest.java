@@ -12,8 +12,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Đơn tại quầy không có phí vận chuyển / đơn vị vận chuyển (cô: "tại quầy sao lại có phí vận chuyển").
- * Dữ liệu cũ còn sót được dọn ở HAI nơi làm cùng một việc: mục 4.2 của database/SD_17_2_du_lieu.sql (chạy tay)
- * và SchemaUpgradeRunner (backend tự chạy khi khởi động). Test này giữ cho hai nơi không bao giờ lệch nhau.
+ * Kiểm tra SchemaUpgradeRunner và dữ liệu hóa đơn mẫu trong database/SD_17_footstyle_full.sql.
  */
 class SchemaUpgradeRunnerHoaDonTest {
 
@@ -23,7 +22,7 @@ class SchemaUpgradeRunnerHoaDonTest {
 
     /** Tìm file SQL: chạy từ thư mục backend (Maven), từ thư mục gốc dự án (IDE) hoặc theo biến môi trường FOOTSTYLE_GOC. */
     private static Path timFileSql() {
-        String ten = FileSqlTest.DU_LIEU;
+        String ten = FileSqlTest.FILE_SQL;
         String goc = System.getenv("FOOTSTYLE_GOC");
         List<Path> ungVien = goc != null && !goc.isBlank()
                 ? List.of(Path.of(goc, "database", ten))
@@ -41,14 +40,6 @@ class SchemaUpgradeRunnerHoaDonTest {
     }
 
     @Test
-    void lenhDonTaiQuay_giongHetMuc4_2TrongFileSql() throws IOException {
-        String sql = gon(Files.readString(timFileSql(), StandardCharsets.UTF_8));
-        String phan4 = sql.substring(sql.indexOf("-- PHẦN 4: SỬA DỮ LIỆU MẪU CŨ"), sql.indexOf("-- PHẦN 5: THANH TOÁN"));
-        assertTrue(phan4.contains(gon(lenhDonTaiQuay()) + ";"),
-                "Lệnh trong SchemaUpgradeRunner khác mục 4.2 của file dữ liệu SQL - hãy sửa cho giống nhau:\n" + lenhDonTaiQuay());
-    }
-
-    @Test
     void lenhDonTaiQuay_chiDungDonTaiQuay_boPhiVaDonViVanChuyen_khongLamAmThanhTien() {
         String lenh = gon(lenhDonTaiQuay());
         assertTrue(lenh.contains("WHERE loai_hoa_don = 1"), "chỉ đụng tới đơn tại quầy (loai_hoa_don = 1), không đụng đơn giao hàng");
@@ -61,11 +52,10 @@ class SchemaUpgradeRunnerHoaDonTest {
     @Test
     void fileDuLieu_themHoaDonMauGiaoHangThatBai_coDayDuChiTietVaLichSu() throws IOException {
         String sql = Files.readString(timFileSql(), StandardCharsets.UTF_8);
-        String phan8 = sql.substring(sql.indexOf("-- 5.9 Hóa đơn mẫu HD19"), sql.indexOf("-- PHẦN 6: THÊM NHIỀU HÓA ĐƠN"));
+        String phan8 = sql.substring(sql.indexOf("-- Hóa đơn mẫu HD19"));
         assertTrue(phan8.contains("NOT EXISTS (SELECT 1 FROM hoa_don WHERE ma_hoa_don = 'HD19')"), "không tạo lại HD19 khi chạy lần hai");
         assertTrue(phan8.contains("'HD19', 2,"), "HD19 là đơn giao hàng (loai_hoa_don = 2)");
         assertTrue(phan8.contains("DATEADD(MINUTE, 2000, @tao), 8"), "HD19 ở trạng thái 8 = Giao hàng thất bại");
-        // chữ ở cột hanh_dong phải khớp bảng tên của backend để dòng thời gian nhận ra từng bước
         for (String ten : List.of("Tạo đơn hàng", "Đã xác nhận", "Chờ giao hàng", "Đang giao hàng", "Giao hàng thất bại")) {
             assertTrue(phan8.contains("N'" + ten + "'"), "thiếu bước lịch sử: " + ten);
         }
