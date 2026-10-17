@@ -2,8 +2,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import BasePagination from '../common/BasePagination.vue'
-import DotGiamGiaLichCard from './DotGiamGiaLichCard.vue'
-import DotGiamGiaChongDotCard from './DotGiamGiaChongDotCard.vue'
 import ConfirmQuestion from '../common/ConfirmQuestion.vue'
 import { dotGiamGiaService } from '../../services/dotGiamGiaService'
 import { bienTheService, sanPhamService } from '../../services/sanPhamService'
@@ -14,7 +12,6 @@ import { TRANG_THAI, dangHoatDong, tinhTrangThai } from '../../constants/dotGiam
 import { formatMoney } from '../../utils/format'
 import { dinhDangMa } from '../../utils/ma'
 import { tinhGiaSauGiam } from '../../utils/giamGia'
-import { mauHex } from '../../utils/mau'
 import { includesText, normalizeText } from '../../utils/text'
 import { laKhongApDung } from '../../utils/danhMuc'
 import {
@@ -75,6 +72,8 @@ const mauSacs = ref([])
 const trongLuongs = ref([])
 const chuVis = ref([])
 const danhMucs = ref([])
+const thuongHieus = ref([])
+const chatLieus = ref([])
 const maDaCo = ref(new Set()) // mã các đợt hiện có (viết hoa), để sinh mã không trùng
 
 const spMap = computed(() => new Map(sanPhams.value.map((s) => [s.id, s])))
@@ -83,6 +82,8 @@ const tenHienThi = (x) => (laKhongApDung(x) ? '—' : x.ten) // mục "Không á
 const tlMap = computed(() => new Map(trongLuongs.value.map((x) => [x.id, tenHienThi(x)])))
 const cvMap = computed(() => new Map(chuVis.value.map((x) => [x.id, tenHienThi(x)])))
 const dmMap = computed(() => new Map(danhMucs.value.map((x) => [x.id, x.ten])))
+const thMap = computed(() => new Map(thuongHieus.value.map((x) => [x.id, tenHienThi(x)])))
+const clMap = computed(() => new Map(chatLieus.value.map((x) => [x.id, tenHienThi(x)])))
 
 // Biến thể kèm tên sản phẩm / màu / trọng lượng / chu vi để hiển thị
 const bienTheDayDu = computed(() =>
@@ -221,12 +222,10 @@ function doiTatCaTrang() {
   else themVaoChon(idsTrang.value)
 }
 
-const moRong = ref(new Set()) // id sản phẩm đang mở danh sách biến thể
-function doiMoRong(id) {
-  const s = new Set(moRong.value)
-  if (s.has(id)) s.delete(id)
-  else s.add(id)
-  moRong.value = s
+// Bấm nút + ở cuối dòng sản phẩm: nếu sản phẩm chưa chọn đủ hết biến thể thì thêm đủ vào bảng dưới; đã đủ thì bỏ chọn
+function bamNutCong(row) {
+  if (trangThaiDong(row).checked) boKhoiChon(row.ids)
+  else themVaoChon(row.ids)
 }
 
 /* ----- Thẻ dưới: biến thể đã chọn ----- */
@@ -235,8 +234,8 @@ const dsChon = computed(() => {
   ds.sort((a, b) => (a.sp?.ten ?? '').localeCompare(b.sp?.ten ?? '', 'vi') || String(a.ma).localeCompare(String(b.ma)))
   return ds
 })
-// Bảng biến thể đã chọn: lọc theo màu sắc / kích cỡ (trọng lượng, chu vi cán)
-const locChon = reactive({ mau: '', tl: '', cv: '' })
+// Bảng biến thể đã chọn: lọc theo từ khóa / màu sắc / kích cỡ (trọng lượng, chu vi cán)
+const locChon = reactive({ tuKhoa: '', mau: '', tl: '', cv: '' })
 const giaTriLoc = (field, ten) => {
   const map = new Map()
   for (const v of dsChon.value) {
@@ -254,13 +253,14 @@ const dsLocCv = computed(() => tuDanhSach(locCv.value, { tatCa: 'Tất cả chu 
 const dsChonLoc = computed(() =>
   dsChon.value.filter(
     (v) =>
+      (!locChon.tuKhoa || includesText(`${v.ma} ${v.sp?.ma ?? ''} ${v.sp?.ten ?? ''} ${v.mau} ${v.tl} ${v.cv}`, locChon.tuKhoa)) &&
       (locChon.mau === '' || v.idMauSac === locChon.mau) &&
       (locChon.tl === '' || v.idTrongLuong === locChon.tl) &&
       (locChon.cv === '' || v.idChuVi === locChon.cv),
   ),
 )
-const dangLocChon = computed(() => locChon.mau !== '' || locChon.tl !== '' || locChon.cv !== '')
-const datLaiLocChon = () => Object.assign(locChon, { mau: '', tl: '', cv: '' })
+const dangLocChon = computed(() => locChon.tuKhoa !== '' || locChon.mau !== '' || locChon.tl !== '' || locChon.cv !== '')
+const datLaiLocChon = () => Object.assign(locChon, { tuKhoa: '', mau: '', tl: '', cv: '' })
 const { page: pageChon, pageSize: pageSizeChon, total: totalChon, items: dongChon } = usePagination(dsChonLoc, 8)
 watch(locChon, () => { pageChon.value = 1 })
 // Bỏ hết lọc khi lựa chọn đang lọc không còn biến thể nào (vd vừa gỡ hết màu Đỏ)
@@ -351,64 +351,161 @@ const moTaTrangThai = computed(() => {
   return 'Công tắc của đợt đang tắt nên đợt chưa áp dụng (bật lại ở danh sách đợt giảm giá).'
 })
 
-/* ----- Tổng kết đợt giảm giá ----- */
 const soSanPhamChon = computed(() => new Set(dsChon.value.map((v) => v.idSanPham)).size)
-// Đợt trọn các ngày (00:00 -> 23:59) thì đếm số ngày; còn lại hiện số giờ / phút
-const thoiLuongDot = computed(() => {
-  if (!khoangHopLe.value) return ''
-  const bd = tachNgayGio(form.batDau)
-  const kt = tachNgayGio(form.ketThuc)
-  if ((bd.gio || '00:00') === '00:00' && (kt.gio || '23:59') === '23:59') {
-    const soNgay = Math.round((Date.parse(`${kt.ngay}T00:00:00Z`) - Date.parse(`${bd.ngay}T00:00:00Z`)) / 86400000) + 1
-    return `${soNgay} ngày`
-  }
-  return dinhDangKhoangPhut(soPhutGiua(form.batDau, form.ketThuc))
-})
-const tongGiaGoc = computed(() => dsChon.value.reduce((s, v) => s + (Number(v.giaBan) || 0), 0))
-const tongGiaSau = computed(() => (phanTramHopLe.value === null ? null : dsChon.value.reduce((s, v) => s + giaSauGiam(v), 0)))
 
-/* ----- Trùng đợt: các đợt KHÁC (đang bật, chưa kết thúc) + cách gộp khi chồng nhau (cấu hình ở backend) ----- */
+/* ----- Xử lý trùng đợt giảm giá theo đúng nghiệp vụ của cô (1. Tự động tính GG Max / 2. Tính TBC các ĐGG) ----- */
 const apDungKhac = ref({ chinhSach: 'MAX', muc: [] })
-const cheDoChongDot = ref(null) // { cheDo, moTa } từ /dot-giam-gia/che-do (backend cũ chưa có thì dùng chinhSach của /ap-dung)
+const cheDoChongDot = ref('MAX') // 'MAX' | 'TRUNG_BINH'
 
-// Đợt đang soạn (chỉ tính khi đã nhập đủ % và khoảng ngày giờ hợp lệ)
-const dotDangSoan = computed(() => {
-  if (phanTramHopLe.value === null || !khoangHopLe.value) return null
-  return {
-    idDot: idXem ?? 0,
-    maDot: form.maDot || 'Đợt này',
-    tenDot: form.tenDot.trim() || 'Đợt đang soạn',
-    phanTram: phanTramHopLe.value,
-    ngayBatDau: form.batDau,
-    ngayKetThuc: form.ketThuc,
+async function doiCheDoChongDot(cheDoMoi) {
+  cheDoChongDot.value = cheDoMoi
+  try {
+    await dotGiamGiaService.doiCheDo(cheDoMoi)
+  } catch {
+    // Backend chưa bật hoặc lỗi mạng thì vẫn cập nhật hiển thị tại chỗ
   }
+}
+
+const dinhDangPt = (n) => String(Math.round(Number(n) * 100) / 100).replace('.', ',')
+const ngayGon = (iso) => {
+  const { ngay } = tachNgayGio(iso)
+  if (!ngay) return ''
+  const [, m, d] = ngay.split('-')
+  return `${Number(d)}/${Number(m)}`
+}
+
+// Các đợt khác đang bật có khoảng thời gian giao với khoảng ngày đang nhập trên từng biến thể đã chọn
+const mapDotTrungTheoBt = computed(() => {
+  const kq = new Map()
+  if (!khoangHopLe.value) return kq
+  const bd = mocBatDau(form.batDau)
+  const kt = mocKetThuc(form.ketThuc)
+  for (const m of apDungKhac.value.muc ?? []) {
+    if (idXem !== null && Number(m.idDot) === idXem) continue
+    if (!daChon.value.has(m.idBienThe)) continue
+    const mBd = mocBatDau(m.ngayBatDau)
+    const mKt = mocKetThuc(m.ngayKetThuc)
+    if (!mBd || !mKt || mKt < bd || mBd > kt) continue
+    if (!kq.has(m.idBienThe)) kq.set(m.idBienThe, [])
+    kq.get(m.idBienThe).push(m)
+  }
+  return kq
 })
-const cheDoDangDung = computed(() => cheDoChongDot.value?.cheDo || apDungKhac.value.chinhSach || 'MAX')
+
+function thongTinTrung(v) {
+  const ds = mapDotTrungTheoBt.value.get(v.id)
+  if (!ds || !ds.length || phanTramHopLe.value === null) return null
+  const pts = [...ds.map((x) => Number(x.phanTram) || 0), phanTramHopLe.value]
+  const mucMax = Math.max(...pts)
+  const mucTbc = Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 100) / 100
+  const mucApDung = cheDoChongDot.value === 'TRUNG_BINH' ? mucTbc : mucMax
+  return {
+    cacDot: ds,
+    mucMax,
+    mucTbc,
+    mucApDung,
+    giaApDung: tinhGiaSauGiam(v.giaBan, mucApDung),
+  }
+}
+
+// Phân tách các giai đoạn ngày khi đợt đang soạn giao thời gian với các đợt khác (vd: 1/10 -> 4/10, 4/10 -> 10/10, 10/10 -> 20/10)
+const giaiDoanTrungDot = computed(() => {
+  if (!khoangHopLe.value || phanTramHopLe.value === null || !mapDotTrungTheoBt.value.size) return []
+  const idDotTrungs = new Set()
+  for (const ds of mapDotTrungTheoBt.value.values()) {
+    ds.forEach((m) => idDotTrungs.add(m.idDot))
+  }
+  // Thu thập toàn bộ mục (biến thể + đợt) thuộc các đợt đang giao nhau + đợt đang soạn
+  const mucs = []
+  for (const m of apDungKhac.value.muc ?? []) {
+    if (!idDotTrungs.has(m.idDot)) continue
+    const bt = bienTheById.value.get(m.idBienThe)
+    const bd = tachNgayGio(m.ngayBatDau).ngay
+    const kt = tachNgayGio(m.ngayKetThuc).ngay
+    if (bd && kt) mucs.push({ idBienThe: m.idBienThe, maBienThe: bt?.ma || `SPCT${m.idBienThe}`, idDot: m.idDot, phanTram: Number(m.phanTram), tuNgay: bd, denNgay: kt })
+  }
+  const bdMoi = tachNgayGio(form.batDau).ngay
+  const ktMoi = tachNgayGio(form.ketThuc).ngay
+  for (const v of dsChon.value) {
+    mucs.push({ idBienThe: v.id, maBienThe: v.ma, idDot: 0, phanTram: phanTramHopLe.value, tuNgay: bdMoi, denNgay: ktMoi })
+  }
+  const mocSet = new Set()
+  for (const m of mucs) {
+    mocSet.add(m.tuNgay)
+    mocSet.add(m.denNgay)
+  }
+  const mocs = [...mocSet].sort()
+  if (mocs.length < 2) return []
+
+  const ketQua = []
+  for (let i = 0; i + 1 < mocs.length; i++) {
+    const d1 = mocs[i]
+    const d2 = mocs[i + 1]
+    // Một đợt được tính trong đoạn [d1, d2] nếu bắt đầu <= d1 và kết thúc >= d2
+    const theoBt = new Map()
+    for (const m of mucs) {
+      if (m.tuNgay <= d1 && m.denNgay >= d2) {
+        if (!theoBt.has(m.idBienThe)) theoBt.set(m.idBienThe, { ma: m.maBienThe, pts: [] })
+        theoBt.get(m.idBienThe).pts.push(m.phanTram)
+      }
+    }
+    if (!theoBt.size) continue
+    const nhomTrung = []
+    const nhomDon = new Map()
+    for (const { ma, pts } of [...theoBt.values()].sort((a, b) => String(a.ma).localeCompare(String(b.ma)))) {
+      if (pts.length > 1) {
+        const max = Math.max(...pts)
+        const tbc = Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 100) / 100
+        nhomTrung.push({ ma, max, tbc })
+      } else {
+        const pt = pts[0]
+        if (!nhomDon.has(pt)) nhomDon.set(pt, [])
+        nhomDon.get(pt).push(ma)
+      }
+    }
+    ketQua.push({
+      tu: ngayGon(d1),
+      den: ngayGon(d2),
+      nhomTrung,
+      nhomDon: [...nhomDon.entries()].map(([pt, mas]) => ({ pt, mas })),
+    })
+  }
+  return ketQua
+})
 
 /* ----- Tải dữ liệu ----- */
 async function taiDuLieu() {
   try {
-    const [dsSp, dsBt, dsMau, dsTl, dsCv, dsDm, dsDot, dot, chiTiet] = await Promise.all([
+    const [dsSp, dsBt, dsMau, dsTl, dsCv, dsDm, dsTh, dsCl, dsDot, dot, chiTiet] = await Promise.all([
       sanPhamService.getAll(),
       bienTheService.getAll(),
       thuocTinhService.getAll('mau-sac'),
       thuocTinhService.getAll('trong-luong'),
       thuocTinhService.getAll('chu-vi'),
       thuocTinhService.getAll('danh-muc'),
+      thuocTinhService.getAll('thuong-hieu').catch(() => []),
+      thuocTinhService.getAll('chat-lieu').catch(() => []),
       dotGiamGiaService.getAll(),
       isEdit ? dotGiamGiaService.getById(idXem) : Promise.resolve(null),
       isEdit ? dotGiamGiaService.getBienThe(idXem) : Promise.resolve([]),
     ])
-    // Các đợt khác để dựng lịch giảm giá / cảnh báo trùng đợt; lỗi thì thôi, không làm hỏng trang
-    // (dữ liệu trả về sai dạng thì coi như không có đợt khác, tránh làm hỏng trang)
-    dotGiamGiaService.apDung().then((r) => (apDungKhac.value = r && Array.isArray(r.muc) ? r : { chinhSach: 'MAX', muc: [] })).catch(() => {})
-    dotGiamGiaService.cheDo().then((r) => (cheDoChongDot.value = r?.cheDo ? r : null)).catch(() => {})
+    dotGiamGiaService.apDung().then((r) => {
+      if (r && Array.isArray(r.muc)) {
+        apDungKhac.value = r
+        if (r.chinhSach === 'TRUNG_BINH' || r.chinhSach === 'MAX') cheDoChongDot.value = r.chinhSach
+      }
+    }).catch(() => {})
+    dotGiamGiaService.cheDo().then((r) => {
+      if (r?.cheDo === 'TRUNG_BINH' || r?.cheDo === 'MAX') cheDoChongDot.value = r.cheDo
+    }).catch(() => {})
     sanPhams.value = dsSp
     bienThes.value = dsBt
     mauSacs.value = dsMau
     trongLuongs.value = dsTl
     chuVis.value = dsCv
     danhMucs.value = dsDm
+    thuongHieus.value = Array.isArray(dsTh) ? dsTh : []
+    chatLieus.value = Array.isArray(dsCl) ? dsCl : []
     maDaCo.value = new Set(dsDot.map((d) => String(d.maDot).toUpperCase()))
 
     if (isEdit) {
@@ -600,9 +697,6 @@ const huy = () => router.push('/dot-giam-gia')
               </template>
               <span v-else class="dgg-du-kien-mo-ta">Chọn ngày giờ bắt đầu và kết thúc hợp lệ để xem trạng thái dự kiến.</span>
             </div>
-            <p class="ad-hint dgg-quy-uoc-gio">
-              Thời gian tính theo phút: bắt đầu từ đầu phút bắt đầu, kết thúc tới hết phút kết thúc (kết thúc 17:00 là còn giảm tới 17:00:59).
-            </p>
 
             <div>
               <label class="ad-label" for="dgg-mo-ta">Mô tả</label>
@@ -632,25 +726,26 @@ const huy = () => router.push('/dot-giam-gia')
 
         <!-- Thẻ phải: chọn sản phẩm áp dụng -->
         <section class="ad-card">
-          <header class="ad-card-head">
-            <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-search"></i></span>
+          <div class="dgg-select-head">
             <div>
               <h2 class="ad-card-title">Chọn sản phẩm áp dụng</h2>
-              <p class="ad-card-sub">Đã chọn {{ soDaChon }} biến thể</p>
+              <p class="ad-card-sub">Đã chọn {{ soSanPhamChon }} sản phẩm ({{ soDaChon }} biến thể)</p>
             </div>
-          </header>
-
-          <div class="dgg-search">
-            <div class="ad-affix">
-              <i class="bi bi-search" aria-hidden="true"></i>
-              <input
-                v-model="loc.tuKhoa"
-                type="text"
-                class="form-control ad-control"
-                placeholder="Tìm sản phẩm theo tên hoặc mã..."
-                aria-label="Tìm sản phẩm theo tên hoặc mã"
-                autocomplete="off"
-              />
+            <div class="dgg-search">
+              <div class="dgg-search-box">
+                <i class="bi bi-search dgg-search-ico" aria-hidden="true"></i>
+                <input
+                  v-model="loc.tuKhoa"
+                  type="text"
+                  class="form-control ad-control dgg-search-input"
+                  placeholder="Tìm theo tên hoặc mã..."
+                  aria-label="Tìm sản phẩm theo tên hoặc mã"
+                  autocomplete="off"
+                />
+              </div>
+              <button type="button" class="dgg-search-btn" title="Tìm kiếm" aria-label="Tìm kiếm sản phẩm">
+                <i class="bi bi-search" aria-hidden="true"></i>
+              </button>
             </div>
           </div>
 
@@ -672,13 +767,15 @@ const huy = () => router.push('/dot-giam-gia')
                     </th>
                     <th class="ad-col-stt">STT</th>
                     <th>Mã SP</th>
-                    <th>Tên sản phẩm</th>
+                    <th>Tên SP</th>
+                    <th>Thương hiệu</th>
+                    <th>Chất liệu</th>
                     <th class="dgg-col-expand"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!dongTrang.length">
-                    <td colspan="5">
+                    <td colspan="7">
                       <div class="ad-empty">
                         <i class="bi bi-inbox" aria-hidden="true"></i>
                         <strong>Không có sản phẩm phù hợp</strong>
@@ -687,8 +784,12 @@ const huy = () => router.push('/dot-giam-gia')
                     </td>
                   </tr>
                   <template v-for="(row, i) in dongTrang" :key="row.sp.id">
-                    <tr>
-                      <td class="dgg-col-check">
+                    <tr
+                      class="dgg-product-row"
+                      :class="{ 'is-selected': idsDangChon(row.ids) > 0 }"
+                      @click="doiSanPham(row)"
+                    >
+                      <td class="dgg-col-check" @click.stop>
                         <input
                           type="checkbox"
                           class="form-check-input dgg-check"
@@ -699,41 +800,24 @@ const huy = () => router.push('/dot-giam-gia')
                         />
                       </td>
                       <td class="ad-col-stt">{{ (page - 1) * pageSize + i + 1 }}</td>
-                      <td><span class="ad-code ad-nowrap">{{ row.sp.ma }}</span></td>
+                      <td><strong class="ad-nowrap">{{ row.sp.ma }}</strong></td>
                       <td class="ad-cell-wrap">
-                        {{ row.sp.ten }}
+                        <strong class="text-dark">{{ row.sp.ten }}</strong>
                         <span v-if="idsDangChon(row.ids)" class="dgg-count">Đã chọn {{ idsDangChon(row.ids) }}/{{ row.ids.length }} biến thể</span>
                       </td>
-                      <td class="dgg-col-expand">
+                      <td class="text-muted ad-nowrap">{{ thMap.get(row.sp.idThuongHieu) || '—' }}</td>
+                      <td class="text-muted ad-nowrap">{{ clMap.get(row.sp.idChatLieu) || '—' }}</td>
+                      <td class="dgg-col-expand" @click.stop>
                         <button
                           type="button"
                           class="dgg-expand"
-                          :aria-expanded="moRong.has(row.sp.id)"
-                          :title="moRong.has(row.sp.id) ? 'Thu gọn biến thể' : 'Chọn từng biến thể'"
-                          :aria-label="(moRong.has(row.sp.id) ? 'Thu gọn' : 'Xem') + ' biến thể của ' + row.sp.ten"
-                          @click="doiMoRong(row.sp.id)"
+                          :class="{ 'is-open': trangThaiDong(row).checked }"
+                          :title="trangThaiDong(row).checked ? 'Bỏ chọn sản phẩm này' : 'Thêm toàn bộ biến thể xuống bảng dưới'"
+                          :aria-label="(trangThaiDong(row).checked ? 'Bỏ chọn ' : 'Chọn ') + row.sp.ten"
+                          @click="bamNutCong(row)"
                         >
-                          <i class="bi" :class="moRong.has(row.sp.id) ? 'bi-dash-lg' : 'bi-plus-lg'" aria-hidden="true"></i>
+                          <i class="bi" :class="trangThaiDong(row).checked ? 'bi-dash' : 'bi-plus'" aria-hidden="true"></i>
                         </button>
-                      </td>
-                    </tr>
-                    <tr v-if="moRong.has(row.sp.id)" class="dgg-sub-row">
-                      <td colspan="5">
-                        <div class="dgg-variants">
-                          <button
-                            v-for="v in row.variants"
-                            :key="v.id"
-                            type="button"
-                            class="dgg-vchip"
-                            :class="{ on: daChon.has(v.id) }"
-                            :aria-pressed="daChon.has(v.id)"
-                            @click="doiBienThe(v)"
-                          >
-                            <i v-if="daChon.has(v.id)" class="bi bi-check2" aria-hidden="true"></i>
-                            {{ nhanBienThe(v) }}
-                            <span class="dgg-vchip-price">{{ formatMoney(v.giaBan) }}</span>
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   </template>
@@ -742,61 +826,35 @@ const huy = () => router.push('/dot-giam-gia')
             </div>
           </div>
 
-          <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
+          <div v-if="total" class="dgg-table-foot">
+            <span class="dgg-foot-info">Hiển thị {{ (page - 1) * pageSize + 1 }} - {{ Math.min(page * pageSize, total) }} / {{ total }} sản phẩm</span>
+            <BasePagination v-model:page="page" :page-size="pageSize" :total="total" />
+          </div>
         </section>
       </div>
-
-      <!-- Tổng kết đợt giảm giá -->
-      <section class="ad-card" data-testid="tong-ket">
-        <header class="ad-card-head">
-          <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-clipboard-data"></i></span>
-          <div>
-            <h2 class="ad-card-title">Tổng kết đợt giảm giá</h2>
-            <p class="ad-card-sub">{{ form.tenDot.trim() || 'Đợt đang soạn' }} · {{ form.maDot }}</p>
-          </div>
-        </header>
-        <div class="dgg-stats">
-          <div class="dgg-stat">
-            <span class="dgg-stat-label">Mức giảm</span>
-            <strong class="dgg-stat-value dgg-sale">{{ phanTramHopLe !== null ? `${phanTramHopLe}%` : '—' }}</strong>
-          </div>
-          <div class="dgg-stat">
-            <span class="dgg-stat-label">Sản phẩm</span>
-            <strong class="dgg-stat-value">{{ soSanPhamChon }}</strong>
-          </div>
-          <div class="dgg-stat">
-            <span class="dgg-stat-label">Biến thể</span>
-            <strong class="dgg-stat-value">{{ soDaChon }}</strong>
-          </div>
-          <div class="dgg-stat">
-            <span class="dgg-stat-label">Ngày giờ bắt đầu</span>
-            <strong class="dgg-stat-value dgg-stat-gio">{{ form.batDau ? dinhDangNgayGio(form.batDau) : '—' }}</strong>
-          </div>
-          <div class="dgg-stat">
-            <span class="dgg-stat-label">Ngày giờ kết thúc</span>
-            <strong class="dgg-stat-value dgg-stat-gio">{{ form.ketThuc ? dinhDangNgayGio(form.ketThuc) : '—' }}</strong>
-            <span v-if="thoiLuongDot" class="dgg-stat-sub">{{ thoiLuongDot }}</span>
-          </div>
-        </div>
-        <p v-if="soDaChon && tongGiaSau !== null" class="ad-hint mb-0 mt-2">
-          Mỗi biến thể 1 sản phẩm: tổng giá bán {{ formatMoney(tongGiaGoc) }} → sau giảm {{ formatMoney(tongGiaSau) }} (giảm {{ formatMoney(tongGiaGoc - tongGiaSau) }}).
-        </p>
-      </section>
 
       <!-- Thẻ dưới: sản phẩm & biến thể đã chọn (mỗi dòng một biến thể) -->
       <section class="ad-card" :class="{ 'dgg-card-error': errors.bienThe }">
         <div class="dgg-chosen-head">
-          <header class="ad-card-head">
-            <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-check2-square"></i></span>
-            <div>
-              <h2 class="ad-card-title">Sản phẩm &amp; biến thể đã chọn áp dụng</h2>
-              <p class="ad-card-sub">{{ soSanPhamChon }} sản phẩm · {{ soDaChon }} biến thể</p>
-            </div>
-          </header>
-          <div v-if="soDaChon" class="dgg-chosen-filters" data-testid="loc-da-chon">
+          <div>
+            <h2 class="ad-card-title">Sản phẩm &amp; biến thể đã chọn áp dụng</h2>
+            <p class="ad-card-sub">{{ soSanPhamChon }} sản phẩm · {{ soDaChon }} biến thể</p>
+          </div>
+          <div class="dgg-chosen-filters" data-testid="loc-da-chon">
             <Select2 id="dgg-loc-mau" v-model="locChon.mau" :options="dsLocMau" aria-label="Lọc biến thể đã chọn theo màu sắc" class="ad-control" />
             <Select2 v-if="locTl.length" id="dgg-loc-tl" v-model="locChon.tl" :options="dsLocTl" aria-label="Lọc theo trọng lượng" class="ad-control" />
             <Select2 v-if="locCv.length" id="dgg-loc-cv" v-model="locChon.cv" :options="dsLocCv" aria-label="Lọc theo chu vi cán" class="ad-control" />
+            <div class="dgg-chosen-search">
+              <i class="bi bi-search" aria-hidden="true"></i>
+              <input
+                v-model="locChon.tuKhoa"
+                type="text"
+                class="form-control ad-control"
+                placeholder="Tìm kiếm biến thể..."
+                aria-label="Tìm kiếm biến thể đã chọn"
+                autocomplete="off"
+              />
+            </div>
             <button v-if="dangLocChon" type="button" class="ad-btn" @click="datLaiLocChon"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại</button>
             <button v-if="dangLocChon && dsChonLoc.length" type="button" class="ad-btn dgg-btn-go" @click="goDangLoc">
               <i class="bi bi-x-circle" aria-hidden="true"></i> Gỡ {{ dsChonLoc.length }} biến thể đang lọc
@@ -805,18 +863,66 @@ const huy = () => router.push('/dot-giam-gia')
         </div>
         <p v-if="errors.bienThe" class="ad-error">{{ errors.bienThe }}</p>
 
+        <!-- Khi có biến thể trùng thời gian với đợt khác: hiển thị phân bổ theo giai đoạn ngày & nút chọn cách tính (1. GG Max / 2. TBC) -->
+        <div v-if="giaiDoanTrungDot.length" class="dgg-overlap-box" data-testid="dgg-giai-doan-trung">
+          <div class="dgg-overlap-top">
+            <span class="dgg-overlap-title">
+              <i class="bi bi-calendar-range" aria-hidden="true"></i>
+              Phân bổ giảm giá theo giai đoạn (có biến thể trùng đợt giảm giá):
+            </span>
+            <div class="dgg-mode-switch" role="group" aria-label="Chọn cách tính khi trùng đợt giảm giá">
+              <button
+                type="button"
+                class="dgg-mode-btn"
+                :class="{ active: cheDoChongDot === 'MAX' }"
+                @click="doiCheDoChongDot('MAX')"
+              >
+                1. Tự động tính GG Max
+              </button>
+              <button
+                type="button"
+                class="dgg-mode-btn"
+                :class="{ active: cheDoChongDot === 'TRUNG_BINH' }"
+                @click="doiCheDoChongDot('TRUNG_BINH')"
+              >
+                2. Tính TBC của các ĐGG
+              </button>
+            </div>
+          </div>
+          <ul class="dgg-stage-list">
+            <li v-for="(gd, idx) in giaiDoanTrungDot" :key="idx" class="dgg-stage-item">
+              <strong class="dgg-stage-date">{{ gd.tu }} &rarr; {{ gd.den }}</strong>
+              <span class="dgg-stage-arrow">&rarr;</span>
+              <span class="dgg-stage-body">
+                <template v-for="(nt, j) in gd.nhomTrung" :key="'t-' + j">
+                  <span class="dgg-stage-overlap">
+                    <strong>{{ nt.ma }}</strong>
+                    (1. Tự động tính GG Max &rarr; <strong :class="{ 'is-chosen': cheDoChongDot === 'MAX' }">{{ dinhDangPt(nt.max) }}%</strong>,
+                    2. Tính TBC của các ĐGG &rarr; <strong :class="{ 'is-chosen': cheDoChongDot === 'TRUNG_BINH' }">{{ dinhDangPt(nt.tbc) }}%</strong>)
+                  </span>
+                </template>
+                <template v-for="(nd, k) in gd.nhomDon" :key="'d-' + k">
+                  <span class="dgg-stage-single">
+                    <strong>{{ nd.mas.join(', ') }}</strong>: <strong class="text-danger">{{ dinhDangPt(nd.pt) }}%</strong>
+                  </span>
+                </template>
+              </span>
+            </li>
+          </ul>
+        </div>
+
         <div class="ad-table-wrap">
           <div class="ad-table-scroll">
             <table class="ad-table dgg-chosen-table">
               <thead>
                 <tr>
                   <th class="ad-col-stt">STT</th>
-                  <th class="text-center">Ảnh</th>
                   <th>Sản phẩm</th>
                   <th>Biến thể</th>
                   <th>Giá bán</th>
                   <th>Giá sau giảm</th>
-                  <th class="ad-col-actions">Xóa</th>
+                  <th class="text-center">Số lượng</th>
+                  <th class="ad-col-actions"></th>
                 </tr>
               </thead>
               <tbody>
@@ -824,40 +930,63 @@ const huy = () => router.push('/dot-giam-gia')
                   <td colspan="7">
                     <div class="ad-empty">
                       <i class="bi bi-inbox" aria-hidden="true"></i>
-                      <strong>{{ soDaChon ? 'Không có biến thể phù hợp bộ lọc' : 'Chưa chọn sản phẩm nào' }}</strong>
+                      <strong>{{ soDaChon ? 'Không có biến thể phù hợp bộ lọc' : 'Chưa có biến thể nào được chọn áp dụng!' }}</strong>
                       <span v-if="!soDaChon">Tích chọn sản phẩm ở khung “Chọn sản phẩm áp dụng” phía trên.</span>
                     </div>
                   </td>
                 </tr>
                 <tr v-for="(v, i) in dongChon" :key="v.id" class="dgg-chosen-row">
                   <td class="ad-col-stt">{{ (pageChon - 1) * pageSizeChon + i + 1 }}</td>
-                  <td class="text-center">
-                    <img v-if="anhBienThe(v)" :src="anhBienThe(v)" :alt="v.sp?.ten" class="dgg-thumb" />
-                    <span v-else class="dgg-thumb dgg-thumb-empty" aria-hidden="true"><i class="bi bi-image"></i></span>
+                  <td>
+                    <div class="dgg-product">
+                      <img v-if="anhBienThe(v)" :src="anhBienThe(v)" :alt="v.sp?.ten" class="dgg-thumb" />
+                      <span v-else class="dgg-thumb dgg-thumb-empty" aria-hidden="true"><i class="bi bi-image"></i></span>
+                      <div>
+                        <div class="dgg-product-name">{{ v.sp?.ten }}</div>
+                        <div class="dgg-muted">{{ v.sp?.ma }}</div>
+                      </div>
+                    </div>
                   </td>
                   <td>
-                    <div class="dgg-product-name">{{ v.sp?.ten }}</div>
-                    <div class="dgg-muted">{{ v.sp?.ma }}</div>
+                    <div class="dgg-variant-code">{{ v.ma }}</div>
+                    <div class="dgg-chips">
+                      <span v-if="v.mau && v.mau !== '—'" class="dgg-chip">{{ v.mau }}</span>
+                      <span v-if="v.tl && v.tl !== '—'" class="dgg-chip">{{ v.tl }}</span>
+                      <span v-if="v.cv && v.cv !== '—'" class="dgg-chip">{{ v.cv }}</span>
+                    </div>
+                    <div v-if="thongTinTrung(v)" class="dgg-overlap-tag">
+                      Trùng đợt:
+                      <span v-for="d in thongTinTrung(v).cacDot" :key="d.idDot">
+                        {{ d.maDot }} ({{ d.phanTram }}% · {{ ngayGon(d.ngayBatDau) }} &rarr; {{ ngayGon(d.ngayKetThuc) }})
+                      </span>
+                    </div>
+                    <span class="visually-hidden">{{ nhanBienThe(v) }}</span>
                   </td>
-                  <td>
-                    <div class="ad-nowrap"><span class="dgg-dot" :style="{ background: mauHex(v.mau) }" aria-hidden="true"></span>{{ nhanBienThe(v) }}</div>
-                    <div class="dgg-muted ad-code">{{ v.ma }}</div>
-                  </td>
-                  <td class="ad-nowrap">{{ formatMoney(v.giaBan) }}</td>
+                  <td class="ad-nowrap fw-bold">{{ formatMoney(v.giaBan) }}</td>
                   <td class="ad-nowrap">
-                    <strong v-if="giaSauGiam(v) !== null" class="dgg-sale">{{ formatMoney(giaSauGiam(v)) }}</strong>
+                    <template v-if="thongTinTrung(v)">
+                      <strong class="dgg-sale-price">{{ formatMoney(thongTinTrung(v).giaApDung) }}</strong>
+                      <div class="dgg-overlap-price-sub">
+                        Khi trùng: <strong>{{ dinhDangPt(thongTinTrung(v).mucApDung) }}%</strong>
+                        (Max {{ dinhDangPt(thongTinTrung(v).mucMax) }}% · TBC {{ dinhDangPt(thongTinTrung(v).mucTbc) }}%)
+                      </div>
+                    </template>
+                    <strong v-else-if="giaSauGiam(v) !== null" class="dgg-sale-price">{{ formatMoney(giaSauGiam(v)) }}</strong>
                     <span v-else class="dgg-muted" title="Nhập giá trị giảm (%) để tính">—</span>
+                  </td>
+                  <td class="text-center">
+                    <span class="dgg-qty-badge">{{ v.soLuongTon ?? 0 }}</span>
                   </td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
                       <button
                         type="button"
-                        class="ad-icon-btn is-danger"
+                        class="dgg-remove-btn"
                         title="Xóa biến thể này khỏi đợt giảm giá"
                         :aria-label="'Xóa biến thể ' + v.ma"
                         @click="boKhoiChon([v.id])"
                       >
-                        <i class="bi bi-trash" aria-hidden="true"></i>
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
                       </button>
                     </div>
                   </td>
@@ -867,20 +996,11 @@ const huy = () => router.push('/dot-giam-gia')
           </div>
         </div>
 
-        <BasePagination v-if="totalChon" v-model:page="pageChon" :page-size="pageSizeChon" :total="totalChon" />
+        <div v-if="totalChon" class="dgg-table-foot">
+          <span class="dgg-foot-info">Hiển thị {{ (pageChon - 1) * pageSizeChon + 1 }} - {{ Math.min(pageChon * pageSizeChon, totalChon) }} / {{ totalChon }} biến thể</span>
+          <BasePagination v-model:page="pageChon" :page-size="pageSizeChon" :total="totalChon" />
+        </div>
       </section>
-
-      <!-- Quy tắc + ví dụ chạy thử + cảnh báo trùng đợt (cộng dồn hay lấy mức cao nhất) -->
-      <DotGiamGiaChongDotCard
-        :dot="dotDangSoan"
-        :bien-thes="dsChon"
-        :muc-khac="apDungKhac.muc"
-        :che-do="cheDoDangDung"
-        :mo-ta-che-do="cheDoChongDot?.moTa ?? ''"
-      />
-
-      <!-- Lịch giảm giá theo ngày: chỉ khi xem / sửa đợt đã lưu (cần dữ liệu từ backend) -->
-      <DotGiamGiaLichCard v-if="isEdit && item" :id-dot="idXem" :dot-dang-tat="!dangHoatDong(item)" />
     </template>
 
     <ConfirmQuestion
@@ -963,17 +1083,52 @@ textarea.ad-control {
   resize: vertical;
 }
 
-/* Ô tìm kiếm + bộ lọc + nút tìm */
-.dgg-search {
+/* Tiêu đề + Ô tìm kiếm nằm ngang ở thẻ Chọn sản phẩm áp dụng */
+.dgg-select-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
-.dgg-search > div {
-  flex: 1 1 260px;
-  min-width: 0;
+.dgg-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.dgg-search-box {
+  position: relative;
+  width: 240px;
+}
+.dgg-search-ico {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.dgg-search-input {
+  padding-left: 2.15rem !important;
+  height: 36px;
+  font-size: 0.85rem;
+}
+.dgg-search-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: #2c4a5e;
+  color: #fff;
+  font-size: 0.85rem;
+  flex: 0 0 auto;
+}
+.dgg-search-btn:hover {
+  background: #1e3545;
 }
 
 /* Bảng chọn sản phẩm */
@@ -996,23 +1151,53 @@ textarea.ad-control {
   text-align: center;
 }
 .dgg-expand {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: inline-grid;
   place-items: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fs-muted);
+  border: 1px solid #d5e0ef;
+  border-radius: 50%;
+  background: #fff;
+  color: #334155;
+  font-size: 1rem;
+  line-height: 1;
+  transition: all 0.15s ease;
 }
-.dgg-expand:hover {
-  background: var(--fs-primary-soft);
-  color: var(--fs-primary);
+.dgg-expand:hover,
+.dgg-expand.is-open {
+  background: var(--fs-primary-soft, #e6f1fe);
+  border-color: var(--fs-primary, #0977ec);
+  color: var(--fs-primary-dark, #075fc0);
+}
+.dgg-product-row {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.dgg-product-row:hover > td {
+  background: #f8fbff;
+}
+.dgg-product-row.is-selected > td,
+.dgg-row-expanded > td {
+  background: #f0f7ff;
 }
 .dgg-sub-row > td {
-  background: var(--fs-surface);
-  padding-top: 0.4rem !important;
-  padding-bottom: 0.6rem !important;
+  background: #f8fafc;
+  padding: 0.45rem 0.85rem 0.65rem !important;
+}
+.dgg-table-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.dgg-table-foot :deep(.ad-pager) {
+  margin-top: 0;
+}
+.dgg-foot-info {
+  font-size: 0.82rem;
+  color: #64748b;
 }
 
 /* Nhãn nhỏ (màu sắc / trọng lượng / chu vi) */
@@ -1020,32 +1205,63 @@ textarea.ad-control {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  margin-top: 0.3rem;
+  margin-top: 0.28rem;
 }
 .dgg-chip {
   display: inline-block;
-  padding: 0.12rem 0.6rem;
-  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  border-radius: 6px;
   background: #f1f4f8;
-  color: var(--fs-text-2);
-  font-size: 0.78rem;
-  font-weight: 500;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 600;
 }
 
 /* Thẻ biến thể đã chọn */
 .dgg-chosen-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  margin-bottom: 0.85rem;
 }
-.dgg-count { display: inline-block; margin-left: 0.5rem; padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--fs-primary-soft, #e6f1fe); color: var(--fs-primary-dark, #075fc0); font-size: 0.75rem; font-weight: 600; }
-.dgg-variants { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.dgg-vchip { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid #d5e0ef; background: #fff; border-radius: 999px; padding: 0.25rem 0.75rem; font-size: 0.82rem; color: #1c2530; }
-.dgg-vchip:hover { border-color: var(--fs-primary, #0977ec); }
-.dgg-vchip.on { background: var(--fs-primary-soft, #e6f1fe); border-color: var(--fs-primary, #0977ec); color: var(--fs-primary-dark, #075fc0); font-weight: 600; }
-.dgg-vchip-price { font-weight: 400; color: #7b8794; }
+.dgg-count { display: inline-block; margin-left: 0.5rem; padding: 0.08rem 0.55rem; border-radius: 999px; background: var(--fs-primary-soft, #e6f1fe); color: var(--fs-primary-dark, #075fc0); font-size: 0.75rem; font-weight: 600; }
+.dgg-variants { display: flex; flex-direction: column; gap: 0.35rem; }
+.dgg-vchip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.85rem;
+  color: #1c2530;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+.dgg-vchip:hover { border-color: var(--fs-primary, #0977ec); background: #f8fbff; }
+.dgg-vchip.on { background: #eff6ff; border-color: var(--fs-primary, #0977ec); color: #0f172a; }
+.dgg-vcheck {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1.5px solid #94a3b8;
+  border-radius: 4px;
+  background: #fff;
+  color: #fff;
+  font-size: 0.75rem;
+  flex: 0 0 auto;
+}
+.dgg-vcheck.checked {
+  background: var(--fs-primary, #0977ec);
+  border-color: var(--fs-primary, #0977ec);
+}
+.dgg-sub-col-ma { font-weight: 700; color: #1e293b; white-space: nowrap; }
+.dgg-vchip-price { font-weight: 600; color: #334155; white-space: nowrap; }
 .dgg-card-error {
   border-color: var(--fs-danger);
 }
@@ -1073,7 +1289,25 @@ textarea.ad-control {
 .dgg-stat-gio { font-size: 1rem; }
 /* Bảng biến thể đã chọn */
 .dgg-chosen-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.dgg-chosen-filters .form-select { width: auto; min-width: 150px; }
+.dgg-chosen-filters .form-select { width: auto; min-width: 145px; }
+.dgg-chosen-search {
+  position: relative;
+  width: 200px;
+}
+.dgg-chosen-search i {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.82rem;
+  pointer-events: none;
+}
+.dgg-chosen-search input {
+  padding-left: 2rem !important;
+  height: 36px;
+  font-size: 0.84rem;
+}
 .dgg-btn-go { color: var(--fs-danger); border-color: #f3c2c8; }
 .dgg-dot { display: inline-block; width: 12px; height: 12px; margin-right: 0.4rem; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.18); vertical-align: -1px; }
 .dgg-product {
@@ -1082,8 +1316,8 @@ textarea.ad-control {
   gap: 0.75rem;
 }
 .dgg-thumb {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 8px;
   object-fit: cover;
   flex: 0 0 auto;
@@ -1096,17 +1330,153 @@ textarea.ad-control {
   color: var(--fs-muted);
 }
 .dgg-product-name {
-  font-weight: 500;
-  color: var(--fs-text);
+  font-weight: 700;
+  color: #1e293b;
 }
 .dgg-muted {
-  color: var(--fs-muted);
-  font-size: 0.85rem;
+  color: #64748b;
+  font-size: 0.8rem;
 }
 .dgg-variant-code {
-  font-size: 0.88rem;
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: #334155;
 }
 .dgg-sale {
   color: var(--fs-primary-dark);
+}
+.dgg-sale-price {
+  color: #b45309;
+  font-weight: 700;
+}
+.dgg-qty-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.dgg-remove-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+}
+.dgg-remove-btn:hover {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+/* Phân bổ giai đoạn khi trùng đợt giảm giá */
+.dgg-overlap-box {
+  margin-bottom: 0.9rem;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fffbeb;
+  font-size: 0.84rem;
+}
+.dgg-overlap-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.55rem;
+}
+.dgg-overlap-title {
+  font-weight: 700;
+  color: #9a3412;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.dgg-mode-switch {
+  display: inline-flex;
+  gap: 0.35rem;
+  background: #fff;
+  padding: 0.2rem;
+  border-radius: 8px;
+  border: 1px solid #fdba74;
+}
+.dgg-mode-btn {
+  border: 0;
+  background: transparent;
+  padding: 0.28rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  transition: all 0.15s ease;
+}
+.dgg-mode-btn.active {
+  background: #2c4a5e;
+  color: #fff;
+}
+.dgg-stage-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.dgg-stage-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.6rem;
+  background: #fff;
+  border: 1px solid #fde68a;
+  border-radius: 7px;
+  color: #1e293b;
+}
+.dgg-stage-date {
+  color: #0f172a;
+  min-width: 88px;
+}
+.dgg-stage-arrow {
+  color: #94a3b8;
+}
+.dgg-stage-body {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.dgg-stage-overlap .is-chosen {
+  color: #b45309;
+  text-decoration: underline;
+}
+.dgg-overlap-tag {
+  margin-top: 0.3rem;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 6px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #c2410c;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+.dgg-overlap-price-sub {
+  font-size: 0.74rem;
+  color: #64748b;
+  margin-top: 0.12rem;
 }
 </style>

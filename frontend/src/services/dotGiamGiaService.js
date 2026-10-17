@@ -53,6 +53,10 @@ export const dotGiamGiaService = {
     return (await api.get('/dot-giam-gia/che-do')).data
   },
 
+  async doiCheDo(cheDo) {
+    return (await api.put('/dot-giam-gia/che-do', { cheDo })).data
+  },
+
   async create(payload) {
     return (await api.post('/dot-giam-gia', payload)).data
   },

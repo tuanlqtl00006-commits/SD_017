@@ -82,6 +82,13 @@ public class DotGiamGiaController {
         return Map.of("cheDo", cheDo.name(), "moTa", cheDo.moTa());
     }
 
+    /** Đổi nhanh cách tính khi nhiều đợt giảm giá trùng thời gian (1. MAX = tự động tính giảm giá cao nhất, 2. TRUNG_BINH = tính trung bình cộng các đợt). */
+    @PutMapping("/che-do")
+    public Map<String, String> doiCheDo(@RequestBody(required = false) Map<String, String> body) {
+        var cheDo = giamGiaApDungService.datCheDo(body == null ? null : body.get("cheDo"));
+        return Map.of("cheDo", cheDo.name(), "moTa", cheDo.moTa());
+    }
+
     /** Mức giảm đang áp dụng NGAY LÚC NÀY (tính tới giờ phút) của từng biến thể: { "idBienThe": phần trăm }. Nhiều đợt chồng nhau thì gộp theo MAX / CONG_DON / TRUNG_BINH (application.properties). */
     @GetMapping("/ap-dung-hom-nay")
     public Map<Long, Double> apDungHomNay() {

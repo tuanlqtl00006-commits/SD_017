@@ -29,7 +29,6 @@ async function montar() {
   return { w, router }
 }
 const dongSanPham = (w, ten) => w.findAll('.dgg-table tbody tr').find((tr) => tr.text().includes(ten))
-const tongKet = (w) => w.get('[data-testid=tong-ket]').text()
 
 beforeEach(() => { document.body.innerHTML = '' })
 
@@ -43,25 +42,20 @@ describe('Giá sau giảm (dùng chung cho danh sách sản phẩm, biến thể
   })
 })
 
-describe('Thêm đợt giảm giá: tổng kết + bảng biến thể đã chọn', () => {
-  it('tích 1 sản phẩm thì chọn hết 4 biến thể; tổng kết hiện mức giảm, số sản phẩm, số biến thể, ngày bắt đầu / kết thúc', async () => {
+describe('Thêm đợt giảm giá: chọn sản phẩm + bảng biến thể đã chọn', () => {
+  it('tích 1 sản phẩm thì chọn hết 4 biến thể, hiện số lượng sản phẩm / biến thể và trạng thái dự kiến', async () => {
     const { w } = await montar()
     expect(w.findAll('.dgg-search select').length).toBe(0) // chỉ một ô tìm kiếm
     await dongSanPham(w, 'Astrox 99').get('input[type=checkbox]').setValue(true); await flushPromises()
     expect(w.findAll('.dgg-chosen-row').length).toBe(4)
+    expect(w.text()).toContain('Đã chọn 1 sản phẩm (4 biến thể)')
+    expect(w.text()).toContain('1 sản phẩm · 4 biến thể')
     await w.get('#dgg-ten').setValue('Sale vợt')
     await w.get('#dgg-gia-tri').setValue('15')
     await w.get('#dgg-tu-ngay').setValue('2099-10-20')
     await w.get('#dgg-tu-ngay-gio').setValue('00:00')
     await w.get('#dgg-den-ngay').setValue('2099-10-29')
-    const tk = tongKet(w)
-    expect(tk).toContain('Mức giảm15%')
-    expect(tk).toContain('Sản phẩm1')
-    expect(tk).toContain('Biến thể4')
-    expect(tk).toContain('Ngày giờ bắt đầu20/10/2099 00:00')
-    expect(tk).toContain('Ngày giờ kết thúc29/10/2099 23:59') // chọn ngày mà chưa chọn giờ: ngày kết thúc lấy 23:59
-    expect(tk).toContain('10 ngày')
-    expect(tk).toContain('tổng giá bán 12.400.000 ₫ → sau giảm 10.540.000 ₫')
+    expect(w.get('[data-testid=dgg-trang-thai-du-kien]').text()).toContain('Bắt đầu lúc 20/10/2099 00:00')
   })
 
   it('mỗi dòng có ảnh theo màu, tên sản phẩm, biến thể (màu · trọng lượng · chu vi), giá bán và giá sau giảm đúng', async () => {
@@ -94,10 +88,9 @@ describe('Thêm đợt giảm giá: tổng kết + bảng biến thể đã ch�
     expect(dongSanPham(w, 'Astrox 99').text()).toContain('Đã chọn 1/4 biến thể')
   })
 
-  it('bấm + rồi bấm nhãn để thêm từng biến thể của sản phẩm khác; lưu gửi đúng danh sách biến thể', async () => {
+  it('bấm + để thêm biến thể của sản phẩm xuống bảng dưới; lưu gửi đúng danh sách biến thể', async () => {
     const { w, router } = await montar()
-    await dongSanPham(w, 'Grip Yonex').get('.dgg-expand').trigger('click')
-    await w.findAll('.dgg-vchip').find((c) => c.text().includes('Đen')).trigger('click'); await flushPromises()
+    await dongSanPham(w, 'Grip Yonex').get('.dgg-expand').trigger('click'); await flushPromises()
     expect(w.text()).toContain('1 sản phẩm · 1 biến thể')
     expect(w.findAll('.dgg-chosen-row')[0].text()).toContain('Đen') // phụ kiện: không hiện "Không áp dụng"
     expect(w.findAll('.dgg-chosen-row')[0].text()).not.toContain('Không áp dụng')
@@ -123,8 +116,7 @@ describe('Thêm đợt giảm giá: tổng kết + bảng biến thể đã ch�
     expect(w.get('[data-iso="2099-10-19"]').attributes('disabled')).toBeDefined()
     await w.get('[data-iso="2099-10-31"]').trigger('click')
     expect(w.get('#dgg-den-ngay').element.value).toBe('31/10/2099')
-    expect(tongKet(w)).toContain('Ngày giờ bắt đầu20/10/2099 08:30')
-    expect(tongKet(w)).toContain('Ngày giờ kết thúc31/10/2099 23:59')
+    expect(w.get('[data-testid=dgg-trang-thai-du-kien]').text()).toContain('Bắt đầu lúc 20/10/2099 08:30')
     await w.get('form').trigger('submit'); await flushPromises()
     ;[...document.body.querySelectorAll('button')].find((b) => /Xác nhận|Đồng ý|Có/.test(b.textContent))?.click(); await flushPromises()
     const luu = mock.calls.post.find((c) => c[0] === '/dot-giam-gia')

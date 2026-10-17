@@ -64,11 +64,11 @@ describe('Đợt giảm giá: chọn sản phẩm / biến thể', () => {
     expect(w.text()).toContain('1 sản phẩm · 1 biến thể')
     expect(w.findAll('.dgg-chosen-row').length).toBe(1)
   })
-  it('bấm + rồi bấm nhãn để chọn từng biến thể', async () => {
+  it('bấm nút + hoặc dòng sản phẩm thì đẩy biến thể xuống bảng dưới (không xổ dòng con ở bảng trên)', async () => {
     const w = await montarDot()
-    await w.get('.dgg-expand').trigger('click')
-    const chips = w.findAll('.dgg-vchip:not(.is-static)'); expect(chips.length).toBe(2)
-    await chips[1].trigger('click'); await flushPromises()
-    expect(w.text()).toContain('1 sản phẩm · 1 biến thể')
+    await w.get('.dgg-expand').trigger('click'); await flushPromises()
+    expect(w.find('.dgg-sub-row').exists()).toBe(false)
+    expect(w.text()).toContain('1 sản phẩm · 2 biến thể')
+    expect(w.findAll('.dgg-chosen-row').length).toBe(2)
   })
 })
