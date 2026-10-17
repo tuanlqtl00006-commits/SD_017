@@ -108,8 +108,6 @@ describe('Thêm khách hàng: lỗi hiện dưới từng ô', () => {
     expect(loiO(w, 'kh-dia-chi-tinh-msg')).toBe('Chọn Tỉnh/Thành phố.')
     expect(loiO(w, 'kh-dia-chi-phuong-msg')).toBe('Chọn Phường/Xã.')
     expect(loiO(w, 'kh-dia-chi-cu-the-msg')).toBe('Nhập địa chỉ cụ thể (số nhà, đường...).')
-    expect(loiO(w, 'kh-nguoi-nhan-msg')).toBe('Vui lòng nhập họ tên người nhận.')
-    expect(loiO(w, 'kh-sdt-nguoi-nhan-msg')).toBe('Vui lòng nhập số điện thoại người nhận.')
     expect(w.find('#kh-ho-ten').classes()).toContain('is-invalid')
     expect(w.find('#kh-ho-ten').attributes('aria-invalid')).toBe('true')
     expect(document.activeElement?.id).toBe('kh-ho-ten')
@@ -216,33 +214,7 @@ describe('Thêm khách hàng: lỗi hiện dưới từng ô', () => {
   })
 })
 
-describe('Thêm khách hàng: người nhận và gửi lên backend', () => {
-  it('tên / SĐT người nhận tự lấy theo khách hàng cho tới khi người dùng tự sửa', async () => {
-    const w = await moForm()
-    await w.find('#kh-ho-ten').setValue('Nguyễn Thị Mai')
-    await w.find('#kh-sdt').setValue('0912345678')
-    expect(w.find('#kh-nguoi-nhan').element.value).toBe('Nguyễn Thị Mai')
-    expect(w.find('#kh-sdt-nguoi-nhan').element.value).toBe('0912345678')
-    await w.find('#kh-nguoi-nhan').setValue('Trần Bà Nội')
-    await w.find('#kh-ho-ten').setValue('Nguyễn Thị Mai B')
-    expect(w.find('#kh-nguoi-nhan').element.value).toBe('Trần Bà Nội') // đã tự sửa -> không bị ghi đè nữa
-    expect(w.find('#kh-sdt-nguoi-nhan').element.value).toBe('0912345678')
-    w.unmount()
-  })
-
-  it('SĐT người nhận cũng phải đúng đầu số, tên người nhận không có chữ số', async () => {
-    const w = await moForm()
-    await dienHopLe(w)
-    await w.find('#kh-sdt-nguoi-nhan').setValue('0212345678')
-    await w.find('#kh-nguoi-nhan').setValue('Bà 7')
-    await w.find('form').trigger('submit')
-    await flushPromises()
-    expect(svc.create).not.toHaveBeenCalled()
-    expect(loiO(w, 'kh-sdt-nguoi-nhan-msg')).toBe(LOI_SDT)
-    expect(loiO(w, 'kh-nguoi-nhan-msg')).toBe(LOI_HO_TEN_KY_TU)
-    w.unmount()
-  })
-
+describe('Thêm khách hàng: gửi lên backend', () => {
   it('đủ thông tin: gửi dữ liệu đã chuẩn hóa (không có quận/huyện), báo thành công và về danh sách', async () => {
     svc.create.mockResolvedValue({ id: 9 })
     const w = await moForm()

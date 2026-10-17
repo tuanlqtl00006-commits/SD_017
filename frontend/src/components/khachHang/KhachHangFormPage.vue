@@ -119,10 +119,6 @@ function tinhLoi() {
   if (isEdit.value && ![0, 1].includes(Number(form.trangThai))) e.trangThai = 'Trạng thái không hợp lệ.'
 
   if (!isEdit.value) {
-    const tenNhan = loiHoTen(form.tenNguoiNhan, { thieu: 'Vui lòng nhập họ tên người nhận.', toiDa: 100 })
-    if (tenNhan) e.tenNguoiNhan = tenNhan
-    const sdtNhan = loiSdt(form.sdtNguoiNhan, 'Vui lòng nhập số điện thoại người nhận.')
-    if (sdtNhan) e.sdtNguoiNhan = sdtNhan
     if (!cat(form.tinhThanh)) e.tinhThanh = 'Chọn Tỉnh/Thành phố.'
     if (!cat(form.phuongXa)) e.phuongXa = 'Chọn Phường/Xã.'
     const chiTiet = cat(form.diaChiCuThe)
@@ -450,45 +446,6 @@ async function luu() {
             </div>
 
             <div class="row g-3">
-              <div class="col-md-6">
-                <label class="ad-label" for="kh-nguoi-nhan">Họ tên người nhận <span class="ad-required">*</span></label>
-                <input
-                  id="kh-nguoi-nhan"
-                  v-model="form.tenNguoiNhan"
-                  type="text"
-                  class="form-control ad-control"
-                  :class="{ 'is-invalid': loi.tenNguoiNhan }"
-                  maxlength="100"
-                  placeholder="Mặc định là tên khách hàng"
-                  autocomplete="off"
-                  :aria-invalid="!!loi.tenNguoiNhan"
-                  aria-describedby="kh-nguoi-nhan-msg"
-                  @input="tuSuaNguoiNhan.ten = true; sua('tenNguoiNhan')"
-                  @blur="cham('tenNguoiNhan')"
-                />
-                <p v-if="loi.tenNguoiNhan" id="kh-nguoi-nhan-msg" class="ad-error">{{ loi.tenNguoiNhan }}</p>
-              </div>
-
-              <div class="col-md-6">
-                <label class="ad-label" for="kh-sdt-nguoi-nhan">Số điện thoại người nhận <span class="ad-required">*</span></label>
-                <input
-                  id="kh-sdt-nguoi-nhan"
-                  v-model="form.sdtNguoiNhan"
-                  type="text"
-                  inputmode="numeric"
-                  class="form-control ad-control"
-                  :class="{ 'is-invalid': loi.sdtNguoiNhan }"
-                  maxlength="15"
-                  placeholder="Mặc định là số điện thoại khách hàng"
-                  autocomplete="off"
-                  :aria-invalid="!!loi.sdtNguoiNhan"
-                  aria-describedby="kh-sdt-nguoi-nhan-msg"
-                  @input="tuSuaNguoiNhan.sdt = true; sua('sdtNguoiNhan')"
-                  @blur="cham('sdtNguoiNhan')"
-                />
-                <p v-if="loi.sdtNguoiNhan" id="kh-sdt-nguoi-nhan-msg" class="ad-error">{{ loi.sdtNguoiNhan }}</p>
-              </div>
-
               <!-- Địa chỉ hành chính sau sáp nhập (provinces.open-api.vn v2): Tỉnh/Thành phố -> Phường/Xã, không còn Quận/Huyện -->
               <DiaChiHanhChinhSelect
                 v-model:tinh-thanh="form.tinhThanh"

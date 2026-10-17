@@ -293,7 +293,7 @@ async function confirmToggle() {
                       <button
                         type="button"
                         class="ad-icon-btn"
-                        :class="dangHoatDong(k) ? 'is-danger' : 'is-success'"
+                        :class="dangHoatDong(k) ? 'is-success' : 'is-danger'"
                         :title="tieuDeNutBat(k)"
                         :aria-label="`${tieuDeNutBat(k)}: ${k.hoTen}`"
                         @click="confirmItem = k"
