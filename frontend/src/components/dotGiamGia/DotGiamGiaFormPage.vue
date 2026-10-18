@@ -347,18 +347,8 @@ const moTaTrangThai = computed(() => {
 
 const soSanPhamChon = computed(() => new Set(dsChon.value.map((v) => v.idSanPham)).size)
 
-/* ----- Xử lý trùng đợt giảm giá theo đúng nghiệp vụ của cô (1. Tự động tính GG Max / 2. Tính TBC các ĐGG) ----- */
+/* ----- Xử lý trùng đợt giảm giá: tự động tính theo mức giảm giá lớn nhất (GG Max) ----- */
 const apDungKhac = ref({ chinhSach: 'MAX', muc: [] })
-const cheDoChongDot = ref('MAX') // 'MAX' | 'TRUNG_BINH'
-
-async function doiCheDoChongDot(cheDoMoi) {
-  cheDoChongDot.value = cheDoMoi
-  try {
-    await dotGiamGiaService.doiCheDo(cheDoMoi)
-  } catch {
-    // Backend chưa bật hoặc lỗi mạng thì vẫn cập nhật hiển thị tại chỗ
-  }
-}
 
 const dinhDangPt = (n) => String(Math.round(Number(n) * 100) / 100).replace('.', ',')
 const ngayGon = (iso) => {
@@ -381,134 +371,35 @@ const mapDotTrungTheoBt = computed(() => {
     const mKt = mocKetThuc(m.ngayKetThuc)
     if (!mBd || !mKt || mKt < bd || mBd > kt) continue
     if (!kq.has(m.idBienThe)) kq.set(m.idBienThe, [])
-    kq.get(m.idBienThe).push(m)
+    const ds = kq.get(m.idBienThe)
+    if (!ds.some((x) => x.idDot === m.idDot)) ds.push(m)
+  }
+  for (const ds of kq.values()) {
+    ds.sort((a, b) => Number(b.phanTram) - Number(a.phanTram))
   }
   return kq
 })
 
 function thongTinTrung(v) {
   const ds = mapDotTrungTheoBt.value.get(v.id)
-  if (!ds || !ds.length || phanTramHopLe.value === null) return null
-  const pts = [...ds.map((x) => Number(x.phanTram) || 0), phanTramHopLe.value]
-  const mucMax = Math.max(...pts)
-  const mucTbc = Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 100) / 100
-  const mucApDung = cheDoChongDot.value === 'TRUNG_BINH' ? mucTbc : mucMax
+  if (!ds || !ds.length) return null
+  const maxDotKhac = Math.max(...ds.map((x) => Number(x.phanTram) || 0))
+  const ptDotNay = phanTramHopLe.value
+  const mucMax = ptDotNay !== null ? Math.max(maxDotKhac, ptDotNay) : maxDotKhac
   return {
     cacDot: ds,
+    maxDotKhac,
+    ptDotNay,
     mucMax,
-    mucTbc,
-    mucApDung,
-    giaApDung: tinhGiaSauGiam(v.giaBan, mucApDung),
+    giaDotNay: ptDotNay !== null ? tinhGiaSauGiam(v.giaBan, ptDotNay) : null,
+    giaMax: tinhGiaSauGiam(v.giaBan, mucMax),
   }
 }
-
-// Danh sách các đợt đang giao thời gian (hiển thị dạng "- 10%: 1/10 - 10/10 -> BIẾN THỂ: SPCT1, SPCT5" chuẩn theo ghi chú của cô)
-const cacDotGiaoNhau = computed(() => {
-  if (!khoangHopLe.value || phanTramHopLe.value === null || !mapDotTrungTheoBt.value.size) return []
-  const idDotTrungs = new Set()
-  for (const ds of mapDotTrungTheoBt.value.values()) {
-    ds.forEach((m) => idDotTrungs.add(m.idDot))
-  }
-  const theoDot = new Map()
-  for (const m of apDungKhac.value.muc ?? []) {
-    if (!idDotTrungs.has(m.idDot)) continue
-    const bt = bienTheById.value.get(m.idBienThe)
-    const maBt = bt?.ma || `SPCT${m.idBienThe}`
-    if (!theoDot.has(m.idDot)) {
-      theoDot.set(m.idDot, {
-        maDot: m.maDot,
-        phanTram: Number(m.phanTram),
-        tuNgay: tachNgayGio(m.ngayBatDau).ngay,
-        tu: ngayGon(m.ngayBatDau),
-        den: ngayGon(m.ngayKetThuc),
-        mas: [],
-      })
-    }
-    const itemDot = theoDot.get(m.idDot)
-    if (!itemDot.mas.includes(maBt)) itemDot.mas.push(maBt)
-  }
-  const ds = [...theoDot.values()]
-  ds.push({
-    maDot: form.maDot || 'Đợt mới',
-    phanTram: phanTramHopLe.value,
-    tuNgay: tachNgayGio(form.batDau).ngay,
-    tu: ngayGon(form.batDau),
-    den: ngayGon(form.ketThuc),
-    mas: dsChon.value.map((v) => v.ma),
-  })
-  return ds.sort((a, b) => String(a.tuNgay).localeCompare(String(b.tuNgay)))
-})
-
-// Phân tách các giai đoạn ngày khi đợt đang soạn giao thời gian với các đợt khác (vd: 1/10 -> 4/10, 4/10 -> 10/10, 10/10 -> 20/10)
-const giaiDoanTrungDot = computed(() => {
-  if (!khoangHopLe.value || phanTramHopLe.value === null || !mapDotTrungTheoBt.value.size) return []
-  const idDotTrungs = new Set()
-  for (const ds of mapDotTrungTheoBt.value.values()) {
-    ds.forEach((m) => idDotTrungs.add(m.idDot))
-  }
-  // Thu thập toàn bộ mục (biến thể + đợt) thuộc các đợt đang giao nhau + đợt đang soạn
-  const mucs = []
-  for (const m of apDungKhac.value.muc ?? []) {
-    if (!idDotTrungs.has(m.idDot)) continue
-    const bt = bienTheById.value.get(m.idBienThe)
-    const bd = tachNgayGio(m.ngayBatDau).ngay
-    const kt = tachNgayGio(m.ngayKetThuc).ngay
-    if (bd && kt) mucs.push({ idBienThe: m.idBienThe, maBienThe: bt?.ma || `SPCT${m.idBienThe}`, idDot: m.idDot, phanTram: Number(m.phanTram), tuNgay: bd, denNgay: kt })
-  }
-  const bdMoi = tachNgayGio(form.batDau).ngay
-  const ktMoi = tachNgayGio(form.ketThuc).ngay
-  for (const v of dsChon.value) {
-    mucs.push({ idBienThe: v.id, maBienThe: v.ma, idDot: 0, phanTram: phanTramHopLe.value, tuNgay: bdMoi, denNgay: ktMoi })
-  }
-  const mocSet = new Set()
-  for (const m of mucs) {
-    mocSet.add(m.tuNgay)
-    mocSet.add(m.denNgay)
-  }
-  const mocs = [...mocSet].sort()
-  if (!mocs.length) return []
-  const doanMocs = mocs.length === 1 ? [[mocs[0], mocs[0]]] : mocs.slice(0, -1).map((d, i) => [d, mocs[i + 1]])
-
-  const ketQua = []
-  for (const [d1, d2] of doanMocs) {
-    // Một đợt được tính trong đoạn [d1, d2] nếu bắt đầu <= d1 và kết thúc >= d2
-    const theoBt = new Map()
-    for (const m of mucs) {
-      if (m.tuNgay <= d1 && m.denNgay >= d2) {
-        if (!theoBt.has(m.idBienThe)) theoBt.set(m.idBienThe, { ma: m.maBienThe, pts: [] })
-        theoBt.get(m.idBienThe).pts.push(m.phanTram)
-      }
-    }
-    if (!theoBt.size) continue
-    const trungMap = new Map()
-    const nhomDon = new Map()
-    for (const { ma, pts } of [...theoBt.values()].sort((a, b) => String(a.ma).localeCompare(String(b.ma)))) {
-      if (pts.length > 1) {
-        const max = Math.max(...pts)
-        const tbc = Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 100) / 100
-        const key = `${max}_${tbc}`
-        if (!trungMap.has(key)) trungMap.set(key, { mas: [], max, tbc })
-        trungMap.get(key).mas.push(ma)
-      } else {
-        const pt = pts[0]
-        if (!nhomDon.has(pt)) nhomDon.set(pt, [])
-        nhomDon.get(pt).push(ma)
-      }
-    }
-    ketQua.push({
-      tu: ngayGon(d1),
-      den: ngayGon(d2),
-      nhomTrung: [...trungMap.values()].map((g) => ({ ma: g.mas.join(', '), max: g.max, tbc: g.tbc })),
-      nhomDon: [...nhomDon.entries()].map(([pt, mas]) => ({ pt, mas })),
-    })
-  }
-  return ketQua
-})
 
 /* ----- Tải dữ liệu ----- */
 async function taiDuLieu() {
   try {
-    const [dsSp, dsBt, dsMau, dsTl, dsCv, dsDm, dsTh, dsCl, dsDot, dot, chiTiet, rApDung, rCheDo] = await Promise.all([
+    const [dsSp, dsBt, dsMau, dsTl, dsCv, dsDm, dsTh, dsCl, dsDot, dot, chiTiet, rApDung] = await Promise.all([
       sanPhamService.getAll(),
       bienTheService.getAll(),
       thuocTinhService.getAll('mau-sac'),
@@ -521,14 +412,9 @@ async function taiDuLieu() {
       isEdit ? dotGiamGiaService.getById(idXem) : Promise.resolve(null),
       isEdit ? dotGiamGiaService.getBienThe(idXem) : Promise.resolve([]),
       dotGiamGiaService.apDung().catch(() => null),
-      dotGiamGiaService.cheDo().catch(() => null),
     ])
     if (rApDung && Array.isArray(rApDung.muc)) {
       apDungKhac.value = rApDung
-      if (rApDung.chinhSach === 'TRUNG_BINH' || rApDung.chinhSach === 'MAX') cheDoChongDot.value = rApDung.chinhSach
-    }
-    if (rCheDo?.cheDo === 'TRUNG_BINH' || rCheDo?.cheDo === 'MAX') {
-      cheDoChongDot.value = rCheDo.cheDo
     }
     sanPhams.value = dsSp
     bienThes.value = dsBt
@@ -882,60 +768,6 @@ const huy = () => router.push('/dot-giam-gia')
         </div>
         <p v-if="errors.bienThe" class="ad-error">{{ errors.bienThe }}</p>
 
-        <!-- Khi có biến thể trùng thời gian với đợt khác: hiển thị phân bổ theo giai đoạn ngày & nút chọn cách tính (1. GG Max / 2. TBC) -->
-        <div v-if="giaiDoanTrungDot.length" class="dgg-overlap-box" data-testid="dgg-giai-doan-trung">
-          <div class="dgg-overlap-top">
-            <span class="dgg-overlap-title">
-              <i class="bi bi-calendar-range" aria-hidden="true"></i>
-              Phân bổ giảm giá theo giai đoạn (có biến thể trùng đợt giảm giá):
-            </span>
-            <div class="dgg-mode-switch" role="group" aria-label="Chọn cách tính khi trùng đợt giảm giá">
-              <button
-                type="button"
-                class="dgg-mode-btn"
-                :class="{ active: cheDoChongDot === 'MAX' }"
-                @click="doiCheDoChongDot('MAX')"
-              >
-                1. Tự động tính GG Max
-              </button>
-              <button
-                type="button"
-                class="dgg-mode-btn"
-                :class="{ active: cheDoChongDot === 'TRUNG_BINH' }"
-                @click="doiCheDoChongDot('TRUNG_BINH')"
-              >
-                2. Tính TBC của các ĐGG
-              </button>
-            </div>
-          </div>
-          <ul v-if="cacDotGiaoNhau.length" class="dgg-campaign-list">
-            <li v-for="(d, idxDot) in cacDotGiaoNhau" :key="'dot-' + idxDot" class="dgg-campaign-item">
-              <span>- <strong>{{ dinhDangPt(d.phanTram) }}%</strong>: {{ d.tu }} - {{ d.den }} &rarr; BIẾN THỂ: <strong>{{ d.mas.join(', ') }}</strong></span>
-              <span class="dgg-campaign-code">({{ d.maDot }})</span>
-            </li>
-          </ul>
-          <ul class="dgg-stage-list">
-            <li v-for="(gd, idx) in giaiDoanTrungDot" :key="idx" class="dgg-stage-item">
-              <strong class="dgg-stage-date">{{ gd.tu }} &rarr; {{ gd.den }}</strong>
-              <span class="dgg-stage-arrow">&rarr;</span>
-              <span class="dgg-stage-body">
-                <template v-for="(nt, j) in gd.nhomTrung" :key="'t-' + j">
-                  <span class="dgg-stage-overlap">
-                    <strong>{{ nt.ma }}</strong>
-                    (1. Tự động tính GG Max &rarr; <strong :class="{ 'is-chosen': cheDoChongDot === 'MAX' }">{{ dinhDangPt(nt.max) }}%</strong>,
-                    2. Tính TBC của các ĐGG &rarr; <strong :class="{ 'is-chosen': cheDoChongDot === 'TRUNG_BINH' }">{{ dinhDangPt(nt.tbc) }}%</strong>)
-                  </span>
-                </template>
-                <template v-for="(nd, k) in gd.nhomDon" :key="'d-' + k">
-                  <span class="dgg-stage-single">
-                    <strong>{{ nd.mas.join(', ') }}</strong>: <strong class="text-danger">{{ dinhDangPt(nd.pt) }}%</strong>
-                  </span>
-                </template>
-              </span>
-            </li>
-          </ul>
-        </div>
-
         <div class="ad-table-wrap">
           <div class="ad-table-scroll">
             <table class="ad-table dgg-chosen-table">
@@ -980,20 +812,22 @@ const huy = () => router.push('/dot-giam-gia')
                       <span v-if="v.cv && v.cv !== '—'" class="dgg-chip">{{ v.cv }}</span>
                     </div>
                     <div v-if="thongTinTrung(v)" class="dgg-overlap-tag">
-                      Trùng đợt:
+                      <span>Trùng đợt:</span>
                       <span v-for="d in thongTinTrung(v).cacDot" :key="d.idDot">
-                        {{ d.maDot }} ({{ d.phanTram }}% · {{ ngayGon(d.ngayBatDau) }} &rarr; {{ ngayGon(d.ngayKetThuc) }})
+                        <strong>{{ d.maDot }}</strong> (-{{ d.phanTram }}% · {{ ngayGon(d.ngayBatDau) }} &rarr; {{ ngayGon(d.ngayKetThuc) }})
                       </span>
                     </div>
                     <span class="visually-hidden">{{ nhanBienThe(v) }}</span>
                   </td>
                   <td class="ad-nowrap fw-bold">{{ formatMoney(v.giaBan) }}</td>
                   <td class="ad-nowrap">
-                    <template v-if="thongTinTrung(v)">
-                      <strong class="dgg-sale-price">{{ formatMoney(thongTinTrung(v).giaApDung) }}</strong>
-                      <div class="dgg-overlap-price-sub">
-                        Khi trùng: <strong>{{ dinhDangPt(thongTinTrung(v).mucApDung) }}%</strong>
-                        (Max {{ dinhDangPt(thongTinTrung(v).mucMax) }}% · TBC {{ dinhDangPt(thongTinTrung(v).mucTbc) }}%)
+                    <template v-if="thongTinTrung(v) && thongTinTrung(v).ptDotNay !== null">
+                      <strong class="dgg-sale-price">{{ formatMoney(thongTinTrung(v).giaMax) }}</strong>
+                      <div v-if="thongTinTrung(v).mucMax > thongTinTrung(v).ptDotNay" class="dgg-overlap-price-sub">
+                        Đợt này -{{ dinhDangPt(thongTinTrung(v).ptDotNay) }}% ({{ formatMoney(thongTinTrung(v).giaDotNay) }}) &rarr; Lấy GG lớn nhất: <strong>-{{ dinhDangPt(thongTinTrung(v).mucMax) }}%</strong>
+                      </div>
+                      <div v-else class="dgg-overlap-price-sub">
+                        Trùng đợt (-{{ dinhDangPt(thongTinTrung(v).maxDotKhac) }}%) &rarr; Lấy GG lớn nhất: <strong>-{{ dinhDangPt(thongTinTrung(v).mucMax) }}%</strong>
                       </div>
                     </template>
                     <strong v-else-if="giaSauGiam(v) !== null" class="dgg-sale-price">{{ formatMoney(giaSauGiam(v)) }}</strong>
@@ -1425,111 +1259,7 @@ textarea.ad-control {
   color: #ef4444;
 }
 
-/* Phân bổ giai đoạn khi trùng đợt giảm giá */
-.dgg-overlap-box {
-  margin-bottom: 0.9rem;
-  padding: 0.75rem 0.95rem;
-  border: 1px solid #fed7aa;
-  border-radius: 10px;
-  background: #fffbeb;
-  font-size: 0.84rem;
-}
-.dgg-overlap-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  margin-bottom: 0.55rem;
-}
-.dgg-overlap-title {
-  font-weight: 700;
-  color: #9a3412;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.dgg-mode-switch {
-  display: inline-flex;
-  gap: 0.35rem;
-  background: #fff;
-  padding: 0.2rem;
-  border-radius: 8px;
-  border: 1px solid #fdba74;
-}
-.dgg-mode-btn {
-  border: 0;
-  background: transparent;
-  padding: 0.28rem 0.65rem;
-  border-radius: 6px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #475569;
-  transition: all 0.15s ease;
-}
-.dgg-mode-btn.active {
-  background: var(--fs-primary);
-  color: #fff;
-}
-.dgg-campaign-list {
-  list-style: none;
-  padding: 0.45rem 0.65rem;
-  margin: 0 0 0.5rem 0;
-  background: #fff7ed;
-  border: 1px dashed #fdba74;
-  border-radius: 7px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.81rem;
-  color: #7c2d12;
-}
-.dgg-campaign-item {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-}
-.dgg-campaign-code {
-  color: #9a3412;
-  font-size: 0.76rem;
-}
-.dgg-stage-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-.dgg-stage-item {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.35rem 0.6rem;
-  background: #fff;
-  border: 1px solid #fde68a;
-  border-radius: 7px;
-  color: #1e293b;
-}
-.dgg-stage-date {
-  color: #0f172a;
-  min-width: 88px;
-}
-.dgg-stage-arrow {
-  color: #94a3b8;
-}
-.dgg-stage-body {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem;
-}
-.dgg-stage-overlap .is-chosen {
-  color: #b45309;
-  text-decoration: underline;
-}
+/* Nhãn báo trùng đợt giảm giá & hiển thị giảm giá lớn nhất ngay trên dòng biến thể */
 .dgg-overlap-tag {
   margin-top: 0.3rem;
   display: inline-flex;
