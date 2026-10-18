@@ -1456,7 +1456,7 @@ h2.ad-q-title {
 
 /* ---------- Trang Hóa đơn: bộ lọc 1 hàng + tab trạng thái dạng viên thuốc ---------- */
 .ad-filter-grid--hd {
-  grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)) auto;
+  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)) auto;
   align-items: end;
 }
 .ad-filter-grid--hd .ad-filter-reset .ad-btn {

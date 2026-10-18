@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../services/api'
 import FilterCard from './common/FilterCard.vue'
@@ -86,7 +86,27 @@ async function loadDem() {
     // bỏ qua
   }
 }
-const demCua = (tab) => dem.value[tab.value === null ? 'tatCa' : String(tab.value)]
+const demCua = (tab) => dem.value[tab.value === null ? 'tatCa' : String(tab.value)] ?? 0
+
+/* ----- Dropdown Trạng thái (#statusDropdown) ----- */
+const isStatusOpen = ref(false)
+const statusDropdownRef = ref(null)
+
+const nhanTrangThaiDangChon = computed(() => {
+  const t = TABS.find((tab) => tab.value === activeTab.value) ?? TABS[0]
+  return `${t.label} (${demCua(t)})`
+})
+
+function chonTrangThai(val) {
+  activeTab.value = val
+  isStatusOpen.value = false
+}
+
+function onOutsideStatusDropdown(e) {
+  if (statusDropdownRef.value && !statusDropdownRef.value.contains(e.target)) {
+    isStatusOpen.value = false
+  }
+}
 
 // loadSeq: lần tải cũ về chậm không được ghi đè kết quả của lần tải mới hơn
 let loadSeq = 0
@@ -130,10 +150,12 @@ let dongHoNgay = null
 onBeforeUnmount(() => {
   clearTimeout(timer)
   clearInterval(dongHoNgay)
+  document.removeEventListener('mousedown', onOutsideStatusDropdown)
 })
 onMounted(() => {
   load()
   dongHoNgay = setInterval(capNhatNgayHienTai, KIEM_TRA_NGAY_MS)
+  document.addEventListener('mousedown', onOutsideStatusDropdown)
 })
 // Quay lại tab: kiểm tra ngày trước (đổi ngày thì watch tải lại), không đổi thì tải lại lặng lẽ như cũ
 useAutoRefresh(() => {
@@ -143,6 +165,7 @@ useAutoRefresh(() => {
 const resetFilters = () => {
   Object.assign(filters, defaultFilters())
   homNayDangDung = filters.tuNgay
+  activeTab.value = null
 }
 
 const xemChiTiet = (id) => router.push(`/hoa-don/${id}`)
@@ -226,6 +249,53 @@ async function exportFile() {
           <label class="ad-label" for="hd-loai">Loại đơn</label>
           <Select2 id="hd-loai" v-model="filters.loaiDon" :options="dsLoaiDon" class="ad-control" />
         </div>
+        <div>
+          <label class="ad-label" for="statusDropdown">Trạng thái</label>
+          <div class="st-select" id="statusDropdown" ref="statusDropdownRef" :class="{ open: isStatusOpen }">
+            <button
+              type="button"
+              class="st-select__toggle"
+              :aria-expanded="isStatusOpen"
+              @click.stop="isStatusOpen = !isStatusOpen"
+            >
+              <span class="st-select__label">{{ nhanTrangThaiDangChon }}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+
+            <ul class="st-select__menu">
+              <li
+                v-for="t in TABS"
+                :key="String(t.value)"
+                :class="{ active: activeTab === t.value }"
+                @click="chonTrangThai(t.value)"
+              >
+                <span>{{ t.label }} ({{ demCua(t) ?? 0 }})</span>
+                <svg
+                  v-if="activeTab === t.value"
+                  class="check"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12l5 5L20 7"/>
+                </svg>
+              </li>
+            </ul>
+
+            <select id="hd-trang-thai" v-model="activeTab" class="d-none" aria-hidden="true" tabindex="-1">
+              <option v-for="t in TABS" :key="String(t.value)" :value="t.value">
+                {{ t.label }} ({{ demCua(t) ?? 0 }})
+              </option>
+            </select>
+          </div>
+        </div>
         <div class="ad-filter-reset">
           <button type="button" class="ad-btn" @click="resetFilters">
             <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại bộ lọc
@@ -243,22 +313,6 @@ async function exportFile() {
           Xuất Excel
         </button>
       </header>
-
-      <div class="ad-status-tabs" role="tablist" aria-label="Lọc theo trạng thái hóa đơn">
-        <button
-          v-for="t in TABS"
-          :key="String(t.value)"
-          type="button"
-          role="tab"
-          class="ad-status-tab"
-          :class="{ active: activeTab === t.value }"
-          :aria-selected="activeTab === t.value"
-          @click="activeTab = t.value"
-        >
-          {{ t.label }}
-          <span v-if="demCua(t) !== undefined" class="ad-status-tab-count">{{ demCua(t) }}</span>
-        </button>
-      </div>
 
       <div class="ad-table-wrap">
         <div class="ad-table-scroll">
@@ -332,5 +386,100 @@ async function exportFile() {
 .hd-money {
   color: #c62836;
   font-weight: 700;
+}
+
+.st-select {
+  position: relative;
+  width: 100%;
+}
+
+.st-select__toggle {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #fff;
+  color: #111827;
+  border: 1.5px solid #d0d5dd;
+  border-radius: 12px;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.st-select__toggle:hover,
+.st-select.open .st-select__toggle {
+  border-color: #2563eb;
+}
+
+.st-select.open .st-select__toggle {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+}
+
+.st-select__toggle svg {
+  flex-shrink: 0;
+  transition: transform .2s;
+}
+.st-select.open .st-select__toggle svg {
+  transform: rotate(180deg);
+}
+
+.st-select__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .12);
+  max-height: 320px;
+  overflow-y: auto;
+
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  transition: all .15s ease;
+}
+
+.st-select.open .st-select__menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.st-select__menu li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+.st-select__menu li:hover {
+  background: #f3f4f6;
+}
+
+.st-select__menu li.active,
+.st-select__menu li.active:hover {
+  background: #e8f0fe;
+  color: #1d6fe8;
+  font-weight: 600;
+}
+
+.st-select__menu li .check {
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 </style>

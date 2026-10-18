@@ -251,13 +251,14 @@ describe('Hóa đơn: bố cục chuẩn của trang quản lý, tab trạng th�
     traLoi()
     const w = mount(HoaDonManager, { global: { stubs: { RouterLink: true } } })
     await flushPromises()
-    const tabs = w.findAll('.ad-status-tab').map((t) => t.text().replace(/\s+/g, ' '))
-    expect(tabs[0]).toBe('Tất cả 12')
-    expect(tabs).toContain('Chờ xác nhận 3')
-    expect(tabs).toContain('Hoàn tiền 1')
+    const tabs = w.findAll('#hd-trang-thai option').map((t) => t.text().replace(/\s+/g, ' '))
+    expect(tabs[0]).toBe('Tất cả (12)')
+    expect(tabs).toContain('Chờ xác nhận (3)')
+    expect(tabs).toContain('Hoàn tiền (1)')
     expect(api.get.mock.calls.find((c) => c[0] === '/hoa-don')[1].params.size).toBe(5)
-    // chỉ còn ô chọn Loại đơn (Select2), không có <select> nào dành cho số dòng mỗi trang
-    expect(w.findAll('select')).toHaveLength(0)
+    // không có <select> nào dành cho số dòng mỗi trang
+    expect(w.findAll('.ad-pager select')).toHaveLength(0)
+    expect(w.find('select#hd-trang-thai').exists()).toBe(true)
     expect(w.findAll('.s2-trigger').map((s) => s.attributes('id'))).toEqual(['hd-loai'])
     w.unmount()
   })
@@ -266,7 +267,7 @@ describe('Hóa đơn: bố cục chuẩn của trang quản lý, tab trạng th�
     traLoi()
     const w = mount(HoaDonManager, { global: { stubs: { RouterLink: true } } })
     await flushPromises()
-    await w.findAll('.ad-status-tab').find((t) => t.text().includes('Đã hủy')).trigger('click')
+    await w.find('#hd-trang-thai').setValue('0')
     await flushPromises()
     const lanCuoi = api.get.mock.calls.filter((c) => c[0] === '/hoa-don').at(-1)[1].params
     expect(lanCuoi.trangThai).toBe(0)
@@ -333,11 +334,10 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
   it('10 tab trạng thái, mỗi tab có SỐ hóa đơn, có tab Giao hàng thất bại (cô: "giao hàng thất bại chưa thể hiện") và tab Hoàn tiền', async () => {
     moApi()
     const w = await moTrang()
-    const tabs = w.findAll('.ad-status-tab')
+    const tabs = w.findAll('#hd-trang-thai option')
     expect(tabs.map((t) => t.text().replace(/\s+/g, ' '))).toEqual([
-      'Tất cả 12', 'Chờ xác nhận 2', 'Đã xác nhận 1', 'Chờ giao hàng 3', 'Đang giao hàng 1', 'Giao hàng thất bại 2', 'Đã giao hàng 1', 'Đã hoàn thành 2', 'Đã hủy 1', 'Hoàn tiền 1',
+      'Tất cả (12)', 'Chờ xác nhận (2)', 'Đã xác nhận (1)', 'Chờ giao hàng (3)', 'Đang giao hàng (1)', 'Giao hàng thất bại (2)', 'Đã giao hàng (1)', 'Đã hoàn thành (2)', 'Đã hủy (1)', 'Hoàn tiền (1)',
     ])
-    expect(tabs[0].classes()).toContain('active')
     w.unmount()
   })
 
@@ -357,11 +357,11 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
     const w = await moTrang()
     api.get.mockClear()
     moApi([HD[1]], 1)
-    await w.findAll('.ad-status-tab').find((t) => t.text().includes('Đã hủy')).trigger('click')
+    await w.find('#hd-trang-thai').setValue('0')
     await flushPromises()
     const lanCuoi = goiDanhSach().at(-1)[1].params
     expect(lanCuoi).toMatchObject({ page: 0, trangThai: 0 })
-    expect(w.findAll('.ad-status-tab').find((t) => t.text().includes('Đã hủy')).classes()).toContain('active')
+    expect(w.find('#hd-trang-thai').element.value).toBe('0')
     w.unmount()
   })
 
@@ -370,7 +370,7 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
     const w = await moTrang()
     api.get.mockClear()
     moApi([{ ...HD[1], id: 3, maHoaDon: 'HD003', trangThai: 8 }], 1)
-    await w.findAll('.ad-status-tab').find((t) => t.text().includes('Giao hàng thất bại')).trigger('click')
+    await w.find('#hd-trang-thai').setValue('8')
     await flushPromises()
     expect(goiDanhSach().at(-1)[1].params).toMatchObject({ page: 0, trangThai: 8 })
     const nhan = w.find('tbody .ad-pill')
@@ -382,7 +382,7 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
   it('bấm tab "Hoàn tiền" gọi API với trangThai = 7; Đặt lại bộ lọc xóa mã hóa đơn đã gõ', async () => {
     moApi()
     const w = await moTrang()
-    await w.findAll('.ad-status-tab').find((t) => t.text().includes('Hoàn tiền')).trigger('click')
+    await w.find('#hd-trang-thai').setValue('7')
     await flushPromises()
     expect(goiDanhSach().at(-1)[1].params.trangThai).toBe(7)
     await w.find('#hd-ma').setValue('HD00')

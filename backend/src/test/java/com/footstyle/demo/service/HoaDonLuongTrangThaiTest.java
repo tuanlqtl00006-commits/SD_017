@@ -21,10 +21,10 @@ class HoaDonLuongTrangThaiTest {
     }
 
     @Test
-    void donGiaoHang_luongChinhDiTuongBuoc_vaHuyDuocKhiChuaGiaoChoVanChuyen() {
+    void donGiaoHang_luongChinhDiTuongBuoc_vaChiHuyKhiChoXacNhan() {
         assertEquals(List.of(HoaDon.DA_XAC_NHAN, HoaDon.DA_HUY), giaoHang(HoaDon.CHO_XAC_NHAN));
-        assertEquals(List.of(HoaDon.CHO_LAY_HANG, HoaDon.DA_HUY), giaoHang(HoaDon.DA_XAC_NHAN));
-        assertEquals(List.of(HoaDon.DANG_GIAO, HoaDon.DA_HUY), giaoHang(HoaDon.CHO_LAY_HANG));
+        assertEquals(List.of(HoaDon.CHO_LAY_HANG), giaoHang(HoaDon.DA_XAC_NHAN));
+        assertEquals(List.of(HoaDon.DANG_GIAO), giaoHang(HoaDon.CHO_LAY_HANG));
         assertEquals(List.of(HoaDon.HOAN_THANH), giaoHang(HoaDon.DA_GIAO), "đã giao thì chỉ còn hoàn thành, hết hủy");
     }
 
