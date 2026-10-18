@@ -4,6 +4,7 @@ import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
 import ConfirmQuestion from './common/ConfirmQuestion.vue'
+import StatusSwitch from './common/StatusSwitch.vue'
 import Select2 from './common/Select2.vue'
 import BienTheFormModal from './sanPham/BienTheFormModal.vue'
 import QrModal from './common/QrModal.vue'
@@ -334,16 +335,13 @@ function exportFile() {
                   <td><span class="ad-pill" :class="TRANG_THAI[trangThaiOf(b)].cls">{{ TRANG_THAI[trangThaiOf(b)].label }}</span></td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
-                      <button
-                        type="button"
-                        class="ad-icon-btn"
-                        :class="b.hoatDong ? 'is-danger' : 'is-success'"
-                        :title="b.hoatDong ? 'Ngưng hoạt động' : 'Kích hoạt lại'"
-                        :aria-label="`${b.hoatDong ? 'Ngưng hoạt động' : 'Kích hoạt lại'} biến thể ${b.ma}`"
-                        @click="confirmItem = b"
-                      >
-                        <i class="bi bi-power" aria-hidden="true"></i>
-                      </button>
+                      <span class="ad-switch-slot" :title="b.hoatDong ? 'Ngưng hoạt động' : 'Kích hoạt lại'">
+                        <StatusSwitch
+                          :on="Boolean(b.hoatDong)"
+                          :label="b.hoatDong ? 'Ngưng hoạt động' : 'Kích hoạt lại'"
+                          @toggle="confirmItem = b"
+                        />
+                      </span>
                       <button type="button" class="ad-icon-btn" title="Chỉnh sửa" :aria-label="`Chỉnh sửa biến thể ${b.ma}`" @click="formState = { item: b }">
                         <i class="bi bi-pencil-square" aria-hidden="true"></i>
                       </button>
