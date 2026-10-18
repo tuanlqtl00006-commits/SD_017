@@ -335,18 +335,38 @@ describe('Ngày giờ', () => {
     expect(w.find('[data-testid=o-gio]').element.value).toBe('')
   })
 
-  it('nút "Bây giờ" đặt đúng giờ máy (làm tròn tới phút)', async () => {
+  it('nút "Bây giờ" trong bảng chọn giờ đặt đúng giờ máy (làm tròn tới phút), không hiện nút Bây giờ bên ngoài', async () => {
     const w = dung('')
+    expect(w.find('[data-testid=nut-bay-gio]').exists()).toBe(false)
+    await w.find('[data-testid=o-gio]').trigger('click')
     await w.find('[data-testid=nut-bay-gio]').trigger('click')
     expect(w.vm.v).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
     const gio = new Date()
     expect(w.vm.v.slice(0, 10)).toBe(`${gio.getFullYear()}-${String(gio.getMonth() + 1).padStart(2, '0')}-${String(gio.getDate()).padStart(2, '0')}`)
   })
 
-  it('khóa thì không có nút Bây giờ và hai ô không sửa được', () => {
+  it('khóa thì không mở được bảng chọn giờ và hai ô không sửa được', async () => {
     const w = dung('2026-10-15T08:30', { disabled: true })
-    expect(w.find('[data-testid=nut-bay-gio]').exists()).toBe(false)
+    await w.find('[data-testid=o-gio]').trigger('click')
+    expect(w.find('[data-testid=bang-chon-gio]').exists()).toBe(false)
     expect(w.find('[data-testid=o-gio]').attributes('disabled')).toBeDefined()
     expect(w.find('#t').attributes('disabled')).toBeDefined()
+  })
+
+  it('bấm vào ô giờ mở bảng chọn Giờ : Phút tự động, chọn giờ / phút / mốc nhanh cập nhật ngay', async () => {
+    const w = dung('2026-10-15T08:30')
+    expect(w.find('[data-testid=bang-chon-gio]').exists()).toBe(false)
+    await w.find('[data-testid=o-gio]').trigger('click')
+    const bang = w.get('[data-testid=bang-chon-gio]')
+    expect(bang.get('[data-gio="08"]').classes()).toContain('is-chon')
+    expect(bang.get('[data-phut="30"]').classes()).toContain('is-chon')
+    await bang.get('[data-gio="14"]').trigger('click')
+    expect(w.vm.v).toBe('2026-10-15T14:30')
+    await bang.get('[data-phut="45"]').trigger('click')
+    expect(w.vm.v).toBe('2026-10-15T14:45')
+    await bang.get('[data-moc="23:59"]').trigger('click')
+    expect(w.vm.v).toBe('2026-10-15T23:59')
+    expect(w.find('[data-testid=bang-chon-gio]').exists()).toBe(false)
+    w.unmount()
   })
 })

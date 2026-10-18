@@ -13,6 +13,7 @@ import { TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatMoney, todayIso } from '../utils/format'
+import { dinhDangNgayGio } from '../utils/ngayGio'
 import { includesText, layTen } from '../utils/text'
 import { tuBangHang, tuDanhSach } from '../utils/luaChon'
 import { exportExcel } from '../utils/exportExcel'
@@ -55,7 +56,7 @@ async function taiThuocTinh() {
 // imLang = true: tải nền (không hiện "Đang tải…", chỉ lấy lại sản phẩm + biến thể, lỗi mạng thì im lặng).
 let seqTai = 0
 async function taiDuLieu(hienChuDangTai = true, imLang = false) {
-  loadGiamGia()
+  loadGiamGia({ kemSapDienRa: true })
   const seq = ++seqTai
   if (hienChuDangTai) dangTai.value = true
   try {
@@ -106,7 +107,7 @@ useAutoRefresh(() => taiDuLieu(false, true))
 
 // Mỗi sản phẩm thêm thông tin tính từ biến thể: số biến thể, tổng tồn kho, giá thấp nhất và cao nhất.
 // computed: tự tính lại mỗi khi danhSachSanPham hoặc danhSachBienThe thay đổi.
-const { loadGiamGia, giaSauGiam } = useGiamGiaBienThe()
+const { loadGiamGia, pctOf, sapGiamOf, giaSauGiam } = useGiamGiaBienThe()
 
 const sanPhamKemThongKe = computed(() => {
   const ketQua = []
@@ -119,14 +120,22 @@ const sanPhamKemThongKe = computed(() => {
     let giaThapNhat = null // null = chưa có biến thể nào đang hoạt động
     let giaSauNhat = null // giá thấp nhất sau khi trừ đợt giảm giá đang diễn ra
     let giaGocCuaGiaSauNhat = null
+    let phanTramGiam = 0
+    let sapGiam = null
     for (const b of bienTheCuaSp) {
       // Chỉ tính biến thể đang hoạt động (biến thể đã ngưng không còn bán nên không tính vào tồn kho)
       if (b.hoatDong) {
         tongTon = tongTon + b.soLuongTon
+        const pct = pctOf(b.id)
         const giaSau = giaSauGiam(b)
-        if (giaSauNhat === null || giaSau < giaSauNhat) {
+        if (giaSauNhat === null || giaSau < giaSauNhat || (giaSau === giaSauNhat && pct > phanTramGiam)) {
           giaSauNhat = giaSau
           giaGocCuaGiaSauNhat = b.giaBan
+          phanTramGiam = pct
+        }
+        const sg = sapGiamOf(b.id)
+        if (sg && (!sapGiam || sg.tuLuc < sapGiam.tuLuc)) {
+          sapGiam = sg
         }
         if (giaThapNhat === null || b.giaBan < giaThapNhat) {
           giaThapNhat = b.giaBan
@@ -145,6 +154,8 @@ const sanPhamKemThongKe = computed(() => {
       giaDen: giaCaoNhat,
       giaSauGiam: giaSauNhat,
       giaGocGiam: giaGocCuaGiaSauNhat,
+      phanTramGiam,
+      sapGiam,
     })
   }
   return ketQua
@@ -386,12 +397,22 @@ function xuatExcel() {
                   <td>{{ layTen(thuocTinh['thuong-hieu'], p.idThuongHieu) }}</td>
                   <td>{{ layTen(thuocTinh['danh-muc'], p.idDanhMuc) }}</td>
                   <td>{{ p.tongTon }}</td>
-                  <td class="ad-nowrap">
+                  <td class="ad-nowrap" data-testid="o-gia-ban">
                     <template v-if="p.giaSauGiam !== null && p.giaSauGiam < p.giaGocGiam">
-                      <div class="fw-bold ad-price-sale">{{ formatMoney(p.giaSauGiam) }}</div>
-                      <div class="text-muted small text-decoration-line-through">{{ formatMoney(p.giaGocGiam) }}</div>
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold ad-price-sale" data-testid="gia-sau-giam">{{ formatMoney(p.giaSauGiam) }}</span>
+                        <span v-if="p.phanTramGiam" class="ad-pill ad-pill-blue" data-testid="giam-hien-tai">-{{ p.phanTramGiam }}%</span>
+                      </div>
+                      <div class="text-muted small text-decoration-line-through" data-testid="gia-goc-gach">{{ formatMoney(p.giaGocGiam) }}</div>
                     </template>
                     <template v-else>{{ hienGia(p) }}</template>
+                    <div
+                      v-if="p.sapGiam && !(p.giaSauGiam !== null && p.giaSauGiam < p.giaGocGiam)"
+                      class="small text-muted ad-nowrap"
+                      data-testid="giam-sap-dien-ra"
+                    >
+                      Sắp giảm -{{ p.sapGiam.phanTram }}% từ {{ dinhDangNgayGio(p.sapGiam.tuLuc) }}
+                    </div>
                   </td>
                   <td><span class="ad-pill" :class="TRANG_THAI[trangThaiOf(p)].cls">{{ TRANG_THAI[trangThaiOf(p)].label }}</span></td>
                   <td class="ad-col-actions">

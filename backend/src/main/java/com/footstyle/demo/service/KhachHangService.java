@@ -63,6 +63,9 @@ public class KhachHangService {
             loi.neu(phuong.isEmpty(), "phuongXa", "Chọn Phường/Xã.");
             loi.neu(chiTiet.isEmpty(), "diaChiCuThe", "Nhập địa chỉ cụ thể (số nhà, đường...).");
             loi.neu(chiTiet.length() > 255, "diaChiCuThe", "Địa chỉ cụ thể tối đa 255 ký tự.");
+            if (!chiTiet.isEmpty() && chiTiet.length() <= 255 && chiTiet.codePoints().noneMatch(Character::isLetterOrDigit)) {
+                loi.them("diaChiCuThe", "Địa chỉ cụ thể phải có chữ hoặc số (ví dụ: 12 Trần Phú).");
+            }
             // Người nhận: để trống thì lấy theo khách hàng; đã nhập thì phải đúng quy tắc như họ tên / số điện thoại khách hàng
             if (!tenNguoiNhan.isEmpty()) {
                 if (tenNguoiNhan.length() < 2 || tenNguoiNhan.length() > 100) loi.them("tenNguoiNhan", "Họ tên từ 2 đến 100 ký tự.");

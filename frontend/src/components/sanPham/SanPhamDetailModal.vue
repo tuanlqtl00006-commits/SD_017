@@ -1,21 +1,26 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import QrModal from '../common/QrModal.vue'
 import Select2 from '../common/Select2.vue'
+import { useGiamGiaBienThe } from '../../composables/useGiamGiaBienThe'
 import { tuDanhSach } from '../../utils/luaChon'
 import { TRANG_THAI, trangThaiOf } from '../../constants/thuocTinh'
 import { formatDate, formatMoney } from '../../utils/format'
+import { dinhDangNgayGio } from '../../utils/ngayGio'
 import { layTen } from '../../utils/text'
 import { mauHex } from '../../utils/mau'
 
-// Màn này chỉ HIỂN THỊ dữ liệu cha truyền xuống, không tự tải dữ liệu
+// Màn này hiển thị dữ liệu sản phẩm + biến thể kèm mức giảm giá đang áp dụng / sắp diễn ra từ Đợt giảm giá
 const props = defineProps({
   item: { type: Object, required: true }, // sản phẩm đang xem
   bienThes: { type: Array, default: () => [] }, // các biến thể của sản phẩm này
   thuocTinh: { type: Object, required: true }, // các bảng thuộc tính để đổi id thành tên
 })
 const emit = defineEmits(['close', 'edit'])
+
+const { loadGiamGia, pctOf, sapGiamOf, giaSauGiam } = useGiamGiaBienThe()
+onMounted(() => loadGiamGia({ kemSapDienRa: true }))
 
 // "Không áp dụng" (danh mục không phải vợt) hiện thành dấu gạch cho gọn
 const ten = (slug, id) => { const t = layTen(props.thuocTinh[slug], id); return t === 'Không áp dụng' ? '—' : t }
@@ -111,7 +116,19 @@ const anhDaiDien = computed(() => props.item.anhChinh || props.item.anhDaiDien |
               <td class="ad-nowrap"><span class="sp-dot" :style="{ background: mauHex(ten('mau-sac', b.idMauSac)) }" aria-hidden="true"></span>{{ ten('mau-sac', b.idMauSac) }}</td>
               <td class="ad-nowrap">{{ ten('trong-luong', b.idTrongLuong) }}</td>
               <td>{{ ten('chu-vi', b.idChuVi) }}</td>
-              <td class="ad-nowrap">{{ formatMoney(b.giaBan) }}</td>
+              <td class="ad-nowrap" data-testid="o-gia-ban">
+                <template v-if="pctOf(b.id)">
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold ad-price-sale" data-testid="gia-sau-giam">{{ formatMoney(giaSauGiam(b)) }}</span>
+                    <span class="ad-pill ad-pill-blue" data-testid="giam-hien-tai">-{{ pctOf(b.id) }}%</span>
+                  </div>
+                  <div class="text-muted small text-decoration-line-through" data-testid="gia-goc-gach">{{ formatMoney(b.giaBan) }}</div>
+                </template>
+                <template v-else>{{ formatMoney(b.giaBan) }}</template>
+                <div v-if="sapGiamOf(b.id)" class="small text-muted ad-nowrap" data-testid="giam-sap-dien-ra">
+                  Sắp giảm -{{ sapGiamOf(b.id).phanTram }}% từ {{ dinhDangNgayGio(sapGiamOf(b.id).tuLuc) }}
+                </div>
+              </td>
               <td>{{ b.soLuongTon }}</td>
               <td class="text-center">
                 <button type="button" class="ad-icon-btn" :title="`Mã QR ${b.ma}`" :aria-label="`Mã QR biến thể ${b.ma}`" @click="qr = b"><i class="bi bi-qr-code" aria-hidden="true"></i></button>

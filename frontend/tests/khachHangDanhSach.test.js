@@ -79,7 +79,7 @@ describe('Danh sách khách hàng: bố cục chuẩn của trang quản lý', (
   it('đủ cột và số ô mỗi dòng khớp số cột tiêu đề', async () => {
     const w = await mo()
     const tieuDe = w.findAll('thead th').map((t) => t.text())
-    expect(tieuDe).toEqual(['STT', '', 'Mã KH', 'Họ tên', 'Email', 'SĐT', 'Giới tính', 'Tên người nhận', 'Địa chỉ', 'Trạng thái', 'Hành động'])
+    expect(tieuDe).toEqual(['STT', 'Mã KH', 'Họ tên', 'Email', 'SĐT', 'Giới tính', 'Tên người nhận', 'Địa chỉ', 'Trạng thái', 'Hành động'])
     for (const h of w.findAll('tbody tr')) expect(h.findAll('td')).toHaveLength(tieuDe.length)
     expect(w.text()).toContain('3 bản ghi hiển thị')
     w.unmount()
@@ -100,30 +100,14 @@ describe('Danh sách khách hàng: bố cục chuẩn của trang quản lý', (
   })
 })
 
-describe('Danh sách khách hàng: ảnh đại diện và tên người nhận (gộp từ bản của nhóm)', () => {
+describe('Danh sách khách hàng: tên người nhận', () => {
   it('cột Tên người nhận lấy theo địa chỉ mặc định (không có mặc định thì địa chỉ đầu), chưa có địa chỉ thì ghi Chưa cập nhật', async () => {
     const w = await mo()
     const hang = w.findAll('tbody tr')
-    const nhan = (h) => h.findAll('td')[7].text()
+    const nhan = (h) => h.findAll('td')[6].text()
     expect(nhan(hang[0])).toBe('Lan')
     expect(nhan(hang[1])).toBe('Chưa cập nhật')
     expect(nhan(hang[2])).toBe('Tuấn')
-    w.unmount()
-  })
-
-  it('có ảnh đại diện thì hiện ảnh; chưa có thì hiện chữ cái đầu; ảnh hỏng thì quay về chữ cái đầu', async () => {
-    const ds = taoDS()
-    ds[0].anhDaiDien = '/api/uploads/abc.png'
-    const w = await mo(ds)
-    const hang = w.findAll('tbody tr')
-    const img = hang[0].find('.ad-avatar img')
-    expect(img.exists()).toBe(true)
-    expect(img.attributes('src')).toBe('/api/uploads/abc.png')
-    expect(hang[1].find('.ad-avatar img').exists()).toBe(false)
-    expect(hang[1].find('.ad-avatar').text()).not.toBe('')
-    await img.trigger('error')
-    expect(w.findAll('tbody tr')[0].find('.ad-avatar img').exists()).toBe(false)
-    expect(w.findAll('tbody tr')[0].find('.ad-avatar').text()).not.toBe('')
     w.unmount()
   })
 

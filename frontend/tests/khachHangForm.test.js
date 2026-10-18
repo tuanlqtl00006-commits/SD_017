@@ -63,27 +63,25 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('Thêm khách hàng: bố cục và ô chọn', () => {
-  it('dùng Select2 cho giới tính, tỉnh, phường (không còn <select> thường); chỉ có Tỉnh/Thành phố và Phường/Xã, không có Quận/Huyện', async () => {
+  it('dùng radio cho giới tính, Select2 cho tỉnh và phường (không còn <select> thường); chỉ có Tỉnh/Thành phố và Phường/Xã, không có Quận/Huyện', async () => {
     const w = await moForm()
     expect(w.findAll('select')).toHaveLength(0)
-    expect(w.findAll('.s2-trigger').map((s) => s.attributes('id'))).toEqual(['kh-gioi-tinh', 'kh-dia-chi-tinh', 'kh-dia-chi-phuong'])
+    expect(w.findAll('.s2-trigger').map((s) => s.attributes('id'))).toEqual(['kh-dia-chi-tinh', 'kh-dia-chi-phuong'])
     expect(w.text()).toContain('Tỉnh/Thành phố')
     expect(w.text()).toContain('Phường/Xã')
     expect(w.text()).not.toContain('Quận/Huyện')
     expect(await cacMucSelect2(w, '#kh-dia-chi-tinh')).toEqual(['Thành phố Hà Nội', 'Tỉnh Hưng Yên'])
-    expect(await cacMucSelect2(w, '#kh-gioi-tinh')).toEqual(['Nam', 'Nữ'])
-    expect(chuSelect2(w, '#kh-gioi-tinh')).toBe('Nam')
+    expect(w.find('#kh-gioi-tinh-nam').element.checked).toBe(true)
+    expect(w.find('#kh-gioi-tinh-nu').element.checked).toBe(false)
     w.unmount()
   })
 
-  it('có dòng hướng dẫn tuổi kèm căn cứ pháp lý ngay dưới ô Ngày sinh; chưa nhập gì thì chưa báo lỗi', async () => {
+  it('chưa nhập gì thì không hiện dòng nhắc hay lỗi dưới các ô', async () => {
     const w = await moForm()
-    const huongDan = w.find('[data-testid="kh-huong-dan-tuoi"]').text()
-    expect(huongDan).toContain('từ đủ 15 tuổi')
-    expect(huongDan).toContain('Bộ luật Dân sự 2015')
-    expect(huongDan).toContain('Điều 21')
     expect(w.findAll('.ad-error')).toHaveLength(0)
-    expect(w.find('.ad-profile-card').text()).toContain('Khách hàng mới')
+    expect(coLoi(w, 'kh-sdt-msg')).toBe(false)
+    expect(coLoi(w, 'kh-ngay-sinh-msg')).toBe(false)
+    expect(w.text()).toContain('Thêm khách hàng mới')
     w.unmount()
   })
 
@@ -112,8 +110,7 @@ describe('Thêm khách hàng: lỗi hiện dưới từng ô', () => {
     expect(w.find('#kh-ho-ten').attributes('aria-invalid')).toBe('true')
     expect(document.activeElement?.id).toBe('kh-ho-ten')
     // ô Ngày sinh để trống là hợp lệ (không bắt buộc)
-    expect(coLoi(w, 'kh-ngay-sinh-msg')).toBe(true)
-    expect(w.find('#kh-ngay-sinh-msg').classes()).toContain('ad-hint')
+    expect(coLoi(w, 'kh-ngay-sinh-msg')).toBe(false)
     w.unmount()
   })
 
@@ -135,7 +132,7 @@ describe('Thêm khách hàng: lỗi hiện dưới từng ô', () => {
     }
     for (const dau of ['03', '05', '07', '08', '09']) {
       await w.find('#kh-sdt').setValue(`${dau}12345678`)
-      expect(w.find('#kh-sdt-msg').classes(), dau).toContain('ad-hint')
+      expect(coLoi(w, 'kh-sdt-msg'), dau).toBe(false)
       expect(w.find('#kh-sdt').classes()).not.toContain('is-invalid')
     }
     w.unmount()
@@ -174,7 +171,7 @@ describe('Thêm khách hàng: lỗi hiện dưới từng ô', () => {
     await w.find('#kh-sdt').setValue('0901000009')
     await w.find('#kh-email').setValue('moi@gmail.com')
     expect(coLoi(w, 'kh-email-msg')).toBe(false)
-    expect(w.find('#kh-sdt-msg').classes()).toContain('ad-hint')
+    expect(coLoi(w, 'kh-sdt-msg')).toBe(false)
     w.unmount()
   })
 
@@ -187,7 +184,7 @@ describe('Thêm khách hàng: lỗi hiện dưới từng ô', () => {
       await w.find('#kh-ngay-sinh').trigger('blur')
     }
     await dat('15/10/2011') // đúng 15 tuổi hôm nay
-    expect(w.find('#kh-ngay-sinh-msg').classes()).toContain('ad-hint')
+    expect(coLoi(w, 'kh-ngay-sinh-msg')).toBe(false)
     await dat('16/10/2011') // thiếu đúng một ngày
     expect(loiO(w, 'kh-ngay-sinh-msg')).toBe('Khách hàng phải từ đủ 15 tuổi.')
     expect(w.find('#kh-ngay-sinh').classes()).toContain('is-invalid')
@@ -198,7 +195,7 @@ describe('Thêm khách hàng: lỗi hiện dưới từng ô', () => {
     await dat('15/10/1925')
     expect(loiO(w, 'kh-ngay-sinh-msg')).toBe('Ngày sinh không hợp lệ (quá 100 tuổi).')
     await dat('20/05/1999')
-    expect(w.find('#kh-ngay-sinh-msg').classes()).toContain('ad-hint')
+    expect(coLoi(w, 'kh-ngay-sinh-msg')).toBe(false)
     w.unmount()
   })
 
@@ -219,7 +216,7 @@ describe('Thêm khách hàng: gửi lên backend', () => {
     svc.create.mockResolvedValue({ id: 9 })
     const w = await moForm()
     await dienHopLe(w, { ten: '  Nguyễn   Thị  Mai ', email: ' Mai@Gmail.com ' })
-    await datSelect2(w, '#kh-gioi-tinh', '0')
+    await w.find('#kh-gioi-tinh-nu').setValue(true)
     await w.find('#kh-ngay-sinh').setValue('20/05/1999')
     await w.find('form').trigger('submit')
     await flushPromises()
@@ -232,7 +229,6 @@ describe('Thêm khách hàng: gửi lên backend', () => {
       ngaySinh: '1999-05-20',
       gioiTinh: 0,
       trangThai: 1,
-      anhDaiDien: '', // chưa chọn ảnh -> chuỗi rỗng (không bắt buộc)
       tenNguoiNhan: 'Nguyễn Thị Mai',
       sdtNguoiNhan: '0912345678',
       tinhThanh: 'Tỉnh Hưng Yên',
@@ -326,9 +322,9 @@ describe('Sửa khách hàng: kiểm tra y hệt form thêm', () => {
     expect(w.find('#kh-sdt').element.value).toBe('0901000002')
     expect(w.find('#kh-email').element.value).toBe('hung.tv@gmail.com')
     expect(w.find('#kh-ngay-sinh').element.value).toBe('25/07/1992')
-    expect(giaTriSelect2(w, '#kh-gioi-tinh')).toBe('1')
+    expect(w.find('#kh-gioi-tinh-nam').element.checked).toBe(true)
     expect(giaTriSelect2(w, '#kh-trang-thai')).toBe('1')
-    expect(w.find('.ad-profile-card').text()).toContain('KH02')
+    expect(w.find('.ad-code').text()).toContain('KH02')
     expect(w.find('#kh-dia-chi-tinh').exists()).toBe(false)
     expect(w.text()).toContain('45 Lê Lợi, Phường Bến Thành, Thành phố Hồ Chí Minh')
     expect(w.findAll('button').some((b) => b.text().includes('Quản lý địa chỉ'))).toBe(true)
@@ -373,7 +369,7 @@ describe('Sửa khách hàng: kiểm tra y hệt form thêm', () => {
     const w = await moSua()
     await w.find('#kh-sdt').setValue('0901000002')
     await w.find('#kh-email').setValue('HUNG.TV@gmail.com')
-    expect(w.find('#kh-sdt-msg').classes()).toContain('ad-hint')
+    expect(coLoi(w, 'kh-sdt-msg')).toBe(false)
     expect(coLoi(w, 'kh-email-msg')).toBe(false)
     await w.find('#kh-sdt').setValue('0901000001') // của Nguyễn Thị Lan
     expect(loiO(w, 'kh-sdt-msg')).toBe('Số điện thoại đã tồn tại (khách hàng Nguyễn Thị Lan).')
@@ -386,14 +382,14 @@ describe('Sửa khách hàng: kiểm tra y hệt form thêm', () => {
     svc.update.mockResolvedValue({})
     const w = await moSua()
     await w.find('#kh-ho-ten').setValue('  Trần  Văn  Hùng Anh ')
-    await datSelect2(w, '#kh-gioi-tinh', '0')
+    await w.find('#kh-gioi-tinh-nu').setValue(true)
     await datSelect2(w, '#kh-trang-thai', '0')
     await w.find('form').trigger('submit')
     await flushPromises()
     expect(svc.update).toHaveBeenCalledTimes(1)
     const [id, p] = svc.update.mock.calls[0]
     expect(id).toBe(2)
-    expect(p).toEqual({ hoTen: 'Trần Văn Hùng Anh', sdt: '0901000002', email: 'hung.tv@gmail.com', ngaySinh: '1992-07-25', gioiTinh: 0, trangThai: 0, anhDaiDien: '' })
+    expect(p).toEqual({ hoTen: 'Trần Văn Hùng Anh', sdt: '0901000002', email: 'hung.tv@gmail.com', ngaySinh: '1992-07-25', gioiTinh: 0, trangThai: 0 })
     expect(push).toHaveBeenCalledWith('/khach-hang')
     expect(useToast().toasts.at(-1).message).toBe('Đã cập nhật khách hàng.')
     w.unmount()
@@ -434,112 +430,3 @@ describe('Sửa khách hàng: kiểm tra y hệt form thêm', () => {
   })
 })
 
-describe('Ảnh đại diện khách hàng (gộp từ bản của nhóm)', () => {
-  const chonFile = async (w, file) => {
-    const input = w.find('#kh-file-anh')
-    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
-    await input.trigger('change')
-    await flushPromises()
-  }
-  const anhPng = () => new File(['x'], 'avatar.png', { type: 'image/png' })
-
-  it('có ô tải ảnh (không bắt buộc); chưa có ảnh thì hiện chữ cái đầu, không có nút Bỏ ảnh', async () => {
-    const w = await moForm()
-    expect(w.find('#kh-file-anh').attributes('accept')).toBe('image/jpeg,image/png,image/webp,image/gif')
-    expect(w.find('[data-testid=kh-chon-anh]').text()).toContain('Tải ảnh lên')
-    expect(w.find('[data-testid=kh-anh-dai-dien]').exists()).toBe(false)
-    expect(w.find('[data-testid=kh-bo-anh]').exists()).toBe(false)
-    w.unmount()
-  })
-
-  it('chọn ảnh hợp lệ: tải lên backend, hiện ảnh và gửi đường dẫn khi tạo khách hàng', async () => {
-    api.post.mockResolvedValue({ data: { duongDan: '/api/uploads/abc123.png' } })
-    svc.create.mockResolvedValue({ id: 9 })
-    const w = await moForm()
-    await chonFile(w, anhPng())
-    expect(api.post).toHaveBeenCalledTimes(1)
-    expect(api.post.mock.calls[0][0]).toBe('/hinh-anh/upload')
-    expect(api.post.mock.calls[0][1].get('file').name).toBe('avatar.png')
-    expect(w.find('[data-testid=kh-anh-dai-dien]').attributes('src')).toBe('/api/uploads/abc123.png')
-    expect(w.find('[data-testid=kh-chon-anh]').text()).toContain('Đổi ảnh')
-    await dienHopLe(w)
-    await w.find('form').trigger('submit')
-    await flushPromises()
-    expect(svc.create.mock.calls[0][0].anhDaiDien).toBe('/api/uploads/abc123.png')
-    w.unmount()
-  })
-
-  it('sai định dạng hoặc quá 5 MB: báo lỗi ngay, không gọi API, không đổi ảnh', async () => {
-    const w = await moForm()
-    await chonFile(w, new File(['x'], 'tai-lieu.pdf', { type: 'application/pdf' }))
-    expect(w.find('[data-testid=kh-loi-anh]').text()).toBe('Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF.')
-    const lon = anhPng()
-    Object.defineProperty(lon, 'size', { value: 5 * 1024 * 1024 + 1 })
-    await chonFile(w, lon)
-    expect(w.find('[data-testid=kh-loi-anh]').text()).toBe('Ảnh lớn hơn 5 MB.')
-    expect(api.post).not.toHaveBeenCalled()
-    expect(w.find('[data-testid=kh-anh-dai-dien]').exists()).toBe(false)
-    w.unmount()
-  })
-
-  it('backend từ chối ảnh (lỗi tải lên): hiện đúng thông báo của backend, vẫn lưu được khách không có ảnh', async () => {
-    api.post.mockRejectedValue(new Error('Ảnh không đúng định dạng.'))
-    const w = await moForm()
-    await chonFile(w, anhPng())
-    expect(w.find('[data-testid=kh-loi-anh]').text()).toBe('Ảnh không đúng định dạng.')
-    expect(w.find('[data-testid=kh-anh-dai-dien]').exists()).toBe(false)
-    expect(w.find('[data-testid=kh-chon-anh]').attributes('disabled')).toBeUndefined()
-    w.unmount()
-  })
-
-  it('đang tải ảnh thì nút lưu bị khóa (tránh lưu khi chưa có đường dẫn ảnh)', async () => {
-    let xong
-    api.post.mockReturnValue(new Promise((r) => (xong = r)))
-    const w = await moForm()
-    const input = w.find('#kh-file-anh')
-    Object.defineProperty(input.element, 'files', { value: [anhPng()], configurable: true })
-    await input.trigger('change')
-    await flushPromises()
-    expect(nutLuu(w).attributes('disabled')).toBeDefined()
-    expect(w.find('[data-testid=kh-chon-anh]').text()).toContain('Đang tải ảnh')
-    xong({ data: { duongDan: '/api/uploads/xong.png' } })
-    await flushPromises()
-    expect(nutLuu(w).attributes('disabled')).toBeUndefined()
-    w.unmount()
-  })
-
-  it('Bỏ ảnh: trở lại chữ cái đầu và gửi chuỗi rỗng', async () => {
-    api.post.mockResolvedValue({ data: { duongDan: '/api/uploads/abc123.png' } })
-    const w = await moForm()
-    await chonFile(w, anhPng())
-    await w.find('[data-testid=kh-bo-anh]').trigger('click')
-    expect(w.find('[data-testid=kh-anh-dai-dien]').exists()).toBe(false)
-    expect(w.find('[data-testid=kh-bo-anh]').exists()).toBe(false)
-    w.unmount()
-  })
-
-  it('sửa khách đã có ảnh: nạp ảnh cũ, lưu lại vẫn gửi ảnh đó; Bỏ ảnh thì gửi chuỗi rỗng; ảnh hỏng thì hiện chữ cái đầu', async () => {
-    state.params = { id: '2' }
-    const khach = { id: 2, maKhachHang: 'KH02', hoTen: 'Trần Văn Hùng', sdt: '0901000002', email: 'hung.tv@gmail.com', gioiTinh: 1, trangThai: 1, ngaySinh: '1992-07-25', anhDaiDien: '/api/uploads/cu.png', diaChiList: [] }
-    svc.getById.mockResolvedValue(khach)
-    svc.update.mockResolvedValue({})
-    let w = await moForm()
-    expect(w.find('[data-testid=kh-anh-dai-dien]').attributes('src')).toBe('/api/uploads/cu.png')
-    await w.find('form').trigger('submit')
-    await flushPromises()
-    expect(svc.update.mock.calls[0][1].anhDaiDien).toBe('/api/uploads/cu.png')
-    w.unmount()
-
-    w = await moForm()
-    await w.find('[data-testid=kh-bo-anh]').trigger('click')
-    await w.find('form').trigger('submit')
-    await flushPromises()
-    expect(svc.update.mock.calls[1][1].anhDaiDien).toBe('')
-    w.unmount()
-
-    w = await moForm()
-    await w.find('[data-testid=kh-anh-dai-dien]').trigger('error')
-    expect(w.find('[data-testid=kh-anh-dai-dien]').exists()).toBe(false)
-    w.unmount()
-  })
-})

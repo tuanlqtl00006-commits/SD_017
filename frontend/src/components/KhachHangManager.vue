@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
+import StatusSwitch from './common/StatusSwitch.vue'
 import Select2 from './common/Select2.vue'
 import KhachHangAddressModal from './KhachHangAddressModal.vue'
 import { khachHangService } from '../services/khachHangService'
@@ -15,7 +16,7 @@ import { GIOI_TINH_KHACH, TRANG_THAI_KHACH, nhanGioiTinhKhach } from '../constan
 import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
-import { avatarColors, formatDate, getInitials, todayIso } from '../utils/format'
+import { formatDate, todayIso } from '../utils/format'
 import { ghepDiaChi } from '../utils/diaChi'
 import { matchesWords } from '../utils/text'
 import { exportExcel } from '../utils/exportExcel'
@@ -86,9 +87,6 @@ const diaChiChu = (k) => {
 }
 // Người nhận hàng của địa chỉ mặc định (có thể khác tên khách hàng, vd mua giúp người thân)
 const tenNguoiNhan = (k) => diaChiMacDinh(k)?.tenNguoiNhan || ''
-
-// Ảnh đại diện không mở được (đường dẫn hỏng) -> quay về hiện chữ cái đầu
-const anhHong = reactive({})
 
 /* ----- Thêm / xem-sửa / địa chỉ ----- */
 const openCreate = () => router.push('/khach-hang/them')
@@ -236,7 +234,6 @@ async function confirmToggle() {
             <thead>
               <tr>
                 <th class="ad-col-stt">STT</th>
-                <th></th>
                 <th>Mã KH</th>
                 <th>Họ tên</th>
                 <th>Email</th>
@@ -250,10 +247,10 @@ async function confirmToggle() {
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="11"><div class="ad-empty">Đang tải dữ liệu…</div></td>
+                <td colspan="10"><div class="ad-empty">Đang tải dữ liệu…</div></td>
               </tr>
               <tr v-else-if="!pageItems.length">
-                <td colspan="11">
+                <td colspan="10">
                   <div class="ad-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
                     <strong>Không tìm thấy khách hàng</strong>
@@ -264,14 +261,8 @@ async function confirmToggle() {
               <template v-else>
                 <tr v-for="(k, i) in pageItems" :key="k.id">
                   <td class="ad-col-stt">{{ (page - 1) * pageSize + i + 1 }}</td>
-                  <td>
-                    <span class="ad-avatar" :style="avatarColors(k.hoTen)">
-                      <img v-if="k.anhDaiDien && !anhHong[k.id]" :src="k.anhDaiDien" :alt="`Ảnh đại diện của ${k.hoTen}`" @error="anhHong[k.id] = true" />
-                      <template v-else>{{ getInitials(k.hoTen) }}</template>
-                    </span>
-                  </td>
                   <td><span class="ad-code ad-nowrap">{{ k.maKhachHang }}</span></td>
-                  <td class="ad-nowrap">{{ k.hoTen }}</td>
+                  <td class="ad-nowrap fw-semibold">{{ k.hoTen }}</td>
                   <td><span class="ad-ellipsis" :title="k.email">{{ k.email }}</span></td>
                   <td class="ad-nowrap">{{ k.sdt }}</td>
                   <td>{{ nhanGioiTinhKhach(k.gioiTinh) }}</td>
@@ -290,16 +281,13 @@ async function confirmToggle() {
                   </td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
-                      <button
-                        type="button"
-                        class="ad-icon-btn"
-                        :class="dangHoatDong(k) ? 'is-success' : 'is-danger'"
-                        :title="tieuDeNutBat(k)"
-                        :aria-label="`${tieuDeNutBat(k)}: ${k.hoTen}`"
-                        @click="confirmItem = k"
-                      >
-                        <i class="bi bi-power" aria-hidden="true"></i>
-                      </button>
+                      <span class="ad-switch-slot" :title="tieuDeNutBat(k)">
+                        <StatusSwitch
+                          :on="dangHoatDong(k)"
+                          :label="tieuDeNutBat(k)"
+                          @toggle="confirmItem = k"
+                        />
+                      </span>
                       <button
                         type="button"
                         class="ad-icon-btn"
