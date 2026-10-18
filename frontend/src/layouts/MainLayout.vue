@@ -89,7 +89,7 @@ const toggle = (key) => { open[key] = !open[key] }
                 :aria-expanded="!!open[item.key]"
                 @click="toggle(item.key)"
               >
-                <span>{{ item.label }}</span>
+                <span><i class="bi icon" :class="item.icon" aria-hidden="true"></i>{{ item.label }}</span>
                 <i class="bi bi-chevron-down chevron" :class="{ up: open[item.key] }" aria-hidden="true"></i>
               </button>
               <ul v-if="open[item.key] && item.children.length" class="nav flex-column mt-1 ad-sub">
@@ -105,10 +105,10 @@ const toggle = (key) => { open[key] = !open[key] }
             </template>
             <!-- Mục thường -->
             <RouterLink v-else-if="item.to" :to="item.to" class="nav-link side-link ad-link" :class="{ active: isActive(item.to) }">
-              {{ item.label }}
+              <i class="bi icon" :class="item.icon" aria-hidden="true"></i>{{ item.label }}
             </RouterLink>
             <a v-else href="#" class="nav-link side-link ad-link" @click.prevent>
-              {{ item.label }}
+              <i class="bi icon" :class="item.icon" aria-hidden="true"></i>{{ item.label }}
             </a>
           </li>
         </ul>
@@ -173,15 +173,19 @@ const toggle = (key) => { open[key] = !open[key] }
 }
 .ad-logo { height: 100px; }
 .ad-link { white-space: nowrap; display: flex; align-items: center; padding: 0.65rem 1rem; border-radius: 0.5rem; text-align: left; }
+.ad-link .icon { font-size: 1.15rem; margin-right: 0.8rem; width: 24px; text-align: center; }
+.ad-link.justify-content-between .icon { margin-right: 0.8rem; }
+.ad-link.justify-content-between > span { display: flex; align-items: center; }
 .chevron { font-size: 0.75rem; transition: transform 0.2s ease; }
 .chevron.up { transform: rotate(180deg); }
-.ad-sublink { padding: 0.5rem 1rem 0.5rem 1.8rem; font-size: 0.88rem; color: #6c757d; }
+.ad-sublink { padding: 0.5rem 1rem 0.5rem 2.8rem; font-size: 0.88rem; color: #6c757d; }
 
 /* Màn hình thấp (zoom 100% trên laptop): thu gọn khoảng cách để thấy ĐỦ các chức năng mà không phải cuộn */
 @media (max-height: 820px) {
   .ad-logo { height: 76px; padding-block: 0.5rem !important; }
   .ad-link { padding: 0.42rem 0.85rem; font-size: 0.9rem; }
-  .ad-sublink { padding: 0.35rem 1rem 0.35rem 1.6rem; font-size: 0.85rem; }
+  .ad-link .icon { font-size: 1.05rem; margin-right: 0.7rem; }
+  .ad-sublink { padding: 0.35rem 1rem 0.35rem 2.6rem; font-size: 0.85rem; }
   .ad-sub { margin-top: 0 !important; }
 }
 </style>
