@@ -406,6 +406,15 @@ function xuatExcel() {
                       >
                         <i class="bi bi-power" aria-hidden="true"></i>
                       </button>
+                      <button
+                        type="button"
+                        class="ad-icon-btn"
+                        title="Chỉnh sửa"
+                        :aria-label="`Chỉnh sửa sản phẩm ${p.ma}`"
+                        @click="router.push('/san-pham/' + p.id + '/sua')"
+                      >
+                        <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                      </button>
                       <button type="button" class="ad-icon-btn" title="Xem chi tiết" :aria-label="`Xem chi tiết sản phẩm ${p.ma}`" @click="spXemChiTiet = p">
                         <i class="bi bi-eye" aria-hidden="true"></i>
                       </button>

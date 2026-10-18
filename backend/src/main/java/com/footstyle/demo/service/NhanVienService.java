@@ -19,18 +19,39 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class NhanVienService {
 
     private final NhanVienRepository nhanVienRepo;
     private final DiaChiNhanVienRepository diaChiRepo;
     private final VaiTroRepository vaiTroRepo;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final MailService mailService;
+
+    @Autowired
+    public NhanVienService(NhanVienRepository nhanVienRepo,
+                           DiaChiNhanVienRepository diaChiRepo,
+                           VaiTroRepository vaiTroRepo,
+                           BCryptPasswordEncoder passwordEncoder,
+                           @Autowired(required = false) MailService mailService) {
+        this.nhanVienRepo = nhanVienRepo;
+        this.diaChiRepo = diaChiRepo;
+        this.vaiTroRepo = vaiTroRepo;
+        this.passwordEncoder = passwordEncoder;
+        this.mailService = mailService;
+    }
+
+    public NhanVienService(NhanVienRepository nhanVienRepo,
+                           DiaChiNhanVienRepository diaChiRepo,
+                           VaiTroRepository vaiTroRepo,
+                           BCryptPasswordEncoder passwordEncoder) {
+        this(nhanVienRepo, diaChiRepo, vaiTroRepo, passwordEncoder, null);
+    }
 
     /* ===================== Đọc ===================== */
 
@@ -77,6 +98,16 @@ public class NhanVienService {
         // Mã tạo SAU khi đã kiểm tra hết thông tin: chữ cái đầu của họ tên + số thứ tự (vd Lê Quốc Tuấn -> LQT0001)
         nv.setMaNhanVien(MaNhanVienUtil.taoMa(nv.getHoTen(), nhanVienRepo.findAllMaNhanVien()));
         NhanVien daLuu = nhanVienRepo.save(nv);
+        if (mailService != null && daLuu.getEmail() != null && !daLuu.getEmail().isBlank() && req.matKhau() != null && !req.matKhau().isBlank()) {
+            mailService.guiTaiKhoanNhanVien(
+                    daLuu.getHoTen(),
+                    daLuu.getEmail(),
+                    daLuu.getMaNhanVien(),
+                    daLuu.getVaiTro() == null ? "" : daLuu.getVaiTro().getTenVaiTro(),
+                    req.matKhau(),
+                    "NV-" + daLuu.getMaNhanVien()
+            );
+        }
         return toResponse(daLuu, luuDiaChi(daLuu, diaChis));
     }
 

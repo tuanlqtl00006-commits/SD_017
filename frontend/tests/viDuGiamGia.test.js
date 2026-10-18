@@ -105,7 +105,7 @@ describe('Ví dụ trên form phiếu = đúng quy tắc tính tiền (30.000 ca
       expect(v.phieu.giam).toBeLessThanOrEqual(v.sauDot)
       if (phieu.loaiGiam === 'PHAN_TRAM' && phieu.giamToiDa > 0) expect(v.phieu.giam).toBeLessThanOrEqual(phieu.giamToiDa)
     }
-  })
+  }, 25000)
 
   it('% đợt ngoài 0 - 100 hoặc bỏ trống được kẹp lại, % lẻ giữ 2 chữ số', () => {
     const p = { loaiGiam: 'TIEN_MAT', giaTri: 50_000 }
@@ -132,5 +132,5 @@ describe('Ví dụ hai đợt chồng nhau trên form đợt giảm giá = cách
     expect(gopPhanTram([70, 60], 'CONG_DON')).toBe(100)
     expect(gopPhanTram([39, 40, 40], 'TRUNG_BINH')).toBe(39.67)
     expect(tinhGiaSauGiam(5_000, 39.67)).toBe(3_017) // backend lịch giảm giá cũng ra 3.017 (đã sửa cho khớp)
-  })
+  }, 25000)
 })

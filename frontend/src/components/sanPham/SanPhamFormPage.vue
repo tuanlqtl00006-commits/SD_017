@@ -65,6 +65,7 @@ const mauCuaSpDangSua = ref([]) // khi sửa: các màu mà sản phẩm đã c�
 const dangTai = ref(true) // đang tải dữ liệu ban đầu
 const loiTai = ref(false) // tải dữ liệu thất bại
 const dangLuu = ref(false) // đang lưu thì khóa nút
+const daKhoiTao = ref(false) // chỉ chạy logic đổi danh mục khi người dùng thao tác sau khi tải xong
 
 const form = reactive({
   ma: '',
@@ -132,6 +133,7 @@ async function themNhanhOChon(s, ten) {
 watch(
   () => form.idDanhMuc,
   () => {
+    if (!daKhoiTao.value) return
     // Chất liệu đã chọn không hợp danh mục mới (vd từ Vợt sang Quần áo) thì bắt chọn lại
     if (form.idChatLieu !== '' && !luaChonCua(SELECTS.find((x) => x.field === 'idChatLieu')).some((o) => o.id === Number(form.idChatLieu))) {
       form.idChatLieu = ''
@@ -147,6 +149,34 @@ watch(
     }
   },
 )
+
+/* ----- Biến thể: màu sắc x trọng lượng x chu vi ----- */
+
+const chonMau = ref([])
+const chonTl = ref([])
+const chonCv = ref([])
+// Nhóm thuộc tính để tạo biến thể: vợt có đủ 3 nhóm, danh mục khác chỉ có Màu sắc
+const nhomTaoBienThe = computed(() => [
+  { slug: 'mau-sac', label: 'Màu sắc', sel: chonMau.value },
+  ...(laVot.value
+    ? [
+        { slug: 'trong-luong', label: 'Trọng lượng', sel: chonTl.value },
+        { slug: 'chu-vi', label: 'Chu vi cán', sel: chonCv.value },
+      ]
+    : []),
+])
+// Đổi sang danh mục có bộ thuộc tính khác (vợt <-> không phải vợt) thì biến thể đã tạo không còn đúng, làm lại từ đầu
+watch(laVot, () => {
+  if (!daKhoiTao.value) return
+  chonTl.value = []
+  chonCv.value = []
+  bienThe.value = []
+})
+const bienThe = ref([]) // mỗi dòng: { key, idMauSac, idTrongLuong, idChuVi, soLuong, giaBan, chon }
+const macDinh = reactive({ soLuong: '', giaBan: '' })
+const cheDo = ref(CHE_DO_HIEN_THI_MAC_DINH) // 'mau': nhóm theo màu (như video mẫu) | 'chung': một bảng chung
+const hoiLuu = ref(false) // hiện hộp "Bạn có muốn lưu sản phẩm không?"
+const hoiCapNhat = ref(null) // sản phẩm đã tồn tại: { message, ... } từ backend -> hỏi "bạn muốn cập nhật?"
 
 onMounted(async () => {
   try {
@@ -174,13 +204,35 @@ onMounted(async () => {
       // Ảnh theo màu: màu đã có ảnh + màu mà sản phẩm đã có biến thể (để thêm ảnh cho màu đó)
       for (const x of spCanSua.anhTheoMau || []) anhTheoMau[x.idMauSac] = [...(x.anh || [])]
       const mau = new Set((spCanSua.anhTheoMau || []).map((x) => x.idMauSac))
-      for (const b of dsBienThe || []) if (b.idSanPham === idSua) mau.add(b.idMauSac)
+      const bts = (dsBienThe || []).filter((b) => b.idSanPham === idSua)
+      for (const b of bts) mau.add(b.idMauSac)
       mauCuaSpDangSua.value = [...mau]
       for (const id of mau) if (!anhTheoMau[id]) anhTheoMau[id] = []
+
+      // Điền sẵn các biến thể đã có của sản phẩm
+      if (bts.length) {
+        chonMau.value = [...new Set(bts.map((b) => b.idMauSac))]
+        const kadTl = idKad('trong-luong')
+        const kadCv = idKad('chu-vi')
+        chonTl.value = [...new Set(bts.map((b) => b.idTrongLuong).filter((id) => id && id !== kadTl))]
+        chonCv.value = [...new Set(bts.map((b) => b.idChuVi).filter((id) => id && id !== kadCv))]
+        bienThe.value = bts.map((b) => ({
+          key: `bt_${b.id}`,
+          id: b.id,
+          ma: b.ma,
+          idMauSac: b.idMauSac,
+          idTrongLuong: b.idTrongLuong,
+          idChuVi: b.idChuVi,
+          soLuong: b.soLuongTon,
+          giaBan: b.giaBan,
+          chon: true,
+        }))
+      }
     } else {
       // Thêm mới: hệ thống tự tạo mã không trùng mã đã có
       form.ma = taoMa('SP', dsSanPham.map((p) => p.ma))
     }
+    daKhoiTao.value = true
   } catch (loi) {
     loiTai.value = true
     toast.error(loi.message || 'Không tải được dữ liệu. Vui lòng thử lại.')
@@ -191,33 +243,6 @@ onMounted(async () => {
   const o = document.getElementById('sp-ten')
   if (o) o.focus()
 })
-
-/* ----- Tạo biến thể: màu sắc x trọng lượng x chu vi (chỉ khi thêm mới) ----- */
-
-const chonMau = ref([])
-const chonTl = ref([])
-const chonCv = ref([])
-// Nhóm thuộc tính để tạo biến thể: vợt có đủ 3 nhóm, danh mục khác chỉ có Màu sắc
-const nhomTaoBienThe = computed(() => [
-  { slug: 'mau-sac', label: 'Màu sắc', sel: chonMau.value },
-  ...(laVot.value
-    ? [
-        { slug: 'trong-luong', label: 'Trọng lượng', sel: chonTl.value },
-        { slug: 'chu-vi', label: 'Chu vi cán', sel: chonCv.value },
-      ]
-    : []),
-])
-// Đổi sang danh mục có bộ thuộc tính khác (vợt <-> không phải vợt) thì biến thể đã tạo không còn đúng, làm lại từ đầu
-watch(laVot, () => {
-  chonTl.value = []
-  chonCv.value = []
-  bienThe.value = []
-})
-const bienThe = ref([]) // mỗi dòng: { key, idMauSac, idTrongLuong, idChuVi, soLuong, giaBan, chon }
-const macDinh = reactive({ soLuong: '', giaBan: '' })
-const cheDo = ref(CHE_DO_HIEN_THI_MAC_DINH) // 'mau': nhóm theo màu (như video mẫu) | 'chung': một bảng chung
-const hoiLuu = ref(false) // hiện hộp "Bạn có muốn lưu sản phẩm không?"
-const hoiCapNhat = ref(null) // sản phẩm đã tồn tại: { message, ... } từ backend -> hỏi "bạn muốn cập nhật?"
 
 const dangHoatDong = (slug) => thuocTinh[slug].filter((x) => x.hoatDong && !laKhongApDung(x)) // bỏ mục "Không áp dụng" (hệ thống tự gán)
 const tenCua = (slug, id) => thuocTinh[slug].find((x) => x.id === id)?.ten ?? '—'
@@ -482,7 +507,8 @@ async function luuSanPham(xacNhanCapNhat = false) {
   dangLuu.value = true
   try {
     if (isEdit) {
-      // Sửa: gửi ảnh của mọi màu đang hiện (màu bỏ hết ảnh thì gửi danh sách rỗng để backend bỏ ảnh của màu đó)
+      // Sửa: gửi cả biến thể và ảnh của các màu
+      duLieu.bienThes = payloadBienThe(bienThe.value)
       duLieu.anhTheoMau = payloadAnhTheoMau(anhTheoMau, mauCoAnh.value, false)
       await sanPhamService.update(idSua, duLieu)
       toast.success('Đã lưu thay đổi sản phẩm.')
@@ -573,8 +599,8 @@ async function luuSanPham(xacNhanCapNhat = false) {
         </div>
       </section>
 
-      <!-- Tạo biến thể (chỉ khi thêm mới; khi sửa dùng trang Biến thể sản phẩm) -->
-      <section v-if="!isEdit" class="ad-card">
+      <!-- Biến thể sản phẩm -->
+      <section class="ad-card">
         <div class="ad-card-head">
           <span class="ad-icon-box"><i class="bi bi-layers" aria-hidden="true"></i></span>
           <div>

@@ -9,6 +9,7 @@ const props = defineProps({
   item: { type: Object, default: null }, // null: tạo mới
   all: { type: Array, default: () => [] }, // toàn bộ bản ghi, để kiểm tra trùng mã / tên
   saving: { type: Boolean, default: false },
+  serverError: { type: String, default: '' },
 })
 const emit = defineEmits(['save', 'close'])
 
@@ -24,19 +25,30 @@ const baNhom = (ma) => {
   const i = form.nhom.indexOf(ma)
   if (i === -1) form.nhom.push(ma)
   else form.nhom.splice(i, 1)
+  if (touched.nhom) refreshErrors()
 }
 // Mã do hệ thống tự cấp: thêm mới chỉ hiển thị mã dự kiến, sửa thì giữ mã cũ (không cho nhập).
 const maHienThi = computed(() => (props.item ? props.item.ma : taoMa(props.cfg.prefix, props.all.map((x) => x.ma))))
 const errors = reactive({})
 const submitted = ref(false)
+const touched = reactive({ ten: false, nhom: false })
 
 function validate() {
   const e = {}
   const ten = String(form.ten).trim()
-  if (!ten) e.ten = `Nhập tên ${props.cfg.label.toLowerCase()}.`
-  else if (ten.length > 100) e.ten = 'Tên tối đa 100 ký tự.'
-  else if (props.all.some((x) => x.id !== props.item?.id && x.ten.toLowerCase() === ten.toLowerCase())) e.ten = 'Tên đã tồn tại.'
-  if (laChatLieu && !form.nhom.length) e.nhom = 'Chọn ít nhất một danh mục sử dụng chất liệu này.'
+  if (touched.ten || submitted.value) {
+    if (!ten) e.ten = `Nhập tên ${props.cfg.label.toLowerCase()}.`
+    else if (ten.length > 100) e.ten = 'Tên tối đa 100 ký tự.'
+    else if (props.all.some((x) => x.id !== props.item?.id && x.ten.toLowerCase() === ten.toLowerCase())) {
+      e.ten = `Tên ${props.cfg.label.toLowerCase()} đã tồn tại.`
+    }
+  }
+  if (props.serverError) {
+    e.ten = props.serverError
+  }
+  if (laChatLieu && (touched.nhom || submitted.value) && !form.nhom.length) {
+    e.nhom = 'Chọn ít nhất một danh mục sử dụng chất liệu này.'
+  }
   return e
 }
 
@@ -47,8 +59,9 @@ function refreshErrors() {
   return e
 }
 watch(form, () => {
-  if (submitted.value) refreshErrors()
+  if (submitted.value || touched.ten || touched.nhom) refreshErrors()
 })
+watch(() => props.serverError, () => refreshErrors())
 
 function submit() {
   submitted.value = true
@@ -61,6 +74,8 @@ function submit() {
 }
 
 onMounted(() => document.getElementById('tt-ten')?.focus())
+
+defineExpose({ form, touched, validate, refreshErrors })
 </script>
 
 <template>
@@ -84,6 +99,8 @@ onMounted(() => document.getElementById('tt-ten')?.focus())
             :placeholder="`Ví dụ: ${cfg.example}`"
             autocomplete="off"
             :aria-invalid="!!errors.ten"
+            @blur="touched.ten = true; refreshErrors()"
+            @input="touched.ten && refreshErrors()"
           />
           <p v-if="errors.ten" class="ad-error">{{ errors.ten }}</p>
         </div>

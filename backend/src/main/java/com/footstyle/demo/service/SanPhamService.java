@@ -191,6 +191,9 @@ public class SanPhamService {
         sp = sanPhamRepo.save(sp);
         dongBoAnh(sp, anh);
         dongBoAnhTheoMau(sp, anhMau);
+        if (req.bienThes() != null && !req.bienThes().isEmpty()) {
+            bienTheService.luuNhieu(sp, req.bienThes());
+        }
         return toResponse(sp, hinhAnhRepo.findBySanPhamId(sp.getId()));
     }
 

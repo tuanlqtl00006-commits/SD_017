@@ -14,6 +14,7 @@ const props = defineProps({
   idKadFn: { type: Function, default: () => null }, // (slug) => id mục "Không áp dụng" của bảng thuộc tính
   saving: { type: Boolean, default: false },
   themNhanh: { type: Function, default: null }, // (slug, ten) => Promise<mục mới | null>: "Thêm nhanh" màu / trọng lượng / chu vi ngay trong ô chọn
+  serverError: { type: String, default: '' },
 })
 const emit = defineEmits(['save', 'close'])
 
@@ -30,6 +31,12 @@ const form = reactive({
 })
 const errors = reactive({})
 const submitted = ref(false)
+const touched = reactive({})
+
+function cham(f) {
+  touched[f] = true
+  refreshErrors()
+}
 
 // Danh mục vợt: chọn màu sắc + trọng lượng + chu vi. Danh mục khác (phụ kiện, túi - balo...): chỉ màu sắc,
 // trọng lượng và chu vi tự là "Không áp dụng".
@@ -88,45 +95,67 @@ watch(
 
 function validate() {
   const e = {}
-  if (form.idSanPham === '') e.idSanPham = 'Chọn sản phẩm.'
-  if (form.idMauSac === '') e.idMauSac = 'Chọn màu sắc.'
-  if (laVot.value && form.idTrongLuong === '') e.idTrongLuong = 'Chọn trọng lượng.'
-  if (laVot.value && form.idChuVi === '') e.idChuVi = 'Chọn chu vi.'
+  if (form.idSanPham === '' || form.idSanPham === null) {
+    e.idSanPham = 'Chọn sản phẩm.'
+  } else {
+    const spDaChon = props.sanPhams.find((p) => p.id === Number(form.idSanPham))
+    if (spDaChon && !spDaChon.hoatDong && !isEdit.value) {
+      e.idSanPham = 'Sản phẩm đã ngưng hoạt động, không thể thêm biến thể mới.'
+    }
+  }
+  if (form.idMauSac === '' || form.idMauSac === null) e.idMauSac = 'Chọn màu sắc.'
+  if (laVot.value && (form.idTrongLuong === '' || form.idTrongLuong === null)) e.idTrongLuong = 'Chọn trọng lượng.'
+  if (laVot.value && (form.idChuVi === '' || form.idChuVi === null)) e.idChuVi = 'Chọn chu vi.'
   if (!laVot.value && (idTl() === '' || idCv() === '')) e.idSanPham = 'CSDL chưa có mục "Không áp dụng". Hãy khởi động lại backend rồi tải lại trang.'
 
-  // Thêm mới mà sản phẩm đã có biến thể cùng màu + trọng lượng + chu vi: KHÔNG chặn, trang cha sẽ hỏi "bạn muốn cập nhật?"
-  // (khi đó mã gợi ý trùng mã biến thể đã có là bình thường nên cũng không báo lỗi trùng mã)
   const trungBoBa =
     !e.idSanPham && !e.idMauSac && !e.idTrongLuong && !e.idChuVi &&
     props.all.some(
-      (b) => b.id !== props.item?.id && b.idSanPham === form.idSanPham && b.idMauSac === form.idMauSac && b.idTrongLuong === idTl() && b.idChuVi === idCv(),
+      (b) => b.id !== props.item?.id && b.idSanPham === Number(form.idSanPham) && b.idMauSac === Number(form.idMauSac) && b.idTrongLuong === Number(idTl()) && b.idChuVi === Number(idCv()),
     )
 
-  const ma = String(form.ma).trim().toUpperCase()
+  const ma = String(form.ma || '').trim().toUpperCase()
   if (!ma) e.ma = 'Nhập mã biến thể.'
   else if (!/^[A-Z0-9-]{3,50}$/.test(ma)) e.ma = 'Mã gồm 3-50 ký tự chữ, số hoặc dấu gạch ngang, không dấu, không khoảng trắng.'
-  else if (!(trungBoBa && !isEdit.value) && props.all.some((b) => b.id !== props.item?.id && b.ma === ma)) e.ma = 'Mã biến thể đã tồn tại.' // khi sửa thì bỏ qua chính nó
+  else if (!(trungBoBa && !isEdit.value) && props.all.some((b) => b.id !== props.item?.id && b.ma === ma)) e.ma = 'Mã biến thể đã tồn tại.'
 
   const gia = Number(form.giaBan)
-  if (form.giaBan === '' || Number.isNaN(gia)) e.giaBan = 'Nhập giá bán.'
+  if (form.giaBan === '' || form.giaBan === null || Number.isNaN(gia)) e.giaBan = 'Nhập giá bán.'
   else if (gia < 1000) e.giaBan = 'Giá bán tối thiểu 1.000 ₫.'
+  else if (gia > 1000000000) e.giaBan = 'Giá bán tối đa 1.000.000.000 ₫.'
 
   const ton = Number(form.soLuongTon)
-  if (form.soLuongTon === '' || !Number.isInteger(ton) || ton < 0) e.soLuongTon = 'Số lượng tồn là số nguyên từ 0 trở lên.'
+  if (form.soLuongTon === '' || form.soLuongTon === null || Number.isNaN(ton) || !Number.isInteger(ton) || ton < 0) {
+    e.soLuongTon = 'Số lượng tồn là số nguyên từ 0 trở lên.'
+  }
 
   if (trungBoBa && isEdit.value) e.idMauSac = laVot.value ? 'Sản phẩm đã có biến thể với màu sắc, trọng lượng và chu vi này.' : 'Sản phẩm đã có biến thể với màu sắc này.'
+
+  if (props.serverError) {
+    if (props.serverError.includes('Mã biến thể') || props.serverError.includes('mã')) e.ma = props.serverError
+    else if (props.serverError.includes('Giá bán') || props.serverError.includes('giá')) e.giaBan = props.serverError
+    else if (props.serverError.includes('Số lượng') || props.serverError.includes('tồn')) e.soLuongTon = props.serverError
+    else if (props.serverError.includes('màu') || props.serverError.includes('tổ hợp')) e.idMauSac = props.serverError
+    else e.idSanPham = props.serverError
+  }
+
   return e
 }
 
 function refreshErrors() {
   const e = validate()
   Object.keys(errors).forEach((k) => delete errors[k])
-  Object.assign(errors, e)
+  for (const [k, v] of Object.entries(e)) {
+    if (submitted.value || touched[k] || (props.serverError && e[k] === props.serverError)) {
+      errors[k] = v
+    }
+  }
   return e
 }
 watch(form, () => {
-  if (submitted.value) refreshErrors()
+  refreshErrors()
 })
+watch(() => props.serverError, () => refreshErrors())
 
 function submit() {
   submitted.value = true
@@ -147,6 +176,8 @@ function submit() {
 }
 
 onMounted(() => document.getElementById('bt-san-pham')?.focus())
+
+defineExpose({ form, touched, cham, validate, refreshErrors })
 </script>
 
 <template>
@@ -228,7 +259,8 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
             maxlength="50"
             autocomplete="off"
             :aria-invalid="!!errors.ma"
-            @input="codeTouched = true"
+            @input="codeTouched = true; touched.ma && refreshErrors()"
+            @blur="cham('ma')"
           />
           <p v-if="errors.ma" class="ad-error">{{ errors.ma }}</p>
           <p v-else-if="isEdit" class="ad-hint">Không sửa tay được. Nếu đổi sản phẩm thì phần đầu mã tự đổi theo (SP008-… thành SP007-…).</p>
@@ -236,12 +268,23 @@ onMounted(() => document.getElementById('bt-san-pham')?.focus())
         </div>
         <div class="col-md-3">
           <label class="ad-label" for="bt-gia">Giá bán <span class="ad-required">*</span></label>
-          <MoneyInput id="bt-gia" v-model="form.giaBan" :invalid="!!errors.giaBan" />
+          <MoneyInput id="bt-gia" v-model="form.giaBan" :invalid="!!errors.giaBan" @blur="cham('giaBan')" />
           <p v-if="errors.giaBan" class="ad-error">{{ errors.giaBan }}</p>
         </div>
         <div class="col-md-3">
           <label class="ad-label" for="bt-ton">Tồn kho <span class="ad-required">*</span></label>
-          <input id="bt-ton" v-model.number="form.soLuongTon" type="number" min="0" step="1" class="form-control ad-control" :class="{ 'is-invalid': errors.soLuongTon }" :aria-invalid="!!errors.soLuongTon" />
+          <input
+            id="bt-ton"
+            v-model.number="form.soLuongTon"
+            type="number"
+            min="0"
+            step="1"
+            class="form-control ad-control"
+            :class="{ 'is-invalid': errors.soLuongTon }"
+            :aria-invalid="!!errors.soLuongTon"
+            @blur="cham('soLuongTon')"
+            @input="touched.soLuongTon && refreshErrors()"
+          />
           <p v-if="errors.soLuongTon" class="ad-error">{{ errors.soLuongTon }}</p>
         </div>
       </div>
