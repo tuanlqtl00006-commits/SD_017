@@ -598,8 +598,6 @@ async function luuSanPham(xacNhanCapNhat = false) {
           <div>
             <h2 class="ad-card-title">Biến thể sản phẩm</h2>
             <p v-if="!daChonDanhMuc" class="ad-card-sub">Chọn danh mục ở trên để hiện các thuộc tính biến thể phù hợp.</p>
-            <p v-else-if="laVot" class="ad-card-sub">Chọn màu sắc, trọng lượng, chu vi cán vợt rồi bấm "Tạo biến thể".</p>
-            <p v-else class="ad-card-sub">Chọn màu sắc rồi bấm "Tạo biến thể".</p>
           </div>
         </div>
         <div v-for="g in (daChonDanhMuc ? nhomTaoBienThe : [])" :key="g.slug" class="ad-gen-row">
@@ -743,10 +741,7 @@ async function luuSanPham(xacNhanCapNhat = false) {
       <section v-if="mauCoAnh.length" class="ad-card" data-testid="anh-theo-mau">
         <div class="ad-card-head">
           <span class="ad-icon-box"><i class="bi bi-images" aria-hidden="true"></i></span>
-          <div>
-            <h2 class="ad-card-title">Ảnh sản phẩm theo màu</h2>
-            <p class="ad-card-sub">Thêm ảnh cho từng màu sắc (biến thể đại diện), ảnh tự áp dụng cho mọi biến thể cùng màu. Ảnh đầu tiên là ảnh chính của màu.</p>
-          </div>
+          <h2 class="ad-card-title">Ảnh sản phẩm theo màu</h2>
         </div>
         <div class="bt-anh-grid">
           <div v-for="idMau in mauCoAnh" :key="idMau" class="bt-anh-card" :data-mau="idMau">

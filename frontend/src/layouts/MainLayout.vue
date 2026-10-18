@@ -89,26 +89,26 @@ const toggle = (key) => { open[key] = !open[key] }
                 :aria-expanded="!!open[item.key]"
                 @click="toggle(item.key)"
               >
-                <span><i class="bi icon" :class="item.icon" aria-hidden="true"></i>{{ item.label }}</span>
+                <span>{{ item.label }}</span>
                 <i class="bi bi-chevron-down chevron" :class="{ up: open[item.key] }" aria-hidden="true"></i>
               </button>
               <ul v-if="open[item.key] && item.children.length" class="nav flex-column mt-1 ad-sub">
                 <li v-for="c in item.children" :key="c.label" class="nav-item">
                   <RouterLink v-if="c.to" :to="c.to" class="nav-link side-link ad-link ad-sublink" :class="{ active: isActive(c.to, c.exact) }">
-                    <i class="bi icon" :class="c.icon" aria-hidden="true"></i>{{ c.label }}
+                    {{ c.label }}
                   </RouterLink>
                   <a v-else href="#" class="nav-link side-link ad-link ad-sublink" @click.prevent>
-                    <i class="bi icon" :class="c.icon" aria-hidden="true"></i>{{ c.label }}
+                    {{ c.label }}
                   </a>
                 </li>
               </ul>
             </template>
             <!-- Mục thường -->
             <RouterLink v-else-if="item.to" :to="item.to" class="nav-link side-link ad-link" :class="{ active: isActive(item.to) }">
-              <i class="bi icon" :class="item.icon" aria-hidden="true"></i>{{ item.label }}
+              {{ item.label }}
             </RouterLink>
             <a v-else href="#" class="nav-link side-link ad-link" @click.prevent>
-              <i class="bi icon" :class="item.icon" aria-hidden="true"></i>{{ item.label }}
+              {{ item.label }}
             </a>
           </li>
         </ul>
@@ -155,23 +155,33 @@ const toggle = (key) => { open[key] = !open[key] }
 
 <style scoped>
 /* Thanh bên có độ phóng to riêng (--ui-side-zoom): body đã zoom --ui-zoom nên ở đây nhân thêm tỉ lệ bù, chiều cao chia cho hệ số hiệu dụng để luôn phủ hết màn hình */
-.ad-aside { position: sticky; top: 0; zoom: calc(var(--ui-side-zoom) / var(--ui-zoom)); height: calc(100vh / var(--ui-side-zoom)); overflow-y: auto; overflow-x: hidden; width: 300px; }
+.ad-aside {
+  position: sticky;
+  top: 0;
+  zoom: calc(var(--ui-side-zoom) / var(--ui-zoom));
+  height: calc(100vh / var(--ui-side-zoom));
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 275px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.ad-aside::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 .ad-logo { height: 100px; }
-.ad-link { white-space: nowrap; display: flex; align-items: center; padding: 0.7rem 1rem; border-radius: 0.5rem; text-align: left; }
-.ad-link .icon { font-size: 1.15rem; margin-right: 0.8rem; width: 24px; text-align: center; }
-.ad-link.justify-content-between .icon { margin-right: 0.8rem; }
-.ad-link.justify-content-between > span { display: flex; align-items: center; }
+.ad-link { white-space: nowrap; display: flex; align-items: center; padding: 0.65rem 1rem; border-radius: 0.5rem; text-align: left; }
 .chevron { font-size: 0.75rem; transition: transform 0.2s ease; }
 .chevron.up { transform: rotate(180deg); }
-.ad-sublink { padding: 0.6rem 1rem 0.6rem 2.8rem; font-size: 0.9rem; color: #6c757d; }
-.ad-sublink .icon { font-size: 1rem; margin-right: 0.6rem; width: 20px; }
+.ad-sublink { padding: 0.5rem 1rem 0.5rem 1.8rem; font-size: 0.88rem; color: #6c757d; }
 
 /* Màn hình thấp (zoom 100% trên laptop): thu gọn khoảng cách để thấy ĐỦ các chức năng mà không phải cuộn */
 @media (max-height: 820px) {
   .ad-logo { height: 76px; padding-block: 0.5rem !important; }
-  .ad-link { padding: 0.45rem 0.85rem; font-size: 0.92rem; }
-  .ad-link .icon { font-size: 1.05rem; margin-right: 0.7rem; }
-  .ad-sublink { padding: 0.38rem 1rem 0.38rem 2.6rem; font-size: 0.86rem; }
+  .ad-link { padding: 0.42rem 0.85rem; font-size: 0.9rem; }
+  .ad-sublink { padding: 0.35rem 1rem 0.35rem 1.6rem; font-size: 0.85rem; }
   .ad-sub { margin-top: 0 !important; }
 }
 </style>

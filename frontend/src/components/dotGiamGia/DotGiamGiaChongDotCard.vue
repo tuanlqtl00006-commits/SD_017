@@ -96,10 +96,7 @@ const cacChip = (k) => [
   <section class="ad-card dgg-chong" data-testid="dgg-chong-dot">
     <header class="ad-card-head">
       <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-layers"></i></span>
-      <div>
-        <h2 class="ad-card-title">Khi nhiều đợt giảm giá chồng nhau thì tính thế nào?</h2>
-        <p class="ad-card-sub">Một biến thể có thể nằm trong nhiều đợt cùng lúc. Quy tắc của cửa hàng, ví dụ chạy thử và cảnh báo trùng đợt.</p>
-      </div>
+      <h2 class="ad-card-title">Khi nhiều đợt giảm giá chồng nhau thì tính thế nào?</h2>
     </header>
 
     <!-- 1. Quy tắc -->

@@ -356,10 +356,8 @@ function submit() {
     <section class="ad-card" data-testid="pgg-thong-tin-chung">
       <div class="ad-card-head">
         <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-ticket-detailed"></i></span>
-        <div>
-          <h2 class="ad-card-title">{{ titleText }}</h2>
-          <p class="ad-card-sub">Thông tin chung. Các ô có dấu <span class="ad-required">*</span> là bắt buộc.</p>
-        </div>
+        <h2 class="ad-card-title">{{ titleText }}</h2>
+        <span class="visually-hidden">Thông tin chung</span>
       </div>
 
       <div class="row g-3">
@@ -386,7 +384,6 @@ function submit() {
           </div>
           <p v-if="errors.ma" id="pgg-ma-msg" class="ad-error">{{ errors.ma }}</p>
           <p v-else-if="isEdit" id="pgg-ma-msg" class="ad-hint">Không thể đổi mã sau khi tạo.</p>
-          <p v-else id="pgg-ma-msg" class="ad-hint">Hệ thống tự tạo mã, có thể bấm nút bên phải để tạo mã khác hoặc tự nhập.</p>
         </div>
 
         <div class="col-md-7">
@@ -535,9 +532,6 @@ function submit() {
           </template>
           <span v-else class="pgg-du-kien-mo-ta">Chọn ngày giờ bắt đầu và kết thúc hợp lệ để xem trạng thái dự kiến.</span>
         </div>
-        <p class="ad-hint col-12 pgg-quy-uoc-gio">
-          Thời gian tính theo phút: bắt đầu từ đầu phút bắt đầu, kết thúc tới hết phút kết thúc (kết thúc 17:00 là dùng được tới 17:00:59).
-        </p>
       </div>
     </section>
 

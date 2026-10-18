@@ -62,13 +62,7 @@ const cacMuc = (d) => [
   <section class="ad-card">
     <header class="ad-card-head">
       <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-calendar2-range"></i></span>
-      <div class="flex-grow-1">
-        <h2 class="ad-card-title">Lịch giảm giá theo ngày giờ</h2>
-        <p class="ad-card-sub">
-          Mức giảm thật sự của từng biến thể trong khoảng ngày giờ của đợt. Nhiều đợt chồng nhau thì tự gộp theo cách đang cấu hình
-          (mặc định lấy mức giảm cao nhất; có thể đổi sang cộng dồn hoặc trung bình cộng).
-        </p>
-      </div>
+      <h2 class="ad-card-title flex-grow-1">Lịch giảm giá theo ngày giờ</h2>
       <button type="button" class="ad-btn" :disabled="dangTai" @click="tai">
         <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Tải lại
       </button>

@@ -3,6 +3,7 @@ frontend/node_modules/
 frontend/dist/
 backend/target/
 backend/uploads/
+uploads/
 # Chứa mật khẩu ứng dụng Gmail - không đẩy lên GitHub (dùng mail.properties.example làm mẫu)
 backend/src/main/resources/mail.properties
 backend/backend.log

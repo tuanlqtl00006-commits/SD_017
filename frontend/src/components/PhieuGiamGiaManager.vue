@@ -216,7 +216,7 @@ async function confirmToggle() {
 
 <template>
   <div class="ad-page">
-    <FilterCard subtitle="Tra cứu nhanh dữ liệu.">
+    <FilterCard>
       <div class="ad-filter-grid">
         <div>
           <label class="ad-label" for="pgg-keyword">Tìm kiếm</label>

@@ -586,7 +586,6 @@ async function xacNhanDoiMatKhau() {
             <button type="button" class="ad-btn w-100" @click="moDoiMatKhau">
               <i class="bi bi-key" aria-hidden="true"></i> Đổi mật khẩu
             </button>
-            <p class="ad-hint mt-2 mb-0">Nhân viên tự đổi mật khẩu cá nhân khi đăng nhập.</p>
           </section>
         </div>
 
@@ -595,10 +594,7 @@ async function xacNhanDoiMatKhau() {
           <section class="ad-card">
             <header class="ad-card-head">
               <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-person"></i></span>
-              <div>
-                <h2 class="ad-card-title">Thông tin cơ bản</h2>
-                <p class="ad-card-sub">Họ tên, email, liên hệ và tài khoản.</p>
-              </div>
+              <h2 class="ad-card-title">Thông tin cơ bản</h2>
               <div class="d-flex align-items-center gap-2 ms-auto">
                 <span v-if="form.canCuoc" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" data-testid="cccd-da-quet">
                   <i class="bi bi-qr-code-scan me-1" aria-hidden="true"></i>CCCD: {{ form.canCuoc }}
@@ -608,11 +604,6 @@ async function xacNhanDoiMatKhau() {
                 </button>
               </div>
             </header>
-
-            <p v-if="isEdit" class="ad-hint mt-3 mb-0">
-              <i class="bi bi-info-circle" aria-hidden="true"></i>
-              Có thể sửa: họ tên, số điện thoại, vai trò, ngày sinh, giới tính, địa chỉ. Các ô màu xám (mã nhân viên, email, ngày vào làm) không thể sửa.
-            </p>
 
             <div class="row g-3 mt-1">
               <div class="col-md-6">
@@ -800,10 +791,7 @@ async function xacNhanDoiMatKhau() {
           <section id="nv-dia-chi-card" class="ad-card mt-4">
             <header class="ad-card-head">
               <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
-              <div>
-                <h2 class="ad-card-title">Địa chỉ</h2>
-                <p class="ad-card-sub">Thêm nhiều địa chỉ, chọn một địa chỉ chính.</p>
-              </div>
+              <h2 class="ad-card-title">Địa chỉ</h2>
               <button type="button" class="ad-btn ms-auto" :disabled="dcForm.mo" @click="moFormDiaChi()">
                 <i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm địa chỉ
               </button>

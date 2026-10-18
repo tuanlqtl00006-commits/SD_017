@@ -168,7 +168,7 @@ function exportFile() {
 
 <template>
   <div class="ad-page">
-    <FilterCard subtitle="Tra cứu nhanh dữ liệu.">
+    <FilterCard>
       <div class="ad-filter-grid">
         <div>
           <label class="ad-label" for="tt-keyword">Tìm kiếm</label>

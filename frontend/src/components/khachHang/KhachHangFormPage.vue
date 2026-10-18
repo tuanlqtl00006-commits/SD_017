@@ -245,10 +245,7 @@ async function luu() {
         <section class="ad-card" data-testid="kh-thong-tin">
           <div class="ad-card-head">
             <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-person-vcard"></i></span>
-            <div>
-              <h2 class="ad-card-title">Thông tin khách hàng</h2>
-              <p class="ad-card-sub">Họ tên, liên hệ và thông tin cá nhân. Các ô có dấu <span class="ad-required">*</span> là bắt buộc.</p>
-            </div>
+            <h2 class="ad-card-title">Thông tin khách hàng</h2>
           </div>
 
           <div class="row g-3">
@@ -372,10 +369,7 @@ async function luu() {
         <section v-if="!isEdit" class="ad-card" data-testid="kh-dia-chi-moi">
           <div class="ad-card-head">
             <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
-            <div>
-              <h2 class="ad-card-title">Địa chỉ giao hàng <span class="ad-required">*</span></h2>
-              <p class="ad-card-sub">Địa chỉ mặc định của khách hàng mới (có thể thêm địa chỉ khác sau khi tạo).</p>
-            </div>
+            <h2 class="ad-card-title">Địa chỉ giao hàng <span class="ad-required">*</span></h2>
           </div>
 
           <div class="row g-3">
@@ -428,10 +422,7 @@ async function luu() {
           <div class="kh-dia-chi-head">
             <div class="ad-card-head mb-0">
               <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
-              <div>
-                <h2 class="ad-card-title">Địa chỉ giao hàng</h2>
-                <p class="ad-card-sub">{{ khach?.diaChiList?.length || 0 }} địa chỉ đã lưu. Thêm, sửa, xóa và đặt địa chỉ mặc định trong sổ địa chỉ.</p>
-              </div>
+              <h2 class="ad-card-title">Địa chỉ giao hàng</h2>
             </div>
             <button type="button" class="ad-btn" @click="moDiaChi = true">
               <i class="bi bi-geo-alt-fill" aria-hidden="true"></i> Quản lý địa chỉ
