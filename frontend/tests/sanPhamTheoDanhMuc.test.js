@@ -25,12 +25,11 @@ const nhan = (w) => w.findAll('label').map((l) => l.text())
 beforeEach(() => { mock = mockApi(); document.body.innerHTML = '' })
 
 describe('Form sản phẩm theo danh mục', () => {
-  it('chưa chọn danh mục: không hiện độ cứng / điểm cân bằng, biến thể chưa có thuộc tính', async () => {
+  it('mới vào trang thêm: hiện đủ thuộc tính; khi chọn danh mục khác thì lọc theo danh mục đó', async () => {
     const { w } = await montar()
-    expect(w.find('#sp-idDoCung').exists()).toBe(false)
-    expect(w.find('#sp-idDiemCanBang').exists()).toBe(false)
-    expect(w.findAll('.ad-gen-row').length).toBe(0)
-    expect(w.text()).toContain('Chọn danh mục ở trên')
+    expect(w.find('#sp-idDoCung').exists()).toBe(true)
+    expect(w.find('#sp-idDiemCanBang').exists()).toBe(true)
+    expect(w.findAll('.ad-gen-row').length).toBe(3)
   })
   it('chọn Vợt cầu lông: hiện độ cứng, điểm cân bằng, màu + trọng lượng + chu vi; không có "Không áp dụng" để chọn', async () => {
     const { w } = await montar()

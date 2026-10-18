@@ -89,7 +89,10 @@ const anhTheoMau = reactive({})
 const daChonDanhMuc = computed(() => form.idDanhMuc !== '' && form.idDanhMuc != null)
 const tenDanhMuc = computed(() => thuocTinh['danh-muc'].find((x) => x.id === Number(form.idDanhMuc))?.ten ?? '')
 const laVot = computed(() => daChonDanhMuc.value && laDanhMucVot(tenDanhMuc.value))
-const selectsHienThi = computed(() => SELECTS.filter((s) => !s.chiVot || laVot.value))
+// Mới vào trang thêm (chưa chọn danh mục) hoặc khi chọn danh mục Vợt: hiện đủ các thuộc tính.
+// Khi chọn danh mục khác (như Quần áo / Áo, Phụ kiện...): ẩn các thuộc tính vợt (Độ cứng, Điểm cân bằng, Trọng lượng, Chu vi cán).
+const laVotOrInit = computed(() => !daChonDanhMuc.value || laVot.value)
+const selectsHienThi = computed(() => SELECTS.filter((s) => !s.chiVot || laVotOrInit.value))
 // Id của mục "Không áp dụng" ở từng bảng (null nếu CSDL chưa có)
 const idKad = (slug) => idKhongApDung(thuocTinh[slug])
 // Giá trị gửi lên: vợt dùng giá trị đã chọn, danh mục khác dùng "Không áp dụng"
@@ -158,7 +161,7 @@ const chonCv = ref([])
 // Nhóm thuộc tính để tạo biến thể: vợt có đủ 3 nhóm, danh mục khác chỉ có Màu sắc
 const nhomTaoBienThe = computed(() => [
   { slug: 'mau-sac', label: 'Màu sắc', sel: chonMau.value },
-  ...(laVot.value
+  ...(laVotOrInit.value
     ? [
         { slug: 'trong-luong', label: 'Trọng lượng', sel: chonTl.value },
         { slug: 'chu-vi', label: 'Chu vi cán', sel: chonCv.value },
@@ -166,7 +169,7 @@ const nhomTaoBienThe = computed(() => [
     : []),
 ])
 // Đổi sang danh mục có bộ thuộc tính khác (vợt <-> không phải vợt) thì biến thể đã tạo không còn đúng, làm lại từ đầu
-watch(laVot, () => {
+watch(laVotOrInit, () => {
   if (!daKhoiTao.value) return
   chonTl.value = []
   chonCv.value = []
@@ -223,8 +226,8 @@ onMounted(async () => {
           idMauSac: b.idMauSac,
           idTrongLuong: b.idTrongLuong,
           idChuVi: b.idChuVi,
-          soLuong: b.soLuongTon,
-          giaBan: b.giaBan,
+          soLuong: b.soLuongTon ?? 0,
+          giaBan: b.giaBan ?? 100000,
           chon: true,
         }))
       }
@@ -547,14 +550,14 @@ async function luuSanPham(xacNhanCapNhat = false) {
     <form v-else id="sp-form" class="ad-page" novalidate @submit.prevent="guiForm">
       <section class="ad-card">
         <div class="row g-3">
-          <div class="col-md-3">
+          <div class="col-md-6">
             <label class="ad-label" for="sp-ma">Mã sản phẩm</label>
-            <input id="sp-ma" v-model="form.ma" type="text" class="form-control ad-control" :class="{ 'is-invalid': errors.ma }" readonly :aria-invalid="!!errors.ma" />
+            <input id="sp-ma" v-model="form.ma" type="text" class="form-control ad-control font-monospace" :class="{ 'is-invalid': errors.ma }" readonly :aria-invalid="!!errors.ma" />
             <p v-if="errors.ma" class="ad-error">{{ errors.ma }}</p>
             <p v-else class="ad-hint">Hệ thống tự tạo, không đổi được.</p>
           </div>
 
-          <div class="col-md-9">
+          <div class="col-md-6">
             <label class="ad-label" for="sp-ten">Sản phẩm <span class="ad-required">*</span></label>
             <input
               id="sp-ten"
@@ -595,12 +598,9 @@ async function luuSanPham(xacNhanCapNhat = false) {
       <section class="ad-card">
         <div class="ad-card-head">
           <span class="ad-icon-box"><i class="bi bi-layers" aria-hidden="true"></i></span>
-          <div>
-            <h2 class="ad-card-title">Biến thể sản phẩm</h2>
-            <p v-if="!daChonDanhMuc" class="ad-card-sub">Chọn danh mục ở trên để hiện các thuộc tính biến thể phù hợp.</p>
-          </div>
+          <h2 class="ad-card-title">Biến thể sản phẩm</h2>
         </div>
-        <div v-for="g in (daChonDanhMuc ? nhomTaoBienThe : [])" :key="g.slug" class="ad-gen-row">
+        <div v-for="g in nhomTaoBienThe" :key="g.slug" class="ad-gen-row">
           <span class="ad-label mb-0">{{ g.label }}</span>
           <div class="d-flex flex-wrap gap-2">
             <button v-for="o in dangHoatDong(g.slug)" :key="o.id" type="button" class="ad-gen-chip" :class="{ on: g.sel.includes(o.id) }" :aria-pressed="g.sel.includes(o.id)" @click="baMau(g.sel, o.id)">
@@ -623,7 +623,7 @@ async function luuSanPham(xacNhanCapNhat = false) {
             </div>
           </div>
         </div>
-        <div v-if="daChonDanhMuc" class="d-flex flex-wrap justify-content-end align-items-center gap-3 mt-3">
+        <div class="d-flex flex-wrap justify-content-end align-items-center gap-3 mt-3">
           <span v-if="duKien.so" class="bt-du-kien" data-testid="du-kien">Sẽ tạo {{ duKien.congThuc }}</span>
           <button type="button" class="ad-btn ad-btn-primary" @click="taoBienThe"><i class="bi bi-plus-circle" aria-hidden="true"></i> Tạo biến thể</button>
         </div>
