@@ -64,9 +64,9 @@ describe('Đợt giảm giá: chọn sản phẩm / biến thể', () => {
     expect(w.text()).toContain('1 sản phẩm · 1 biến thể')
     expect(w.findAll('.dgg-chosen-row').length).toBe(1)
   })
-  it('bấm nút + hoặc dòng sản phẩm thì đẩy biến thể xuống bảng dưới (không xổ dòng con ở bảng trên)', async () => {
+  it('bấm dòng sản phẩm thì đẩy biến thể xuống bảng dưới (không xổ dòng con ở bảng trên)', async () => {
     const w = await montarDot()
-    await w.get('.dgg-expand').trigger('click'); await flushPromises()
+    await w.get('.dgg-product-row').trigger('click'); await flushPromises()
     expect(w.find('.dgg-sub-row').exists()).toBe(false)
     expect(w.text()).toContain('1 sản phẩm · 2 biến thể')
     expect(w.findAll('.dgg-chosen-row').length).toBe(2)

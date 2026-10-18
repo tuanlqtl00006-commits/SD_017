@@ -6,7 +6,6 @@ import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
 import StatusSwitch from './common/StatusSwitch.vue'
 import Select2 from './common/Select2.vue'
-import DotGiamGiaChiTietModal from './dotGiamGia/DotGiamGiaChiTietModal.vue'
 import { dotGiamGiaService } from '../services/dotGiamGiaService'
 import { TRANG_THAI, dangHoatDong, daKetThuc, ngayIso, tinhTrangThai } from '../constants/dotGiamGia'
 import { usePagination } from '../composables/usePagination'
@@ -92,9 +91,6 @@ function patchRow(daDoi) {
 /* ----- Điều hướng ----- */
 const openCreate = () => router.push('/dot-giam-gia/them')
 const openDetail = (d) => router.push(`/dot-giam-gia/${d.id}`)
-
-/* ----- Sản phẩm áp dụng: cửa sổ thêm / gỡ nhanh từng biến thể của đợt ----- */
-const chiTietDot = ref(null)
 
 /* ----- Xuất Excel (đúng theo danh sách đang lọc) ----- */
 function exportFile() {
@@ -287,20 +283,11 @@ async function confirmToggle() {
                       <button
                         type="button"
                         class="ad-icon-btn"
-                        title="Xem chi tiết"
+                        title="Xem chi tiết / sửa đợt giảm giá"
                         :aria-label="`Xem chi tiết đợt ${d.maDot}`"
                         @click="openDetail(d)"
                       >
                         <i class="bi bi-eye" aria-hidden="true"></i>
-                      </button>
-                      <button
-                        type="button"
-                        class="ad-icon-btn"
-                        title="Sản phẩm áp dụng"
-                        :aria-label="`Sản phẩm áp dụng của đợt ${d.maDot}`"
-                        @click="chiTietDot = d"
-                      >
-                        <i class="bi bi-list-check" aria-hidden="true"></i>
                       </button>
                     </div>
                   </td>
@@ -321,8 +308,6 @@ async function confirmToggle() {
       @confirm="confirmToggle"
       @cancel="confirmItem = null"
     />
-
-    <DotGiamGiaChiTietModal v-if="chiTietDot" :campaign="chiTietDot" @close="chiTietDot = null" />
   </div>
 </template>
 

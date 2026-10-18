@@ -222,12 +222,6 @@ function doiTatCaTrang() {
   else themVaoChon(idsTrang.value)
 }
 
-// Bấm nút + ở cuối dòng sản phẩm: nếu sản phẩm chưa chọn đủ hết biến thể thì thêm đủ vào bảng dưới; đã đủ thì bỏ chọn
-function bamNutCong(row) {
-  if (trangThaiDong(row).checked) boKhoiChon(row.ids)
-  else themVaoChon(row.ids)
-}
-
 /* ----- Thẻ dưới: biến thể đã chọn ----- */
 const dsChon = computed(() => {
   const ds = [...daChon.value].map((id) => bienTheById.value.get(id)).filter(Boolean)
@@ -408,6 +402,43 @@ function thongTinTrung(v) {
   }
 }
 
+// Danh sách các đợt đang giao thời gian (hiển thị dạng "- 10%: 1/10 - 10/10 -> BIẾN THỂ: SPCT1, SPCT5" chuẩn theo ghi chú của cô)
+const cacDotGiaoNhau = computed(() => {
+  if (!khoangHopLe.value || phanTramHopLe.value === null || !mapDotTrungTheoBt.value.size) return []
+  const idDotTrungs = new Set()
+  for (const ds of mapDotTrungTheoBt.value.values()) {
+    ds.forEach((m) => idDotTrungs.add(m.idDot))
+  }
+  const theoDot = new Map()
+  for (const m of apDungKhac.value.muc ?? []) {
+    if (!idDotTrungs.has(m.idDot)) continue
+    const bt = bienTheById.value.get(m.idBienThe)
+    const maBt = bt?.ma || `SPCT${m.idBienThe}`
+    if (!theoDot.has(m.idDot)) {
+      theoDot.set(m.idDot, {
+        maDot: m.maDot,
+        phanTram: Number(m.phanTram),
+        tuNgay: tachNgayGio(m.ngayBatDau).ngay,
+        tu: ngayGon(m.ngayBatDau),
+        den: ngayGon(m.ngayKetThuc),
+        mas: [],
+      })
+    }
+    const itemDot = theoDot.get(m.idDot)
+    if (!itemDot.mas.includes(maBt)) itemDot.mas.push(maBt)
+  }
+  const ds = [...theoDot.values()]
+  ds.push({
+    maDot: form.maDot || 'Đợt mới',
+    phanTram: phanTramHopLe.value,
+    tuNgay: tachNgayGio(form.batDau).ngay,
+    tu: ngayGon(form.batDau),
+    den: ngayGon(form.ketThuc),
+    mas: dsChon.value.map((v) => v.ma),
+  })
+  return ds.sort((a, b) => String(a.tuNgay).localeCompare(String(b.tuNgay)))
+})
+
 // Phân tách các giai đoạn ngày khi đợt đang soạn giao thời gian với các đợt khác (vd: 1/10 -> 4/10, 4/10 -> 10/10, 10/10 -> 20/10)
 const giaiDoanTrungDot = computed(() => {
   if (!khoangHopLe.value || phanTramHopLe.value === null || !mapDotTrungTheoBt.value.size) return []
@@ -435,12 +466,11 @@ const giaiDoanTrungDot = computed(() => {
     mocSet.add(m.denNgay)
   }
   const mocs = [...mocSet].sort()
-  if (mocs.length < 2) return []
+  if (!mocs.length) return []
+  const doanMocs = mocs.length === 1 ? [[mocs[0], mocs[0]]] : mocs.slice(0, -1).map((d, i) => [d, mocs[i + 1]])
 
   const ketQua = []
-  for (let i = 0; i + 1 < mocs.length; i++) {
-    const d1 = mocs[i]
-    const d2 = mocs[i + 1]
+  for (const [d1, d2] of doanMocs) {
     // Một đợt được tính trong đoạn [d1, d2] nếu bắt đầu <= d1 và kết thúc >= d2
     const theoBt = new Map()
     for (const m of mucs) {
@@ -450,13 +480,15 @@ const giaiDoanTrungDot = computed(() => {
       }
     }
     if (!theoBt.size) continue
-    const nhomTrung = []
+    const trungMap = new Map()
     const nhomDon = new Map()
     for (const { ma, pts } of [...theoBt.values()].sort((a, b) => String(a.ma).localeCompare(String(b.ma)))) {
       if (pts.length > 1) {
         const max = Math.max(...pts)
         const tbc = Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 100) / 100
-        nhomTrung.push({ ma, max, tbc })
+        const key = `${max}_${tbc}`
+        if (!trungMap.has(key)) trungMap.set(key, { mas: [], max, tbc })
+        trungMap.get(key).mas.push(ma)
       } else {
         const pt = pts[0]
         if (!nhomDon.has(pt)) nhomDon.set(pt, [])
@@ -466,7 +498,7 @@ const giaiDoanTrungDot = computed(() => {
     ketQua.push({
       tu: ngayGon(d1),
       den: ngayGon(d2),
-      nhomTrung,
+      nhomTrung: [...trungMap.values()].map((g) => ({ ma: g.mas.join(', '), max: g.max, tbc: g.tbc })),
       nhomDon: [...nhomDon.entries()].map(([pt, mas]) => ({ pt, mas })),
     })
   }
@@ -476,7 +508,7 @@ const giaiDoanTrungDot = computed(() => {
 /* ----- Tải dữ liệu ----- */
 async function taiDuLieu() {
   try {
-    const [dsSp, dsBt, dsMau, dsTl, dsCv, dsDm, dsTh, dsCl, dsDot, dot, chiTiet] = await Promise.all([
+    const [dsSp, dsBt, dsMau, dsTl, dsCv, dsDm, dsTh, dsCl, dsDot, dot, chiTiet, rApDung, rCheDo] = await Promise.all([
       sanPhamService.getAll(),
       bienTheService.getAll(),
       thuocTinhService.getAll('mau-sac'),
@@ -488,16 +520,16 @@ async function taiDuLieu() {
       dotGiamGiaService.getAll(),
       isEdit ? dotGiamGiaService.getById(idXem) : Promise.resolve(null),
       isEdit ? dotGiamGiaService.getBienThe(idXem) : Promise.resolve([]),
+      dotGiamGiaService.apDung().catch(() => null),
+      dotGiamGiaService.cheDo().catch(() => null),
     ])
-    dotGiamGiaService.apDung().then((r) => {
-      if (r && Array.isArray(r.muc)) {
-        apDungKhac.value = r
-        if (r.chinhSach === 'TRUNG_BINH' || r.chinhSach === 'MAX') cheDoChongDot.value = r.chinhSach
-      }
-    }).catch(() => {})
-    dotGiamGiaService.cheDo().then((r) => {
-      if (r?.cheDo === 'TRUNG_BINH' || r?.cheDo === 'MAX') cheDoChongDot.value = r.cheDo
-    }).catch(() => {})
+    if (rApDung && Array.isArray(rApDung.muc)) {
+      apDungKhac.value = rApDung
+      if (rApDung.chinhSach === 'TRUNG_BINH' || rApDung.chinhSach === 'MAX') cheDoChongDot.value = rApDung.chinhSach
+    }
+    if (rCheDo?.cheDo === 'TRUNG_BINH' || rCheDo?.cheDo === 'MAX') {
+      cheDoChongDot.value = rCheDo.cheDo
+    }
     sanPhams.value = dsSp
     bienThes.value = dsBt
     mauSacs.value = dsMau
@@ -770,12 +802,11 @@ const huy = () => router.push('/dot-giam-gia')
                     <th>Tên SP</th>
                     <th>Thương hiệu</th>
                     <th>Chất liệu</th>
-                    <th class="dgg-col-expand"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!dongTrang.length">
-                    <td colspan="7">
+                    <td colspan="6">
                       <div class="ad-empty">
                         <i class="bi bi-inbox" aria-hidden="true"></i>
                         <strong>Không có sản phẩm phù hợp</strong>
@@ -807,18 +838,6 @@ const huy = () => router.push('/dot-giam-gia')
                       </td>
                       <td class="text-muted ad-nowrap">{{ thMap.get(row.sp.idThuongHieu) || '—' }}</td>
                       <td class="text-muted ad-nowrap">{{ clMap.get(row.sp.idChatLieu) || '—' }}</td>
-                      <td class="dgg-col-expand" @click.stop>
-                        <button
-                          type="button"
-                          class="dgg-expand"
-                          :class="{ 'is-open': trangThaiDong(row).checked }"
-                          :title="trangThaiDong(row).checked ? 'Bỏ chọn sản phẩm này' : 'Thêm toàn bộ biến thể xuống bảng dưới'"
-                          :aria-label="(trangThaiDong(row).checked ? 'Bỏ chọn ' : 'Chọn ') + row.sp.ten"
-                          @click="bamNutCong(row)"
-                        >
-                          <i class="bi" :class="trangThaiDong(row).checked ? 'bi-dash' : 'bi-plus'" aria-hidden="true"></i>
-                        </button>
-                      </td>
                     </tr>
                   </template>
                 </tbody>
@@ -889,6 +908,12 @@ const huy = () => router.push('/dot-giam-gia')
               </button>
             </div>
           </div>
+          <ul v-if="cacDotGiaoNhau.length" class="dgg-campaign-list">
+            <li v-for="(d, idxDot) in cacDotGiaoNhau" :key="'dot-' + idxDot" class="dgg-campaign-item">
+              <span>- <strong>{{ dinhDangPt(d.phanTram) }}%</strong>: {{ d.tu }} - {{ d.den }} &rarr; BIẾN THỂ: <strong>{{ d.mas.join(', ') }}</strong></span>
+              <span class="dgg-campaign-code">({{ d.maDot }})</span>
+            </li>
+          </ul>
           <ul class="dgg-stage-list">
             <li v-for="(gd, idx) in giaiDoanTrungDot" :key="idx" class="dgg-stage-item">
               <strong class="dgg-stage-date">{{ gd.tu }} &rarr; {{ gd.den }}</strong>
@@ -1078,6 +1103,27 @@ const huy = () => router.push('/dot-giam-gia')
 .dgg-form-actions .ad-btn {
   width: 100%;
   justify-content: center;
+  height: 40px;
+  font-weight: 600;
+}
+.dgg-form-actions .ad-btn-primary {
+  background: var(--fs-primary);
+  border-color: var(--fs-primary);
+  color: #fff;
+}
+.dgg-form-actions .ad-btn-primary:hover:not(:disabled) {
+  background: var(--fs-primary-dark);
+  border-color: var(--fs-primary-dark);
+}
+.dgg-form-actions .ad-btn:not(.ad-btn-primary) {
+  background: #fff;
+  border-color: var(--fs-line);
+  color: var(--fs-text);
+}
+.dgg-form-actions .ad-btn:not(.ad-btn-primary):hover:not(:disabled) {
+  background: var(--fs-hover-bg);
+  border-color: var(--fs-primary-line);
+  color: var(--fs-primary-dark);
 }
 textarea.ad-control {
   resize: vertical;
@@ -1122,13 +1168,13 @@ textarea.ad-control {
   place-items: center;
   border: 0;
   border-radius: 8px;
-  background: #2c4a5e;
+  background: var(--fs-primary);
   color: #fff;
   font-size: 0.85rem;
   flex: 0 0 auto;
 }
 .dgg-search-btn:hover {
-  background: #1e3545;
+  background: var(--fs-primary-dark);
 }
 
 /* Bảng chọn sản phẩm */
@@ -1422,8 +1468,31 @@ textarea.ad-control {
   transition: all 0.15s ease;
 }
 .dgg-mode-btn.active {
-  background: #2c4a5e;
+  background: var(--fs-primary);
   color: #fff;
+}
+.dgg-campaign-list {
+  list-style: none;
+  padding: 0.45rem 0.65rem;
+  margin: 0 0 0.5rem 0;
+  background: #fff7ed;
+  border: 1px dashed #fdba74;
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.81rem;
+  color: #7c2d12;
+}
+.dgg-campaign-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.dgg-campaign-code {
+  color: #9a3412;
+  font-size: 0.76rem;
 }
 .dgg-stage-list {
   list-style: none;

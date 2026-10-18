@@ -88,9 +88,9 @@ describe('Thêm đợt giảm giá: chọn sản phẩm + bảng biến thể đ
     expect(dongSanPham(w, 'Astrox 99').text()).toContain('Đã chọn 1/4 biến thể')
   })
 
-  it('bấm + để thêm biến thể của sản phẩm xuống bảng dưới; lưu gửi đúng danh sách biến thể', async () => {
+  it('bấm dòng sản phẩm để thêm biến thể xuống bảng dưới; lưu gửi đúng danh sách biến thể', async () => {
     const { w, router } = await montar()
-    await dongSanPham(w, 'Grip Yonex').get('.dgg-expand').trigger('click'); await flushPromises()
+    await dongSanPham(w, 'Grip Yonex').trigger('click'); await flushPromises()
     expect(w.text()).toContain('1 sản phẩm · 1 biến thể')
     expect(w.findAll('.dgg-chosen-row')[0].text()).toContain('Đen') // phụ kiện: không hiện "Không áp dụng"
     expect(w.findAll('.dgg-chosen-row')[0].text()).not.toContain('Không áp dụng')
