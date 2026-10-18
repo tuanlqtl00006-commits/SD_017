@@ -206,7 +206,6 @@ const hienQuet = ref(false)
 //  - chỉ có Tỉnh/Phường, thiếu số nhà / đường -> mở sẵn ô nhập với Tỉnh/Phường đã điền, người dùng nhập tiếp địa chỉ cụ thể.
 async function apDungCccd(info) {
   form.canCuoc = info.soCccd
-  cham('canCuoc') // dữ liệu quét về cũng được kiểm tra ngay (trùng CCCD, chưa đủ 18 tuổi...)
   if (info.hoTen) {
     form.hoTen = info.hoTen
     cham('hoTen')
@@ -217,12 +216,16 @@ async function apDungCccd(info) {
     cham('ngaySinh')
   }
   diaChiTrenCccd.value = info.diaChi
-  const trung = tatCa.value.find((e) => e.canCuoc === info.soCccd)
+  const trung = tatCa.value.find((e) => e.canCuoc === info.soCccd && e.id !== (item.value?.id ?? null))
   const tenNv = info.hoTen || 'nhân viên'
   let ghiChuDiaChi = ''
   if (info.diaChi) ghiChuDiaChi = await themDiaChiTuCccd(info.diaChi)
-  if (trung) toast.error(`Số CCCD này đã thuộc nhân viên ${trung.hoTen} (${trung.ma}).`)
-  else toast.success(`Đã điền thông tin từ căn cước của ${tenNv}.${ghiChuDiaChi} Hãy kiểm tra lại rồi nhập email, mật khẩu và số điện thoại.`)
+  if (trung) {
+    toast.error(`Số CCCD này đã thuộc nhân viên ${trung.hoTen} (${trung.ma}).`)
+    form.canCuoc = ''
+  } else {
+    toast.success(`Đã điền thông tin từ căn cước của ${tenNv}.${ghiChuDiaChi} Hãy kiểm tra lại rồi nhập email, mật khẩu và số điện thoại.`)
+  }
   nextTick(() => document.getElementById('nv-email')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }))
 }
 
@@ -281,9 +284,10 @@ function tinhLoi() {
     if (email) e.email = email
   }
 
-  let cccd = loiCccd(form.canCuoc)
-  if (!cccd && timBanTrung(tatCa.value, form.canCuoc, (x) => x.canCuoc, cat, idDangSua)) cccd = 'Số căn cước công dân đã được sử dụng.'
-  if (cccd) e.canCuoc = cccd
+  if (form.canCuoc && timBanTrung(tatCa.value, form.canCuoc, (x) => x.canCuoc, cat, idDangSua)) {
+    e.canCuoc = 'Số căn cước công dân đã được sử dụng.'
+    toast.error('Số căn cước công dân đã được sử dụng.')
+  }
 
   let sdt = loiSdt(form.soDienThoai, 'Nhập số điện thoại.')
   if (!sdt && timBanTrung(tatCa.value, form.soDienThoai, (x) => x.soDienThoai, khoaSdt, idDangSua)) sdt = 'Số điện thoại đã được sử dụng.'
@@ -517,14 +521,19 @@ async function xacNhanDoiMatKhau() {
                 <h2 class="ad-card-title">Thông tin cơ bản</h2>
                 <p class="ad-card-sub">Họ tên, email, liên hệ và tài khoản.</p>
               </div>
-              <button v-if="!isEdit" type="button" class="ad-btn ms-auto" @click="hienQuet = true">
-                <i class="bi bi-qr-code-scan" aria-hidden="true"></i> Quét căn cước
-              </button>
+              <div class="d-flex align-items-center gap-2 ms-auto">
+                <span v-if="form.canCuoc" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" data-testid="cccd-da-quet">
+                  <i class="bi bi-qr-code-scan me-1" aria-hidden="true"></i>CCCD: {{ form.canCuoc }}
+                </span>
+                <button v-if="!isEdit" type="button" class="ad-btn" @click="hienQuet = true">
+                  <i class="bi bi-qr-code-scan" aria-hidden="true"></i> Quét căn cước
+                </button>
+              </div>
             </header>
 
             <p v-if="isEdit" class="ad-hint mt-3 mb-0">
               <i class="bi bi-info-circle" aria-hidden="true"></i>
-              Có thể sửa: họ tên, số điện thoại, số căn cước, vai trò, ngày sinh, giới tính, địa chỉ. Các ô màu xám (mã nhân viên, email, ngày vào làm) không thể sửa.
+              Có thể sửa: họ tên, số điện thoại, vai trò, ngày sinh, giới tính, địa chỉ. Các ô màu xám (mã nhân viên, email, ngày vào làm) không thể sửa.
             </p>
 
             <div class="row g-3 mt-1">
@@ -560,53 +569,6 @@ async function xacNhanDoiMatKhau() {
                   @blur="cham('hoTen')"
                 />
                 <p v-if="loi.hoTen" id="nv-ho-ten-msg" class="ad-error">{{ loi.hoTen }}</p>
-              </div>
-
-              <div class="col-md-6">
-                <div class="d-flex align-items-center justify-content-between mb-1">
-                  <label class="ad-label mb-0" for="nv-cccd">Số căn cước công dân</label>
-                  <button
-                    v-if="!isEdit"
-                    type="button"
-                    class="btn btn-link btn-sm p-0 text-decoration-none"
-                    title="Quét mã QR căn cước công dân"
-                    @click="hienQuet = true"
-                  >
-                    <i class="bi bi-qr-code-scan me-1" aria-hidden="true"></i>Quét căn cước
-                  </button>
-                </div>
-                <div class="ad-affix">
-                  <input
-                    id="nv-cccd"
-                    v-model="form.canCuoc"
-                    type="text"
-                    class="form-control ad-control has-btn"
-                    :class="{ 'is-invalid': loi.canCuoc }"
-                    readonly
-                    placeholder="Quét mã QR căn cước để tự động điền (không tự nhập)"
-                    autocomplete="off"
-                    :style="!isEdit ? 'cursor: pointer;' : ''"
-                    :aria-invalid="!!loi.canCuoc"
-                    aria-describedby="nv-cccd-msg"
-                    @click="!isEdit && (hienQuet = true)"
-                    @input="sua('canCuoc')"
-                    @blur="cham('canCuoc')"
-                  />
-                  <button
-                    v-if="!isEdit"
-                    type="button"
-                    class="ad-affix-btn"
-                    title="Quét mã QR căn cước công dân"
-                    aria-label="Quét mã QR căn cước công dân"
-                    @click="hienQuet = true"
-                  >
-                    <i class="bi bi-qr-code-scan" aria-hidden="true"></i>
-                  </button>
-                </div>
-                <p v-if="loi.canCuoc" id="nv-cccd-msg" class="ad-error">{{ loi.canCuoc }}</p>
-                <p v-else id="nv-cccd-msg" class="ad-hint">
-                  <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Số căn cước và thông tin cá nhân được tự động điền khi quét mã QR căn cước công dân (không tự nhập tay).
-                </p>
               </div>
 
               <div class="col-md-6">

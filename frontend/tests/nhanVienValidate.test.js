@@ -184,18 +184,10 @@ describe('Form nhân viên: lỗi hiện dưới từng ô khi rời ô', () => 
     w.unmount()
   })
 
-  it('căn cước: không bắt buộc, nhưng đã nhập thì phải đủ 12 chữ số và không trùng', async () => {
+  it('căn cước: không có ô nhập tay trên form, chỉ có nút quét căn cước công dân', async () => {
     const w = await moForm()
-    await roiO(w, '#nv-cccd')
-    expect(loiO(w, 'nv-cccd-msg')).toBe('') // bỏ trống là hợp lệ
-    for (const sai of ['12345', '12345678901a', '1234567890123']) {
-      await w.find('#nv-cccd').setValue(sai)
-      expect(loiO(w, 'nv-cccd-msg'), sai).toBe(LOI_CCCD)
-    }
-    await w.find('#nv-cccd').setValue('079203001234')
-    expect(loiO(w, 'nv-cccd-msg')).toBe('Số căn cước công dân đã được sử dụng.')
-    await w.find('#nv-cccd').setValue('079203009999')
-    expect(loiO(w, 'nv-cccd-msg')).toBe('')
+    expect(w.find('#nv-cccd').exists()).toBe(false)
+    expect(w.findAll('button').some((b) => b.text().includes('Quét căn cước'))).toBe(true)
     w.unmount()
   })
 
@@ -230,10 +222,9 @@ describe('Form nhân viên: lỗi hiện dưới từng ô khi rời ô', () => 
     w.unmount()
   })
 
-  it('ô CCCD có thuộc tính readonly, không cho tự nhập tay', async () => {
+  it('không có ô nhập CCCD trên form, không cho tự nhập tay', async () => {
     const w = await moForm()
-    expect(w.find('#nv-cccd').attributes('readonly')).toBeDefined()
-    expect(w.find('#nv-cccd').attributes('placeholder')).toContain('không tự nhập')
+    expect(w.find('#nv-cccd').exists()).toBe(false)
     w.unmount()
   })
 
@@ -342,14 +333,12 @@ describe('Form nhân viên: bấm lưu', () => {
     w.unmount()
   })
 
-  it('email / số điện thoại / CCCD trùng nhân viên khác bị chặn ngay ở trình duyệt, không gọi API', async () => {
+  it('email / số điện thoại trùng nhân viên khác bị chặn ngay ở trình duyệt, không gọi API', async () => {
     const w = await moForm()
     await dienHopLe(w, { email: 'long@footstyle.vn', sdt: '0912000001' })
-    await w.find('#nv-cccd').setValue('079203001234')
     await submit(w)
     expect(loiO(w, 'nv-email-msg')).toBe('Email đã được sử dụng.')
     expect(loiO(w, 'nv-sdt-msg')).toBe('Số điện thoại đã được sử dụng.')
-    expect(loiO(w, 'nv-cccd-msg')).toBe('Số căn cước công dân đã được sử dụng.')
     expect(svc.create).not.toHaveBeenCalled()
     w.unmount()
   })
@@ -472,10 +461,6 @@ describe('Form SỬA nhân viên: kiểm tra giống hệt form thêm', () => {
     expect(loiO(w, 'nv-sdt-msg')).toBe(LOI_SDT)
     await goVaRoi(w, '#nv-sdt', '0912000001') // của NV01
     expect(loiO(w, 'nv-sdt-msg')).toBe('Số điện thoại đã được sử dụng.')
-    await goVaRoi(w, '#nv-cccd', '079203001234') // của NV01
-    expect(loiO(w, 'nv-cccd-msg')).toBe('Số căn cước công dân đã được sử dụng.')
-    await goVaRoi(w, '#nv-cccd', '123')
-    expect(loiO(w, 'nv-cccd-msg')).toBe(LOI_CCCD)
     await goVaRoi(w, '#nv-ngay-sinh', '')
     expect(loiO(w, 'nv-ngay-sinh-msg')).toBe('Nhập ngày sinh.')
     await goVaRoi(w, '#nv-ngay-sinh', '01/01/2015')
@@ -483,13 +468,11 @@ describe('Form SỬA nhân viên: kiểm tra giống hệt form thêm', () => {
     w.unmount()
   })
 
-  it('giữ nguyên số điện thoại / căn cước / email của chính mình thì KHÔNG bị báo trùng', async () => {
+  it('giữ nguyên số điện thoại / email của chính mình thì KHÔNG bị báo trùng', async () => {
     svc.update.mockResolvedValue({})
     const w = await moFormSua()
     await goVaRoi(w, '#nv-sdt', '0987654321')
-    await goVaRoi(w, '#nv-cccd', '001099012345')
     expect(loiO(w, 'nv-sdt-msg')).toBe('')
-    expect(loiO(w, 'nv-cccd-msg')).toBe('')
     await submit(w)
     expect(svc.update).toHaveBeenCalledTimes(1)
     w.unmount()

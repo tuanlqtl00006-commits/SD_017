@@ -166,21 +166,15 @@ describe('Thêm nhân viên', () => {
     w.unmount()
   })
 
-  it('chưa có địa chỉ thì không cho tạo; số CCCD sai/trùng bị báo lỗi', async () => {
+  it('chưa có địa chỉ thì không cho tạo', async () => {
     const w = await moForm()
     await set(w, '#nv-ho-ten', 'Nguyễn Văn An')
-    await set(w, '#nv-cccd', '12345')
     await set(w, '#nv-email', 'an@footstyle.vn')
     await set(w, '#nv-sdt', '0987654321')
     await set(w, '#nv-mat-khau', 'Footstyle@123')
     await w.find('form').trigger('submit')
     await flushPromises()
-    expect(w.text()).toContain('Số căn cước công dân gồm đúng 12 chữ số.')
     expect(w.text()).toContain('Thêm ít nhất một địa chỉ.')
-    await set(w, '#nv-cccd', '079203001234') // trùng với NV01
-    await w.find('form').trigger('submit')
-    await flushPromises()
-    expect(w.text()).toContain('Số căn cước công dân đã được sử dụng.')
     expect(svc.create).not.toHaveBeenCalled()
     w.unmount()
   })
@@ -194,11 +188,10 @@ describe('Thêm nhân viên', () => {
     w.unmount()
   })
 
-  it('tạo thành công: gửi CCCD + nhiều địa chỉ (đúng 1 chính), không gửi mã, rồi về danh sách', async () => {
+  it('tạo thành công: gửi nhiều địa chỉ (đúng 1 chính), không gửi mã, rồi về danh sách', async () => {
     svc.create.mockResolvedValue({ id: 9, ma: 'NVA01', hoTen: 'Nguyễn Văn An' })
     const w = await moForm()
     await set(w, '#nv-ho-ten', 'Nguyễn  Văn An ')
-    await set(w, '#nv-cccd', '001099012345')
     await set(w, '#nv-email', 'An@Footstyle.vn')
     await set(w, '#nv-sdt', '0987654321')
     await set(w, '#nv-mat-khau', 'Footstyle@123')
@@ -211,7 +204,7 @@ describe('Thêm nhân viên', () => {
     expect(svc.create).toHaveBeenCalledTimes(1)
     const p = svc.create.mock.calls[0][0]
     expect(p.hoTen).toBe('Nguyễn Văn An')
-    expect(p.canCuoc).toBe('001099012345')
+    expect(p.canCuoc).toBeNull()
     expect(p.email).toBe('an@footstyle.vn')
     expect(p.ngaySinh).toBe('1999-05-20') // ô hiện 20/05/1999 nhưng gửi đi dạng yyyy-mm-dd
     expect(p).not.toHaveProperty('ma')
@@ -263,7 +256,7 @@ describe('Quét căn cước công dân', () => {
     await quet(w, QR)
     expect(dom('.modal')).toBeNull() // modal tự đóng
     expect(w.find('#nv-ho-ten').element.value).toBe('Nguyễn Văn An')
-    expect(w.find('#nv-cccd').element.value).toBe('001099012345')
+    expect(w.find('[data-testid=cccd-da-quet]').text()).toContain('001099012345')
     expect(w.find('#nv-ngay-sinh').element.value).toBe('20/05/1999') // ô ngày hiện dd/mm/yyyy, giá trị gửi đi vẫn là 1999-05-20
     expect(w.find('#nv-ma').element.value).toBe('NVA01')
     // địa chỉ trên thẻ đã nằm sẵn trong danh sách địa chỉ (không cần bấm nút gợi ý)
@@ -272,13 +265,13 @@ describe('Quét căn cước công dân', () => {
     w.unmount()
   })
 
-  it('thẻ có ngày sinh chưa đủ 18 tuổi / số CCCD trùng: lỗi hiện NGAY dưới ô, không phải chờ bấm lưu', async () => {
+  it('thẻ có ngày sinh chưa đủ 18 tuổi / số CCCD trùng: lỗi hiện ngay dưới ô hoặc thông báo', async () => {
     const w = await moForm()
     await quet(w, '079203001234|123456789|TRẦN MINH KHOA|20052015|Nam|Số 1, Phường Hà Đông, Thành phố Hà Nội|15032021')
     expect(w.find('#nv-ngay-sinh').element.value).toBe('20/05/2015')
     const loi = (id) => (w.find(`#${id}`).classes().includes('ad-error') ? w.find(`#${id}`).text() : '')
     expect(loi('nv-ngay-sinh-msg')).toBe('Nhân viên phải từ đủ 18 tuổi.')
-    expect(loi('nv-cccd-msg')).toBe('Số căn cước công dân đã được sử dụng.') // trùng NV01
+    expect(useToast().toasts.map((x) => x.message).join(' | ')).toContain('Số CCCD này đã thuộc nhân viên')
     expect(w.find('#nv-ho-ten').classes()).not.toContain('is-invalid')
     w.unmount()
   })
@@ -372,7 +365,7 @@ describe('Sửa nhân viên', () => {
     const w = await moForm([...NV_CO_SAN, NV])
     expect(w.find('#nv-ho-ten').element.value).toBe('Nguyễn Văn An')
     expect(w.find('#nv-ma').element.value).toBe('NVA01')
-    expect(w.find('#nv-cccd').element.value).toBe('001099012345')
+    expect(w.find('[data-testid=cccd-da-quet]').text()).toContain('001099012345')
     expect(w.findAll('button').some((b) => b.text().includes('Quét căn cước'))).toBe(false)
     expect(w.findAll('.nv-dc')).toHaveLength(2)
     expect(w.findAll('.nv-dc')[0].text()).toContain('Địa chỉ chính')
