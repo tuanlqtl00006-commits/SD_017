@@ -50,6 +50,24 @@ export function taoMaTheoTen(hoTen, maDangCo = []) {
   return dinhDangMa(tienTo, max + 1)
 }
 
+/**
+ * Tự sinh mã nhân viên chuẩn theo định dạng NV + số thứ tự (tối thiểu 2 chữ số, ví dụ NV11, NV12...).
+ * Lấy số thứ tự lớn nhất từ các mã đang có bắt đầu bằng 'NV' + 1.
+ */
+export function taoMaNhanVienMoi(maDangCo = []) {
+  let max = 0
+  for (const ma of maDangCo) {
+    const m = String(ma ?? '').trim().toUpperCase()
+    if (m.startsWith('NV')) {
+      const duoi = m.slice(2)
+      if (/^\d{1,9}$/.test(duoi)) {
+        max = Math.max(max, Number(duoi))
+      }
+    }
+  }
+  return dinhDangMa('NV', max + 1)
+}
+
 /** Số tuổi tính từ 'yyyy-mm-dd'. */
 export function tinhTuoi(iso) {
   const [y, m, d] = iso.split('-').map(Number)

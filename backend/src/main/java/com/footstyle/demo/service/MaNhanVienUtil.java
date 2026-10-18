@@ -63,4 +63,26 @@ public final class MaNhanVienUtil {
         }
         return MaUtil.dinhDang(tienTo, max + 1L);
     }
+
+    /**
+     * Tạo mã nhân viên chuẩn theo định dạng NV + số thứ tự (tối thiểu 2 chữ số, ví dụ NV11, NV12...).
+     * Lấy số lớn nhất từ các mã đang có bắt đầu bằng tiền tố "NV" + 1.
+     */
+    public static String taoMaNV(Collection<String> maDangCo) {
+        int max = 0;
+        if (maDangCo != null) {
+            for (String ma : maDangCo) {
+                if (ma == null) continue;
+                String m = ma.trim().toUpperCase(Locale.ROOT);
+                if (m.startsWith("NV") && m.length() > 2) {
+                    String duoi = m.substring(2);
+                    if (duoi.matches("\\d{1,9}")) {
+                        max = Math.max(max, Integer.parseInt(duoi));
+                    }
+                }
+            }
+        }
+        return MaUtil.dinhDang("NV", max + 1L);
+    }
 }
+

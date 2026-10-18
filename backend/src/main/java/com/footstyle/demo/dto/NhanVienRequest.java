@@ -23,5 +23,21 @@ public record NhanVienRequest(
         Integer idVaiTro,
         String matKhau,
         String canCuoc,
-        List<DiaChiNhanVienDto> diaChis) {
+        List<DiaChiNhanVienDto> diaChis,
+        String maNhanVien) {
+
+    public NhanVienRequest(
+            String hoTen,
+            String gioiTinh,
+            LocalDate ngaySinh,
+            String soDienThoai,
+            String email,
+            String diaChi,
+            LocalDate ngayVaoLam,
+            Integer idVaiTro,
+            String matKhau,
+            String canCuoc,
+            List<DiaChiNhanVienDto> diaChis) {
+        this(hoTen, gioiTinh, ngaySinh, soDienThoai, email, diaChi, ngayVaoLam, idVaiTro, matKhau, canCuoc, diaChis, null);
+    }
 }

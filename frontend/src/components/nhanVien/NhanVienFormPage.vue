@@ -5,7 +5,7 @@ import BaseModal from '../common/BaseModal.vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import CccdScannerModal from './CccdScannerModal.vue'
-import { GIOI_TINH, TRANG_THAI, taoMaTheoTen, tienToMaNhanVien } from '../../constants/nhanVien'
+import { GIOI_TINH, TRANG_THAI, taoMaNhanVienMoi, tinhTuoi } from '../../constants/nhanVien'
 import { diaChiMoiTuCccd, ghepDiaChi } from '../../utils/diaChi'
 import { diaChiHanhChinhService } from '../../services/diaChiHanhChinhService'
 import { nhanVienService } from '../../services/nhanVienService'
@@ -90,11 +90,30 @@ const form = reactive({
   chinhKey: null, // key của địa chỉ chính
 })
 
-// Mã nhân viên: sửa -> mã đã cấp; thêm mới -> mã dự kiến theo họ tên đầy đủ (trống khi chưa nhập tên)
+// Mã nhân viên: sửa -> mã đã cấp; thêm mới -> tự sinh mã NVxx hợp lý ngay khi mở form
 const maNhanVien = computed(() => {
   if (item.value) return item.value.ma
-  if (!tienToMaNhanVien(form.hoTen)) return ''
-  return taoMaTheoTen(form.hoTen, tatCa.value.map((e) => e.ma))
+  return taoMaNhanVienMoi(tatCa.value.map((e) => e.ma))
+})
+
+const tenVaiTroChon = computed(() => {
+  const v = vaiTro.value.find((x) => x.id === form.idVaiTro)
+  return v ? v.ten : 'Chưa chọn'
+})
+
+const chuoiDiaChiChinh = computed(() => {
+  if (!diaChiChinh.value) return ''
+  return hienDiaChi(diaChiChinh.value)
+})
+
+const tuoiHienThi = computed(() => {
+  if (!form.ngaySinh || form.ngaySinh.length < 10) return null
+  try {
+    const age = tinhTuoi(form.ngaySinh)
+    return age >= 0 ? age : null
+  } catch {
+    return null
+  }
 })
 
 /* ----- Nhiều địa chỉ ----- */
@@ -367,6 +386,7 @@ async function guiForm() {
     payload.email = khoaEmail(form.email)
     payload.ngayVaoLam = form.ngayVaoLam || null
     payload.matKhau = form.matKhau
+    if (maNhanVien.value) payload.maNhanVien = maNhanVien.value
   }
   dangLuu.value = true
   try {
@@ -487,12 +507,70 @@ async function xacNhanDoiMatKhau() {
       <div class="row g-4 align-items-start">
         <!-- Cột trái: thẻ hồ sơ + trạng thái nhân viên -->
         <div class="col-lg-4">
-          <section class="ad-card text-center">
+          <section class="ad-card text-center" data-testid="nv-the-ho-so">
             <span class="ad-avatar ad-avatar-lg mx-auto" :style="avatarColors(form.hoTen || '?')">{{ getInitials(form.hoTen) }}</span>
             <h2 class="ad-card-title mt-3 mb-1">{{ form.hoTen || 'Nhân viên mới' }}</h2>
-            <p class="ad-hint m-0">{{ form.email || 'Chưa cập nhật email' }}</p>
-            <span v-if="isEdit && item" class="ad-pill mt-2" :class="TRANG_THAI[item.hoatDong].cls">{{ TRANG_THAI[item.hoatDong].label }}</span>
-            <p v-else class="ad-hint mt-2 mb-0">Ảnh đại diện hiển thị chữ cái đầu của họ tên.</p>
+            <div class="d-flex align-items-center justify-content-center gap-2 mt-2 flex-wrap">
+              <span v-if="maNhanVien" class="badge bg-secondary-subtle text-secondary border border-secondary-subtle font-monospace px-2 py-1">
+                {{ maNhanVien }}
+              </span>
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                {{ tenVaiTroChon }}
+              </span>
+              <span class="ad-pill" :class="isEdit && item ? TRANG_THAI[item.hoatDong].cls : TRANG_THAI[true].cls">
+                {{ isEdit && item ? TRANG_THAI[item.hoatDong].label : TRANG_THAI[true].label }}
+              </span>
+            </div>
+
+            <hr class="my-3 text-secondary-subtle" />
+
+            <div class="nv-preview-list text-start">
+              <div class="nv-preview-item">
+                <span class="nv-preview-label"><i class="bi bi-hash"></i> Mã NV:</span>
+                <span class="nv-preview-val font-monospace" data-testid="nv-preview-ma">{{ maNhanVien || '—' }}</span>
+              </div>
+              <div class="nv-preview-item">
+                <span class="nv-preview-label"><i class="bi bi-person"></i> Họ và tên:</span>
+                <span class="nv-preview-val" data-testid="nv-preview-ten">{{ form.hoTen || '—' }}</span>
+              </div>
+              <div class="nv-preview-item">
+                <span class="nv-preview-label"><i class="bi bi-shield-lock"></i> Vai trò:</span>
+                <span class="nv-preview-val" data-testid="nv-preview-vai-tro">{{ tenVaiTroChon }}</span>
+              </div>
+              <div class="nv-preview-item">
+                <span class="nv-preview-label"><i class="bi bi-envelope"></i> Email:</span>
+                <span class="nv-preview-val text-truncate ms-2" style="max-width: 175px;" :title="form.email" data-testid="nv-preview-email">{{ form.email || '—' }}</span>
+              </div>
+              <div class="nv-preview-item">
+                <span class="nv-preview-label"><i class="bi bi-telephone"></i> SĐT:</span>
+                <span class="nv-preview-val" data-testid="nv-preview-sdt">{{ form.soDienThoai || '—' }}</span>
+              </div>
+              <div class="nv-preview-item">
+                <span class="nv-preview-label"><i class="bi bi-gender-ambiguous"></i> Giới tính:</span>
+                <span class="nv-preview-val" data-testid="nv-preview-gioi-tinh">{{ form.gioiTinh || '—' }}</span>
+              </div>
+              <div class="nv-preview-item">
+                <span class="nv-preview-label"><i class="bi bi-cake2"></i> Ngày sinh:</span>
+                <span class="nv-preview-val" data-testid="nv-preview-ngay-sinh">
+                  {{ form.ngaySinh ? formatDate(form.ngaySinh) : '—' }}
+                  <span v-if="tuoiHienThi" class="text-muted">({{ tuoiHienThi }} tuổi)</span>
+                </span>
+              </div>
+              <div class="nv-preview-item">
+                <span class="nv-preview-label"><i class="bi bi-calendar-check"></i> Vào làm:</span>
+                <span class="nv-preview-val" data-testid="nv-preview-vao-lam">{{ form.ngayVaoLam ? formatDate(form.ngayVaoLam) : '—' }}</span>
+              </div>
+              <div class="nv-preview-item">
+                <span class="nv-preview-label"><i class="bi bi-credit-card-2-front"></i> CCCD:</span>
+                <span class="nv-preview-val font-monospace" data-testid="nv-preview-cccd">{{ form.canCuoc || '—' }}</span>
+              </div>
+              <div class="nv-preview-item flex-column align-items-stretch">
+                <span class="nv-preview-label mb-1"><i class="bi bi-geo-alt"></i> Địa chỉ chính:</span>
+                <div class="nv-preview-val text-start ps-3" style="font-size: 0.84rem;" data-testid="nv-preview-dia-chi">
+                  {{ chuoiDiaChiChinh || 'Chưa thêm địa chỉ' }}
+                </div>
+              </div>
+            </div>
           </section>
 
           <section v-if="isEdit && item" class="ad-card mt-4">
@@ -542,14 +620,11 @@ async function xacNhanDoiMatKhau() {
                 <input
                   id="nv-ma"
                   type="text"
-                  class="form-control ad-control"
+                  class="form-control ad-control font-monospace"
                   :value="maNhanVien"
-                  :placeholder="isEdit ? '' : 'Tự tạo sau khi nhập họ tên'"
                   readonly
                 />
                 <p v-if="isEdit" class="ad-hint">Không thể đổi mã sau khi tạo.</p>
-                <p v-else-if="maNhanVien" class="ad-hint">Mã dự kiến theo họ tên (chữ cái đầu + số thứ tự); hệ thống cấp mã chính thức khi bạn bấm “Tạo nhân viên”.</p>
-                <p v-else class="ad-hint">Mã được tạo theo họ tên, ví dụ Lê Quốc Tuấn → LQT0001.</p>
               </div>
 
               <div class="col-md-6">
@@ -930,5 +1005,37 @@ async function xacNhanDoiMatKhau() {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--fs-text);
+}
+.nv-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  font-size: 0.875rem;
+}
+.nv-preview-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px dashed #e9ecef;
+}
+.nv-preview-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.nv-preview-label {
+  color: #6c757d;
+  font-size: 0.825rem;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.nv-preview-val {
+  font-weight: 500;
+  color: #212529;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 </style>

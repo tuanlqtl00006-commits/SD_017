@@ -446,13 +446,12 @@ function submit() {
           <p v-else-if="!isPercent && form.giaTri" class="ad-hint">Giảm {{ formatMoney(form.giaTri) }} cho mỗi đơn.</p>
         </div>
 
-        <div class="col-md-6">
+        <div v-if="isPercent" class="col-md-6" data-testid="pgg-o-giam-toi-da">
           <label class="ad-label" for="pgg-giam-toi-da">Giảm tối đa</label>
           <MoneyInput
             id="pgg-giam-toi-da"
             v-model="form.giamToiDa"
-            :disabled="!isPercent"
-            :placeholder="isPercent ? 'Để trống nếu không giới hạn' : 'Chỉ áp dụng khi giảm theo %'"
+            placeholder="Để trống nếu không giới hạn"
             aria-label="Giảm tối đa"
             :invalid="!!errors.giamToiDa"
             @update:model-value="cham('giamToiDa')"
@@ -592,80 +591,7 @@ function submit() {
       </div>
     </section>
 
-    <!-- ===== Quy tắc khi chồng ưu đãi (đợt giảm giá + phiếu) ===== -->
-    <section class="ad-card" data-testid="pgg-quy-tac">
-      <div class="ad-card-head">
-        <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-layers"></i></span>
-        <div>
-          <h2 class="ad-card-title">Khi có nhiều ưu đãi cùng lúc thì tính thế nào?</h2>
-          <p class="ad-card-sub">Quy tắc của cửa hàng, áp dụng cho cả phiếu giảm giá và đợt giảm giá.</p>
-        </div>
-      </div>
 
-      <ul class="pgg-quy-tac">
-        <li><strong>Mỗi đơn chỉ dùng 1 phiếu</strong> giảm giá: các phiếu <strong>không cộng dồn</strong> với nhau.</li>
-        <li>
-          <strong>Đợt giảm giá giảm trước, phiếu giảm sau:</strong> đợt giảm trên giá từng biến thể, phiếu tính trên tổng tiền hàng <em>đã trừ</em> giảm giá của đợt
-          (đơn tối thiểu cũng xét trên số tiền này).
-        </li>
-        <li data-testid="pgg-che-do">
-          <strong>Nhiều đợt cùng áp cho một biến thể trong cùng thời gian:</strong>{{ ' ' }}
-          <template v-if="cheDoChongDot">
-            {{ cheDoChongDot.moTa }}
-            <span class="pgg-che-do">Đang dùng: {{ tenCheDo || cheDoChongDot.cheDo }}<template v-if="tenCheDo"> ({{ cheDoChongDot.cheDo }})</template></span>
-          </template>
-          <template v-else>hệ thống lấy mức giảm cao nhất (không cộng dồn) trừ khi được cấu hình khác ở backend.</template>
-        </li>
-      </ul>
-
-      <!-- Enter trong ô ví dụ không được lưu phiếu (ô ví dụ nằm trong form phiếu) -->
-      <div class="pgg-vi-du" data-testid="pgg-vi-du" @keydown.enter.prevent>
-        <h3 class="pgg-vi-du-tieu-de">Ví dụ với phiếu này</h3>
-        <div class="row g-3 align-items-end">
-          <div class="col-md-5">
-            <label class="ad-label" for="pgg-vd-tien">Tổng tiền hàng của đơn</label>
-            <MoneyInput id="pgg-vd-tien" v-model="viDu.tienHang" aria-label="Tổng tiền hàng của đơn thử" />
-          </div>
-          <div class="col-md-4">
-            <label class="ad-label" for="pgg-vd-dot">Đợt giảm giá đang áp (%)</label>
-            <div class="ad-affix">
-              <input id="pgg-vd-dot" v-model.number="viDu.phanTramDot" type="number" min="0" max="100" step="any" class="form-control ad-control has-suffix" aria-label="Phần trăm giảm của đợt giảm giá" />
-              <span class="ad-suffix" aria-hidden="true">%</span>
-            </div>
-          </div>
-        </div>
-        <p class="ad-hint mb-0 mt-2" data-testid="pgg-vd-gia-su">
-          Giả sử mọi sản phẩm trong đơn cùng giảm theo một mức đợt. Sản phẩm nằm trong nhiều đợt cùng lúc thì nhập mức đã gộp theo quy tắc ở trên
-          (vd đợt 10% và đợt 15%: cao nhất 15%, cộng dồn 25%, trung bình cộng 12,5%).
-        </p>
-        <dl v-if="coGiaTriDeTinh" class="pgg-bang-tinh">
-          <div><dt>Tiền hàng</dt><dd>{{ formatMoney(ketQuaViDu.tienHang) }}</dd></div>
-          <div><dt>Giảm theo đợt giảm giá ({{ formatPhanTram(ketQuaViDu.phanTramDot) }})</dt><dd data-testid="pgg-vd-giam-dot">− {{ formatMoney(ketQuaViDu.giamDot) }}</dd></div>
-          <div><dt>Tiền hàng sau đợt giảm giá</dt><dd data-testid="pgg-vd-sau-dot">{{ formatMoney(ketQuaViDu.sauDot) }}</dd></div>
-          <div>
-            <dt data-testid="pgg-vd-nhan-phieu">{{ nhanPhieuViDu }}</dt>
-            <dd v-if="ketQuaViDu.phieu.duDieuKien" data-testid="pgg-vd-giam-phieu">− {{ formatMoney(ketQuaViDu.phieu.giam) }}</dd>
-            <dd v-else class="pgg-khong-du" data-testid="pgg-vd-giam-phieu">{{ ketQuaViDu.phieu.lyDo }}</dd>
-          </div>
-          <div class="pgg-tong"><dt>Khách phải trả</dt><dd data-testid="pgg-vd-khach-tra">{{ formatMoney(ketQuaViDu.khachTra) }}</dd></div>
-        </dl>
-        <p v-else class="ad-hint" data-testid="pgg-vd-chua-co">Nhập giá trị giảm hợp lệ ở trên để xem ví dụ tính tiền.</p>
-      </div>
-
-      <div v-if="phieuTrung.length" class="pgg-trung" role="status" data-testid="pgg-phieu-trung">
-        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-        <div>
-          Có <strong>{{ phieuTrung.length }}</strong> phiếu khác đang bật và trùng thời gian với phiếu này:
-          <ul>
-            <li v-for="p in phieuTrung.slice(0, 5)" :key="p.id">
-              <span class="ad-code">{{ p.ma }}</span> {{ p.ten }} - giảm {{ formatGiaTri(p) }} ({{ HINH_THUC[p.hinhThuc].label.toLowerCase() }}, {{ dinhDangNgayGio(p.ngayBatDau) }} → {{ dinhDangNgayGio(p.ngayKetThuc) }})
-            </li>
-            <li v-if="phieuTrung.length > 5">… và {{ phieuTrung.length - 5 }} phiếu khác.</li>
-          </ul>
-          Khách đủ điều kiện nhiều phiếu vẫn chỉ được dùng <strong>1 phiếu cho mỗi đơn</strong> (không cộng dồn).
-        </div>
-      </div>
-    </section>
 
     <div class="pgg-footer">
       <button type="submit" class="ad-btn ad-btn-primary" :disabled="saving" data-testid="pgg-luu">

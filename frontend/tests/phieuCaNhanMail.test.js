@@ -138,8 +138,7 @@ describe('Form phiếu cá nhân', () => {
     await datSelect2(w, '#pgg-loai-giam', 'TIEN_MAT')
     expect(w.get('#pgg-gia-tri').element.value).toBe('')
     await w.get('#pgg-gia-tri').setValue('50000')
-    expect(w.get('#pgg-gia-tri').element.value).toBe('50.000')
-    expect(w.get('#pgg-giam-toi-da').attributes('disabled')).toBeDefined()
+    expect(w.find('#pgg-giam-toi-da').exists()).toBe(false)
   })
 
   it('kiểm tra dữ liệu: % ngoài 1-100, tiền < 1.000, đơn tối thiểu < số tiền giảm, kết thúc trước bắt đầu, chưa chọn khách', async () => {

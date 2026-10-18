@@ -95,8 +95,12 @@ public class NhanVienService {
         NhanVien nv = new NhanVien();
         nv.setTrangThai(NhanVien.HOAT_DONG);
         List<DiaChiNhanVienDto> diaChis = napDuLieu(nv, req, true);
-        // Mã tạo SAU khi đã kiểm tra hết thông tin: chữ cái đầu của họ tên + số thứ tự (vd Lê Quốc Tuấn -> LQT0001)
-        nv.setMaNhanVien(MaNhanVienUtil.taoMa(nv.getHoTen(), nhanVienRepo.findAllMaNhanVien()));
+        // Mã tạo SAU khi đã kiểm tra hết thông tin: nếu có mã gửi lên (tự sinh NVxx từ form) thì dùng, không thì tự tạo theo họ tên
+        if (req.maNhanVien() != null && !req.maNhanVien().isBlank()) {
+            nv.setMaNhanVien(req.maNhanVien().trim().toUpperCase(Locale.ROOT));
+        } else {
+            nv.setMaNhanVien(MaNhanVienUtil.taoMa(nv.getHoTen(), nhanVienRepo.findAllMaNhanVien()));
+        }
         NhanVien daLuu = nhanVienRepo.save(nv);
         if (mailService != null && daLuu.getEmail() != null && !daLuu.getEmail().isBlank() && req.matKhau() != null && !req.matKhau().isBlank()) {
             mailService.guiTaiKhoanNhanVien(

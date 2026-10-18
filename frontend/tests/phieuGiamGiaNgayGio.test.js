@@ -443,7 +443,7 @@ describe('Form phiếu: bố cục + ngày giờ + trạng thái dự kiến', (
     w.unmount()
   })
 
-  it('đổi loại giảm: giá trị cũ bị xóa (10% khác 10 ₫), giảm tối đa bị khóa khi giảm theo số tiền', async () => {
+  it('đổi loại giảm: giá trị cũ bị xóa (10% khác 10 ₫), giảm tối đa mất luôn khi giảm theo số tiền', async () => {
     const w = await montarForm()
     await w.get('#pgg-gia-tri').setValue('10')
     await w.get('#pgg-giam-toi-da').setValue('200000')
@@ -451,10 +451,9 @@ describe('Form phiếu: bố cục + ngày giờ + trạng thái dự kiến', (
     expect(giaTriSelect2(w, '#pgg-loai-giam')).toBe('TIEN_MAT')
     expect(w.get('#pgg-gia-tri').element.value).toBe('')
     expect(khungCua(w, '#pgg-gia-tri')).not.toContain('Nhập giá trị giảm.') // vừa đổi loại thì chưa báo lỗi
-    expect(w.get('#pgg-giam-toi-da').element.value).toBe('')
-    expect(w.get('#pgg-giam-toi-da').attributes('disabled')).toBeDefined()
+    expect(w.find('#pgg-giam-toi-da').exists()).toBe(false)
     await datSelect2(w, '#pgg-loai-giam', 'PHAN_TRAM')
-    expect(w.get('#pgg-giam-toi-da').attributes('disabled')).toBeUndefined()
+    expect(w.find('#pgg-giam-toi-da').exists()).toBe(true)
     w.unmount()
   })
 })
@@ -537,150 +536,11 @@ describe('Form SỬA phiếu: kiểm tra y như form thêm + khóa giờ bắt �
   })
 })
 
-describe('Form phiếu: quy tắc chồng ưu đãi (ví dụ tính tiền + cảnh báo trùng thời gian)', () => {
-  it('hiện quy tắc: 1 đơn 1 phiếu, đợt giảm trước phiếu giảm sau, cấu hình backend (lấy cao nhất)', async () => {
+describe('Form phiếu: đã bỏ ghi chú và gợi ý theo yêu cầu người dùng', () => {
+  it('không còn thẻ ghi chú quy tắc chồng ưu đãi, ví dụ tính tiền và cảnh báo trùng phiếu', async () => {
     const w = await montarForm()
-    const t = w.get('[data-testid=pgg-quy-tac]').text()
-    expect(t).toContain('Mỗi đơn chỉ dùng 1 phiếu')
-    expect(t).toContain('không cộng dồn')
-    expect(t).toContain('Đợt giảm giá giảm trước, phiếu giảm sau')
-    expect(w.get('[data-testid=pgg-che-do]').text()).toContain('CAO NHẤT')
-    expect(w.get('[data-testid=pgg-che-do]').text()).toContain('Đang dùng: Lấy mức cao nhất (MAX)')
-    w.unmount()
-  })
-
-  it('backend cấu hình CỘNG DỒN: form hiển thị đúng chế độ', async () => {
-    const w = await montarForm({ api: apiForm({ cheDo: { cheDo: 'CONG_DON', moTa: 'CỘNG DỒN mức giảm của các đợt đang chồng nhau (tối đa 100%).' } }) })
-    expect(w.get('[data-testid=pgg-che-do]').text()).toContain('CỘNG DỒN')
-    expect(w.get('[data-testid=pgg-che-do]').text()).toContain('Đang dùng: Cộng dồn (CONG_DON)')
-    w.unmount()
-  })
-
-  it('backend chưa có API chế độ: vẫn có câu mặc định (lấy cao nhất), không lỗi', async () => {
-    const api = apiForm()
-    const get = api.api.get
-    api.api.get = vi.fn(async (url) => { if (url === '/dot-giam-gia/che-do') throw new Error('404'); return get(url) })
-    const w = await montarForm({ api })
-    expect(w.get('[data-testid=pgg-che-do]').text()).toContain('lấy mức giảm cao nhất')
-    w.unmount()
-  })
-
-  it('ví dụ tính tiền chạy theo giá trị đang nhập: 10% (tối đa 200.000, đơn từ 1.500.000), đơn 2.000.000, đợt 10%', async () => {
-    const w = await montarForm()
-    expect(w.get('[data-testid=pgg-vd-chua-co]').exists()).toBe(true)
-    await w.get('#pgg-gia-tri').setValue('10')
-    await w.get('#pgg-giam-toi-da').setValue('200000')
-    await w.get('#pgg-don-toi-thieu').setValue('1500000')
-    const vd = w.get('[data-testid=pgg-vi-du]')
-    expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toBe('− 180.000 ₫')
-    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('1.620.000 ₫')
-    expect(vd.text()).toContain('Giảm theo đợt giảm giá (10%)')
-    await w.get('#pgg-vd-tien').setValue('1600000') // sau đợt 1.440.000 < đơn tối thiểu
-    expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toContain('Chưa đủ điều kiện')
-    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('1.440.000 ₫')
-    await w.get('#pgg-vd-dot').setValue('0')
-    expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toBe('− 160.000 ₫')
-    w.unmount()
-  })
-
-  it('ví dụ: % đợt có số lẻ hiện "12,5%", % ngoài 0-100 kẹp lại; nhãn phiếu có trần giảm; câu "giả sử" luôn hiện', async () => {
-    const w = await montarForm()
-    await w.get('#pgg-gia-tri').setValue('10')
-    await w.get('#pgg-giam-toi-da').setValue('200000')
-    const vd = w.get('[data-testid=pgg-vi-du]')
-    expect(vd.get('[data-testid=pgg-vd-gia-su]').text()).toContain('Giả sử mọi sản phẩm trong đơn cùng giảm theo một mức đợt')
-    expect(vd.get('[data-testid=pgg-vd-nhan-phieu]').text()).toMatch(/^Phiếu VCH[A-Z0-9]{6} \(10%, tối đa 200\.000 ₫\)$/)
-    // 2.000.000 giảm 12,5% (trung bình cộng 10% và 15%) = 1.750.000; phiếu 10% = 175.000
-    await w.get('#pgg-vd-dot').setValue('12.5')
-    expect(vd.text()).toContain('Giảm theo đợt giảm giá (12,5%)')
-    expect(vd.get('[data-testid=pgg-vd-giam-dot]').text()).toBe('− 250.000 ₫')
-    expect(vd.get('[data-testid=pgg-vd-sau-dot]').text()).toBe('1.750.000 ₫')
-    expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toBe('− 175.000 ₫')
-    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('1.575.000 ₫')
-    // nhập 150% -> coi là 100%, nhãn cũng hiện 100% (không hiện số vô nghĩa)
-    await w.get('#pgg-vd-dot').setValue('150')
-    expect(vd.text()).toContain('Giảm theo đợt giảm giá (100%)')
-    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('0 ₫')
-    await w.get('#pgg-vd-dot').setValue('-5')
-    expect(vd.text()).toContain('Giảm theo đợt giảm giá (0%)')
-    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('1.800.000 ₫')
-    // giảm tiền: nhãn không có "tối đa"; xóa mã thì gọi là "Phiếu này"
-    await w.get('#pgg-ma').setValue('')
-    await datSelect2(w, '#pgg-loai-giam', 'TIEN_MAT')
-    await w.get('#pgg-gia-tri').setValue('50000')
-    await flushPromises()
-    expect(vd.get('[data-testid=pgg-vd-nhan-phieu]').text()).toBe('Phiếu này (50.000 ₫)')
-    expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toBe('− 50.000 ₫')
-    w.unmount()
-  })
-
-  it('ví dụ khớp từng đồng với giá sau giảm của biến thể khi làm tròn .5 (1.250.005 giảm 10% còn 1.125.005)', async () => {
-    const w = await montarForm()
-    await w.get('#pgg-gia-tri').setValue('15')
-    await w.get('#pgg-vd-tien').setValue('1250005')
-    const vd = w.get('[data-testid=pgg-vi-du]')
-    expect(vd.get('[data-testid=pgg-vd-sau-dot]').text()).toBe('1.125.005 ₫') // giống tinhGiaSauGiam và LichGiamGiaService ở backend
-    expect(vd.get('[data-testid=pgg-vd-giam-dot]').text()).toBe('− 125.000 ₫')
-    expect(vd.get('[data-testid=pgg-vd-giam-phieu]').text()).toBe('− 168.750 ₫') // 15% làm tròn xuống
-    expect(vd.get('[data-testid=pgg-vd-khach-tra]').text()).toBe('956.255 ₫')
-    w.unmount()
-  })
-
-  it('bấm Enter trong ô ví dụ không lưu phiếu (ô ví dụ nằm trong form phiếu)', async () => {
-    const w = await montarForm()
-    for (const id of ['#pgg-vd-tien', '#pgg-vd-dot']) {
-      const ev = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
-      w.get(id).element.dispatchEvent(ev)
-      expect(ev.defaultPrevented).toBe(true)
-    }
-    // ô thật của phiếu vẫn để Enter hoạt động bình thường (lưu form như mọi khi)
-    const evTen = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
-    w.get('#pgg-ten').element.dispatchEvent(evTen)
-    expect(evTen.defaultPrevented).toBe(false)
-    expect(w.emitted('save')).toBeUndefined()
-    w.unmount()
-  })
-
-  it('giá trị đang lỗi (150%) thì không hiện ví dụ vô nghĩa', async () => {
-    const w = await montarForm()
-    await w.get('#pgg-gia-tri').setValue('150')
-    expect(w.find('[data-testid=pgg-vd-khach-tra]').exists()).toBe(false)
-    expect(w.find('[data-testid=pgg-vd-chua-co]').exists()).toBe(true)
-    w.unmount()
-  })
-
-  it('cảnh báo phiếu KHÁC đang bật và trùng thời gian (không tính phiếu đã kết thúc, đang tắt, không giao nhau)', async () => {
-    const all = [
-      phieu({ id: 1, ma: 'VCHTRUNG01', ten: 'Trùng A', ngayBatDau: '2026-10-15T09:00:00', ngayKetThuc: '2026-10-18T12:00:59' }),
-      phieu({ id: 2, ma: 'VCHTRUNG02', ten: 'Trùng B', hinhThuc: 'CA_NHAN', ngayBatDau: '2026-10-17T00:00:00', ngayKetThuc: '2026-10-30T23:59:59' }),
-      phieu({ id: 3, ma: 'VCHHETHAN3', ten: 'Đã hết hạn', ngayBatDau: '2026-10-01T00:00:00', ngayKetThuc: '2026-10-14T23:59:59' }),
-      phieu({ id: 4, ma: 'VCHDANGTAT', ten: 'Đang tắt', hoatDong: false, ngayBatDau: '2026-10-15T09:00:00', ngayKetThuc: '2026-10-30T23:59:59' }),
-      phieu({ id: 5, ma: 'VCHXAXAXA5', ten: 'Xa sau', ngayBatDau: '2026-12-01T00:00:00', ngayKetThuc: '2026-12-31T23:59:59' }),
-    ]
-    const w = await montarForm({ all })
-    expect(w.find('[data-testid=pgg-phieu-trung]').exists()).toBe(false) // chưa chọn khoảng thời gian
-    await nhapNgay(w, 'pgg-ngay-bd', '2026-10-16', '08:00')
-    await nhapNgay(w, 'pgg-ngay-kt', '2026-10-20', '08:00')
-    const canhBao = w.get('[data-testid=pgg-phieu-trung]').text()
-    expect(canhBao).toContain('Có 2 phiếu khác')
-    expect(canhBao).toContain('VCHTRUNG01')
-    expect(canhBao).toContain('VCHTRUNG02')
-    expect(canhBao).not.toContain('VCHHETHAN3')
-    expect(canhBao).not.toContain('VCHDANGTAT')
-    expect(canhBao).not.toContain('VCHXAXAXA5')
-    expect(canhBao).toContain('1 phiếu cho mỗi đơn')
-    // dời sang tháng 12 thì chỉ còn phiếu tháng 12
-    await nhapNgay(w, 'pgg-ngay-bd', '2026-12-10', '08:00')
-    await nhapNgay(w, 'pgg-ngay-kt', '2026-12-12', '08:00')
-    const t2 = w.get('[data-testid=pgg-phieu-trung]').text()
-    expect(t2).toContain('Có 1 phiếu khác')
-    expect(t2).toContain('VCHXAXAXA5')
-    w.unmount()
-  })
-
-  it('sửa phiếu: không tự cảnh báo trùng với chính nó', async () => {
-    const chinhNo = phieu({ id: 11, ma: 'VCHCHINHNO', ngayBatDau: '2026-10-20T08:00:00', ngayKetThuc: '2026-10-25T23:59:59' })
-    const w = await montarForm({ item: chinhNo, all: [chinhNo] })
+    expect(w.find('[data-testid=pgg-quy-tac]').exists()).toBe(false)
+    expect(w.find('[data-testid=pgg-vi-du]').exists()).toBe(false)
     expect(w.find('[data-testid=pgg-phieu-trung]').exists()).toBe(false)
     w.unmount()
   })

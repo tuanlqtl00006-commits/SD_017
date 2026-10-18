@@ -72,4 +72,13 @@ class MaNhanVienUtilTest {
         assertEquals("LQT100", MaNhanVienUtil.taoMa("Lê Quốc Tuấn", List.of("LQT99")));
         assertEquals("LQT1000", MaNhanVienUtil.taoMa("Lê Quốc Tuấn", List.of("LQT999")));
     }
+
+    @Test
+    void taoMaNVSinhMaHopLyTiepNoi() {
+        assertEquals("NV01", MaNhanVienUtil.taoMaNV(List.of()));
+        assertEquals("NV01", MaNhanVienUtil.taoMaNV(null));
+        assertEquals("NV11", MaNhanVienUtil.taoMaNV(List.of("NV01", "NV02", "NV10")));
+        assertEquals("NV12", MaNhanVienUtil.taoMaNV(List.of("NV01", "NV11", "NV09")));
+        assertEquals("NV100", MaNhanVienUtil.taoMaNV(List.of("NV99")));
+    }
 }
