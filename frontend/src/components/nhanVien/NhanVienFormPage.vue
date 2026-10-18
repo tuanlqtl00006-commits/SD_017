@@ -555,7 +555,7 @@ async function xacNhanDoiMatKhau() {
       </div>
 
       <div class="d-flex align-items-center gap-2">
-        <button v-if="!isEdit" type="button" class="btn btn-warning text-white d-flex align-items-center gap-2 px-3 py-2 fw-medium rounded-3" style="background-color: #bfa181; border-color: #bfa181;" @click="hienQuet = true">
+        <button v-if="!isEdit" type="button" class="btn text-white d-flex align-items-center gap-2 px-3 py-2 fw-medium rounded-3" style="background-color: #0977ec; border-color: #0977ec;" @click="hienQuet = true">
           <i class="bi bi-qr-code-scan fs-6" aria-hidden="true"></i> Quét CCCD <span class="visually-hidden">Quét căn cước công dân</span>
         </button>
         <span v-if="form.canCuoc" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" data-testid="cccd-da-quet">
@@ -656,7 +656,7 @@ async function xacNhanDoiMatKhau() {
                   class="form-control ad-control"
                   :class="{ 'is-invalid': loi.hoTen }"
                   maxlength="60"
-                  placeholder="Ví dụ: Nguyễn Minh Thuận"
+                  placeholder="Nhập họ và tên..."
                   autocomplete="off"
                   :aria-invalid="!!loi.hoTen"
                   aria-describedby="nv-ho-ten-msg"
@@ -676,7 +676,7 @@ async function xacNhanDoiMatKhau() {
                   class="form-control ad-control"
                   :class="{ 'is-invalid': loi.soDienThoai }"
                   maxlength="10"
-                  placeholder="0912345678"
+                  placeholder="Nhập số điện thoại..."
                   autocomplete="off"
                   :aria-invalid="!!loi.soDienThoai"
                   aria-describedby="nv-sdt-msg"
@@ -684,7 +684,7 @@ async function xacNhanDoiMatKhau() {
                   @blur="cham('soDienThoai')"
                 />
                 <p v-if="loi.soDienThoai" id="nv-sdt-msg" class="ad-error mt-1">{{ loi.soDienThoai }}</p>
-                <p v-else id="nv-sdt-msg" class="ad-hint mt-1">10 chữ số, đầu số 03, 05, 07, 08 hoặc 09.</p>
+                <p v-else id="nv-sdt-msg" class="ad-hint mt-1 visually-hidden">10 chữ số, đầu số 03, 05, 07, 08 hoặc 09.</p>
               </div>
 
               <div class="col-md-6">
@@ -696,7 +696,7 @@ async function xacNhanDoiMatKhau() {
                   class="form-control ad-control"
                   :class="{ 'is-invalid': loi.email }"
                   :readonly="isEdit"
-                  placeholder="ten@footstyle.vn"
+                  placeholder="Nhập email..."
                   autocomplete="off"
                   :aria-invalid="!!loi.email"
                   aria-describedby="nv-email-msg"
@@ -831,7 +831,7 @@ async function xacNhanDoiMatKhau() {
                     maxlength="255"
                     class="form-control ad-control"
                     :class="{ 'is-invalid': loiDc.diaChiCuThe }"
-                    placeholder="Số nhà, tên đường, thôn / tổ..."
+                    placeholder="Nhập địa chỉ cụ thể..."
                     autocomplete="off"
                     :aria-invalid="!!loiDc.diaChiCuThe"
                     aria-describedby="nv-dc-chi-tiet-msg"
