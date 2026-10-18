@@ -5,7 +5,7 @@ import BaseModal from '../common/BaseModal.vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import CccdScannerModal from './CccdScannerModal.vue'
-import { GIOI_TINH, TRANG_THAI, taoMaNhanVienMoi, tinhTuoi } from '../../constants/nhanVien'
+import { GIOI_TINH, TRANG_THAI, taoMaTheoTen, tienToMaNhanVien, tinhTuoi } from '../../constants/nhanVien'
 import { diaChiMoiTuCccd, ghepDiaChi } from '../../utils/diaChi'
 import { diaChiHanhChinhService } from '../../services/diaChiHanhChinhService'
 import { nhanVienService } from '../../services/nhanVienService'
@@ -90,10 +90,11 @@ const form = reactive({
   chinhKey: null, // key của địa chỉ chính
 })
 
-// Mã nhân viên: sửa -> mã đã cấp; thêm mới -> tự sinh mã NVxx hợp lý ngay khi mở form
+// Mã nhân viên: sửa -> mã đã cấp; thêm mới -> tự sinh theo họ tên (chữ cái đầu + số thứ tự)
 const maNhanVien = computed(() => {
   if (item.value) return item.value.ma
-  return taoMaNhanVienMoi(tatCa.value.map((e) => e.ma))
+  if (!tienToMaNhanVien(form.hoTen)) return ''
+  return taoMaTheoTen(form.hoTen, tatCa.value.map((e) => e.ma))
 })
 
 const tenVaiTroChon = computed(() => {
@@ -643,7 +644,14 @@ async function xacNhanDoiMatKhau() {
                   <label class="ad-label mb-0" for="nv-ma">Mã nhân viên</label>
                   <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0" style="font-size: 0.75rem;">Tự sinh</span>
                 </div>
-                <input id="nv-ma" type="text" class="form-control ad-control font-monospace bg-light" :value="maNhanVien" readonly />
+                <input
+                  id="nv-ma"
+                  type="text"
+                  class="form-control ad-control font-monospace bg-light"
+                  :value="maNhanVien"
+                  :placeholder="isEdit ? '' : 'Tự sinh theo họ tên...'"
+                  readonly
+                />
                 <p v-if="isEdit" class="ad-hint mb-0">Không thể đổi mã sau khi tạo.</p>
               </div>
 
@@ -745,15 +753,35 @@ async function xacNhanDoiMatKhau() {
               </div>
 
               <div class="col-12">
-                <span id="nv-gioi-tinh-label" class="ad-label d-block mb-2">Giới tính <span class="text-danger">*</span></span>
-                <div class="d-flex align-items-center gap-4">
-                  <label class="form-check-label d-flex align-items-center gap-2 cursor-pointer">
-                    <input v-model="form.gioiTinh" type="radio" class="form-check-input mt-0" name="gioiTinh" value="Nam" @change="sua('gioiTinh')" />
-                    <span>Nam</span>
+                <span id="nv-gioi-tinh-label" class="ad-label d-block mb-2">Giới tính</span>
+                <div class="d-flex align-items-center gap-3">
+                  <label
+                    class="nv-gioi-tinh-box d-inline-flex align-items-center gap-2 px-4 py-2 rounded-3 cursor-pointer border user-select-none"
+                    :class="form.gioiTinh === 'Nam' ? 'is-active' : ''"
+                  >
+                    <input
+                      v-model="form.gioiTinh"
+                      type="radio"
+                      class="form-check-input mt-0"
+                      name="gioiTinh"
+                      value="Nam"
+                      @change="sua('gioiTinh')"
+                    />
+                    <span class="fw-medium">Nam</span>
                   </label>
-                  <label class="form-check-label d-flex align-items-center gap-2 cursor-pointer">
-                    <input v-model="form.gioiTinh" type="radio" class="form-check-input mt-0" name="gioiTinh" value="Nữ" @change="sua('gioiTinh')" />
-                    <span>Nữ</span>
+                  <label
+                    class="nv-gioi-tinh-box d-inline-flex align-items-center gap-2 px-4 py-2 rounded-3 cursor-pointer border user-select-none"
+                    :class="form.gioiTinh === 'Nữ' ? 'is-active' : ''"
+                  >
+                    <input
+                      v-model="form.gioiTinh"
+                      type="radio"
+                      class="form-check-input mt-0"
+                      name="gioiTinh"
+                      value="Nữ"
+                      @change="sua('gioiTinh')"
+                    />
+                    <span class="fw-medium">Nữ</span>
                   </label>
                 </div>
                 <p v-if="loi.gioiTinh" class="ad-error mt-1">{{ loi.gioiTinh }}</p>
@@ -1021,5 +1049,28 @@ async function xacNhanDoiMatKhau() {
   color: #212529;
   text-align: right;
   overflow-wrap: anywhere;
+}
+.nv-gioi-tinh-box {
+  min-width: 130px;
+  background-color: #ffffff;
+  border-color: #dee2e6 !important;
+  color: #212529;
+  transition: all 0.15s ease-in-out;
+}
+.nv-gioi-tinh-box:hover {
+  border-color: #cbd5e1 !important;
+  background-color: #f8fafc;
+}
+.nv-gioi-tinh-box.is-active {
+  background-color: #f0f7ff;
+  border-color: #0977ec !important;
+  color: #0977ec;
+}
+.nv-gioi-tinh-box .form-check-input {
+  cursor: pointer;
+}
+.nv-gioi-tinh-box.is-active .form-check-input:checked {
+  background-color: #0977ec;
+  border-color: #0977ec;
 }
 </style>

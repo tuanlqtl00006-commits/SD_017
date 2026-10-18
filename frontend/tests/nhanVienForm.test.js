@@ -77,27 +77,27 @@ beforeEach(() => {
 })
 
 describe('Thêm nhân viên', () => {
-  it('mã nhân viên tự sinh chuẩn NVxx ngay khi mở form và không trùng mã đã có', async () => {
-    const w = await moForm() // NV_CO_SAN có NV01
-    expect(w.find('#nv-ma').element.value).toBe('NV02')
+  it('mã nhân viên = chữ cái đầu của họ tên + số thứ tự, hiện ngay khi nhập tên', async () => {
+    const w = await moForm()
+    expect(w.find('#nv-ma').element.value).toBe('')
+    expect(w.find('#nv-ma').attributes('placeholder')).toMatch(/Tự sinh theo họ tên/)
+    await set(w, '#nv-ho-ten', 'Lê Quốc Tuấn')
+    expect(w.find('#nv-ma').element.value).toBe('LQT01')
+    await set(w, '#nv-ho-ten', 'Nguyễn Văn An')
+    expect(w.find('#nv-ma').element.value).toBe('NVA01')
+    await set(w, '#nv-ho-ten', 'Trần Thị Mai Lan')
+    expect(w.find('#nv-ma').element.value).toBe('TTML01')
     w.unmount()
-
-    const w10 = await moForm(Array.from({ length: 10 }, (_, i) => ({
-      ...NV_CO_SAN[0],
-      id: i + 1,
-      ma: `NV${String(i + 1).padStart(2, '0')}`,
-    })))
-    expect(w10.find('#nv-ma').element.value).toBe('NV11')
-    w10.unmount()
   })
 
   it('thẻ hồ sơ bên trái hiển thị đầy đủ thông tin xem trước khi nhập', async () => {
     const w = await moForm()
-    expect(w.find('[data-testid=nv-preview-ma]').text()).toBe('NV02')
+    expect(w.find('[data-testid=nv-preview-ma]').text()).toBe('—')
     expect(w.find('[data-testid=nv-preview-ten]').text()).toBe('—')
 
     await set(w, '#nv-ho-ten', 'Lê Quốc Tuấn')
     expect(w.find('[data-testid=nv-preview-ten]').text()).toBe('Lê Quốc Tuấn')
+    expect(w.find('[data-testid=nv-preview-ma]').text()).toBe('LQT01')
 
     await set(w, '#nv-email', 'tuan.lq@footstyle.vn')
     expect(w.find('[data-testid=nv-preview-email]').text()).toBe('tuan.lq@footstyle.vn')
@@ -250,7 +250,7 @@ describe('Quét căn cước công dân', () => {
     expect(w.find('#nv-ho-ten').element.value).toBe('Nguyễn Văn An')
     expect(w.find('[data-testid=cccd-da-quet]').text()).toContain('001099012345')
     expect(w.find('#nv-ngay-sinh').element.value).toBe('20/05/1999') // ô ngày hiện dd/mm/yyyy, giá trị gửi đi vẫn là 1999-05-20
-    expect(w.find('#nv-ma').element.value).toBe('NV02')
+    expect(w.find('#nv-ma').element.value).toBe('NVA01')
     // địa chỉ trên thẻ đã nằm sẵn trong danh sách địa chỉ (không cần bấm nút gợi ý)
     expect(w.findAll('.nv-dc')).toHaveLength(1)
     expect(w.find('.nv-dc-form').exists()).toBe(false)
