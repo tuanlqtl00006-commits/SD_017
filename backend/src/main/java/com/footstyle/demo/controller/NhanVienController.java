@@ -77,4 +77,11 @@ public class NhanVienController {
     public NhanVienResponse doiTrangThai(@PathVariable Integer id) {
         return service.doiTrangThai(id);
     }
+
+    /** Đổi mật khẩu cho nhân viên (nhân viên tự đổi sau khi đăng nhập). */
+    @PutMapping("/{id}/doi-mat-khau")
+    public ResponseEntity<Void> doiMatKhau(@PathVariable Integer id, @RequestBody Map<String, String> body) {
+        service.doiMatKhau(id, body == null ? "" : body.get("matKhau"));
+        return ResponseEntity.noContent().build();
+    }
 }

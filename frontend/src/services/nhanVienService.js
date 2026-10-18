@@ -35,6 +35,11 @@ export const nhanVienService = {
     return (await api.put(`/nhan-vien/${id}/trang-thai`)).data
   },
 
+  /** Đổi mật khẩu nhân viên: nhân viên đăng nhập tự đổi mật khẩu cá nhân */
+  async doiMatKhau(id, matKhau) {
+    return (await api.put(`/nhan-vien/${id}/doi-mat-khau`, { matKhau })).data
+  },
+
   /**
    * Nhập HÀNG LOẠT từ file Excel (.xlsx). chiKiemTra = true: chỉ kiểm tra file, chưa lưu gì.
    * File sai dù chỉ một dòng -> HTTP 422, error.code = 'FILE_KHONG_HOP_LE', error.chiTiet = { loi: [{ dong, truong, cot, thongBao }], tongDong, soDongLoi }.

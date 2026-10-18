@@ -155,6 +155,28 @@ export function loiMatKhau(giaTri, thieu = 'Nhập mật khẩu cho nhân viên 
   return ''
 }
 
+/**
+ * Sinh mật khẩu tạm ngẫu nhiên 10 ký tự: có chữ hoa, chữ thường và chữ số,
+ * bỏ các ký tự dễ nhìn nhầm (0/O, 1/l/I) để nhân viên gõ lại từ mail không bị sai.
+ * Khớp hoàn toàn với MatKhauTam.java của backend.
+ */
+export function sinhMatKhauTam() {
+  const HOA = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const THUONG = 'abcdefghijkmnpqrstuvwxyz'
+  const SO = '23456789'
+  const TAT_CA = HOA + THUONG + SO
+  const lay = (s) => s.charAt(Math.floor(Math.random() * s.length))
+  const kq = [lay(HOA), lay(THUONG), lay(SO)]
+  for (let i = 3; i < 10; i++) kq.push(lay(TAT_CA))
+  for (let i = kq.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const t = kq[i]
+    kq[i] = kq[j]
+    kq[j] = t
+  }
+  return kq.join('')
+}
+
 /** Chuẩn hóa để so trùng: bỏ khoảng trắng, email không phân biệt hoa thường. */
 export const khoaEmail = (v) => cat(v).toLowerCase()
 export const khoaSdt = (v) => cat(v)

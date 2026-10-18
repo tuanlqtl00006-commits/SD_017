@@ -145,6 +145,24 @@ public class NhanVienService {
         return toResponse(daLuu, diaChiRepo.findByNhanVienIdOrderByMacDinhDescIdAsc(daLuu.getId()));
     }
 
+    /** Đổi mật khẩu cho nhân viên: kiểm tra độ dài 8-50, có cả chữ và số, không khoảng trắng, rồi băm lưu lại. */
+    @Transactional
+    public void doiMatKhau(Integer id, String matKhauMoi) {
+        NhanVien nv = timNhanVien(id);
+        String mk = matKhauMoi == null ? "" : matKhauMoi.trim();
+        if (mk.isEmpty()) {
+            throw ApiException.badRequest("Vui lòng nhập mật khẩu mới.");
+        }
+        if (mk.length() < 8 || mk.length() > 50) {
+            throw ApiException.badRequest("Mật khẩu từ 8 đến 50 ký tự.");
+        }
+        if (!CO_CHU.matcher(mk).matches() || !CO_SO.matcher(mk).matches() || mk.chars().anyMatch(Character::isWhitespace)) {
+            throw ApiException.badRequest("Mật khẩu phải có cả chữ và số, không chứa khoảng trắng.");
+        }
+        nv.setMatKhau(passwordEncoder.encode(mk));
+        nhanVienRepo.save(nv);
+    }
+
     /* ===================== Hàm phụ ===================== */
 
     private NhanVien timNhanVien(Integer id) {

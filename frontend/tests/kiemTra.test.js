@@ -26,6 +26,7 @@ import {
   loiSdt,
   ngaySinhMuonNhat,
   ngaySinhSomNhat,
+  sinhMatKhauTam,
   timBanTrung,
   tuoiTai,
   vaoLamKhiDuTuoi,
@@ -106,6 +107,16 @@ describe('Số căn cước và mật khẩu', () => {
     expect(loiMatKhau('a1'.repeat(26))).toBe('Mật khẩu từ 8 đến 50 ký tự.')
     for (const sai of ['abcdefgh', '12345678', 'abcd 1234', '!!!!!!!!!']) expect(loiMatKhau(sai)).toBe('Mật khẩu phải có cả chữ và số, không chứa khoảng trắng.')
     for (const ok of ['Footstyle@123', 'abcd1234', 'Mật1khẩu']) expect(loiMatKhau(ok)).toBe('')
+  })
+  it('sinhMatKhauTam: 10 ký tự, luôn có chữ hoa, thường, số, hợp lệ luật mật khẩu', () => {
+    for (let i = 0; i < 50; i++) {
+      const mk = sinhMatKhauTam()
+      expect(mk).toHaveLength(10)
+      expect(mk).toMatch(/[A-Z]/)
+      expect(mk).toMatch(/[a-z]/)
+      expect(mk).toMatch(/\d/)
+      expect(loiMatKhau(mk)).toBe('')
+    }
   })
 })
 

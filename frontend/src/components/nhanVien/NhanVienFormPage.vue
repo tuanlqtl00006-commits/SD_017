@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import BaseModal from '../common/BaseModal.vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import CccdScannerModal from './CccdScannerModal.vue'
@@ -27,6 +28,7 @@ import {
   loiSdt,
   ngaySinhMuonNhat,
   ngaySinhSomNhat,
+  sinhMatKhauTam,
   timBanTrung,
   vaoLamKhiDuTuoi,
 } from '../../utils/kiemTra'
@@ -83,7 +85,7 @@ const form = reactive({
   ngaySinh: '',
   ngayVaoLam: todayIso(),
   idVaiTro: null,
-  matKhau: '',
+  matKhau: !isEdit ? sinhMatKhauTam() : '',
   diaChis: [], // [{ key, id (null = mới thêm), tinhThanh, phuongXa, diaChiCuThe }]
   chinhKey: null, // key của địa chỉ chính
 })
@@ -180,6 +182,7 @@ async function taiDuLieu() {
     } else {
       // Mặc định vai trò "Nhân viên" (vai trò không phải quản lý); nếu không có thì lấy vai trò đầu tiên.
       form.idVaiTro = (dsVaiTro.find((v) => v.ten !== 'Quản lý') ?? dsVaiTro[0])?.id ?? null
+      if (!form.matKhau) form.matKhau = sinhMatKhauTam()
     }
   } catch (err) {
     loiTai.value = err.message || 'Không tải được dữ liệu. Vui lòng thử lại.'
@@ -248,6 +251,11 @@ async function themDiaChiTuCccd(diaChiThe) {
 /* ----- Kiểm tra dữ liệu: mỗi ô một câu báo lỗi, khớp backend NhanVienService.kiemTra ----- */
 
 const hienMatKhau = ref(false)
+function sinhLaiMatKhau() {
+  form.matKhau = sinhMatKhauTam()
+  sua('matKhau')
+  toast.info('Đã tạo mật khẩu tạm ngẫu nhiên mới.')
+}
 const LOI_EMAIL_NHAN_VIEN = 'Email chưa đúng định dạng, ví dụ: ten@footstyle.vn.'
 
 // Khóa các ngày không chọn được trên lịch: nhân viên phải từ đủ 18 tuổi và không quá 100 tuổi (chặn gõ nhầm năm).
@@ -419,6 +427,38 @@ async function doiTrangThai() {
     dangDoiTrangThai.value = false
   }
 }
+
+/* ----- Đổi mật khẩu nhân viên (dành cho xem / sửa nhân viên) ----- */
+const hienDoiMk = ref(false)
+const matKhauMoi = ref('')
+const hienMatKhauMoi = ref(false)
+const loiMatKhauMoi = ref('')
+const dangDoiMk = ref(false)
+
+function moDoiMatKhau() {
+  matKhauMoi.value = sinhMatKhauTam()
+  loiMatKhauMoi.value = ''
+  hienDoiMk.value = true
+}
+
+async function xacNhanDoiMatKhau() {
+  const err = loiMatKhau(matKhauMoi.value, 'Vui lòng nhập mật khẩu mới.')
+  if (err) {
+    loiMatKhauMoi.value = err
+    return
+  }
+  dangDoiMk.value = true
+  try {
+    await nhanVienService.doiMatKhau(idXem, matKhauMoi.value)
+    toast.success('Đã đổi mật khẩu nhân viên thành công.')
+    hienDoiMk.value = false
+    matKhauMoi.value = ''
+  } catch (e) {
+    toast.error(e.message || 'Không thể đổi mật khẩu. Vui lòng thử lại.')
+  } finally {
+    dangDoiMk.value = false
+  }
+}
 </script>
 
 <template>
@@ -457,6 +497,14 @@ async function doiTrangThai() {
               <i class="bi" :class="item.hoatDong ? 'bi-box-arrow-right' : 'bi-arrow-counterclockwise'" aria-hidden="true"></i>
               {{ item.hoatDong ? 'Cho nghỉ việc' : 'Cho làm lại' }}
             </button>
+          </section>
+
+          <section v-if="isEdit && item" class="ad-card mt-4">
+            <h2 class="ad-card-title mb-2">Bảo mật tài khoản</h2>
+            <button type="button" class="ad-btn w-100" @click="moDoiMatKhau">
+              <i class="bi bi-key" aria-hidden="true"></i> Đổi mật khẩu
+            </button>
+            <p class="ad-hint mt-2 mb-0">Nhân viên tự đổi mật khẩu cá nhân khi đăng nhập.</p>
           </section>
         </div>
 
@@ -515,23 +563,50 @@ async function doiTrangThai() {
               </div>
 
               <div class="col-md-6">
-                <label class="ad-label" for="nv-cccd">Số căn cước công dân</label>
-                <input
-                  id="nv-cccd"
-                  v-model="form.canCuoc"
-                  type="text"
-                  inputmode="numeric"
-                  class="form-control ad-control"
-                  :class="{ 'is-invalid': loi.canCuoc }"
-                  maxlength="12"
-                  placeholder="12 chữ số hoặc bấm “Quét căn cước”"
-                  autocomplete="off"
-                  :aria-invalid="!!loi.canCuoc"
-                  aria-describedby="nv-cccd-msg"
-                  @input="sua('canCuoc')"
-                  @blur="cham('canCuoc')"
-                />
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <label class="ad-label mb-0" for="nv-cccd">Số căn cước công dân</label>
+                  <button
+                    v-if="!isEdit"
+                    type="button"
+                    class="btn btn-link btn-sm p-0 text-decoration-none"
+                    title="Quét mã QR căn cước công dân"
+                    @click="hienQuet = true"
+                  >
+                    <i class="bi bi-qr-code-scan me-1" aria-hidden="true"></i>Quét căn cước
+                  </button>
+                </div>
+                <div class="ad-affix">
+                  <input
+                    id="nv-cccd"
+                    v-model="form.canCuoc"
+                    type="text"
+                    class="form-control ad-control has-btn"
+                    :class="{ 'is-invalid': loi.canCuoc }"
+                    readonly
+                    placeholder="Quét mã QR căn cước để tự động điền (không tự nhập)"
+                    autocomplete="off"
+                    :style="!isEdit ? 'cursor: pointer;' : ''"
+                    :aria-invalid="!!loi.canCuoc"
+                    aria-describedby="nv-cccd-msg"
+                    @click="!isEdit && (hienQuet = true)"
+                    @input="sua('canCuoc')"
+                    @blur="cham('canCuoc')"
+                  />
+                  <button
+                    v-if="!isEdit"
+                    type="button"
+                    class="ad-affix-btn"
+                    title="Quét mã QR căn cước công dân"
+                    aria-label="Quét mã QR căn cước công dân"
+                    @click="hienQuet = true"
+                  >
+                    <i class="bi bi-qr-code-scan" aria-hidden="true"></i>
+                  </button>
+                </div>
                 <p v-if="loi.canCuoc" id="nv-cccd-msg" class="ad-error">{{ loi.canCuoc }}</p>
+                <p v-else id="nv-cccd-msg" class="ad-hint">
+                  <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Số căn cước và thông tin cá nhân được tự động điền khi quét mã QR căn cước công dân (không tự nhập tay).
+                </p>
               </div>
 
               <div class="col-md-6">
@@ -556,16 +631,26 @@ async function doiTrangThai() {
 
               <!-- Mật khẩu chỉ nhập khi thêm mới; trang sửa không có ô này -->
               <div v-if="!isEdit" class="col-md-6">
-                <label class="ad-label" for="nv-mat-khau">Mật khẩu <span class="ad-required">*</span></label>
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <label class="ad-label mb-0" for="nv-mat-khau">Mật khẩu tạm (tự sinh) <span class="ad-required">*</span></label>
+                  <button
+                    type="button"
+                    class="btn btn-link btn-sm p-0 text-decoration-none"
+                    title="Sinh mật khẩu ngẫu nhiên mới"
+                    @click="sinhLaiMatKhau"
+                  >
+                    <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Sinh mật khẩu khác
+                  </button>
+                </div>
                 <div class="ad-affix">
                   <input
                     id="nv-mat-khau"
                     v-model="form.matKhau"
                     :type="hienMatKhau ? 'text' : 'password'"
-                    class="form-control ad-control has-btn"
+                    class="form-control ad-control has-btn font-monospace"
                     :class="{ 'is-invalid': loi.matKhau }"
                     maxlength="50"
-                    placeholder="Từ 8 ký tự, gồm chữ và số"
+                    placeholder="Mật khẩu tự sinh"
                     autocomplete="new-password"
                     :aria-invalid="!!loi.matKhau"
                     aria-describedby="nv-mat-khau-msg"
@@ -583,7 +668,9 @@ async function doiTrangThai() {
                   </button>
                 </div>
                 <p v-if="loi.matKhau" id="nv-mat-khau-msg" class="ad-error">{{ loi.matKhau }}</p>
-                <p v-else id="nv-mat-khau-msg" class="ad-hint">8 - 50 ký tự, có cả chữ và số, không chứa khoảng trắng.</p>
+                <p v-else id="nv-mat-khau-msg" class="ad-hint">
+                  <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Mật khẩu tạm tự sinh được gửi qua email cho nhân viên. Nhân viên dùng mật khẩu này để đăng nhập và tự đổi mật khẩu cá nhân.
+                </p>
               </div>
 
               <div class="col-md-6">
@@ -760,6 +847,57 @@ async function doiTrangThai() {
     <CccdScannerModal v-if="hienQuet" @scanned="apDungCccd" @close="hienQuet = false" />
 
     <ConfirmDialog v-if="hoiKhoa" v-bind="noiDungXacNhan" :loading="dangDoiTrangThai" @confirm="doiTrangThai" @cancel="hoiKhoa = false" />
+ 
+    <!-- Hộp thoại Đổi mật khẩu (chỉ dùng khi sửa / xem chi tiết) -->
+    <BaseModal v-if="isEdit && hienDoiMk" title="Đổi mật khẩu nhân viên" @close="hienDoiMk = false">
+      <div class="p-3">
+        <p class="ad-hint mb-3">
+          Nhập mật khẩu mới cho nhân viên <strong>{{ item?.hoTen }}</strong> (mã {{ item?.ma }}):
+        </p>
+        <div class="mb-3">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <label class="ad-label mb-0" for="nv-mk-moi">Mật khẩu mới <span class="ad-required">*</span></label>
+            <button
+              type="button"
+              class="btn btn-link btn-sm p-0 text-decoration-none"
+              title="Sinh mật khẩu ngẫu nhiên"
+              @click="matKhauMoi = sinhMatKhauTam(); loiMatKhauMoi = ''"
+            >
+              <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Sinh ngẫu nhiên
+            </button>
+          </div>
+          <div class="ad-affix">
+            <input
+              id="nv-mk-moi"
+              v-model="matKhauMoi"
+              :type="hienMatKhauMoi ? 'text' : 'password'"
+              class="form-control ad-control has-btn font-monospace"
+              :class="{ 'is-invalid': !!loiMatKhauMoi }"
+              maxlength="50"
+              placeholder="Từ 8 ký tự, gồm cả chữ và số"
+              @input="loiMatKhauMoi = ''"
+            />
+            <button
+              type="button"
+              class="ad-affix-btn"
+              :title="hienMatKhauMoi ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
+              @click="hienMatKhauMoi = !hienMatKhauMoi"
+            >
+              <i class="bi" :class="hienMatKhauMoi ? 'bi-eye-slash' : 'bi-eye'" aria-hidden="true"></i>
+            </button>
+          </div>
+          <p v-if="loiMatKhauMoi" class="ad-error mt-1">{{ loiMatKhauMoi }}</p>
+          <p v-else class="ad-hint mt-1">Từ 8 đến 50 ký tự, có cả chữ và số, không chứa khoảng trắng.</p>
+        </div>
+      </div>
+      <template #footer>
+        <button type="button" class="ad-btn" :disabled="dangDoiMk" @click="hienDoiMk = false">Hủy</button>
+        <button type="button" class="ad-btn ad-btn-primary" :disabled="dangDoiMk" @click="xacNhanDoiMatKhau">
+          <span v-if="dangDoiMk" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+          Lưu mật khẩu mới
+        </button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 

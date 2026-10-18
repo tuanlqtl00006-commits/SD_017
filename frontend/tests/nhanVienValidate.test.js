@@ -201,7 +201,7 @@ describe('Form nhân viên: lỗi hiện dưới từng ô khi rời ô', () => 
 
   it('mật khẩu: trống, ngắn, dài, thiếu chữ / số, có khoảng trắng; mật khẩu đủ mạnh thì hết lỗi', async () => {
     const w = await moForm()
-    await roiO(w, '#nv-mat-khau')
+    await goVaRoi(w, '#nv-mat-khau', '')
     expect(loiO(w, 'nv-mat-khau-msg')).toBe('Nhập mật khẩu cho nhân viên mới.')
     const bang = [
       ['abc12', 'Mật khẩu từ 8 đến 50 ký tự.'],
@@ -217,6 +217,23 @@ describe('Form nhân viên: lỗi hiện dưới từng ô khi rời ô', () => 
     await w.find('#nv-mat-khau').setValue('Footstyle@123')
     expect(loiO(w, 'nv-mat-khau-msg')).toBe('')
     expect(w.find('#nv-mat-khau-msg').classes()).toContain('ad-hint')
+    w.unmount()
+  })
+
+  it('mật khẩu được tự sinh ngẫu nhiên khi mở form thêm nhân viên', async () => {
+    const w = await moForm()
+    const val = w.find('#nv-mat-khau').element.value
+    expect(val).toHaveLength(10)
+    expect(val).toMatch(/[A-Za-z]/)
+    expect(val).toMatch(/\d/)
+    expect(w.text()).toContain('Mật khẩu tạm tự sinh được gửi qua email cho nhân viên')
+    w.unmount()
+  })
+
+  it('ô CCCD có thuộc tính readonly, không cho tự nhập tay', async () => {
+    const w = await moForm()
+    expect(w.find('#nv-cccd').attributes('readonly')).toBeDefined()
+    expect(w.find('#nv-cccd').attributes('placeholder')).toContain('không tự nhập')
     w.unmount()
   })
 
@@ -285,6 +302,7 @@ describe('Form nhân viên: lỗi hiện dưới từng ô khi rời ô', () => 
 describe('Form nhân viên: bấm lưu', () => {
   it('để trống rồi bấm tạo: hiện lỗi dưới TẤT CẢ các ô cùng lúc, con trỏ vào ô lỗi đầu tiên, không gọi API', async () => {
     const w = await moForm()
+    await w.find('#nv-mat-khau').setValue('')
     await submit(w)
     expect(loiO(w, 'nv-ho-ten-msg')).toBe('Nhập họ tên.')
     expect(loiO(w, 'nv-email-msg')).toBe('Nhập email.')
