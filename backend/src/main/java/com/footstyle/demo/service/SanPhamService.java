@@ -326,35 +326,11 @@ public class SanPhamService {
     }
 
     /*
-     * Ảnh là BẮT BUỘC (cô yêu cầu: "chưa có ảnh mà tại sao vẫn thành công"): sau khi lưu, sản phẩm phải có ít nhất 1 ảnh CHUNG,
-     * hoặc mọi màu của biến thể đều có ảnh riêng (chưa có biến thể nào thì cần ít nhất 1 ảnh theo màu bất kỳ).
-     *  - hienCo        : các dòng ảnh đang có của sản phẩm (sản phẩm mới: rỗng).
-     *  - anhChung      : ảnh chung gửi lên; thayAnhChung = true thì danh sách này thay hẳn ảnh chung cũ (kể cả rỗng = bỏ hết),
-     *                    false thì rỗng nghĩa là giữ ảnh chung cũ.
-     *  - anhMau        : ảnh theo màu gửi lên; choPhepBoHet = true thì màu gửi danh sách rỗng bị bỏ hết ảnh.
-     *  - layMauCan     : lấy các màu bắt buộc có ảnh (chỉ gọi khi không có ảnh chung, đỡ truy vấn CSDL).
+     * Ảnh không bắt buộc theo yêu cầu người dùng: cho phép tạo / cập nhật sản phẩm mà không cần ảnh.
      */
     private void batBuocCoAnh(List<HinhAnhSanPham> hienCo, List<String> anhChung, boolean thayAnhChung,
                               Map<Integer, List<String>> anhMau, boolean choPhepBoHet, Supplier<Collection<Integer>> layMauCan) {
-        boolean coAnhChung = !anhChung.isEmpty() || (!thayAnhChung && !AnhSanPham.anhChung(hienCo).isEmpty());
-        if (coAnhChung) {
-            return;
-        }
-        Map<Integer, List<String>> anhMauCuoi = AnhSanPham.anhTheoMauSauKhiLuu(hienCo, anhMau, choPhepBoHet);
-        Collection<Integer> mauCan = layMauCan.get();
-        if (mauCan.isEmpty()) {
-            loi(!AnhSanPham.coAnhTheoMau(anhMauCuoi), "Sản phẩm phải có ít nhất 1 ảnh. Hãy thêm ảnh chung của sản phẩm.");
-            return;
-        }
-        List<Integer> thieu = AnhSanPham.mauChuaCoAnh(mauCan, anhMauCuoi);
-        if (!thieu.isEmpty()) {
-            List<String> ten = new ArrayList<>();
-            for (Integer id : thieu) {
-                ten.add(mauSacRepo.findById(id).map(MauSac::getTen).orElse("#" + id));
-            }
-            throw ApiException.badRequest("Chưa có ảnh cho màu " + String.join(", ", ten)
-                    + ". Hãy thêm ảnh chung của sản phẩm hoặc ảnh riêng cho từng màu.");
-        }
+        // Ảnh là tùy chọn: không chặn lưu khi chưa có ảnh
     }
 
     // Gộp ảnh chính + ảnh phụ thành 1 danh sách không trùng, phần tử đầu tiên là ảnh chính.

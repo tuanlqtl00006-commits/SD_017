@@ -294,12 +294,10 @@ describe('Trang Sửa sản phẩm: ảnh theo màu', () => {
     const cards = w.findAll('.bt-anh-card')
     expect(cards.length).toBe(2)
     expect(cards[0].find('img').attributes('src')).toBe('/api/uploads/den.jpg')
-    // bỏ ảnh màu Đen rồi lưu -> gửi danh sách rỗng cho màu Đen để backend bỏ ảnh
+    // bỏ ảnh màu Đen rồi lưu -> ảnh là tùy chọn nên lưu được ngay, gửi danh sách rỗng cho màu Đen để backend bỏ ảnh
     await cards[0].get('button[aria-label^="Bỏ ảnh 1"]').trigger('click')
     await w.get('form').trigger('submit'); await flushPromises()
-    expect(mock.calls.put.length).toBe(0) // bỏ hết ảnh thì không cho lưu (ảnh là bắt buộc)
-    await themAnhChung(w) // có ảnh chung rồi thì lưu được
-    await w.get('form').trigger('submit'); await flushPromises()
+    expect(mock.calls.put.length).toBe(1)
     expect(mock.calls.put[0][1].anhTheoMau).toEqual([{ idMauSac: 1, anh: [] }, { idMauSac: 2, anh: [] }])
     expect(THUOC_TINH['mau-sac'].length).toBe(2) // dữ liệu mẫu dùng chung không bị đổi
   })

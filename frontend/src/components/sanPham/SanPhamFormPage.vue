@@ -354,17 +354,9 @@ function kiemTra() {
     errors.idDanhMuc = THIEU_KHONG_AP_DUNG
   }
 
-  // Ảnh BẮT BUỘC (cô: chưa có ảnh mà vẫn lưu thành công là sai): có ít nhất 1 ảnh chung, hoặc mọi màu đều có ảnh riêng.
-  // Tối đa 10 ảnh gồm cả ảnh chính (đường dẫn ảnh do backend kiểm tra lại khi lưu)
+  // Ảnh không bắt buộc theo yêu cầu người dùng: chỉ kiểm tra không vượt quá số lượng tối đa nếu có tải ảnh
   if (form.anh.length > TOI_DA_ANH) {
     errors.anh = `Mỗi sản phẩm tối đa ${TOI_DA_ANH} ảnh (gồm cả ảnh chính).`
-  } else {
-    const anh = kiemTraAnhBatBuoc({ anhChung: form.anh, anhTheoMau, mauCanAnh: mauCanAnh.value })
-    if (!anh.ok) {
-      errors.anh = anh.mauThieu.length && anh.mauThieu.length < mauCanAnh.value.length
-        ? `Chưa có ảnh sản phẩm. Thêm ít nhất 1 ảnh chung, hoặc thêm ảnh cho đủ các màu còn thiếu: ${anh.mauThieu.map((m) => tenCua('mau-sac', m)).join(', ')}.`
-        : 'Chưa có ảnh sản phẩm. Thêm ít nhất 1 ảnh chung của sản phẩm, hoặc thêm ảnh cho từng màu.'
-    }
   }
 
   // Biến thể (nếu có): phải tích ít nhất 1 dòng; mỗi dòng đang tích cần số lượng nguyên >= 0 và giá bán >= 1.000 ₫
@@ -798,7 +790,7 @@ async function luuSanPham(xacNhanCapNhat = false) {
       </section>
 
       <section id="sp-anh-chung" class="ad-card">
-        <label class="ad-label">Ảnh chung của sản phẩm <span class="ad-required">*</span></label>
+        <label class="ad-label">Ảnh chung của sản phẩm</label>
         <div class="d-flex flex-wrap gap-2">
           <div v-for="(url, i) in form.anh" :key="`${i}-${url}`" class="position-relative" style="width: 92px">
             <img :src="url" :alt="`Ảnh ${i + 1} của sản phẩm`" class="rounded-3 border" style="width: 92px; height: 92px; object-fit: cover" />
@@ -831,7 +823,7 @@ async function luuSanPham(xacNhanCapNhat = false) {
         <input id="sp-file-anh-chung" ref="inputFile" type="file" class="d-none" accept="image/jpeg,image/png,image/webp,image/gif" multiple @change="chonFile" />
         <p v-if="loiAnh" class="ad-error">{{ loiAnh }}</p>
         <p v-else-if="errors.anh" class="ad-error" role="alert" data-testid="loi-anh">{{ errors.anh }}</p>
-        <p v-else class="ad-hint">Bắt buộc có ảnh: thêm ít nhất 1 ảnh chung, hoặc ảnh riêng cho từng màu ở phần trên. Chọn ảnh JPG, PNG, WEBP, GIF (tối đa {{ TOI_DA_MB }} MB mỗi ảnh, {{ TOI_DA_ANH }} ảnh). Ảnh đầu tiên là ảnh chính.</p>
+        <p v-else class="ad-hint">Chọn ảnh JPG, PNG, WEBP, GIF (tối đa {{ TOI_DA_MB }} MB mỗi ảnh, {{ TOI_DA_ANH }} ảnh). Ảnh đầu tiên là ảnh chính (không bắt buộc).</p>
 
         <label class="ad-label mt-3" for="sp-mo-ta">Mô tả</label>
         <textarea id="sp-mo-ta" v-model="form.moTa" rows="3" class="form-control ad-control" placeholder="Đặc điểm nổi bật, đối tượng phù hợp…"></textarea>

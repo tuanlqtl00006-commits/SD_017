@@ -170,29 +170,27 @@ class SanPhamAnhBatBuocTest {
     /* ---------- THÊM ---------- */
 
     @Test
-    void themKhongCoAnhNaoCa_baoLoi400_vaKhongLuuSanPham() {
-        ApiException e = loi(() -> service.them(req("Cuốn cán", "", null, null, null)));
-        assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
-        assertTrue(e.getMessage().contains("ít nhất 1 ảnh"), e.getMessage());
-        assertTrue(sanPhams.isEmpty(), "lỗi thì không được lưu sản phẩm");
+    void themKhongCoAnhNaoCa_luuThanhCongVaKhongLoi() {
+        SanPhamResponse r = service.them(req("Cuốn cán", "", null, null, null));
+        assertEquals(1, sanPhams.size());
+        assertEquals("", r.anhChinh());
         assertTrue(anhs.isEmpty());
     }
 
     @Test
-    void themCoBienTheNhungKhongCoAnh_baoLoiNeuTenCacMauThieuAnh() {
-        ApiException e = loi(() -> service.them(req("Cuốn cán", "", List.of(bt(DEN), bt(DO)), null, null)));
-        assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
-        assertTrue(e.getMessage().contains("Đen") && e.getMessage().contains("Đỏ"), e.getMessage());
-        assertTrue(sanPhams.isEmpty() && bienThes.isEmpty());
+    void themCoBienTheNhungKhongCoAnh_luuThanhCong() {
+        SanPhamResponse r = service.them(req("Cuốn cán", "", List.of(bt(DEN), bt(DO)), null, null));
+        assertEquals(1, sanPhams.size());
+        assertEquals(2, bienThes.size());
+        assertEquals("", r.anhChinh());
     }
 
     @Test
-    void themThieuAnhCuaMotMau_chiNeuMauThieu() {
-        ApiException e = loi(() -> service.them(req("Cuốn cán", "", List.of(bt(DEN), bt(DO)),
-                List.of(anhMau(DEN, "/api/uploads/den.jpg"), anhMau(DO)), null)));
-        assertTrue(e.getMessage().contains("Đỏ"), e.getMessage());
-        assertFalse(e.getMessage().contains("Đen"), "màu Đen đã có ảnh nên không bị nhắc: " + e.getMessage());
-        assertTrue(sanPhams.isEmpty());
+    void themThieuAnhCuaMotMau_luuThanhCong() {
+        service.them(req("Cuốn cán", "", List.of(bt(DEN), bt(DO)),
+                List.of(anhMau(DEN, "/api/uploads/den.jpg"), anhMau(DO)), null));
+        assertEquals(1, sanPhams.size());
+        assertEquals(1, soAnhDangDung());
     }
 
     @Test
@@ -218,21 +216,20 @@ class SanPhamAnhBatBuocTest {
     }
 
     @Test
-    void anhChiLaKhoangTrangThiKhongTinhLaCoAnh() {
-        ApiException e = loi(() -> service.them(req("Cuốn cán", "   ", null, null, null)));
-        assertTrue(e.getMessage().contains("ít nhất 1 ảnh"), e.getMessage());
+    void anhChiLaKhoangTrangThiTinhLaAnhRong_luuThanhCong() {
+        SanPhamResponse r = service.them(req("Cuốn cán", "   ", null, null, null));
+        assertEquals(1, sanPhams.size());
+        assertEquals("", r.anhChinh());
     }
 
     /* ---------- SỬA ---------- */
 
     @Test
-    void suaBoHetAnh_baoLoi_anhCuGiuNguyen() {
+    void suaBoHetAnh_luuThanhCong_anhCuBiNgungHoatDong() {
         SanPhamResponse r = service.them(req("Cuốn cán", ANH_CHUNG, List.of(bt(DEN)), null, null));
-        long truoc = soAnhDangDung();
-        ApiException e = loi(() -> service.sua(r.id(), req("Cuốn cán", "", null, null, null)));
-        assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
-        assertTrue(e.getMessage().contains("Đen"), "biến thể màu Đen chưa có ảnh riêng: " + e.getMessage());
-        assertEquals(truoc, soAnhDangDung(), "lỗi thì ảnh cũ vẫn còn");
+        assertEquals(1, soAnhDangDung());
+        service.sua(r.id(), req("Cuốn cán", "", null, null, null));
+        assertEquals(0, soAnhDangDung(), "ảnh cũ được tắt hoạt động");
     }
 
     @Test
@@ -243,13 +240,14 @@ class SanPhamAnhBatBuocTest {
     }
 
     @Test
-    void suaBoAnhRiengCuaMotMau_thieuAnhThiBaoLoi_conAnhChungThiDuoc() {
+    void suaBoAnhRiengCuaMotMau_luuThanhCong() {
         // sản phẩm không có ảnh chung, mỗi màu có ảnh riêng
         SanPhamResponse r = service.them(req("Cuốn cán", "", List.of(bt(DEN), bt(DO)),
                 List.of(anhMau(DEN, "/api/uploads/den.jpg"), anhMau(DO, "/api/uploads/do.jpg")), null));
-        ApiException e = loi(() -> service.sua(r.id(), req("Cuốn cán", "", null, List.of(anhMau(DEN)), null)));
-        assertTrue(e.getMessage().contains("Đen"), e.getMessage());
-        assertEquals(2, soAnhDangDung(), "lỗi thì chưa bỏ ảnh nào");
+        assertEquals(2, soAnhDangDung());
+        // bỏ ảnh màu Đen thì được lưu thành công
+        service.sua(r.id(), req("Cuốn cán", "", null, List.of(anhMau(DEN)), null));
+        assertEquals(1, soAnhDangDung(), "còn ảnh màu Đỏ");
         // thêm ảnh chung rồi bỏ ảnh màu Đen thì được
         service.sua(r.id(), req("Cuốn cán", ANH_CHUNG, null, List.of(anhMau(DEN)), null));
         assertEquals(2, soAnhDangDung(), "ảnh chung mới + ảnh màu Đỏ");
@@ -283,7 +281,7 @@ class SanPhamAnhBatBuocTest {
     }
 
     @Test
-    void capNhatSanPhamCuKhongCoAnhNaoVaThemMauKhongAnh_baoLoi() {
+    void capNhatSanPhamCuKhongCoAnhNaoVaThemMauKhongAnh_luuThanhCong() {
         // sản phẩm cũ (dữ liệu trước khi có luật ảnh bắt buộc) không có ảnh nào
         SanPham cu = new SanPham();
         cu.setId(1);
@@ -297,10 +295,8 @@ class SanPhamAnhBatBuocTest {
         cu.setDiemCanBang(tt(DiemCanBang::new, KAD, "Không áp dụng"));
         cu.setTrangThai(SanPham.HOAT_DONG);
         sanPhams.add(cu);
-        ApiException e = loi(() -> service.them(req("Cuốn cán", "", List.of(bt(DEN)), null, true)));
-        assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
-        assertTrue(e.getMessage().contains("Đen"), e.getMessage());
-        assertTrue(bienThes.isEmpty());
+        service.them(req("Cuốn cán", "", List.of(bt(DEN)), null, true));
+        assertEquals(1, bienThes.size());
     }
 
     /* ---------- hàm tính thuần ---------- */

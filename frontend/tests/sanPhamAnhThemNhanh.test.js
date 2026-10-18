@@ -60,21 +60,20 @@ async function chonAnhMau(w, idMau, ten) {
   await input.trigger('change'); await flushPromises()
 }
 
-describe('Ảnh sản phẩm là bắt buộc (cô: "ảnh chưa có mà tại sao vẫn thành công")', () => {
-  it('khung ảnh có dấu * bắt buộc; chưa có ảnh thì bấm lưu báo lỗi dưới khung ảnh, không hỏi xác nhận, không gọi API', async () => {
+describe('Ảnh sản phẩm là tùy chọn theo yêu cầu người dùng', () => {
+  it('khung ảnh không có dấu * bắt buộc; chưa có ảnh thì bấm lưu vẫn hỏi xác nhận và lưu thành công (ảnh rỗng)', async () => {
     const { w } = await montar(); await dienCoBan(w, 5)
-    expect(w.get('#sp-anh-chung').text()).toContain('*')
+    expect(w.get('#sp-anh-chung').text()).not.toContain('*')
     await w.get('form').trigger('submit'); await flushPromises()
-    expect(w.get('[data-testid=loi-anh]').text()).toContain('Chưa có ảnh sản phẩm')
-    expect(coHopXacNhan()).toBe(false)
-    expect(mock.calls.post.length).toBe(0)
-    expect(useToast().toasts.map((x) => x.message).join(' | ')).toContain('Chưa có ảnh sản phẩm')
+    expect(w.find('[data-testid=loi-anh]').exists()).toBe(false)
+    expect(coHopXacNhan()).toBe(true)
+    ;[...document.body.querySelectorAll('button')].find((b) => b.textContent.includes('Xác nhận lưu')).click(); await flushPromises()
+    expect(mock.calls.post.length).toBe(1)
+    expect(mock.calls.post[0][1].anhChinh).toBe('')
   })
 
-  it('thêm 1 ảnh chung xong thì lưu được: hỏi xác nhận rồi gửi anhChinh', async () => {
+  it('thêm 1 ảnh chung thì gửi anhChinh khi lưu', async () => {
     const { w } = await montar(); await dienCoBan(w, 5)
-    await w.get('form').trigger('submit'); await flushPromises()
-    expect(w.find('[data-testid=loi-anh]').exists()).toBe(true)
     await themAnhChung(w)
     await w.get('form').trigger('submit'); await flushPromises()
     expect(w.find('[data-testid=loi-anh]').exists()).toBe(false)
@@ -84,18 +83,18 @@ describe('Ảnh sản phẩm là bắt buộc (cô: "ảnh chưa có mà tại s
     expect(mock.calls.post[0][1].anhChinh).toBe('/api/uploads/anh-1.png')
   })
 
-  it('có biến thể 2 màu mà chỉ màu Đen có ảnh riêng, không có ảnh chung: báo thiếu ảnh màu Đỏ, không lưu', async () => {
+  it('có biến thể 2 màu mà chỉ màu Đen có ảnh riêng: vẫn lưu thành công (không bắt buộc đủ ảnh các màu)', async () => {
     const { w } = await montar(); await dienCoBan(w, 5); await taoHaiMau(w)
     await chonAnhMau(w, 1, 'den.png')
     await w.get('form').trigger('submit'); await flushPromises()
-    const loi = w.get('[data-testid=loi-anh]').text()
-    expect(loi).toContain('Đỏ')
-    expect(loi).not.toContain('Đen')
-    expect(coHopXacNhan()).toBe(false)
-    expect(mock.calls.post.length).toBe(0)
+    expect(w.find('[data-testid=loi-anh]').exists()).toBe(false)
+    expect(coHopXacNhan()).toBe(true)
+    ;[...document.body.querySelectorAll('button')].find((b) => b.textContent.includes('Xác nhận lưu')).click(); await flushPromises()
+    expect(mock.calls.post.length).toBe(1)
+    expect(mock.calls.post[0][1].anhTheoMau).toEqual([{ idMauSac: 1, anh: ['/api/uploads/anh-1.png'] }])
   })
 
-  it('mỗi màu đều có ảnh riêng thì không cần ảnh chung: lưu được, gửi anhTheoMau cho cả 2 màu', async () => {
+  it('mỗi màu đều có ảnh riêng thì gửi anhTheoMau cho cả 2 màu', async () => {
     const { w } = await montar(); await dienCoBan(w, 5); await taoHaiMau(w)
     await chonAnhMau(w, 1, 'den.png'); await chonAnhMau(w, 2, 'do.png')
     await w.get('form').trigger('submit'); await flushPromises()
@@ -107,13 +106,16 @@ describe('Ảnh sản phẩm là bắt buộc (cô: "ảnh chưa có mà tại s
     expect(body.anhTheoMau).toEqual([{ idMauSac: 1, anh: ['/api/uploads/anh-1.png'] }, { idMauSac: 2, anh: ['/api/uploads/anh-2.png'] }])
   })
 
-  it('bỏ ảnh vừa thêm thì lại bị chặn', async () => {
+  it('bỏ ảnh vừa thêm thì vẫn lưu bình thường mà không có ảnh', async () => {
     const { w } = await montar(); await dienCoBan(w, 5)
     await themAnhChung(w)
     await w.get('button[aria-label="Bỏ ảnh 1"]').trigger('click')
     await w.get('form').trigger('submit'); await flushPromises()
-    expect(w.get('[data-testid=loi-anh]').text()).toContain('Chưa có ảnh sản phẩm')
-    expect(mock.calls.post.length).toBe(0)
+    expect(w.find('[data-testid=loi-anh]').exists()).toBe(false)
+    expect(coHopXacNhan()).toBe(true)
+    ;[...document.body.querySelectorAll('button')].find((b) => b.textContent.includes('Xác nhận lưu')).click(); await flushPromises()
+    expect(mock.calls.post.length).toBe(1)
+    expect(mock.calls.post[0][1].anhChinh).toBe('')
   })
 })
 
