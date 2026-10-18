@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
+import StatusSwitch from './common/StatusSwitch.vue'
 import Select2 from './common/Select2.vue'
 import SanPhamDetailModal from './sanPham/SanPhamDetailModal.vue'
 import { sanPhamService, bienTheService } from '../services/sanPhamService'
@@ -417,16 +418,13 @@ function xuatExcel() {
                   <td><span class="ad-pill" :class="TRANG_THAI[trangThaiOf(p)].cls">{{ TRANG_THAI[trangThaiOf(p)].label }}</span></td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
-                      <button
-                        type="button"
-                        class="ad-icon-btn"
-                        :class="p.hoatDong ? 'is-danger' : 'is-success'"
-                        :title="p.hoatDong ? 'Ngưng hoạt động' : 'Kích hoạt lại'"
-                        :aria-label="`${p.hoatDong ? 'Ngưng hoạt động' : 'Kích hoạt lại'} sản phẩm ${p.ma}`"
-                        @click="spCanDoiTrangThai = p"
-                      >
-                        <i class="bi bi-power" aria-hidden="true"></i>
-                      </button>
+                      <span class="ad-switch-slot" :title="p.hoatDong ? 'Ngưng hoạt động' : 'Kích hoạt lại'">
+                        <StatusSwitch
+                          :on="Boolean(p.hoatDong)"
+                          :label="p.hoatDong ? 'Ngưng hoạt động' : 'Kích hoạt lại'"
+                          @toggle="spCanDoiTrangThai = p"
+                        />
+                      </span>
                       <button
                         type="button"
                         class="ad-icon-btn"

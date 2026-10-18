@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import FilterCard from './common/FilterCard.vue'
 import BasePagination from './common/BasePagination.vue'
 import ConfirmDialog from './common/ConfirmDialog.vue'
+import StatusSwitch from './common/StatusSwitch.vue'
 import NhanVienImportModal from './nhanVien/NhanVienImportModal.vue'
 import Select2 from './common/Select2.vue'
 import { nhanVienService } from '../services/nhanVienService'
@@ -287,16 +288,13 @@ async function confirmToggle() {
                   </td>
                   <td class="ad-col-actions">
                     <div class="ad-actions">
-                      <button
-                        type="button"
-                        class="ad-icon-btn"
-                        :class="e.hoatDong ? 'is-danger' : 'is-success'"
-                        :title="toggleTitle(e)"
-                        :aria-label="`${toggleTitle(e)}: ${e.hoTen}`"
-                        @click="confirmItem = e"
-                      >
-                        <i class="bi" :class="e.hoatDong ? 'bi-eye-slash' : 'bi-arrow-counterclockwise'" aria-hidden="true"></i>
-                      </button>
+                      <span class="ad-switch-slot" :title="toggleTitle(e)">
+                        <StatusSwitch
+                          :on="Boolean(e.hoatDong)"
+                          :label="toggleTitle(e)"
+                          @toggle="confirmItem = e"
+                        />
+                      </span>
                       <button
                         type="button"
                         class="ad-icon-btn"
