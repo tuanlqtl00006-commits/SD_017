@@ -483,3 +483,31 @@ async function exportFile() {
   margin-left: 8px;
 }
 </style>
+
+<style>
+/* Đồng bộ thanh cuộn mảnh, tiệp màu sáng cho toàn bộ web và menu bên trái */
+:root,
+* {
+  color-scheme: light;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #e2e8f0;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #cbd5e1;
+}
+</style>

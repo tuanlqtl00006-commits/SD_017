@@ -134,7 +134,7 @@ const timeline = computed(() => {
     const cat = viTri + 1 + (chenThatBai && viTriGiao <= viTri ? 1 : 0)
     return [...steps.slice(0, cat), { ...BUOC_DA_HUY, state: 'cancel', time: ls?.thoiGian, user: ls?.nguoiThaoTac, ghiChu: ls?.moTa }]
   }
-  return steps
+  return steps.filter((s) => s.state !== 'todo')
 })
 
 /* ===================== Đổi trạng thái ===================== */
@@ -617,7 +617,7 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
               <span v-if="hd.maPhieuGiamGia" class="ad-pill ad-pill-blue hd-voucher" :title="hd.tenPhieuGiamGia">{{ hd.maPhieuGiamGia }}</span>
               <small v-if="moTaGiam" class="hd-giam-mota">{{ moTaGiam }}</small>
             </span>
-            <span class="text-danger">- {{ money(hd.soTienGiam) }}</span>
+            <span class="text-danger">-{{ money(hd.soTienGiam) }}</span>
           </div>
           <!-- Đơn tại quầy không có vận chuyển nên không có dòng phí vận chuyển -->
           <div v-if="laGiaoHang" data-dong="phi-van-chuyen"><span>Phí vận chuyển</span><span>{{ money(hd.phiVanChuyen) }}</span></div>
