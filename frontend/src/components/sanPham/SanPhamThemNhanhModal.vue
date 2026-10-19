@@ -9,7 +9,7 @@ import { useToast } from '../../composables/useToast'
 import { tuDanhSach } from '../../utils/luaChon'
 import { cat, timBanTrung } from '../../utils/kiemTra'
 import { chatLieuHopDanhMuc, idKhongApDung, laDanhMucVot, laKhongApDung } from '../../utils/danhMuc'
-import { THUOC_TINH } from '../../constants/thuocTinh'
+import { THUOC_TINH, taoMa } from '../../constants/thuocTinh'
 import ThuocTinhFormModal from '../thuocTinh/ThuocTinhFormModal.vue'
 
 const props = defineProps({
@@ -35,6 +35,7 @@ const thuocTinh = reactive({
 })
 
 const form = reactive({
+  ma: '',
   ten: props.tenKhoiTao || '',
   idDanhMuc: '',
   idThuongHieu: '',
@@ -182,6 +183,7 @@ async function submit() {
     }
 
     const payload = {
+      ma: form.ma ? String(form.ma).trim().toUpperCase() : undefined,
       ten: cat(form.ten),
       idDanhMuc: Number(form.idDanhMuc),
       idThuongHieu: Number(form.idThuongHieu),
@@ -206,7 +208,28 @@ async function submit() {
   }
 }
 
+async function capNhatMaMoi() {
+  let ds = props.danhSachSanPham
+  if (!ds || ds.length === 0) {
+    try {
+      ds = await sanPhamService.getAll()
+    } catch {
+      ds = []
+    }
+  }
+  form.ma = taoMa('SP', (ds || []).map((p) => p.ma))
+}
+
+watch(
+  () => props.danhSachSanPham,
+  () => {
+    capNhatMaMoi()
+  },
+  { deep: true },
+)
+
 onMounted(async () => {
+  capNhatMaMoi()
   try {
     const cacLoai = Object.keys(thuocTinh)
     const ketQua = await Promise.all(cacLoai.map((loai) => thuocTinhService.getAll(loai)))
@@ -239,15 +262,28 @@ onMounted(async () => {
     <div v-if="dangTai" class="ad-empty">Đang tải dữ liệu…</div>
     <form v-else id="sp-them-nhanh-form" novalidate @submit.prevent="submit">
       <div class="row g-3">
-        <div class="col-12">
-          <label class="ad-label" for="sp-tn-ten">Tên sản phẩm <span class="ad-required">*</span></label>
+        <div class="col-md-6">
+          <label class="ad-label" for="sp-tn-ma">Mã sản phẩm</label>
+          <input
+            id="sp-tn-ma"
+            v-model="form.ma"
+            type="text"
+            class="form-control ad-control font-monospace"
+            readonly
+          />
+          <p class="ad-hint">Hệ thống tự tạo, không đổi được.</p>
+        </div>
+
+        <div class="col-md-6">
+          <label class="ad-label" for="sp-tn-ten">Sản phẩm <span class="ad-required">*</span></label>
           <input
             id="sp-tn-ten"
             v-model="form.ten"
             type="text"
             class="form-control ad-control"
             :class="{ 'is-invalid': errors.ten }"
-            placeholder="Ví dụ: Vợt cầu lông Yonex Astrox 99 Pro…"
+            maxlength="255"
+            placeholder="Nhập tên sản phẩm…"
             autocomplete="off"
             @input="kiemTraTen"
             @blur="kiemTraTen"
