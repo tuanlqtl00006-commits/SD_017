@@ -69,6 +69,10 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
             "IF COL_LENGTH('khach_hang', 'anh_dai_dien') IS NULL ALTER TABLE khach_hang ADD anh_dai_dien NVARCHAR(500) NULL",
             // dot_giam_gia.mo_ta
             "IF COL_LENGTH('dot_giam_gia', 'mo_ta') IS NULL ALTER TABLE dot_giam_gia ADD mo_ta NVARCHAR(500) NULL",
+            // nhan_vien.anh (khớp ERD)
+            "IF COL_LENGTH('nhan_vien', 'anh') IS NULL ALTER TABLE nhan_vien ADD anh NVARCHAR(500) NULL",
+            // lich_su_thanh_toan.nguoi_nhan (khớp ERD)
+            "IF COL_LENGTH('lich_su_thanh_toan', 'nguoi_nhan') IS NULL ALTER TABLE lich_su_thanh_toan ADD nguoi_nhan NVARCHAR(255) NULL",
             // Mục "Không áp dụng" cho danh mục không phải vợt (Phụ kiện, Túi - balo...): không có độ cứng, điểm cân bằng, trọng lượng, chu vi
             // Mã gọn DC00, CB00, TL00, CV00 (CSDL cũ có DC000... sẽ được đổi sang mã gọn ở bước rutGonMaCu bên dưới)
             "INSERT INTO do_cung (ma_do_cung, ten_do_cung, trang_thai) SELECT 'DC00', N'Không áp dụng', 1 "

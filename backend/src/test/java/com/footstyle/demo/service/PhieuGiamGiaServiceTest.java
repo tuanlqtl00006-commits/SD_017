@@ -557,6 +557,17 @@ class PhieuGiamGiaServiceTest {
         PhieuGiamGiaRequest r = new PhieuGiamGiaRequest("VCHTIEN1", "Giảm 100k", "CONG_KHAI", "TIEN_MAT", 100_000L, null, 50_000L,
                 10, null, BAY_GIO, BAY_GIO.plusDays(3), null);
         assertTrue(assertThrows(ApiException.class, () -> service.them(r)).getMessage().contains("Đơn tối thiểu"));
+
+        PhieuGiamGiaRequest r2 = new PhieuGiamGiaRequest("VCHTIEN2", "Giảm 100k đơn 0đ", "CONG_KHAI", "TIEN_MAT", 100_000L, null, 0L,
+                10, null, BAY_GIO, BAY_GIO.plusDays(3), null);
+        assertTrue(assertThrows(ApiException.class, () -> service.them(r2)).getMessage().contains("Đơn tối thiểu"));
+    }
+
+    @Test
+    void phieuPhanTram_giamToiDaLonHonDonToiThieu_baoLoi() {
+        PhieuGiamGiaRequest r = new PhieuGiamGiaRequest("VCHPT01", "Giảm 50%", "CONG_KHAI", "PHAN_TRAM", 50L, 200_000L, 100_000L,
+                10, null, BAY_GIO, BAY_GIO.plusDays(3), null);
+        assertTrue(assertThrows(ApiException.class, () -> service.them(r)).getMessage().contains("Giảm tối đa không được lớn hơn đơn tối thiểu"));
     }
 
     @Test

@@ -33,6 +33,10 @@ public class LichSuThanhToan {
     @Column(name = "thoi_gian")
     private LocalDateTime thoiGian;
 
+    /** Người nhận tiền / xử lý thanh toán (khớp cột nguoi_nhan trong sơ đồ ERD). */
+    @Column(name = "nguoi_nhan")
+    private String nguoiNhan;
+
     @Column(name = "trang_thai")
     private Integer trangThai;
 

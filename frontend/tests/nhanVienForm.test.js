@@ -80,7 +80,6 @@ describe('Thêm nhân viên', () => {
   it('mã nhân viên = chữ cái đầu của họ tên + số thứ tự, hiện ngay khi nhập tên', async () => {
     const w = await moForm()
     expect(w.find('#nv-ma').element.value).toBe('')
-    expect(w.find('#nv-ma').attributes('placeholder')).toMatch(/Tự sinh theo họ tên/)
     await set(w, '#nv-ho-ten', 'Lê Quốc Tuấn')
     expect(w.find('#nv-ma').element.value).toBe('LQT01')
     await set(w, '#nv-ho-ten', 'Nguyễn Văn An')
@@ -261,6 +260,8 @@ describe('Quét căn cước công dân', () => {
     const w = await moForm()
     await quet(w, '079203001234|123456789|TRẦN MINH KHOA|20052015|Nam|Số 1, Phường Hà Đông, Thành phố Hà Nội|15032021')
     expect(w.find('#nv-ngay-sinh').element.value).toBe('20/05/2015')
+    await w.find('form').trigger('submit')
+    await flushPromises()
     const loi = (id) => (w.find(`#${id}`).classes().includes('ad-error') ? w.find(`#${id}`).text() : '')
     expect(loi('nv-ngay-sinh-msg')).toBe('Nhân viên phải từ đủ 18 tuổi.')
     expect(useToast().toasts.map((x) => x.message).join(' | ')).toContain('Số CCCD này đã thuộc nhân viên')

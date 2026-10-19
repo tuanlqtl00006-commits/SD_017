@@ -223,7 +223,7 @@ const GIOI_TINH_CLS = { Nam: 'ad-pill-blue', 'Nữ': 'ad-pill-pink' }
   display: inline-block;
   padding: 0.3rem 0.8rem;
   border-radius: 999px;
-  background: var(--fs-navy);
+  background: var(--fs-primary, #0977ec);
   color: #fff;
   font-size: 0.78rem;
   font-weight: 600;
@@ -286,7 +286,7 @@ const GIOI_TINH_CLS = { Nam: 'ad-pill-blue', 'Nữ': 'ad-pill-pink' }
   text-align: center;
 }
 .pgg-c-so {
-  text-align: right;
+  text-align: left;
 }
 .pgg-c-ten {
   font-weight: 600;

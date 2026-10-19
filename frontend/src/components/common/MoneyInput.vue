@@ -50,6 +50,6 @@ function onInput(e) {
 
 <style scoped>
 .money-input { position: relative; }
-.money-input input { padding-right: 1.9rem; text-align: right; }
+.money-input input { padding-right: 1.9rem; text-align: left; }
 .money-suffix { position: absolute; right: 0.7rem; top: 50%; transform: translateY(-50%); color: #7b8794; pointer-events: none; font-size: 0.9em; }
 </style>

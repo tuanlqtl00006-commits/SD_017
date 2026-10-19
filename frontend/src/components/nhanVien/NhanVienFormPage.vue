@@ -264,8 +264,6 @@ async function taiDuLieu() {
 onMounted(async () => {
   await taiDuLieu()
   dangTai.value = false
-  await nextTick()
-  document.getElementById('nv-ho-ten')?.focus()
 })
 
 /* ----- Quét căn cước công dân ----- */
@@ -402,7 +400,7 @@ function tinhLoi() {
   return e
 }
 
-const { loi, cham, sua, batDauGui, datLoiMayChu, focusLoiDau } = useLoiForm(tinhLoi)
+const { loi, cham, sua, batDauGui, datLoiMayChu, focusLoiDau } = useLoiForm(tinhLoi, { chiKhiLuu: true })
 
 /* ----- Lưu ----- */
 
@@ -640,16 +638,12 @@ async function xacNhanDoiMatKhau() {
             <h2 class="ad-card-title mb-3 fs-5 fw-bold">Thông tin nhân viên</h2>
             <div class="row g-3">
               <div class="col-md-6">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                  <label class="ad-label mb-0" for="nv-ma">Mã nhân viên</label>
-                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0" style="font-size: 0.75rem;">Tự sinh</span>
-                </div>
+                <label class="ad-label mb-1" for="nv-ma">Mã nhân viên</label>
                 <input
                   id="nv-ma"
                   type="text"
                   class="form-control ad-control font-monospace bg-light"
                   :value="maNhanVien"
-                  :placeholder="isEdit ? '' : 'Tự sinh theo họ tên...'"
                   readonly
                 />
                 <p v-if="isEdit" class="ad-hint mb-0">Không thể đổi mã sau khi tạo.</p>
@@ -883,7 +877,7 @@ async function xacNhanDoiMatKhau() {
 
           <div class="d-flex justify-content-end gap-2 mt-4">
             <button type="button" class="btn btn-light border px-4 py-2 fw-medium rounded-3" @click="quayLai">Hủy bỏ</button>
-            <button type="submit" class="btn btn-dark px-4 py-2 fw-medium rounded-3" :disabled="dangLuu">
+            <button type="submit" class="btn btn-primary px-4 py-2 fw-medium rounded-3" :disabled="dangLuu">
               <span v-if="dangLuu" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
               {{ isEdit ? 'Lưu thay đổi' : 'Thêm nhân viên' }}
             </button>

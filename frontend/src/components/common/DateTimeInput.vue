@@ -25,14 +25,75 @@ const MOC_NHANH = ['00:00', '08:00', '12:00', '18:00', '23:59']
 
 const tach = computed(() => tachNgayGio(props.modelValue))
 const gio = ref(tach.value.gio)
-const minNgay = computed(() => (props.min ? tachNgayGio(props.min).ngay || undefined : undefined))
-const maxNgay = computed(() => (props.max ? tachNgayGio(props.max).ngay || undefined : undefined))
+const minTach = computed(() => (props.min ? tachNgayGio(props.min) : null))
+const maxTach = computed(() => (props.max ? tachNgayGio(props.max) : null))
+const minNgay = computed(() => minTach.value?.ngay || undefined)
+const maxNgay = computed(() => maxTach.value?.ngay || undefined)
 
 const gioDangChon = computed(() => {
   const g = gioHopLe(gio.value) ? gio.value : tach.value.gio || props.defaultTime || '00:00'
   const [hh = '00', mm = '00'] = g.split(':')
   return { hh, mm, full: `${hh}:${mm}` }
 })
+
+function isGioDisabled(h) {
+  const hh = Number(h)
+  const ngay = tach.value.ngay
+  if (!ngay) return false
+  if (minTach.value?.ngay) {
+    if (ngay < minTach.value.ngay) return true
+    if (ngay === minTach.value.ngay && minTach.value.gio) {
+      const minH = Number(minTach.value.gio.split(':')[0])
+      if (hh < minH) return true
+    }
+  }
+  if (maxTach.value?.ngay) {
+    if (ngay > maxTach.value.ngay) return true
+    if (ngay === maxTach.value.ngay && maxTach.value.gio) {
+      const maxH = Number(maxTach.value.gio.split(':')[0])
+      if (hh > maxH) return true
+    }
+  }
+  return false
+}
+
+function isPhutDisabled(m, forHour = null) {
+  const mm = Number(m)
+  const hh = Number(forHour !== null ? forHour : gioDangChon.value.hh)
+  const ngay = tach.value.ngay
+  if (!ngay) return false
+  if (minTach.value?.ngay) {
+    if (ngay < minTach.value.ngay) return true
+    if (ngay === minTach.value.ngay && minTach.value.gio) {
+      const [minH, minM] = minTach.value.gio.split(':').map(Number)
+      if (hh < minH) return true
+      if (hh === minH && mm < minM) return true
+    }
+  }
+  if (maxTach.value?.ngay) {
+    if (ngay > maxTach.value.ngay) return true
+    if (ngay === maxTach.value.ngay && maxTach.value.gio) {
+      const [maxH, maxM] = maxTach.value.gio.split(':').map(Number)
+      if (hh > maxH) return true
+      if (hh === maxH && mm > maxM) return true
+    }
+  }
+  return false
+}
+
+function isMocDisabled(hhmm) {
+  const ngay = tach.value.ngay
+  if (!ngay) return false
+  if (minTach.value?.ngay) {
+    if (ngay < minTach.value.ngay) return true
+    if (ngay === minTach.value.ngay && minTach.value.gio && hhmm < minTach.value.gio) return true
+  }
+  if (maxTach.value?.ngay) {
+    if (ngay > maxTach.value.ngay) return true
+    if (ngay === maxTach.value.ngay && maxTach.value.gio && hhmm > maxTach.value.gio) return true
+  }
+  return false
+}
 
 watch(
   () => props.modelValue,
@@ -56,7 +117,19 @@ function doiNgay(iso) {
     phat('')
     return
   }
-  const g = gioHopLe(gio.value) ? gio.value : tach.value.gio || props.defaultTime
+  let g = gioHopLe(gio.value) ? gio.value : tach.value.gio || props.defaultTime
+  if (props.min && iso) {
+    const minT = tachNgayGio(props.min)
+    if (minT.ngay && iso === minT.ngay && minT.gio && g < minT.gio) {
+      g = minT.gio
+    }
+  }
+  if (props.max && iso) {
+    const maxT = tachNgayGio(props.max)
+    if (maxT.ngay && iso === maxT.ngay && maxT.gio && g > maxT.gio) {
+      g = maxT.gio
+    }
+  }
   gio.value = g
   phat(gopNgayGio(iso, g, props.defaultTime))
 }
@@ -100,14 +173,22 @@ function datGioTuBang(hhmm) {
 }
 
 function chonGio(hh) {
-  datGioTuBang(`${hh}:${gioDangChon.value.mm}`)
+  if (isGioDisabled(hh)) return
+  let mm = gioDangChon.value.mm
+  if (isPhutDisabled(mm, hh)) {
+    const hopLe = DANH_SACH_PHUT.find((m) => !isPhutDisabled(m, hh))
+    if (hopLe) mm = hopLe
+  }
+  datGioTuBang(`${hh}:${mm}`)
 }
 
 function chonPhut(mm) {
+  if (isPhutDisabled(mm)) return
   datGioTuBang(`${gioDangChon.value.hh}:${mm}`)
 }
 
 function chonMocNhanh(hhmm) {
+  if (isMocDisabled(hhmm)) return
   datGioTuBang(hhmm)
   dongGio(true)
 }
@@ -115,6 +196,8 @@ function chonMocNhanh(hhmm) {
 function chonBayGioTuBang() {
   const v = bayGioIso()
   const g = tachNgayGio(v).gio
+  if (props.min && v < props.min) return
+  if (props.max && v > props.max) return
   if (tach.value.ngay) {
     datGioTuBang(g)
   } else {
@@ -125,8 +208,8 @@ function chonBayGioTuBang() {
 }
 
 function cuonToiMucDangChon() {
-  const gEl = cotGio.value?.querySelector('.is-chon')
-  const pEl = cotPhut.value?.querySelector('.is-chon')
+  const gEl = cotGio.value?.querySelector('.is-chon') || cotGio.value?.querySelector('.dti-item:not(:disabled)')
+  const pEl = cotPhut.value?.querySelector('.is-chon') || cotPhut.value?.querySelector('.dti-item:not(:disabled)')
   if (gEl && cotGio.value) {
     cotGio.value.scrollTop = Math.max(0, gEl.offsetTop - cotGio.value.clientHeight / 2 + gEl.offsetHeight / 2)
   }
@@ -164,7 +247,10 @@ function datViTriGio() {
 function moBangGio() {
   if (props.disabled || props.readonly || moGio.value) return
   if (!gioHopLe(gio.value) && tach.value.ngay) {
-    const macDinh = tach.value.gio || props.defaultTime
+    let macDinh = tach.value.gio || props.defaultTime
+    if (props.min && minTach.value?.ngay && tach.value.ngay === minTach.value.ngay && minTach.value.gio && macDinh < minTach.value.gio) {
+      macDinh = minTach.value.gio
+    }
     gio.value = macDinh
   }
   daDatViTri.value = false
@@ -281,6 +367,7 @@ function onGioKey(e) {
             type="button"
             class="dti-preset-btn"
             :class="{ 'is-chon': gio === m }"
+            :disabled="isMocDisabled(m)"
             :data-moc="m"
             @click="chonMocNhanh(m)"
           >
@@ -298,6 +385,7 @@ function onGioKey(e) {
                 type="button"
                 class="dti-item"
                 :class="{ 'is-chon': gioDangChon.hh === h }"
+                :disabled="isGioDisabled(h)"
                 :data-gio="h"
                 @click="chonGio(h)"
               >
@@ -314,6 +402,7 @@ function onGioKey(e) {
                 type="button"
                 class="dti-item"
                 :class="{ 'is-chon': gioDangChon.mm === m }"
+                :disabled="isPhutDisabled(m)"
                 :data-phut="m"
                 @click="chonPhut(m)"
               >
@@ -347,9 +436,9 @@ function onGioKey(e) {
   flex: 0 0 7rem;
 }
 .dti-time {
-  padding-left: 0.55rem;
+  padding-left: 0.75rem;
   padding-right: 2.15rem;
-  text-align: center;
+  text-align: left;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
@@ -442,6 +531,12 @@ function onGioKey(e) {
   border-color: var(--fs-primary, #0977ec);
   background: var(--fs-primary, #0977ec);
   color: #fff;
+}
+.dti-preset-btn:disabled,
+.dti-item:disabled {
+  opacity: 0.35;
+  cursor: not-allowed !important;
+  pointer-events: none;
 }
 .dti-cols {
   display: grid;

@@ -99,12 +99,31 @@ const isCaNhan = computed(() => form.hinhThuc === 'CA_NHAN')
 
 /* ----- "Bây giờ" chạy theo đồng hồ (trạng thái dự kiến, khóa giờ bắt đầu, cảnh báo quá khứ cập nhật theo) ----- */
 const bayGio = ref(bayGioDayDu())
+const daChonBatDauThuCong = ref(false)
+
+function onDoiNgayBatDau(v) {
+  daChonBatDauThuCong.value = true
+  form.ngayBatDau = v
+  cham('ngayBatDau')
+}
+
 let dongHo = null
 onMounted(() => {
-  dongHo = setInterval(() => (bayGio.value = bayGioDayDu()), 20000)
+  dongHo = setInterval(() => {
+    bayGio.value = bayGioDayDu()
+    if (!isEdit.value && !daChonBatDauThuCong.value) {
+      const hienTai = bayGio.value.slice(0, 16)
+      if (form.ngayBatDau !== hienTai) {
+        form.ngayBatDau = hienTai
+      }
+    }
+  }, 1000)
   document.getElementById('pgg-ten')?.focus()
 })
 onBeforeUnmount(() => clearInterval(dongHo))
+
+const minBatDau = computed(() => (isEdit.value ? undefined : bayGio.value.slice(0, 16)))
+const minKetThuc = computed(() => form.ngayBatDau || (isEdit.value ? undefined : bayGio.value.slice(0, 16)))
 
 // Phiếu đã bắt đầu (khi SỬA) thì không đổi được giờ bắt đầu
 const khoaBatDau = computed(() => isEdit.value && !!props.item?.ngayBatDau && mocBatDau(props.item.ngayBatDau) <= bayGio.value)
@@ -173,7 +192,6 @@ const submitted = ref(false)
 const cham = (khoa) => {
   chamVao[khoa] = true
 }
-watch(() => form.ngayBatDau, () => cham('ngayBatDau'))
 watch(() => form.ngayKetThuc, () => cham('ngayKetThuc'))
 watch(() => form.khachHangIds.length, () => cham('khachHang'))
 
@@ -205,17 +223,23 @@ function validate() {
   else if (!isPercent.value && giaTri < 1000) e.giaTri = 'Số tiền giảm tối thiểu 1.000 ₫.'
   else if (!isPercent.value && giaTri > TIEN_GIAM_TOI_DA) e.giaTri = 'Số tiền giảm tối đa 100.000.000 ₫.'
 
+  const donToiThieu = Number(form.donToiThieu === '' || form.donToiThieu === null ? 0 : form.donToiThieu)
+  if (Number.isNaN(donToiThieu) || donToiThieu < 0) e.donToiThieu = 'Đơn tối thiểu không được âm.'
+  else if (donToiThieu > DON_TOI_THIEU_TOI_DA) e.donToiThieu = 'Đơn tối thiểu không quá 1.000.000.000 ₫.'
+  else if (!isPercent.value && !e.giaTri && donToiThieu < giaTri) {
+    e.donToiThieu = 'Đơn tối thiểu phải lớn hơn hoặc bằng số tiền giảm.'
+  }
+
   if (isPercent.value && form.giamToiDa !== '' && form.giamToiDa !== null) {
     const toiDa = Number(form.giamToiDa)
     if (!(toiDa > 0)) e.giamToiDa = 'Giảm tối đa phải lớn hơn 0, hoặc để trống nếu không giới hạn.'
     else if (toiDa > TIEN_GIAM_TOI_DA) e.giamToiDa = 'Giảm tối đa không quá 100.000.000 ₫.'
+    else if (donToiThieu > 0 && toiDa > donToiThieu) {
+      e.giamToiDa = 'Giảm tối đa không được lớn hơn đơn tối thiểu.'
+    }
   }
-
-  const donToiThieu = Number(form.donToiThieu === '' || form.donToiThieu === null ? 0 : form.donToiThieu)
-  if (Number.isNaN(donToiThieu) || donToiThieu < 0) e.donToiThieu = 'Đơn tối thiểu không được âm.'
-  else if (donToiThieu > DON_TOI_THIEU_TOI_DA) e.donToiThieu = 'Đơn tối thiểu không quá 1.000.000.000 ₫.'
-  else if (!isPercent.value && !e.giaTri && donToiThieu > 0 && giaTri > donToiThieu) {
-    e.donToiThieu = 'Đơn tối thiểu phải lớn hơn hoặc bằng số tiền giảm.'
+  if (isPercent.value && form.giamToiDa !== '' && form.giamToiDa !== null && !e.donToiThieu && donToiThieu > 0 && Number(form.giamToiDa) > donToiThieu) {
+    e.donToiThieu = 'Đơn tối thiểu phải lớn hơn hoặc bằng giảm tối đa.'
   }
 
   if (isCaNhan.value) {
@@ -321,7 +345,7 @@ const phieuTrung = computed(() => {
 
 function submit() {
   // Ô bắt đầu còn là giờ mặc định (chưa ai đụng tới): lấy lại "bây giờ" mới nhất để không bị báo quá khứ khi điền form lâu
-  if (!isEdit.value && !chamVao.ngayBatDau) form.ngayBatDau = bayGioIso()
+  if (!isEdit.value && !daChonBatDauThuCong.value) form.ngayBatDau = bayGioIso()
   submitted.value = true
   bayGio.value = bayGioDayDu()
   const e = validate()
@@ -513,14 +537,29 @@ function submit() {
 
         <div class="col-md-6">
           <label class="ad-label" for="pgg-ngay-bd">Ngày giờ bắt đầu <span class="ad-required">*</span></label>
-          <DateTimeInput id="pgg-ngay-bd" v-model="form.ngayBatDau" :invalid="!!errors.ngayBatDau" :disabled="khoaBatDau" default-time="00:00" />
+          <DateTimeInput
+            id="pgg-ngay-bd"
+            :model-value="form.ngayBatDau"
+            :min="minBatDau"
+            :invalid="!!errors.ngayBatDau"
+            :disabled="khoaBatDau"
+            default-time="00:00"
+            @update:model-value="onDoiNgayBatDau"
+          />
           <p v-if="errors.ngayBatDau" id="pgg-ngay-bd-msg" class="ad-error">{{ errors.ngayBatDau }}</p>
           <p v-else-if="khoaBatDau" class="ad-hint" data-testid="pgg-khoa-bat-dau">Phiếu đã bắt đầu nên không đổi được ngày giờ bắt đầu.</p>
         </div>
 
         <div class="col-md-6">
           <label class="ad-label" for="pgg-ngay-kt">Ngày giờ kết thúc <span class="ad-required">*</span></label>
-          <DateTimeInput id="pgg-ngay-kt" v-model="form.ngayKetThuc" :min="form.ngayBatDau || undefined" :invalid="!!errors.ngayKetThuc" :show-now="false" default-time="23:59" />
+          <DateTimeInput
+            id="pgg-ngay-kt"
+            v-model="form.ngayKetThuc"
+            :min="minKetThuc"
+            :invalid="!!errors.ngayKetThuc"
+            :show-now="false"
+            default-time="23:59"
+          />
           <p v-if="errors.ngayKetThuc" id="pgg-ngay-kt-msg" class="ad-error">{{ errors.ngayKetThuc }}</p>
         </div>
 
@@ -698,7 +737,7 @@ function submit() {
 .pgg-bang-tinh dd {
   margin: 0;
   font-weight: 600;
-  text-align: right;
+  text-align: left;
 }
 .pgg-bang-tinh .pgg-tong {
   margin-top: 0.3rem;
@@ -737,5 +776,11 @@ function submit() {
   flex-direction: row-reverse;
   justify-content: flex-start;
   gap: 0.75rem;
+}
+#pgg-form :deep(input),
+#pgg-form :deep(.form-control),
+#pgg-form :deep(.money-input input),
+#pgg-form :deep(.dti-time) {
+  text-align: left !important;
 }
 </style>

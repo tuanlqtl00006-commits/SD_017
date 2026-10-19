@@ -1,19 +1,18 @@
-﻿-- =================================================================================
+-- =================================================================================
 -- ERD XÂY DỰNG WEBSITE BÁN VỢT CẦU LÔNG FOOTSTYLE - FILE SQL HOÀN CHỈNH (FULL)
 -- Hệ quản trị CSDL: Microsoft SQL Server
 -- Bao gồm:
---   1. Tạo Database (shop_cau_long_footstyle) & toàn bộ 26 bảng chuẩn theo sơ đồ ERD
---      (cùng các cột mở rộng & bảng phụ trợ để Backend Spring Boot chạy không lỗi).
---   2. Dữ liệu mẫu đầy đủ cho TẤT CẢ các bảng:
---      - vai_tro, nhan_vien, dia_chi_nhan_vien
+--   1. Tạo Database (shop_cau_long_footstyle) & toàn bộ 26 bảng chuẩn 100% theo sơ đồ ERD:
+--      - vai_tro, nhan_vien
 --      - khach_hang, dia_chi_khach_hang
+--      - phieu_giam_gia, phieu_giam_gia_khach_hang
 --      - danh_muc, thuong_hieu, xuat_xu, chat_lieu, do_cung, diem_can_bang
 --      - mau_sac, trong_luong, chu_vi
 --      - san_pham, hinh_anh_san_pham, san_pham_chi_tiet
---      - phieu_giam_gia, phieu_giam_gia_khach_hang
---      - dot_giam_gia, dot_giam_gia_chi_tiet (có sẵn dữ liệu giao/trùng đợt giảm giá)
+--      - dot_giam_gia, dot_giam_gia_chi_tiet
 --      - hinh_thuc_thanh_toan, phuong_thuc_thanh_toan
---      - hoa_don, hoa_don_chi_tiet, lich_su_hoa_don, lich_su_thanh_toan
+--      - hoa_don, hoa_don_chi_tiet, lich_su_thanh_toan, lich_su_hoa_don
+--   2. Dữ liệu mẫu đầy đủ cho TẤT CẢ 26 bảng chuẩn ERD.
 -- =================================================================================
 
 USE master;
@@ -40,7 +39,7 @@ SET QUOTED_IDENTIFIER ON;
 GO
 
 -- =================================================================================
--- PHẦN 1: TẠO BẢNG THEO SƠ ĐỒ ERD (26 BẢNG CHÍNH + BẢNG PHỤ TRỢ BACKEND)
+-- PHẦN 1: TẠO 26 BẢNG THEO CHUẨN 100% SƠ ĐỒ ERD
 -- =================================================================================
 
 -- 1. Bảng vai_tro
@@ -63,7 +62,6 @@ CREATE TABLE nhan_vien (
     email VARCHAR(255),
     mat_khau VARCHAR(255) NOT NULL,
     dia_chi NVARCHAR(500),
-    can_cuoc_cong_dan VARCHAR(12),
     ngay_vao_lam DATE,
     ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP,
     trang_thai TINYINT DEFAULT 1,
@@ -71,38 +69,7 @@ CREATE TABLE nhan_vien (
 );
 GO
 
--- Bảng phụ trợ địa chỉ & vị trí nhân viên (để tương thích Entity Backend)
-CREATE TABLE dia_chi_nhan_vien (
-    id INT IDENTITY(1,1) PRIMARY KEY,
-    id_nhan_vien INT NOT NULL,
-    tinh_thanh NVARCHAR(100),
-    phuong_xa NVARCHAR(100),
-    dia_chi_chi_tiet NVARCHAR(500) NOT NULL,
-    la_mac_dinh BIT NOT NULL DEFAULT 0,
-    trang_thai TINYINT DEFAULT 1,
-    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
-    ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_nhan_vien) REFERENCES nhan_vien(id)
-);
-GO
-
-CREATE TABLE vi_tri (
-    id INT IDENTITY(1,1) PRIMARY KEY,
-    ten_vi_tri NVARCHAR(100) NOT NULL UNIQUE,
-    trang_thai TINYINT DEFAULT 1
-);
-GO
-
-CREATE TABLE nhan_vien_vi_tri (
-    id_nhan_vien INT NOT NULL,
-    id_vi_tri INT NOT NULL,
-    PRIMARY KEY (id_nhan_vien, id_vi_tri),
-    FOREIGN KEY (id_nhan_vien) REFERENCES nhan_vien(id),
-    FOREIGN KEY (id_vi_tri) REFERENCES vi_tri(id)
-);
-GO
-
--- 3. Bảng khach_hang
+-- 3. Báº£ng khach_hang
 CREATE TABLE khach_hang (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_khach_hang VARCHAR(50) UNIQUE NOT NULL,
@@ -112,14 +79,13 @@ CREATE TABLE khach_hang (
     sdt VARCHAR(15),
     email VARCHAR(255),
     mat_khau VARCHAR(255),
-    anh_dai_dien NVARCHAR(500),
     ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
     ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP,
     trang_thai TINYINT DEFAULT 1
 );
 GO
 
--- 4. Bảng dia_chi_khach_hang
+-- 4. Báº£ng dia_chi_khach_hang
 CREATE TABLE dia_chi_khach_hang (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_khach_hang INT NOT NULL,
@@ -131,13 +97,11 @@ CREATE TABLE dia_chi_khach_hang (
     tinh_thanh NVARCHAR(100),
     la_mac_dinh BIT DEFAULT 0,
     trang_thai TINYINT DEFAULT 1,
-    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
-    ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_khach_hang) REFERENCES khach_hang(id)
 );
 GO
 
--- 5. Bảng phieu_giam_gia
+-- 5. Báº£ng phieu_giam_gia
 CREATE TABLE phieu_giam_gia (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_phieu VARCHAR(50) UNIQUE NOT NULL,
@@ -157,7 +121,7 @@ CREATE TABLE phieu_giam_gia (
 );
 GO
 
--- 6. Bảng phieu_giam_gia_khach_hang
+-- 6. Báº£ng phieu_giam_gia_khach_hang
 CREATE TABLE phieu_giam_gia_khach_hang (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_khach_hang INT NOT NULL,
@@ -169,7 +133,7 @@ CREATE TABLE phieu_giam_gia_khach_hang (
 );
 GO
 
--- 7. Bảng danh_muc
+-- 7. Báº£ng danh_muc
 CREATE TABLE danh_muc (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_danh_muc VARCHAR(50) UNIQUE NOT NULL,
@@ -178,7 +142,7 @@ CREATE TABLE danh_muc (
 );
 GO
 
--- 8. Bảng thuong_hieu
+-- 8. Báº£ng thuong_hieu
 CREATE TABLE thuong_hieu (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_thuong_hieu VARCHAR(50) UNIQUE NOT NULL,
@@ -187,7 +151,7 @@ CREATE TABLE thuong_hieu (
 );
 GO
 
--- 9. Bảng xuat_xu
+-- 9. Báº£ng xuat_xu
 CREATE TABLE xuat_xu (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_xuat_xu VARCHAR(50) UNIQUE NOT NULL,
@@ -196,17 +160,16 @@ CREATE TABLE xuat_xu (
 );
 GO
 
--- 10. Bảng chat_lieu
+-- 10. Báº£ng chat_lieu
 CREATE TABLE chat_lieu (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_chat_lieu VARCHAR(50) UNIQUE NOT NULL,
     ten_chat_lieu NVARCHAR(255) NOT NULL,
     trang_thai TINYINT DEFAULT 1,
-    nhom_ap_dung VARCHAR(100) NULL
 );
 GO
 
--- 11. Bảng do_cung
+-- 11. Báº£ng do_cung
 CREATE TABLE do_cung (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_do_cung VARCHAR(50) UNIQUE NOT NULL,
@@ -215,7 +178,7 @@ CREATE TABLE do_cung (
 );
 GO
 
--- 12. Bảng diem_can_bang
+-- 12. Báº£ng diem_can_bang
 CREATE TABLE diem_can_bang (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_diem_can_bang VARCHAR(50) UNIQUE NOT NULL,
@@ -224,7 +187,7 @@ CREATE TABLE diem_can_bang (
 );
 GO
 
--- 13. Bảng mau_sac
+-- 13. Báº£ng mau_sac
 CREATE TABLE mau_sac (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_mau_sac VARCHAR(50) UNIQUE NOT NULL,
@@ -233,7 +196,7 @@ CREATE TABLE mau_sac (
 );
 GO
 
--- 14. Bảng trong_luong
+-- 14. Báº£ng trong_luong
 CREATE TABLE trong_luong (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_trong_luong VARCHAR(50) UNIQUE NOT NULL,
@@ -242,7 +205,7 @@ CREATE TABLE trong_luong (
 );
 GO
 
--- 15. Bảng chu_vi
+-- 15. Báº£ng chu_vi
 CREATE TABLE chu_vi (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_chu_vi VARCHAR(50) UNIQUE NOT NULL,
@@ -251,7 +214,7 @@ CREATE TABLE chu_vi (
 );
 GO
 
--- 16. Bảng san_pham
+-- 16. Báº£ng san_pham
 CREATE TABLE san_pham (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_danh_muc INT NOT NULL,
@@ -275,20 +238,18 @@ CREATE TABLE san_pham (
 );
 GO
 
--- 17. Bảng hinh_anh_san_pham
+-- 17. Báº£ng hinh_anh_san_pham
 CREATE TABLE hinh_anh_san_pham (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_san_pham INT NOT NULL,
     duong_dan_hinh_anh VARCHAR(500) NOT NULL,
     la_anh_chinh BIT DEFAULT 0,
     trang_thai TINYINT DEFAULT 1,
-    id_mau_sac INT NULL,
     FOREIGN KEY (id_san_pham) REFERENCES san_pham(id),
-    CONSTRAINT fk_hasp_mau_sac FOREIGN KEY (id_mau_sac) REFERENCES mau_sac(id)
 );
 GO
 
--- 18. Bảng san_pham_chi_tiet
+-- 18. Báº£ng san_pham_chi_tiet
 CREATE TABLE san_pham_chi_tiet (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_mau_sac INT NOT NULL,
@@ -308,7 +269,7 @@ CREATE TABLE san_pham_chi_tiet (
 );
 GO
 
--- 19. Bảng dot_giam_gia
+-- 19. Báº£ng dot_giam_gia
 CREATE TABLE dot_giam_gia (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_dot VARCHAR(50) UNIQUE NOT NULL,
@@ -316,13 +277,12 @@ CREATE TABLE dot_giam_gia (
     phan_tram_giam_dot INT NOT NULL,
     ngay_bat_dau DATETIME NOT NULL,
     ngay_ket_thuc DATETIME NOT NULL,
-    mo_ta NVARCHAR(500) NULL,
     ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
     trang_thai TINYINT DEFAULT 1
 );
 GO
 
--- 20. Bảng dot_giam_gia_chi_tiet
+-- 20. Báº£ng dot_giam_gia_chi_tiet
 CREATE TABLE dot_giam_gia_chi_tiet (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_san_pham_chi_tiet INT NOT NULL,
@@ -334,7 +294,7 @@ CREATE TABLE dot_giam_gia_chi_tiet (
 );
 GO
 
--- 21. Bảng hinh_thuc_thanh_toan
+-- 21. Báº£ng hinh_thuc_thanh_toan
 CREATE TABLE hinh_thuc_thanh_toan (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_hinh_thuc VARCHAR(50) UNIQUE NOT NULL,
@@ -343,7 +303,7 @@ CREATE TABLE hinh_thuc_thanh_toan (
 );
 GO
 
--- 22. Bảng phuong_thuc_thanh_toan
+-- 22. Báº£ng phuong_thuc_thanh_toan
 CREATE TABLE phuong_thuc_thanh_toan (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_hinh_thuc_thanh_toan INT NOT NULL,
@@ -354,7 +314,7 @@ CREATE TABLE phuong_thuc_thanh_toan (
 );
 GO
 
--- 23. Bảng hoa_don
+-- 23. Báº£ng hoa_don
 CREATE TABLE hoa_don (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_nhan_vien INT,
@@ -384,7 +344,7 @@ CREATE TABLE hoa_don (
 );
 GO
 
--- 24. Bảng hoa_don_chi_tiet
+-- 24. Báº£ng hoa_don_chi_tiet
 CREATE TABLE hoa_don_chi_tiet (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_hoa_don INT NOT NULL,
@@ -398,7 +358,7 @@ CREATE TABLE hoa_don_chi_tiet (
 );
 GO
 
--- 25. Bảng lich_su_thanh_toan
+-- 25. Báº£ng lich_su_thanh_toan
 CREATE TABLE lich_su_thanh_toan (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_hoa_don INT NOT NULL,
@@ -411,7 +371,7 @@ CREATE TABLE lich_su_thanh_toan (
 );
 GO
 
--- 26. Bảng lich_su_hoa_don
+-- 26. Báº£ng lich_su_hoa_don
 CREATE TABLE lich_su_hoa_don (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_hoa_don INT NOT NULL,
@@ -426,11 +386,9 @@ GO
 -- Các chỉ mục ràng buộc duy nhất (Unique Index)
 CREATE UNIQUE INDEX ux_nhan_vien_email ON nhan_vien (email) WHERE email IS NOT NULL;
 CREATE UNIQUE INDEX ux_nhan_vien_sdt ON nhan_vien (sdt) WHERE sdt IS NOT NULL;
-CREATE UNIQUE INDEX ux_nhan_vien_cccd ON nhan_vien (can_cuoc_cong_dan) WHERE can_cuoc_cong_dan IS NOT NULL;
 CREATE UNIQUE INDEX ux_khach_hang_email ON khach_hang (email) WHERE email IS NOT NULL AND email <> '';
 CREATE UNIQUE INDEX ux_khach_hang_sdt ON khach_hang (sdt) WHERE sdt IS NOT NULL AND sdt <> '';
 CREATE UNIQUE INDEX ux_spct_san_pham_mau_tl_cv ON san_pham_chi_tiet (id_san_pham, id_mau_sac, id_trong_luong, id_chu_vi);
-CREATE INDEX ix_hasp_san_pham_mau ON hinh_anh_san_pham (id_san_pham, id_mau_sac);
 GO
 
 -- =================================================================================
@@ -444,24 +402,20 @@ INSERT INTO vai_tro (ten_vai_tro, trang_thai) VALUES
 GO
 
 -- 2. Dữ liệu nhan_vien (Mật khẩu mặc định: Footstyle@123)
-INSERT INTO nhan_vien (id_vai_tro, ma_nhan_vien, ho_ten, gioi_tinh, ngay_sinh, sdt, email, mat_khau, dia_chi, can_cuoc_cong_dan, ngay_vao_lam, trang_thai) VALUES
-(1, 'NV01', N'Nguyễn Hoàng Long', 1, '1992-03-14', '0912000001', 'long.nh@footstyle.vn', 'Footstyle@123', N'Số 15 ngõ 120 Trần Phú, Phường Hà Đông, Thành phố Hà Nội', '001092001001', '2022-01-10', 1),
-(1, 'NV02', N'Trần Thu Hà',       0, '1994-07-22', '0912000002', 'ha.tt@footstyle.vn',   'Footstyle@123', N'Số 22 Nguyễn Trãi, Phường Thanh Xuân, Thành phố Hà Nội', '001194001002', '2022-03-01', 1),
-(2, 'NV03', N'Lê Quốc Bảo',       1, '1999-11-05', '0912000003', 'bao.lq@footstyle.vn',  'Footstyle@123', N'Số 8 Lê Văn Lương, Phường Thanh Xuân, Thành phố Hà Nội', '001099001003', '2023-02-15', 1),
-(2, 'NV04', N'Phạm Minh Anh',     0, '2000-01-18', '0912000004', 'anh.pm@footstyle.vn',  'Footstyle@123', N'Số 31 phố Kim Mã, Phường Ba Đình, Thành phố Hà Nội',     '001200001004', '2023-05-20', 1),
-(2, 'NV05', N'Vũ Hoàng Nam',      1, '1998-09-30', '0912000005', 'nam.vh@footstyle.vn',  'Footstyle@123', N'Thị trấn Quốc Oai, Xã Quốc Oai, Thành phố Hà Nội',        '001098001005', '2023-08-01', 1),
-(2, 'NV06', N'Đỗ Thùy Trang',     0, '2001-05-09', '0912000006', 'trang.dt@footstyle.vn','Footstyle@123', N'Số 45 Trần Thái Tông, Phường Cầu Giấy, Thành phố Hà Nội', '001301001006', '2024-01-08', 1),
-(2, 'NV07', N'Bùi Đức Mạnh',      1, '1997-12-02', '0912000007', 'manh.bd@footstyle.vn', 'Footstyle@123', N'Số 3 ngõ 66 Nguyễn Văn Cừ, Phường Long Biên, Hà Nội',     '001097001007', '2023-10-12', 0),
-(2, 'NV08', N'Ngô Linh Chi',      0, '2002-04-27', '0912000008', 'chi.nl@footstyle.vn',  'Footstyle@123', N'Số 19 Phạm Văn Đồng, Phường Bắc Từ Liêm, Hà Nội',         '001302001008', '2024-06-03', 1),
-(2, 'NV09', N'Hoàng Tuấn Anh',    1, '1996-08-11', '0912000009', 'anh.ht@footstyle.vn',  'Footstyle@123', N'Số 7 Hoàng Quốc Việt, Phường Cầu Giấy, Hà Nội',           '001096001009', '2024-09-16', 1),
-(2, 'NV10', N'Đặng Mai Hương',    0, '1995-02-25', '0912000010', 'huong.dm@footstyle.vn','Footstyle@123', N'Số 52 phố Minh Khai, Phường Hai Bà Trưng, Hà Nội',        '001195001010', '2022-11-21', 0);
+INSERT INTO nhan_vien (id_vai_tro, ma_nhan_vien, ho_ten, gioi_tinh, ngay_sinh, sdt, email, mat_khau, dia_chi, ngay_vao_lam, trang_thai) VALUES
+(1, 'NV01', N'Nguyễn Hoàng Long', 1, '1992-03-14', '0912000001', 'long.nh@footstyle.vn', 'Footstyle@123', N'Số 15 ngõ 120 Trần Phú, Phường Hà Đông, Thành phố Hà Nội', '2022-01-10', 1),
+(1, 'NV02', N'Trần Thu Hà',       0, '1994-07-22', '0912000002', 'ha.tt@footstyle.vn',   'Footstyle@123', N'Số 22 Nguyễn Trãi, Phường Thanh Xuân, Thành phố Hà Nội', '2022-03-01', 1),
+(2, 'NV03', N'Lê Quốc Bảo',       1, '1999-11-05', '0912000003', 'bao.lq@footstyle.vn',  'Footstyle@123', N'Số 8 Lê Văn Lương, Phường Thanh Xuân, Thành phố Hà Nội', '2023-02-15', 1),
+(2, 'NV04', N'Phạm Minh Anh',     0, '2000-01-18', '0912000004', 'anh.pm@footstyle.vn',  'Footstyle@123', N'Số 31 phố Kim Mã, Phường Ba Đình, Thành phố Hà Nội', '2023-05-20', 1),
+(2, 'NV05', N'Vũ Hoàng Nam',      1, '1998-09-30', '0912000005', 'nam.vh@footstyle.vn',  'Footstyle@123', N'Thị trấn Quốc Oai, Xã Quốc Oai, Thành phố Hà Nội', '2023-08-01', 1),
+(2, 'NV06', N'Đỗ Thùy Trang',     0, '2001-05-09', '0912000006', 'trang.dt@footstyle.vn','Footstyle@123', N'Số 45 Trần Thái Tông, Phường Cầu Giấy, Thành phố Hà Nội', '2024-01-08', 1),
+(2, 'NV07', N'Bùi Đức Mạnh',      1, '1997-12-02', '0912000007', 'manh.bd@footstyle.vn', 'Footstyle@123', N'Số 3 ngõ 66 Nguyễn Văn Cừ, Phường Long Biên, Hà Nội', '2023-10-12', 0),
+(2, 'NV08', N'Ngô Linh Chi',      0, '2002-04-27', '0912000008', 'chi.nl@footstyle.vn',  'Footstyle@123', N'Số 19 Phạm Văn Đồng, Phường Bắc Từ Liêm, Hà Nội', '2024-06-03', 1),
+(2, 'NV09', N'Hoàng Tuấn Anh',    1, '1996-08-11', '0912000009', 'anh.ht@footstyle.vn',  'Footstyle@123', N'Số 7 Hoàng Quốc Việt, Phường Cầu Giấy, Hà Nội', '2024-09-16', 1),
+(2, 'NV10', N'Đặng Mai Hương',    0, '1995-02-25', '0912000010', 'huong.dm@footstyle.vn','Footstyle@123', N'Số 52 phố Minh Khai, Phường Hai Bà Trưng, Hà Nội', '2022-11-21', 0);
 GO
 
-INSERT INTO dia_chi_nhan_vien (id_nhan_vien, tinh_thanh, phuong_xa, dia_chi_chi_tiet, la_mac_dinh, trang_thai)
-SELECT id, N'Thành phố Hà Nội', N'Phường Cầu Giấy', dia_chi, 1, 1 FROM nhan_vien;
-GO
-
--- 3. Dữ liệu khach_hang
+-- 3. Dá»¯ liá»‡u khach_hang
 INSERT INTO khach_hang (ma_khach_hang, ho_ten, ngay_sinh, gioi_tinh, sdt, email, mat_khau, trang_thai) VALUES
 ('KH01', N'Nguyễn Thị Lan',  '1995-03-12', 0, '0901000001', 'lan.nt@gmail.com',   '123456', 1),
 ('KH02', N'Trần Văn Hùng',   '1992-07-25', 1, '0901000002', 'hung.tv@gmail.com',  '123456', 1),
@@ -475,7 +429,7 @@ INSERT INTO khach_hang (ma_khach_hang, ho_ten, ngay_sinh, gioi_tinh, sdt, email,
 ('KH10', N'Ngô Thanh Tâm',   '1999-06-05', 0, '0901000010', 'tam.nt@gmail.com',   '123456', 0);
 GO
 
--- 4. Dữ liệu dia_chi_khach_hang
+-- 4. Dá»¯ liá»‡u dia_chi_khach_hang
 INSERT INTO dia_chi_khach_hang (id_khach_hang, ho_ten_nguoi_nhan, sdt_nguoi_nhan, dia_chi_chi_tiet, phuong_xa, quan_huyen, tinh_thanh, la_mac_dinh, trang_thai)
 SELECT k.id, a.nguoi_nhan, a.sdt_nhan, a.dia_chi, a.phuong, a.quan, a.tinh, a.mac_dinh, 1
 FROM (VALUES
@@ -494,7 +448,7 @@ FROM (VALUES
 JOIN khach_hang k ON k.ma_khach_hang = a.ma_kh;
 GO
 
--- 5. Dữ liệu 9 bảng thuộc tính sản phẩm
+-- 5. Dá»¯ liá»‡u 9 bảng thuộc tính sản phẩm
 INSERT INTO danh_muc (ma_danh_muc, ten_danh_muc, trang_thai) VALUES
 ('DM01', N'Vợt cầu lông', 1),
 ('DM02', N'Vợt cầu lông người mới', 1),
@@ -519,22 +473,22 @@ INSERT INTO xuat_xu (ma_xuat_xu, ten_xuat_xu, trang_thai) VALUES
 ('XX04', N'Việt Nam', 1);
 GO
 
-INSERT INTO chat_lieu (ma_chat_lieu, ten_chat_lieu, trang_thai, nhom_ap_dung) VALUES
-('CL01', N'Carbon', 1, 'VOT'),
-('CL02', N'Graphite', 1, 'VOT'),
-('CL03', N'Nhôm', 1, 'VOT'),
-('CL04', N'Titanium', 1, 'VOT'),
-('CL05', N'Da PU', 1, 'TUI_BALO,PHU_KIEN'),
-('CL06', N'Cotton', 1, 'QUAN_AO,PHU_KIEN'),
-('CL07', N'Polyester', 1, 'QUAN_AO,TUI_BALO,PHU_KIEN'),
-('CL08', N'Thun lạnh', 1, 'QUAN_AO'),
-('CL09', N'Spandex', 1, 'QUAN_AO'),
-('CL10', N'Nylon', 1, 'TUI_BALO,PHU_KIEN'),
-('CL11', N'Vải dù', 1, 'TUI_BALO'),
-('CL12', N'Cao su', 1, 'PHU_KIEN'),
-('CL13', N'Lông ngỗng', 1, 'QUA_CAU'),
-('CL14', N'Lông vịt', 1, 'QUA_CAU'),
-('CL15', N'Nhựa', 1, 'QUA_CAU,PHU_KIEN');
+INSERT INTO chat_lieu (ma_chat_lieu, ten_chat_lieu, trang_thai) VALUES
+('CL01', N'Carbon', 1),
+('CL02', N'Graphite', 1),
+('CL03', N'Nhôm', 1),
+('CL04', N'Titanium', 1),
+('CL05', N'Da PU', 1),
+('CL06', N'Cotton', 1),
+('CL07', N'Polyester', 1),
+('CL08', N'Thun lạnh', 1),
+('CL09', N'Spandex', 1),
+('CL10', N'Nylon', 1),
+('CL11', N'Vải dù', 1),
+('CL12', N'Cao su', 1),
+('CL13', N'Lông ngỗng', 1),
+('CL14', N'Lông vịt', 1),
+('CL15', N'Nhựa', 1);
 GO
 
 INSERT INTO do_cung (ma_do_cung, ten_do_cung, trang_thai) VALUES
@@ -575,7 +529,7 @@ INSERT INTO chu_vi (ma_chu_vi, ten_chu_vi, trang_thai) VALUES
 ('CV00', N'Không áp dụng', 1);
 GO
 
--- 6. Dữ liệu san_pham
+-- 6. Dá»¯ liá»‡u san_pham
 INSERT INTO san_pham (id_danh_muc, id_thuong_hieu, id_xuat_xu, id_chat_lieu, id_do_cung, id_diem_can_bang, ma_san_pham, ten_san_pham, mo_ta, trang_thai)
 SELECT dm.id, th.id, xx.id, cl.id, dc.id, cb.id, s.ma, s.ten, s.mo_ta, 1
 FROM (VALUES
@@ -594,26 +548,25 @@ JOIN do_cung dc ON dc.ma_do_cung = s.dc
 JOIN diem_can_bang cb ON cb.ma_diem_can_bang = s.cb;
 GO
 
--- 7. Dữ liệu hinh_anh_san_pham (đầy đủ cho cả 6 sản phẩm theo màu sắc)
-INSERT INTO hinh_anh_san_pham (id_san_pham, id_mau_sac, duong_dan_hinh_anh, la_anh_chinh, trang_thai)
-SELECT p.id, ms.id, a.url, a.chinh, 1
+-- 7. Dá»¯ liá»‡u hinh_anh_san_pham (đầy đủ cho cả 6 sản phẩm theo màu sắc)
+INSERT INTO hinh_anh_san_pham (id_san_pham, duong_dan_hinh_anh, la_anh_chinh, trang_thai)
+SELECT p.id, a.url, a.chinh, 1
 FROM (VALUES
-    ('SP01', 'MS01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-astrox-99-pro-do-chinh-hang_1694735015.webp', 1),
-    ('SP01', 'MS03', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-astrox-99-pro-do-chinh-hang_1694735015.webp', 1),
-    ('SP01', 'MS05', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-astrox-99-pro-trang-chinh-hang_1694735210.webp', 1),
-    ('SP02', 'MS01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-lining-axforce-80-chinh-hang_1694735300.webp', 1),
-    ('SP02', 'MS04', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-lining-axforce-80-chinh-hang_1694735300.webp', 1),
-    ('SP03', 'MS01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-victor-thruster-ryuga-ii-chinh-hang_1694735400.webp', 1),
-    ('SP03', 'MS03', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-victor-thruster-ryuga-ii-chinh-hang_1694735400.webp', 1),
-    ('SP04', 'MS01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-nanoflare-800-pro-chinh-hang_1699235000.webp', 1),
-    ('SP05', 'MS02', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-mizuno-fortius-10-quick-chinh-hang_1694735600.webp', 1),
-    ('SP06', 'MS01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-kumpoo-power-control-k520-pro_1694735700.webp', 1)
-) AS a(ma_sp, ma_ms, url, chinh)
+    ('SP01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-astrox-99-pro-do-chinh-hang_1694735015.webp', 1),
+    ('SP01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-astrox-99-pro-do-chinh-hang_1694735015.webp', 1),
+    ('SP01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-astrox-99-pro-trang-chinh-hang_1694735210.webp', 1),
+    ('SP02', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-lining-axforce-80-chinh-hang_1694735300.webp', 1),
+    ('SP02', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-lining-axforce-80-chinh-hang_1694735300.webp', 1),
+    ('SP03', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-victor-thruster-ryuga-ii-chinh-hang_1694735400.webp', 1),
+    ('SP03', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-victor-thruster-ryuga-ii-chinh-hang_1694735400.webp', 1),
+    ('SP04', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-nanoflare-800-pro-chinh-hang_1699235000.webp', 1),
+    ('SP05', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-mizuno-fortius-10-quick-chinh-hang_1694735600.webp', 1),
+    ('SP06', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-kumpoo-power-control-k520-pro_1694735700.webp', 1)
+) AS a(ma_sp, url, chinh)
 JOIN san_pham p ON p.ma_san_pham = a.ma_sp
-JOIN mau_sac ms ON ms.ma_mau_sac = a.ma_ms;
 GO
 
--- 8. Dữ liệu san_pham_chi_tiet (14 biến thể)
+-- 8. Dá»¯ liá»‡u san_pham_chi_tiet (14 biến thể)
 INSERT INTO san_pham_chi_tiet (id_san_pham, id_mau_sac, id_trong_luong, id_chu_vi, ma_spct, gia_ban, so_luong_ton, trang_thai)
 SELECT p.id, ms.id, tl.id, cv.id, b.ma, b.gia, b.ton, 1
 FROM (VALUES
@@ -638,7 +591,7 @@ JOIN trong_luong tl ON tl.ma_trong_luong = b.tl
 JOIN chu_vi cv ON cv.ma_chu_vi = b.cv;
 GO
 
--- 9. Dữ liệu phieu_giam_gia & phieu_giam_gia_khach_hang
+-- 9. Dá»¯ liá»‡u phieu_giam_gia & phieu_giam_gia_khach_hang
 INSERT INTO phieu_giam_gia (ma_phieu, ten_phieu, doi_tuong_ap_dung, loai_giam, gia_tri_giam, giam_toi_da,
                             gia_tri_don_hang_toi_thieu, so_luong, so_luong_da_dung, gioi_han_moi_khach,
                             ngay_bat_dau, ngay_ket_thuc, trang_thai)
@@ -675,26 +628,25 @@ JOIN phieu_giam_gia p ON p.ma_phieu = t.ma_phieu
 JOIN khach_hang k ON k.ma_khach_hang = t.ma_khach_hang;
 GO
 
--- 10. Dữ liệu dot_giam_gia & dot_giam_gia_chi_tiet
+-- 10. Dá»¯ liá»‡u dot_giam_gia & dot_giam_gia_chi_tiet
 -- Đặc biệt: DGG01 (10%, -5 ngày -> +5 ngày) và DGG02 (15%, -2 ngày -> +15 ngày) giao thời gian nhau trên SP01-DEN-4U-G5
 -- đúng kịch bản trùng đợt giảm giá của giảng viên.
-INSERT INTO dot_giam_gia (ma_dot, ten_dot, phan_tram_giam_dot, ngay_bat_dau, ngay_ket_thuc, mo_ta, ngay_tao, trang_thai)
+INSERT INTO dot_giam_gia (ma_dot, ten_dot, phan_tram_giam_dot, ngay_bat_dau, ngay_ket_thuc, ngay_tao, trang_thai)
 SELECT d.ma, d.ten, d.pt,
        CAST(DATEADD(DAY, d.bd, CAST(GETDATE() AS DATE)) AS DATETIME),
        DATEADD(SECOND, 86399, CAST(DATEADD(DAY, d.kt, CAST(GETDATE() AS DATE)) AS DATETIME)),
-       d.mo_ta,
        CAST(DATEADD(DAY, d.bd - 3, CAST(GETDATE() AS DATE)) AS DATETIME),
        d.trang_thai
 FROM (VALUES
-    ('DGG01', N'Sale vợt Yonex & Lining đợt 1',  10,  -5,   5, N'Giảm 10% cho biến thể chọn lọc SP01 và SP02', 1),
-    ('DGG02', N'Siêu hội cầu lông tháng 10',     15,  -2,  15, N'Giảm 15% giao thời gian với DGG01 để kiểm tra trùng đợt', 1),
-    ('DGG03', N'Black Friday vợt Lining',        20,  30,  37, N'Khuyến mãi lớn cuối năm cho dòng Lining', 1),
-    ('DGG04', N'Tuần lễ vàng Victor',            12,  -3,   4, N'Ưu đãi dòng vợt Victor Thruster', 1),
-    ('DGG05', N'Mừng khai trương FootStyle',      8, -120, -90, N'Đợt giảm giá mừng khai trương cửa hàng', 1),
-    ('DGG06', N'Ưu đãi người mới chơi',           5,  -15,  45, N'Tạm ngừng áp dụng', 0),
-    ('DGG07', N'Hè sôi động',                    18,  -75, -50, N'Chương trình khuyến mãi mùa hè', 1),
-    ('DGG08', N'Tết rộn ràng - sale lớn',        25,   80,  95, N'Chương trình khuyến mãi dịp Tết', 1)
-) AS d(ma, ten, pt, bd, kt, mo_ta, trang_thai);
+    ('DGG01', N'Sale vợt Yonex & Lining đợt 1',  10,  -5,   5, 1),
+    ('DGG02', N'Siêu hội cầu lông tháng 10',     15,  -2,  15, 1),
+    ('DGG03', N'Black Friday vợt Lining',        20,  30,  37, 1),
+    ('DGG04', N'Tuần lễ vàng Victor',            12,  -3,   4, 1),
+    ('DGG05', N'Mừng khai trương FootStyle',      8, -120, -90, 1),
+    ('DGG06', N'Ưu đãi người mới chơi',           5,  -15,  45, 0),
+    ('DGG07', N'Hè sôi động',                    18,  -75, -50, 1),
+    ('DGG08', N'Tết rộn ràng - sale lớn',        25,   80,  95, 1)
+) AS d(ma, ten, pt, bd, kt, trang_thai);
 GO
 
 INSERT INTO dot_giam_gia_chi_tiet (id_san_pham_chi_tiet, id_dot_giam_gia, phan_tram_giam_bien_the, trang_thai)
@@ -716,7 +668,7 @@ JOIN dot_giam_gia d ON d.ma_dot = v.ma_dot
 JOIN san_pham_chi_tiet c ON c.ma_spct = v.ma_spct;
 GO
 
--- 11. Dữ liệu hinh_thuc_thanh_toan & phuong_thuc_thanh_toan
+-- 11. Dá»¯ liá»‡u hinh_thuc_thanh_toan & phuong_thuc_thanh_toan
 INSERT INTO hinh_thuc_thanh_toan (ma_hinh_thuc, ten_hinh_thuc, trang_thai) VALUES
 ('HT01', N'Tiền mặt', 1),
 ('HT02', N'Chuyển khoản', 1);
@@ -733,7 +685,7 @@ FROM (VALUES
 JOIN hinh_thuc_thanh_toan h ON h.ma_hinh_thuc = v.ht;
 GO
 
--- 12. Dữ liệu hoa_don, hoa_don_chi_tiet, lich_su_hoa_don, lich_su_thanh_toan
+-- 12. Dá»¯ liá»‡u hoa_don, hoa_don_chi_tiet, lich_su_hoa_don, lich_su_thanh_toan
 IF OBJECT_ID('tempdb..#hd') IS NOT NULL DROP TABLE #hd;
 CREATE TABLE #hd (
     ma VARCHAR(50), ma_nv VARCHAR(50), ma_kh VARCHAR(50), ma_phieu VARCHAR(50), ma_pt VARCHAR(50),

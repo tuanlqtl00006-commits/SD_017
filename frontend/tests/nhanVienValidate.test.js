@@ -52,15 +52,19 @@ const loiO = (w, id) => {
   const p = w.find(`#${id}`)
   return p.exists() && p.classes().includes('ad-error') ? p.text() : ''
 }
+const submit = async (w) => {
+  await w.find('form').trigger('submit')
+  await flushPromises()
+}
 const goVaRoi = async (w, sel, v) => {
   const o = w.find(sel)
   await o.setValue(v)
   await o.trigger('blur')
+  await submit(w)
 }
-const roiO = (w, sel) => w.find(sel).trigger('blur')
-const submit = async (w) => {
-  await w.find('form').trigger('submit')
-  await flushPromises()
+const roiO = async (w, sel) => {
+  await w.find(sel).trigger('blur')
+  await submit(w)
 }
 const nutTheoChu = (w, chu) => w.findAll('button').find((b) => b.text().includes(chu))
 
@@ -473,7 +477,6 @@ describe('Form SỬA nhân viên: kiểm tra giống hệt form thêm', () => {
     const w = await moFormSua()
     await goVaRoi(w, '#nv-sdt', '0987654321')
     expect(loiO(w, 'nv-sdt-msg')).toBe('')
-    await submit(w)
     expect(svc.update).toHaveBeenCalledTimes(1)
     w.unmount()
   })

@@ -599,6 +599,7 @@ async function luuSanPham(xacNhanCapNhat = false) {
               autocomplete="off"
               :aria-invalid="!!errors.ten"
               aria-describedby="sp-ten-msg"
+              @input="chamTen"
               @blur="chamTen"
             />
             <p v-if="errors.ten" id="sp-ten-msg" class="ad-error">{{ errors.ten }}</p>
@@ -913,4 +914,10 @@ async function luuSanPham(xacNhanCapNhat = false) {
 .bt-anh-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.25rem; min-height: 96px; border: 2px dashed #d5e0ef; border-radius: 10px; color: #8a97a8; font-size: 0.85rem; }
 .bt-anh-empty .bi { font-size: 1.4rem; }
 @media (max-width: 576px) { .ad-gen-row { grid-template-columns: 1fr; } }
+#sp-form :deep(input),
+#sp-form :deep(.form-control),
+#sp-form :deep(.money-input input),
+#sp-form :deep(input[type="number"]) {
+  text-align: left !important;
+}
 </style>

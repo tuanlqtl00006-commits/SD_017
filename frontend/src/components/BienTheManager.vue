@@ -26,7 +26,9 @@ import { exportExcel } from '../utils/exportExcel'
 
 const toast = useToast()
 const today = todayIso()
-const { data: tt, loadThuocTinh, tenOf, optionsOf } = useThuocTinh(['mau-sac', 'trong-luong', 'chu-vi', 'danh-muc'])
+const { data: tt, loadThuocTinh, tenOf, optionsOf } = useThuocTinh([
+  'mau-sac', 'trong-luong', 'chu-vi', 'danh-muc', 'thuong-hieu', 'xuat-xu', 'chat-lieu', 'do-cung', 'diem-can-bang',
+])
 
 // "Thêm nhanh" màu / trọng lượng / chu vi ngay trong form biến thể (khỏi sang trang Danh sách thuộc tính)
 const { themNhanh } = useThemNhanh({
@@ -34,6 +36,47 @@ const { themNhanh } = useThemNhanh({
   themVaoDanhSach: (slug, muc) => { tt[slug] = [muc, ...tt[slug].filter((x) => x.id !== muc.id)] },
   toast,
 })
+
+async function themNhanhSanPham(tenGoc) {
+  const ten = String(tenGoc ?? '').trim().replace(/\s+/g, ' ')
+  if (!ten) {
+    toast.error('Nhập tên sản phẩm cần thêm.')
+    return null
+  }
+  const daCo = sanPhams.value.find((x) => x.ten?.trim().toLowerCase() === ten.toLowerCase())
+  if (daCo) {
+    toast.error(`Sản phẩm "${daCo.ten}" đã có trong danh sách.`)
+    return daCo
+  }
+  try {
+    const dm = tt['danh-muc'].find((x) => x.hoatDong)?.id || 1
+    const th = tt['thuong-hieu'].find((x) => x.hoatDong)?.id || 1
+    const xx = tt['xuat-xu'].find((x) => x.hoatDong)?.id || 1
+    const cl = tt['chat-lieu'].find((x) => x.hoatDong)?.id || 1
+    const dc = idKadOf('do-cung')
+    const cb = idKadOf('diem-can-bang')
+    const payload = {
+      ten,
+      idDanhMuc: dm,
+      idThuongHieu: th,
+      idXuatXu: xx,
+      idChatLieu: cl,
+      idDoCung: dc,
+      idDiemCanBang: cb,
+      anhChinh: '',
+      anhPhu: [],
+      moTa: '',
+      bienThes: [],
+    }
+    const moi = await sanPhamService.create(payload)
+    sanPhams.value = [moi, ...sanPhams.value]
+    toast.success(`Đã thêm nhanh sản phẩm "${moi.ten}".`)
+    return moi
+  } catch (e) {
+    toast.error(e.message || 'Không thêm được sản phẩm. Vui lòng thử lại.')
+    return null
+  }
+}
 
 const list = ref([])
 const sanPhams = ref([])
@@ -360,7 +403,7 @@ function exportFile() {
       <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
     </section>
 
-    <BienTheFormModal v-if="formState" :item="formState.item" :all="list" :san-phams="sanPhams" :options="optionsOf" :la-vot-fn="laVotCuaSp" :id-kad-fn="idKadOf" :saving="saving" :them-nhanh="themNhanh" @save="save" @close="formState = null" />
+    <BienTheFormModal v-if="formState" :item="formState.item" :all="list" :san-phams="sanPhams" :options="optionsOf" :la-vot-fn="laVotCuaSp" :id-kad-fn="idKadOf" :saving="saving" :them-nhanh="themNhanh" :them-nhanh-san-pham="themNhanhSanPham" @save="save" @close="formState = null" />
     <ConfirmQuestion
       v-if="hoiCapNhat"
       title="Biến thể đã tồn tại"

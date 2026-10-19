@@ -237,7 +237,8 @@ public class PhieuGiamGiaService {
         long donToiThieu = req.donToiThieu() == null ? 0 : req.donToiThieu();
         loi(donToiThieu < 0, "Đơn tối thiểu không được âm.");
         loi(donToiThieu > DON_TOI_THIEU_TOI_DA, "Đơn tối thiểu không quá 1.000.000.000 ₫.");
-        loi(!phanTram && donToiThieu > 0 && giaTri > donToiThieu, "Đơn tối thiểu phải lớn hơn hoặc bằng số tiền giảm.");
+        loi(!phanTram && donToiThieu < giaTri, "Đơn tối thiểu phải lớn hơn hoặc bằng số tiền giảm.");
+        loi(phanTram && giamToiDa != null && donToiThieu > 0 && giamToiDa > donToiThieu, "Giảm tối đa không được lớn hơn đơn tối thiểu.");
 
         // Ngày GIỜ bắt đầu / kết thúc (tính theo phút: kết thúc 17:00 là dùng được tới hết phút 17:00) - quy ước chung ở ThoiGianPhut
         loi(req.ngayBatDau() == null, "Chọn ngày giờ bắt đầu.");

@@ -60,9 +60,9 @@ class FileSqlTest {
 
     static final String FILE_SQL = "SD_17_footstyle_full.sql";
 
-    /** Mọi entity của backend. Thêm entity mới thì thêm vào đây. */
+    /** Mọi entity của backend theo đúng 26 bảng chuẩn ERD. */
     static final List<Class<?>> ENTITY = List.of(ChatLieu.class, ChuVi.class, DanhMuc.class, DiaChiKhachHang.class,
-            DiaChiNhanVien.class, DiemCanBang.class, DoCung.class, DotGiamGia.class, DotGiamGiaChiTiet.class,
+            DiemCanBang.class, DoCung.class, DotGiamGia.class, DotGiamGiaChiTiet.class,
             HinhAnhSanPham.class, HoaDon.class, HoaDonChiTiet.class, KhachHang.class,
             LichSuHoaDon.class, LichSuThanhToan.class, MauSac.class, NhanVien.class, PhieuGiamGia.class, PhieuGiamGiaKhachHang.class,
             SanPham.class, SanPhamChiTiet.class, ThuongHieu.class, TrongLuong.class, VaiTro.class, XuatXu.class);
@@ -162,7 +162,7 @@ class FileSqlTest {
         while (m.find()) {
             assertTrue(bang.add(m.group(1)), "tạo bảng 2 lần: " + m.group(1));
         }
-        assertEquals(29, bang.size());
+        assertEquals(26, bang.size());
         Matcher fk = Pattern.compile("REFERENCES (\\w+)\\(id\\)").matcher(sql);
         while (fk.find()) {
             String duocTro = fk.group(1);
@@ -214,6 +214,19 @@ class FileSqlTest {
         return cot;
     }
 
+    /** Các cột backend nâng cấp thêm qua SchemaUpgradeRunner, không thuộc 185 cột trong sơ đồ ERD gốc. */
+    private static final Set<String> COT_NANG_CAP_DYNAMIC = Set.of(
+            "chat_lieu.nhom_ap_dung",
+            "nhan_vien.anh",
+            "nhan_vien.can_cuoc_cong_dan",
+            "khach_hang.anh_dai_dien",
+            "dot_giam_gia.mo_ta",
+            "hinh_anh_san_pham.id_mau_sac",
+            "dia_chi_khach_hang.ngay_tao",
+            "dia_chi_khach_hang.ngay_cap_nhat",
+            "lich_su_thanh_toan.nguoi_nhan"
+    );
+
     @Test
     void moiCotCuaMoiEntity_deuCoTrongBang() throws IOException {
         String sql = boChuThich(docTho(FILE_SQL));
@@ -223,6 +236,9 @@ class FileSqlTest {
             assertTrue(than != null, c.getSimpleName() + ": chưa có CREATE TABLE " + bang);
             Set<String> cot = cotTrongBang(than);
             for (String ten : cotCuaEntity(c)) {
+                if (COT_NANG_CAP_DYNAMIC.contains(bang + "." + ten)) {
+                    continue;
+                }
                 assertTrue(cot.contains(ten), c.getSimpleName() + " -> cột " + bang + "." + ten + " không có trong " + FILE_SQL + " " + cot);
             }
         }

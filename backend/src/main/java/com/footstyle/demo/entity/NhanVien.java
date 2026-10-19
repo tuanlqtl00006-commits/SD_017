@@ -46,6 +46,10 @@ public class NhanVien {
     @Column(name = "dia_chi")
     private String diaChi;
 
+    /** Đường dẫn ảnh đại diện nhân viên (khớp cột anh trong sơ đồ ERD). */
+    @Column(name = "anh")
+    private String anh;
+
     /** Số căn cước công dân (12 số), có thể nhập tay hoặc quét mã QR trên thẻ. */
     @Column(name = "can_cuoc_cong_dan")
     private String canCuocCongDan;

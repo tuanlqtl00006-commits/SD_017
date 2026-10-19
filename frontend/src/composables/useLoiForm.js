@@ -10,10 +10,11 @@ import { computed, nextTick, reactive, ref } from 'vue'
  *    và tự mất khi người dùng sửa ô đó.
  *  - Form SỬA dùng đúng bộ này như form THÊM nên hai bên báo lỗi giống hệt nhau.
  */
-export function useLoiForm(tinhLoi) {
+export function useLoiForm(tinhLoi, options = {}) {
   const daCham = reactive({}) // ô nào đã chạm vào
   const daBamLuu = ref(false)
   const loiMayChu = reactive({}) // tenO -> câu báo lỗi do backend trả về
+  const chiKhiLuu = options.chiKhiLuu ?? false
 
   const loiTatCa = computed(() => {
     const kq = {}
@@ -25,7 +26,7 @@ export function useLoiForm(tinhLoi) {
   const loi = computed(() => {
     const kq = {}
     for (const [khoa, noiDung] of Object.entries(loiTatCa.value)) {
-      if (daBamLuu.value || daCham[khoa]) kq[khoa] = noiDung
+      if (chiKhiLuu ? daBamLuu.value : (daBamLuu.value || daCham[khoa])) kq[khoa] = noiDung
     }
     for (const [khoa, noiDung] of Object.entries(loiMayChu)) {
       if (noiDung && !kq[khoa]) kq[khoa] = noiDung

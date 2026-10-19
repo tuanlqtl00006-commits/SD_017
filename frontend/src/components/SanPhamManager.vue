@@ -7,6 +7,7 @@ import ConfirmDialog from './common/ConfirmDialog.vue'
 import StatusSwitch from './common/StatusSwitch.vue'
 import Select2 from './common/Select2.vue'
 import SanPhamDetailModal from './sanPham/SanPhamDetailModal.vue'
+import SanPhamThemNhanhModal from './sanPham/SanPhamThemNhanhModal.vue'
 import { sanPhamService, bienTheService } from '../services/sanPhamService'
 import { useGiamGiaBienThe } from '../composables/useGiamGiaBienThe'
 import { thuocTinhService } from '../services/thuocTinhService'
@@ -206,6 +207,8 @@ const bienTheCuaSanPhamDangXem = computed(() => {
   return danhSachBienThe.value.filter((b) => b.idSanPham === spXemChiTiet.value.id)
 })
 
+const hienThemNhanh = ref(false)
+
 function moTrangThem() {
   router.push('/san-pham/them')
 }
@@ -337,6 +340,7 @@ function xuatExcel() {
         <div class="ad-filter-top-btns">
           <button type="button" class="ad-btn" @click="datLaiBoLoc"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại bộ lọc</button>
           <button type="button" class="ad-btn" @click="xuatExcel"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Xuất Excel</button>
+          <button type="button" class="ad-btn" @click="hienThemNhanh = true"><i class="bi bi-lightning-charge" aria-hidden="true"></i> Thêm nhanh</button>
           <button type="button" class="ad-btn ad-btn-primary" @click="moTrangThem"><i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm sản phẩm</button>
         </div>
       </div>
@@ -465,6 +469,13 @@ function xuatExcel() {
       :loading="dangDoiTrangThai"
       @confirm="doiTrangThai"
       @cancel="spCanDoiTrangThai = null"
+    />
+    <!-- Modal thêm nhanh sản phẩm -->
+    <SanPhamThemNhanhModal
+      v-if="hienThemNhanh"
+      :danh-sach-san-pham="danhSachSanPham"
+      @saved="taiDuLieu(false)"
+      @close="hienThemNhanh = false"
     />
   </div>
 </template>

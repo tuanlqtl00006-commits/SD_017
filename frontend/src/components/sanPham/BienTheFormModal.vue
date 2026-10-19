@@ -14,6 +14,7 @@ const props = defineProps({
   idKadFn: { type: Function, default: () => null }, // (slug) => id mục "Không áp dụng" của bảng thuộc tính
   saving: { type: Boolean, default: false },
   themNhanh: { type: Function, default: null }, // (slug, ten) => Promise<mục mới | null>: "Thêm nhanh" màu / trọng lượng / chu vi ngay trong ô chọn
+  themNhanhSanPham: { type: Function, default: null }, // (ten) => Promise<sản phẩm mới | null>: "Thêm nhanh" sản phẩm ngay trong ô chọn
   serverError: { type: String, default: '' },
 })
 const emit = defineEmits(['save', 'close'])
@@ -59,6 +60,10 @@ const dsThuocTinh = (slug) => tuDanhSach(props.options(slug, props.item?.[{ 'mau
 async function themNhanhVaChon(slug, field, ten) {
   const moi = await props.themNhanh?.(slug, ten)
   if (moi) form[field] = moi.id
+}
+async function themNhanhVaChonSanPham(ten) {
+  const moi = await props.themNhanhSanPham?.(ten)
+  if (moi) form.idSanPham = moi.id
 }
 
 // Mã biến thể không sửa tay được khi sửa. Nhưng nếu đổi sản phẩm mà mã gốc đang bắt đầu bằng mã sản phẩm gốc
@@ -194,6 +199,9 @@ defineExpose({ form, touched, cham, validate, refreshErrors })
             :class="{ 'is-invalid': errors.idSanPham }"
             placeholder="Chọn sản phẩm"
             :aria-invalid="!!errors.idSanPham"
+            :allow-create="!isEdit && !!themNhanhSanPham"
+            create-label="Thêm nhanh sản phẩm"
+            @create="themNhanhVaChonSanPham"
           />
           <p v-if="errors.idSanPham" class="ad-error">{{ errors.idSanPham }}</p>
           <p v-else-if="isEdit" class="ad-hint">Có thể đổi sang sản phẩm khác (chỉ chọn được sản phẩm đang hoạt động).</p>
@@ -299,3 +307,12 @@ defineExpose({ form, touched, cham, validate, refreshErrors })
     </template>
   </BaseModal>
 </template>
+
+<style scoped>
+#bt-form :deep(input),
+#bt-form :deep(.form-control),
+#bt-form :deep(.money-input input),
+#bt-form :deep(input[type="number"]) {
+  text-align: left !important;
+}
+</style>
