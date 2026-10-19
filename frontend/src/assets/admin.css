@@ -1558,3 +1558,45 @@ h2.ad-q-title {
   background: #94a3b8;
 }
 
+/* Nút thêm nhanh bên cạnh combobox */
+.ad-combobox-with-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ad-combobox-with-btn .s2-root {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ad-btn-plus {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dce3ec;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: var(--fs-primary, #0977ec);
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+.ad-btn-plus:hover:not(:disabled) {
+  background: var(--fs-primary, #0977ec);
+  border-color: var(--fs-primary, #0977ec);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(9, 119, 236, 0.25);
+}
+.ad-btn-plus:active:not(:disabled) {
+  transform: translateY(0);
+}
+.ad-btn-plus:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f1f4f8;
+}
+

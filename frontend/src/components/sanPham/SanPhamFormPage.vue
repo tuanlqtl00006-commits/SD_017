@@ -643,24 +643,13 @@ async function luuSanPham(xacNhanCapNhat = false) {
           </div>
 
           <div v-for="s in selectsHienThi" :key="s.field" class="col-md-6">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <label class="ad-label mb-0" :for="`sp-${s.field}`">{{ s.label }} <span class="ad-required">*</span></label>
-              <button
-                type="button"
-                class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold"
-                :disabled="khoaOChon(s)"
-                :title="`Thêm nhanh ${s.label.toLowerCase()}`"
-                @click="moThemNhanhModal(s)"
-              >
-                <i class="bi bi-plus-circle" aria-hidden="true"></i> Thêm nhanh
-              </button>
-            </div>
-            <div class="d-flex gap-2">
+            <label class="ad-label" :for="`sp-${s.field}`">{{ s.label }} <span class="ad-required">*</span></label>
+            <div class="ad-combobox-with-btn">
               <Select2
                 :id="`sp-${s.field}`"
                 v-model="form[s.field]"
                 :options="dsChon(s)"
-                class="ad-control flex-grow-1"
+                class="ad-control"
                 :class="{ 'is-invalid': errors[s.field] }"
                 :disabled="khoaOChon(s)"
                 :aria-invalid="!!errors[s.field]"
@@ -671,9 +660,10 @@ async function luuSanPham(xacNhanCapNhat = false) {
               />
               <button
                 type="button"
-                class="ad-btn ad-btn-outline px-2"
+                class="ad-btn-plus"
                 :disabled="khoaOChon(s)"
                 :title="`Thêm nhanh ${s.label.toLowerCase()}`"
+                :aria-label="`Thêm nhanh ${s.label.toLowerCase()}`"
                 @click="moThemNhanhModal(s)"
               >
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
@@ -692,29 +682,19 @@ async function luuSanPham(xacNhanCapNhat = false) {
           <h2 class="ad-card-title">Biến thể sản phẩm</h2>
         </div>
         <div v-for="g in nhomTaoBienThe" :key="g.slug" class="ad-gen-row">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="ad-label mb-0">{{ g.label }}</span>
-            <button
-              type="button"
-              class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold"
-              :title="`Thêm nhanh ${g.label.toLowerCase()}`"
-              @click="moThemNhanhModal({ slug: g.slug, label: g.label, isBienThe: true, sel: g.sel })"
-            >
-              <i class="bi bi-plus-circle" aria-hidden="true"></i> Thêm nhanh
-            </button>
-          </div>
-          <div class="d-flex flex-wrap gap-2">
+          <span class="ad-label mb-0">{{ g.label }}</span>
+          <div class="d-flex flex-wrap align-items-center gap-2">
             <button v-for="o in dangHoatDong(g.slug)" :key="o.id" type="button" class="ad-gen-chip" :class="{ on: g.sel.includes(o.id) }" :aria-pressed="g.sel.includes(o.id)" @click="baMau(g.sel, o.id)">
               <span v-if="g.slug === 'mau-sac'" class="bt-dot" :style="{ background: mauHex(o.ten) }" aria-hidden="true"></span>
               <i v-if="g.sel.includes(o.id)" class="bi bi-check2" aria-hidden="true"></i> {{ o.ten }}
             </button>
             <span v-if="!dangHoatDong(g.slug).length" class="text-muted small">Chưa có {{ g.label.toLowerCase() }} nào đang hoạt động.</span>
-            <div class="bt-them-nhanh d-flex gap-1">
+            <div class="bt-them-nhanh-box">
               <Select2
                 :id="`sp-them-${g.slug}`"
                 :model-value="''"
                 :options="dsThemBienThe(g)"
-                class="ad-control bt-them-nhanh-chon flex-grow-1"
+                class="ad-control bt-them-nhanh-chon"
                 :placeholder="`Tìm hoặc thêm nhanh ${g.label.toLowerCase()}…`"
                 allow-create
                 :creating="dangThem"
@@ -723,8 +703,9 @@ async function luuSanPham(xacNhanCapNhat = false) {
               />
               <button
                 type="button"
-                class="ad-btn ad-btn-outline px-2"
+                class="bt-btn-circle-plus"
                 :title="`Thêm nhanh ${g.label.toLowerCase()}`"
+                :aria-label="`Thêm nhanh ${g.label.toLowerCase()}`"
                 @click="moThemNhanhModal({ slug: g.slug, label: g.label, isBienThe: true, sel: g.sel })"
               >
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
@@ -976,6 +957,84 @@ async function luuSanPham(xacNhanCapNhat = false) {
 </template>
 
 <style scoped>
+.ad-combobox-with-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ad-combobox-with-btn :deep(.s2-root) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ad-btn-plus {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dce3ec;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: var(--fs-primary, #0977ec);
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+.ad-btn-plus:hover:not(:disabled) {
+  background: var(--fs-primary, #0977ec);
+  border-color: var(--fs-primary, #0977ec);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(9, 119, 236, 0.25);
+}
+.ad-btn-plus:active:not(:disabled) {
+  transform: translateY(0);
+}
+.ad-btn-plus:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f1f4f8;
+}
+
+.bt-them-nhanh-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bt-them-nhanh-box :deep(.s2-root) {
+  width: 14rem;
+}
+.bt-them-nhanh-box :deep(.s2-trigger) {
+  height: 36px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+.bt-btn-circle-plus {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dce3ec;
+  border-radius: 50%;
+  background: #f8fafc;
+  color: var(--fs-primary, #0977ec);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+.bt-btn-circle-plus:hover {
+  background: var(--fs-primary, #0977ec);
+  border-color: var(--fs-primary, #0977ec);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(9, 119, 236, 0.25);
+}
+
 .ad-gen-row { display: grid; grid-template-columns: 110px 1fr; gap: 0.75rem; align-items: start; padding: 0.55rem 0; border-bottom: 1px dashed rgba(0, 0, 0, 0.08); }
 .ad-gen-row .ad-label { padding-top: 0.45rem; }
 .ad-gen-chip { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid #d5e0ef; background: #fff; border-radius: 999px; padding: 0.3rem 0.9rem; font-size: 0.85rem; color: #1c2530; }
