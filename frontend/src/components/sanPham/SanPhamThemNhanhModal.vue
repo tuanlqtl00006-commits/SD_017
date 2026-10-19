@@ -236,15 +236,20 @@ onMounted(async () => {
     cacLoai.forEach((loai, i) => {
       thuocTinh[loai] = ketQua[i]
     })
-    // Tự điền mặc định mục đầu tiên cho các thuộc tính phổ biến
-    const dm = thuocTinh['danh-muc'].find((x) => x.hoatDong)
+    // Tự điền mặc định là "Vợt cầu lông" cho danh mục
+    const dmVot = thuocTinh['danh-muc'].find((x) => x.hoatDong && laDanhMucVot(x.ten))
+    const dm = dmVot || thuocTinh['danh-muc'].find((x) => x.hoatDong)
     if (dm) form.idDanhMuc = dm.id
     const th = thuocTinh['thuong-hieu'].find((x) => x.hoatDong)
     if (th) form.idThuongHieu = th.id
     const xx = thuocTinh['xuat-xu'].find((x) => x.hoatDong)
     if (xx) form.idXuatXu = xx.id
-    const cl = thuocTinh['chat-lieu'].find((x) => x.hoatDong)
+    const cl = luaChonChatLieu().find((x) => x.hoatDong) || thuocTinh['chat-lieu'].find((x) => x.hoatDong)
     if (cl) form.idChatLieu = cl.id
+    const dc = thuocTinh['do-cung'].find((x) => x.hoatDong && !laKhongApDung(x))
+    if (dc) form.idDoCung = dc.id
+    const cb = thuocTinh['diem-can-bang'].find((x) => x.hoatDong && !laKhongApDung(x))
+    if (cb) form.idDiemCanBang = cb.id
     const ms = thuocTinh['mau-sac'].find((x) => x.hoatDong)
     if (ms) form.idMauSac = ms.id
   } catch (err) {
