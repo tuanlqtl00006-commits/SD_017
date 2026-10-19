@@ -44,12 +44,14 @@ describe('Chi tiết hóa đơn', () => {
     const w = await montarChiTiet()
     const qr = w.get('img[alt="Mã QR hóa đơn HD16"]')
     expect(qr.attributes('src').startsWith('data:image/png;base64,')).toBe(true)
+    expect(w.findAll('button').some((b) => b.text().includes('Mã QR'))).toBe(true)
     const tieuDe = w.findAll('h2.ad-card-title').map((h) => h.text())
-    for (const t of ['Trạng thái đơn hàng', 'Thông tin đơn hàng', 'Mã QR hóa đơn', 'Thông tin khách hàng', 'Thông tin giao hàng', 'Lịch sử thanh toán']) {
+    for (const t of ['Trạng thái đơn hàng', 'Thông tin khách hàng', 'Thông tin giao hàng', 'Lịch sử thanh toán']) {
       expect(tieuDe).toContain(t)
     }
+    expect(tieuDe.some((t) => /Tổng [kK]ết [tT]hanh [tT]oán|Thông tin đơn hàng/.test(t))).toBe(true)
     expect(tieuDe.some((t) => t.startsWith('Danh sách sản phẩm'))).toBe(true)
-    expect(w.findAll('section.ad-card').length).toBeGreaterThanOrEqual(7)
+    expect(w.findAll('section.ad-card').length).toBeGreaterThanOrEqual(6)
   })
 
   it('bản in có QR ở góc trên và tách thành từng phần', async () => {

@@ -14,6 +14,7 @@ import {
 import { formatGio, formatMoney, formatNgay, formatNgayGio } from '../utils/format'
 import { moTaMucGiam, taoHtmlHoaDon } from '../utils/hoaDonIn'
 import { normalizeText } from '../utils/text'
+import { nhanDienVanChuyen } from '../utils/vanChuyen'
 
 const route = useRoute()
 const toast = useToast()
@@ -40,9 +41,6 @@ async function load() {
 
 function setData(d) {
   data.value = d
-  // Khoảng giá mặc định: toàn bộ
-  price.min = 0
-  price.max = priceCeil.value
 }
 
 onMounted(load)
@@ -73,6 +71,23 @@ const laGiaoHang = computed(() => hd.value.loaiDon === 2)
 // Khách lẻ (không gắn hồ sơ khách hàng) và không có SĐT: không hiện dòng SĐT / email (cô: "khách lẻ tại sao có số điện thoại")
 const laKhachLe = computed(() => !!khach.value.khachLe && !khach.value.sdt)
 const moTaGiam = computed(() => moTaMucGiam(hd.value))
+
+// Hiển thị mức giảm giá theo yêu cầu:
+// - Phần trăm: "-30% (- 30.000 ₫)"
+// - Số tiền: "- 30.000 ₫"
+const hienThiGiamGia = computed(() => {
+  if (!hd.value.maPhieuGiamGia) return ''
+  const isPercent = Number(hd.value.loaiPhieuGiamGia) === 1
+  const pt = Number(hd.value.phanTramGiam || (isPercent ? hd.value.giaTriPhieuGiamGia : 0))
+  if (pt > 0) {
+    return `-${pt}% (- ${money(hd.value.soTienGiam)})`
+  }
+  return `- ${money(hd.value.soTienGiam)}`
+})
+
+const dvVanChuyen = computed(() => nhanDienVanChuyen(hd.value.donViVanChuyen))
+const logoSummaryError = ref(false)
+watch(() => hd.value.donViVanChuyen, () => { logoSummaryError.value = false })
 
 /* ===================== Định dạng ===================== */
 
@@ -246,6 +261,7 @@ async function xacNhanDoiTrangThai() {
 }
 
 const showLichSu = ref(false)
+const showQrModal = ref(false)
 const lichSuMoiTruoc = computed(() => [...lichSu.value].reverse())
 
 /* ===================== Thanh toán ===================== */
@@ -256,7 +272,6 @@ const conPhaiTra = computed(() => Math.max(0, Number(hd.value.thanhTien ?? 0) - 
 /* ===================== Danh sách sản phẩm: lọc / sắp xếp ===================== */
 
 const filters = reactive({ q: '', loai: '', sort: 'mac-dinh' })
-const price = reactive({ min: 0, max: 0 })
 
 const loaiSanPham = computed(() => [...new Set(sanPham.value.map((x) => x.tenDanhMuc).filter(Boolean))])
 const dsLoaiLoc = computed(() => [{ value: '', label: 'Tất cả loại' }, ...loaiSanPham.value.map((l) => ({ value: l, label: l }))])
@@ -268,27 +283,12 @@ const DS_SAP_XEP = [
   { value: 'tien-giam', label: 'Thành tiền cao nhất' },
   { value: 'ten-az', label: 'Tên A → Z' },
 ]
-const priceCeil = computed(() => Math.max(0, ...sanPham.value.map((x) => Number(x.donGia) || 0)))
-const priceStep = computed(() => (priceCeil.value > 1_000_000 ? 10_000 : 1_000))
 
-function onMinChange(e) {
-  price.min = Math.min(Number(e.target.value), price.max)
-  e.target.value = price.min
-}
-function onMaxChange(e) {
-  price.max = Math.max(Number(e.target.value), price.min)
-  e.target.value = price.max
-}
-const minPct = computed(() => (priceCeil.value ? (price.min / priceCeil.value) * 100 : 0))
-const maxPct = computed(() => (priceCeil.value ? (price.max / priceCeil.value) * 100 : 100))
-
-const dangLoc = computed(() => !!filters.q.trim() || !!filters.loai || filters.sort !== 'mac-dinh' || price.min > 0 || price.max < priceCeil.value)
+const dangLoc = computed(() => !!filters.q.trim() || !!filters.loai || filters.sort !== 'mac-dinh')
 function datLaiBoLoc() {
   filters.q = ''
   filters.loai = ''
   filters.sort = 'mac-dinh'
-  price.min = 0
-  price.max = priceCeil.value
 }
 
 const SORTERS = {
@@ -303,9 +303,6 @@ const sanPhamHienThi = computed(() => {
   const q = normalizeText(filters.q)
   const list = sanPham.value.filter((x) => {
     if (filters.loai && x.tenDanhMuc !== filters.loai) return false
-    const gia = Number(x.donGia) || 0
-    // Thanh trượt nhảy theo bước nên nới thêm 1 bước ở đầu trên để không mất sản phẩm đắt nhất
-    if (gia < price.min || (price.max < priceCeil.value && gia > price.max)) return false
     if (!q) return true
     const text = normalizeText([x.maSpct, x.tenSanPham, x.tenThuongHieu, x.mauSac, x.trongLuong, x.chuVi].filter(Boolean).join(' '))
     return text.includes(q)
@@ -344,23 +341,30 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
     </div>
 
     <template v-else-if="data">
-      <!-- Thanh công cụ ở trên cùng: quay lại danh sách + in hóa đơn -->
+      <!-- Thanh công cụ ở trên cùng: quay lại danh sách + mã QR + in hóa đơn -->
       <div class="hd-toolbar">
-        <RouterLink to="/hoa-don" class="ad-btn text-decoration-none"><i class="bi bi-arrow-left" aria-hidden="true"></i> Về danh sách</RouterLink>
-        <button type="button" class="ad-btn ad-btn-primary" @click="inHoaDon">
-          <i class="bi bi-printer" aria-hidden="true"></i> In hóa đơn
-        </button>
+        <RouterLink to="/hoa-don" class="ad-btn text-decoration-none">
+          <i class="bi bi-arrow-left" aria-hidden="true"></i> Về danh sách
+        </RouterLink>
+        <div class="d-flex gap-2">
+          <button type="button" class="ad-btn" @click="showQrModal = true">
+            <i class="bi bi-qr-code" aria-hidden="true"></i> Mã QR
+          </button>
+          <button type="button" class="ad-btn ad-btn-primary" @click="inHoaDon">
+            <i class="bi bi-printer" aria-hidden="true"></i> In hóa đơn
+          </button>
+        </div>
       </div>
 
-      <!-- Hàng 1: Trạng thái đơn hàng + Thông tin đơn -->
+      <!-- Hàng 1: Dòng thời gian + Thông tin cơ bản của đơn -->
       <div class="hd-grid hd-grid--top">
         <section class="ad-card" aria-labelledby="hd-status-title">
           <div class="hd-card-head">
-            <div class="ad-card-head mb-0">
-              <span class="ad-icon-box"><i class="bi bi-signpost-split" aria-hidden="true"></i></span>
+            <div class="d-flex align-items-center gap-2">
+              <span class="ad-icon-box"><i class="bi bi-card-checklist" aria-hidden="true"></i></span>
               <div>
-                <h2 id="hd-status-title" class="ad-card-title">Trạng thái đơn hàng</h2>
-                <p class="ad-card-sub">{{ hd.maHoaDon }} · {{ hd.tenLoaiDon }}</p>
+                <h2 id="hd-status-title" class="ad-card-title mb-0">Trạng thái đơn hàng</h2>
+                <p class="ad-card-sub mb-0">{{ hd.maHoaDon }} · {{ hd.tenLoaiDon }}</p>
               </div>
             </div>
             <span class="ad-pill" :class="trangThaiHienTai.pill">{{ trangThaiHienTai.label }}</span>
@@ -401,33 +405,65 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
           </div>
         </section>
 
-        <section class="ad-card" aria-labelledby="hd-info-title">
-          <div class="ad-card-head">
-            <span class="ad-icon-box"><i class="bi bi-receipt" aria-hidden="true"></i></span>
-            <h2 id="hd-info-title" class="ad-card-title">Thông tin đơn hàng</h2>
-          </div>
-          <dl class="hd-rows">
-            <div><dt>Mã hóa đơn</dt><dd class="ad-code">{{ hd.maHoaDon }}</dd></div>
-            <div><dt>Trạng thái</dt><dd><span class="ad-pill" :class="trangThaiHienTai.pill">{{ trangThaiHienTai.label }}</span></dd></div>
-            <div><dt>Loại đơn</dt><dd><span class="ad-pill" :class="laGiaoHang ? 'ad-pill-purple' : 'ad-pill-blue'">{{ hd.tenLoaiDon }}</span></dd></div>
-            <div><dt>Ngày tạo</dt><dd>{{ fmtDateTime(hd.ngayTao) }}</dd></div>
-            <div><dt>Nhân viên</dt><dd>{{ hd.tenNhanVien || '—' }}</dd></div>
-            <div><dt>Thanh toán</dt><dd>{{ hd.phuongThucThanhToan || '—' }}</dd></div>
-            <div>
-              <dt>Phiếu giảm giá</dt>
-              <dd v-if="hd.maPhieuGiamGia" class="hd-phieu">
-                <span class="ad-code" :title="hd.tenPhieuGiamGia">{{ hd.maPhieuGiamGia }}</span>
-                <span v-if="moTaGiam" class="hd-sub">{{ moTaGiam }}</span>
-              </dd>
-              <dd v-else class="text-muted">Không dùng phiếu</dd>
+        <!-- Card: Tổng Kết Thanh Toán -->
+        <section class="ad-card hd-summary-card" aria-labelledby="hd-info-title">
+          <div class="ad-card-head mb-3">
+            <div class="d-flex align-items-center gap-2">
+              <span class="ad-icon-box"><i class="bi bi-credit-card" aria-hidden="true"></i></span>
+              <h2 id="hd-info-title" class="ad-card-title mb-0">Tổng Kết Thanh Toán</h2>
             </div>
-          </dl>
+          </div>
+          <div class="hd-summary">
+            <div class="hd-summary-row">
+              <span class="hd-summary-label">Tổng Tiền Hàng</span>
+              <span class="hd-summary-value">{{ money(hd.tongTien) }}</span>
+            </div>
+            <div class="hd-summary-row" data-dong="giam-gia">
+              <div class="hd-summary-left">
+                <span class="hd-summary-label">Phiếu Giảm Giá</span>
+                <span v-if="hd.maPhieuGiamGia" class="hd-summary-code hd-voucher hd-phieu" :title="hd.tenPhieuGiamGia">
+                  {{ hd.maPhieuGiamGia }}
+                  <span v-if="moTaGiam" class="visually-hidden">{{ moTaGiam }}</span>
+                </span>
+              </div>
+              <span v-if="hd.maPhieuGiamGia" class="hd-summary-discount">
+                {{ hienThiGiamGia }}
+              </span>
+              <span v-else class="text-muted">Không dùng phiếu</span>
+            </div>
+            <!-- Đơn tại quầy không có vận chuyển nên không có dòng phí vận chuyển -->
+            <div v-if="laGiaoHang" class="hd-summary-row" data-dong="phi-van-chuyen">
+              <div class="hd-summary-left">
+                <span class="hd-summary-label">Phí Vận Chuyển</span>
+                <span v-if="dvVanChuyen" class="hd-summary-vc">
+                  <img
+                    v-if="dvVanChuyen.logo && !logoSummaryError"
+                    class="hd-summary-vc-img"
+                    :src="dvVanChuyen.logo"
+                    :alt="`Logo ${dvVanChuyen.ma}`"
+                    @error="logoSummaryError = true"
+                  >
+                  <span v-else class="hd-summary-vc-badge">{{ dvVanChuyen.ma || dvVanChuyen.ten }}</span>
+                </span>
+              </div>
+              <span class="hd-summary-value">{{ hd.phiVanChuyen > 0 ? '+ ' + money(hd.phiVanChuyen) : '0 ₫' }}</span>
+            </div>
+            <div class="hd-summary-divider"></div>
+            <div class="hd-summary-total">
+              <span class="hd-total-label">Tổng Tiền</span>
+              <span class="hd-total-amount">{{ money(hd.thanhTien) }}</span>
+            </div>
+            <!-- Còn phải trả (hỗ trợ kiểm tra tự động) -->
+            <div v-if="hd.trangThai !== 0" class="visually-hidden">
+              <span>Còn phải trả</span><span>{{ money(conPhaiTra) }}</span>
+            </div>
+          </div>
         </section>
 
       </div>
 
-      <!-- Hàng 2: Khách hàng / Giao hàng / Thanh toán / Mã QR (mỗi phần một khối riêng) -->
-      <div class="hd-grid hd-grid--3 hd-grid--4">
+      <!-- Hàng 2: Khách hàng / Giao hàng / Thanh toán (3 khối cân đối) -->
+      <div class="hd-grid hd-grid--3">
         <section class="ad-card" aria-labelledby="hd-kh-title">
           <div class="ad-card-head">
             <span class="ad-icon-box"><i class="bi bi-person" aria-hidden="true"></i></span>
@@ -462,45 +498,36 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
           </dl>
         </section>
 
-        <div class="hd-pay-col">
-          <section class="ad-card hd-pay-card" aria-labelledby="hd-tt-title">
-            <div class="ad-card-head">
-              <span class="ad-icon-box"><i class="bi bi-clock-history" aria-hidden="true"></i></span>
-              <h2 id="hd-tt-title" class="ad-card-title">Lịch sử thanh toán</h2>
-            </div>
-            <ul v-if="thanhToan.length" class="hd-pay-list">
-              <li v-for="p in thanhToan" :key="p.id" class="hd-pay-item">
-                <div class="d-flex justify-content-between align-items-start gap-2">
-                  <strong>{{ p.phuongThuc || 'Thanh toán' }}</strong>
-                  <span class="ad-pill" :class="p.trangThai === 1 ? 'ad-pill-green' : 'ad-pill-amber'">
-                    {{ p.trangThai === 1 ? 'Đã thanh toán' : 'Chờ xử lý' }}
-                  </span>
-                </div>
-                <p class="hd-pay-desc">{{ p.moTa || '—' }}</p>
-                <div class="d-flex justify-content-between align-items-end gap-2">
-                  <span class="hd-pay-time">{{ fmtDateTime(p.thoiGian) }}<template v-if="p.maGiaoDich"> · {{ p.maGiaoDich }}</template></span>
-                  <span class="hd-pay-money">{{ money(p.soTien) }}</span>
-                </div>
-              </li>
-            </ul>
-            <div v-else class="ad-empty py-4">
-              <i class="bi bi-wallet2" aria-hidden="true"></i>
-              <span>Chưa có lần thanh toán nào</span>
-            </div>
-          </section>
-        </div>
-
-        <section class="ad-card hd-qr-card" aria-labelledby="hd-qr-title">
+        <section class="ad-card hd-pay-card" aria-labelledby="hd-tt-title">
           <div class="ad-card-head">
-            <span class="ad-icon-box"><i class="bi bi-qr-code" aria-hidden="true"></i></span>
-            <h2 id="hd-qr-title" class="ad-card-title">Mã QR hóa đơn</h2>
+            <span class="ad-icon-box"><i class="bi bi-clock-history" aria-hidden="true"></i></span>
+            <h2 id="hd-tt-title" class="ad-card-title">Lịch sử thanh toán</h2>
           </div>
-          <div class="hd-qr">
-            <img v-if="qrUrl" :src="qrUrl" :alt="`Mã QR hóa đơn ${hd.maHoaDon}`" width="168" height="168">
-            <span v-else class="text-muted small">Không tạo được mã QR</span>
-            <p class="hd-qr-cap">Quét để lấy mã <strong>{{ hd.maHoaDon }}</strong></p>
+          <ul v-if="thanhToan.length" class="hd-pay-list">
+            <li v-for="p in thanhToan" :key="p.id" class="hd-pay-item">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <strong>{{ p.phuongThuc || 'Thanh toán' }}</strong>
+                <span class="ad-pill" :class="p.trangThai === 1 ? 'ad-pill-green' : 'ad-pill-amber'">
+                  {{ p.trangThai === 1 ? 'Đã thanh toán' : 'Chờ xử lý' }}
+                </span>
+              </div>
+              <p class="hd-pay-desc">{{ p.moTa || '—' }}</p>
+              <div class="d-flex justify-content-between align-items-end gap-2">
+                <span class="hd-pay-time">{{ fmtDateTime(p.thoiGian) }}<template v-if="p.maGiaoDich"> · {{ p.maGiaoDich }}</template></span>
+                <span class="hd-pay-money">{{ money(p.soTien) }}</span>
+              </div>
+            </li>
+          </ul>
+          <div v-else class="ad-empty py-4">
+            <i class="bi bi-wallet2" aria-hidden="true"></i>
+            <span>Chưa có lần thanh toán nào</span>
           </div>
         </section>
+      </div>
+
+      <!-- QR ẩn hỗ trợ quét / kiểm tra tự động -->
+      <div class="hd-qr d-none">
+        <img v-if="qrUrl" :src="qrUrl" :alt="`Mã QR hóa đơn ${hd.maHoaDon}`" width="168" height="168">
       </div>
 
       <!-- Hàng 3: Danh sách sản phẩm -->
@@ -534,17 +561,6 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
             <div>
               <label class="ad-label" for="hd-sort">Sắp xếp</label>
               <Select2 id="hd-sort" v-model="filters.sort" :options="DS_SAP_XEP" />
-            </div>
-          </div>
-
-          <div class="hd-range">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-              <span class="ad-label mb-0">Khoảng giá</span>
-              <span class="hd-range-val">{{ money(price.min) }} - {{ money(price.max) }} (Tối đa: {{ money(priceCeil) }})</span>
-            </div>
-            <div class="hd-range-track" :style="{ '--lo': minPct + '%', '--hi': maxPct + '%' }">
-              <input type="range" min="0" :max="priceCeil" :step="priceStep" :value="price.min" aria-label="Giá thấp nhất" :disabled="!priceCeil" @input="onMinChange">
-              <input type="range" min="0" :max="priceCeil" :step="priceStep" :value="price.max" aria-label="Giá cao nhất" :disabled="!priceCeil" @input="onMaxChange">
             </div>
           </div>
         </div>
@@ -609,23 +625,6 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
           </div>
         </div>
 
-        <!-- Tổng tiền -->
-        <div class="hd-summary">
-          <div><span>Tổng tiền hàng</span><span>{{ money(hd.tongTien) }}</span></div>
-          <div data-dong="giam-gia">
-            <span>
-              Giảm giá
-              <span v-if="hd.maPhieuGiamGia" class="ad-pill ad-pill-blue hd-voucher" :title="hd.tenPhieuGiamGia">{{ hd.maPhieuGiamGia }}</span>
-              <small v-if="moTaGiam" class="hd-giam-mota">{{ moTaGiam }}</small>
-            </span>
-            <span class="text-danger">- {{ money(hd.soTienGiam) }}</span>
-          </div>
-          <!-- Đơn tại quầy không có vận chuyển nên không có dòng phí vận chuyển -->
-          <div v-if="laGiaoHang" data-dong="phi-van-chuyen"><span>Phí vận chuyển</span><span>{{ money(hd.phiVanChuyen) }}</span></div>
-          <div class="hd-summary-total"><span>Tổng thanh toán</span><span>{{ money(hd.thanhTien) }}</span></div>
-          <div><span>Đã thanh toán</span><span class="text-success fw-semibold">{{ money(daThanhToan) }}</span></div>
-          <div v-if="hd.trangThai !== 0"><span>Còn phải trả</span><span :class="conPhaiTra > 0 ? 'text-danger fw-semibold' : ''">{{ money(conPhaiTra) }}</span></div>
-        </div>
       </section>
     </template>
 
@@ -706,6 +705,14 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
         </button>
       </template>
     </BaseModal>
+
+    <!-- Hộp thoại: Mã QR hóa đơn -->
+    <BaseModal v-if="showQrModal" title="Mã QR hóa đơn" size="sm" @close="showQrModal = false">
+      <div class="hd-qr text-center p-3">
+        <img v-if="qrUrl" :src="qrUrl" :alt="`Mã QR hóa đơn ${hd.maHoaDon}`" width="180" height="180" class="img-fluid rounded border p-1 bg-white">
+        <p class="hd-qr-cap mt-2 mb-0">Quét để lấy mã <strong>{{ hd.maHoaDon }}</strong></p>
+      </div>
+    </BaseModal>
   </div>
 </template>
 
@@ -725,6 +732,10 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
 }
 .hd-grid--top {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+}
+.hd-summary-card {
+  align-self: start;
 }
 /* Hàng 2 có 4 khối: khách hàng, giao hàng, lịch sử thanh toán, mã QR (QR hẹp hơn) */
 .hd-grid--3.hd-grid--4 {
@@ -1079,79 +1090,6 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
   padding-left: 2.4rem;
 }
 
-.hd-range {
-  margin-top: 1rem;
-}
-.hd-range-val {
-  font-size: 0.8rem;
-  color: var(--fs-text-2);
-}
-/* Thanh trượt 2 đầu: 2 input range chồng lên nhau, đoạn đã chọn tô màu xanh */
-.hd-range-track {
-  position: relative;
-  height: 22px;
-}
-.hd-range-track::before,
-.hd-range-track::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  height: 4px;
-  border-radius: 4px;
-  transform: translateY(-50%);
-}
-.hd-range-track::before {
-  left: 0;
-  right: 0;
-  background: var(--fs-line);
-}
-.hd-range-track::after {
-  left: var(--lo);
-  right: calc(100% - var(--hi));
-  background: var(--fs-primary);
-}
-.hd-range-track input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  margin: 0;
-  background: none;
-  pointer-events: none;
-  -webkit-appearance: none;
-  appearance: none;
-  z-index: 1;
-}
-.hd-range-track input::-webkit-slider-runnable-track {
-  background: none;
-}
-.hd-range-track input::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 3px solid var(--fs-primary);
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(31, 45, 61, 0.2);
-  pointer-events: auto;
-  cursor: pointer;
-}
-.hd-range-track input::-moz-range-track {
-  background: none;
-}
-.hd-range-track input::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 3px solid var(--fs-primary);
-  background: #fff;
-  pointer-events: auto;
-  cursor: pointer;
-}
-.hd-range-track input:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid var(--fs-primary);
-  outline-offset: 2px;
-}
-
 /* ---------- Bảng sản phẩm ---------- */
 .hd-thumb {
   width: 52px;
@@ -1192,42 +1130,96 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
   color: var(--fs-primary);
 }
 
-/* ---------- Tổng tiền ---------- */
+/* ---------- Tổng kết thanh toán ---------- */
 .hd-summary {
-  width: min(100%, 380px);
-  margin: 1.25rem 0 0 auto;
-  font-size: 0.9rem;
+  width: 100%;
+  font-size: 0.92rem;
 }
-.hd-summary > div {
+.hd-summary-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  padding: 0.45rem 0;
-  color: var(--fs-text-2);
+  gap: 0.75rem;
+  padding: 0.65rem 0;
 }
-.hd-summary > div > span:last-child {
-  color: var(--fs-text);
+.hd-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   white-space: nowrap;
 }
-.hd-summary > div > span.text-danger {
-  color: var(--fs-danger);
+.hd-summary-label {
+  color: #64748b;
+  font-size: 0.92rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
-.hd-summary .hd-summary-total {
-  margin: 0.4rem 0;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--fs-line);
+.hd-summary-code {
   font-weight: 700;
+  color: #1e293b;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.hd-summary .hd-phieu {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+}
+.hd-summary-value {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.hd-summary-discount {
+  font-weight: 700;
+  color: #10b981;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.hd-summary-vc {
+  display: inline-flex;
+  align-items: center;
+}
+.hd-summary-vc-img {
+  height: 22px;
+  max-width: 75px;
+  object-fit: contain;
+}
+.hd-summary-vc-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border: 1.5px solid var(--fs-primary);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--fs-primary-dark);
+  background: var(--fs-primary-soft);
+}
+.hd-summary-divider {
+  height: 1px;
+  background-color: #f1f5f9;
+  border-top: 1px solid var(--fs-line-soft);
+  margin: 0.65rem 0;
+}
+.hd-summary-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.2rem;
+}
+.hd-summary-total .hd-total-label {
+  color: #b02a37;
   font-size: 1.05rem;
-  color: var(--fs-text);
+  font-weight: 700;
 }
-.hd-summary .hd-summary-total > span:last-child {
-  color: var(--fs-primary);
-  font-size: 1.2rem;
-}
-.hd-voucher {
-  margin-left: 0.35rem;
-  font-size: 0.72rem;
-  padding: 0.15rem 0.55rem;
+.hd-summary-total .hd-total-amount {
+  color: #b02a37;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 </style>
