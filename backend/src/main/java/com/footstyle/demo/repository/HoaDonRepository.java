@@ -10,9 +10,12 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface HoaDonRepository extends JpaRepository<HoaDon, Integer>, JpaSpecificationExecutor<HoaDon> {
+    Optional<HoaDon> findFirstByMaHoaDonIgnoreCase(String maHoaDon);
+
     Page<HoaDon> findByTrangThai(Integer trangThai, Pageable pageable);
 
     /**

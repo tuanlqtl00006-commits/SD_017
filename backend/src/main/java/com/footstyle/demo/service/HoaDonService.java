@@ -248,6 +248,29 @@ public class HoaDonService {
         return response;
     }
 
+    /**
+     * Tra cứu hóa đơn theo mã (phục vụ quét QR / mã vạch):
+     * Tìm chính xác theo mã (không phân biệt hoa thường), hoặc tìm theo id nếu chuỗi chỉ gồm số.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> traCuuTheoMa(String ma) {
+        if (ma == null || ma.trim().isEmpty()) {
+            throw ApiException.badRequest("Mã hóa đơn không được để trống.");
+        }
+        String trimmed = ma.trim();
+        HoaDon hd = hoaDonRepository.findFirstByMaHoaDonIgnoreCase(trimmed)
+                .orElse(null);
+        if (hd == null && trimmed.matches("^\\d+$")) {
+            try {
+                hd = hoaDonRepository.findById(Integer.valueOf(trimmed)).orElse(null);
+            } catch (NumberFormatException ignored) {}
+        }
+        if (hd == null) {
+            throw ApiException.notFound("Không tìm thấy hóa đơn có mã \"" + trimmed + "\".");
+        }
+        return getChiTietHoaDon(hd.getId());
+    }
+
     private List<Map<String, Object>> danhSachSanPham(Integer idHoaDon) {
         // Ảnh của từng sản phẩm (1 câu truy vấn cho tất cả), gom theo sản phẩm. Mỗi dòng hóa đơn lấy ảnh theo MÀU của biến thể,
         // màu chưa có ảnh thì lấy ảnh chính chung của sản phẩm (xem AnhSanPham.anhCuaBienThe).

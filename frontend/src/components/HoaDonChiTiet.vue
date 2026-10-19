@@ -709,7 +709,15 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
     <!-- Hộp thoại: Mã QR hóa đơn -->
     <BaseModal v-if="showQrModal" title="Mã QR hóa đơn" size="sm" @close="showQrModal = false">
       <div class="hd-qr text-center p-3">
-        <img v-if="qrUrl" :src="qrUrl" :alt="`Mã QR hóa đơn ${hd.maHoaDon}`" width="180" height="180" class="img-fluid rounded border p-1 bg-white">
+        <a
+          v-if="qrUrl"
+          :href="qrUrl"
+          :download="`QR_${hd.maHoaDon || 'hoa_don'}.png`"
+          class="d-inline-block text-decoration-none"
+          title="Bấm vào ảnh mã QR để tải về máy"
+        >
+          <img :src="qrUrl" :alt="`Mã QR hóa đơn ${hd.maHoaDon}`" width="180" height="180" class="img-fluid rounded border p-1 bg-white hd-qr-img">
+        </a>
         <p class="hd-qr-cap mt-2 mb-0">Quét để lấy mã <strong>{{ hd.maHoaDon }}</strong></p>
       </div>
     </BaseModal>
@@ -747,6 +755,8 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
 .hd-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; }
 .hd-qr { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
 .hd-qr img { border: 1px solid var(--fs-line); border-radius: 0.5rem; padding: 6px; background: #fff; }
+.hd-qr-img { cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.hd-qr-img:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(9, 119, 236, 0.15); }
 .hd-qr-cap { margin: 0; font-size: 0.85rem; color: var(--fs-muted); }
 .hd-grid--3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -11,9 +11,12 @@ import { exportExcel } from '../utils/exportExcel'
 import DateInput from './common/DateInput.vue'
 import Select2 from './common/Select2.vue'
 import { TAB_TRANG_THAI, trangThaiOf } from '../constants/hoaDon'
+import HoaDonScannerModal from './hoaDon/HoaDonScannerModal.vue'
 
 const router = useRouter()
 const toast = useToast()
+const showScannerModal = ref(false)
+const moQuetMa = () => { showScannerModal.value = true }
 const dsLoaiDon = [
   { value: '', label: 'Tất cả' },
   { value: '1', label: 'Tại quầy' },
@@ -235,7 +238,25 @@ async function exportFile() {
       <div class="ad-filter-grid ad-filter-grid--hd">
         <div>
           <label class="ad-label" for="hd-ma">Mã hóa đơn</label>
-          <input id="hd-ma" v-model="filters.maHoaDon" type="text" class="form-control ad-control" autocomplete="off" />
+          <div class="ad-affix">
+            <input
+              id="hd-ma"
+              v-model="filters.maHoaDon"
+              type="text"
+              class="form-control ad-control has-btn"
+              placeholder="Nhập hoặc bấm nút quét mã..."
+              autocomplete="off"
+            />
+            <button
+              type="button"
+              class="ad-affix-btn"
+              title="Quét mã hóa đơn"
+              aria-label="Quét mã hóa đơn"
+              @click="moQuetMa"
+            >
+              <i class="bi bi-qr-code-scan" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
         <div>
           <label class="ad-label" for="hd-tu-ngay">Từ ngày</label>
@@ -307,11 +328,16 @@ async function exportFile() {
     <section class="ad-card">
       <header class="ad-list-head">
         <h2 class="ad-card-title">Danh sách hóa đơn</h2>
-        <button type="button" class="ad-btn ad-btn-primary" :disabled="exporting" @click="exportFile">
-          <span v-if="exporting" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-          <i v-else class="bi bi-box-arrow-up" aria-hidden="true"></i>
-          Xuất Excel
-        </button>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="ad-btn" @click="moQuetMa">
+            <i class="bi bi-qr-code-scan" aria-hidden="true"></i> Quét mã hóa đơn
+          </button>
+          <button type="button" class="ad-btn ad-btn-primary" :disabled="exporting" @click="exportFile">
+            <span v-if="exporting" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <i v-else class="bi bi-box-arrow-up" aria-hidden="true"></i>
+            Xuất Excel
+          </button>
+        </div>
       </header>
 
       <div class="ad-table-wrap">
@@ -379,6 +405,12 @@ async function exportFile() {
 
       <BasePagination v-if="total" v-model:page="page" :page-size="pageSize" :total="total" />
     </section>
+
+    <!-- Hộp thoại quét mã hóa đơn -->
+    <HoaDonScannerModal
+      v-if="showScannerModal"
+      @close="showScannerModal = false"
+    />
   </div>
 </template>
 

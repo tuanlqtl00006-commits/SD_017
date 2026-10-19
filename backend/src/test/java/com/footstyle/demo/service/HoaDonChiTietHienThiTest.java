@@ -3,6 +3,7 @@ package com.footstyle.demo.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.footstyle.demo.dto.HoaDonRequest;
@@ -257,4 +258,37 @@ class HoaDonChiTietHienThiTest {
         assertEquals(HoaDon.GIAO_THAT_BAI, lichSu.get(0).get("trangThai"));
         assertFalse(lichSu.get(0).get("hanhDong") == null);
     }
+
+    /* ---------- tra cứu theo mã (quét QR / mã vạch) ---------- */
+
+    @Test
+    void traCuuTheoMa_timTheoMaChinhXac_khongPhanBietHoaThuong() {
+        hd.setMaHoaDon("HD01");
+        Map<String, Object> res = service.traCuuTheoMa("hd01");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> info = (Map<String, Object>) res.get("hoaDon");
+        assertEquals("HD01", info.get("maHoaDon"));
+    }
+
+    @Test
+    void traCuuTheoMa_timTheoIdSoKhiKhongKhopMa() {
+        hd.setId(1);
+        hd.setMaHoaDon("HD999");
+        Map<String, Object> res = service.traCuuTheoMa("1");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> info = (Map<String, Object>) res.get("hoaDon");
+        assertEquals(1, info.get("id"));
+    }
+
+    @Test
+    void traCuuTheoMa_khongTimThay_nemLoiNotFound() {
+        hd.setMaHoaDon("HD01");
+        assertThrows(RuntimeException.class, () -> service.traCuuTheoMa("HD_KHONG_TON_TAI"));
+    }
+
+    @Test
+    void traCuuTheoMa_maRong_nemLoiBadRequest() {
+        assertThrows(RuntimeException.class, () -> service.traCuuTheoMa("   "));
+    }
 }
+

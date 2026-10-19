@@ -52,6 +52,12 @@ public class HoaDonController {
         return hoaDonService.demTheoTrangThai(maHoaDon, tuNgay, denNgay, loaiDon);
     }
 
+    /** Tra cứu nhanh hóa đơn theo mã (phục vụ quét mã QR / mã vạch). */
+    @GetMapping("/tra-cuu")
+    public Map<String, Object> traCuuHoaDon(@RequestParam String ma) {
+        return hoaDonService.traCuuTheoMa(ma);
+    }
+
     /** Toàn bộ dữ liệu cho trang chi tiết: thông tin, khách, giao hàng, sản phẩm, thanh toán, lịch sử. */
     @GetMapping("/{id}")
     public Map<String, Object> getChiTietHoaDon(@PathVariable Integer id) {

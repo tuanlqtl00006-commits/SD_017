@@ -34,7 +34,15 @@ const tenFile = () => `QR_${String(props.giaTri).replace(/[^A-Za-z0-9_-]+/g, '_'
 <template>
   <BaseModal :title="tieuDe" size="sm" @close="emit('close')">
     <div class="qr-box">
-      <img v-if="qrUrl" :src="qrUrl" :alt="`Mã QR ${giaTri}`" width="220" height="220" data-testid="qr-img" />
+      <a
+        v-if="qrUrl"
+        :href="qrUrl"
+        :download="tenFile()"
+        class="d-inline-block text-decoration-none"
+        title="Bấm để tải ảnh QR về máy"
+      >
+        <img :src="qrUrl" :alt="`Mã QR ${giaTri}`" width="220" height="220" data-testid="qr-img" class="qr-click-img" />
+      </a>
       <span v-else class="text-muted small">{{ loi || 'Đang tạo mã QR…' }}</span>
       <div class="qr-ma ad-code">{{ giaTri }}</div>
       <div v-if="moTa" class="qr-mo-ta">
@@ -45,7 +53,7 @@ const tenFile = () => `QR_${String(props.giaTri).replace(/[^A-Za-z0-9_-]+/g, '_'
     <template #footer>
       <button type="button" class="ad-btn" @click="emit('close')">Đóng</button>
       <a v-if="qrUrl" class="ad-btn ad-btn-primary text-decoration-none" :href="qrUrl" :download="tenFile()">
-        <i class="bi bi-download" aria-hidden="true"></i> Tải QR
+        <i class="bi bi-download me-1" aria-hidden="true"></i> Tải ảnh QR
       </a>
     </template>
   </BaseModal>
@@ -53,7 +61,9 @@ const tenFile = () => `QR_${String(props.giaTri).replace(/[^A-Za-z0-9_-]+/g, '_'
 
 <style scoped>
 .qr-box { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
-.qr-box > img { border: 1px solid var(--fs-line, #e3eaf3); border-radius: 10px; padding: 6px; background: #fff; }
+.qr-box img { border: 1px solid var(--fs-line, #e3eaf3); border-radius: 10px; padding: 6px; background: #fff; }
+.qr-click-img { cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.qr-click-img:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(9, 119, 236, 0.15); }
 .qr-ma { font-size: 0.95rem; }
 .qr-mo-ta { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--fs-muted, #7b8794); text-align: center; }
 .qr-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 6px; border: 1px solid var(--fs-line, #e3eaf3); }

@@ -43,6 +43,7 @@ final class HoaDonKhoGia {
 
         HoaDonRepository hdRepo = KhoGia.tao(HoaDonRepository.class, (ten, a) -> switch (ten) {
             case "findById" -> Integer.valueOf(1).equals(a[0]) ? Optional.of(hd) : Optional.empty();
+            case "findFirstByMaHoaDonIgnoreCase" -> a[0] != null && hd.getMaHoaDon() != null && String.valueOf(a[0]).equalsIgnoreCase(hd.getMaHoaDon()) ? Optional.of(hd) : Optional.empty();
             case "save" -> a[0];
             case "findAll" -> new PageImpl<>(List.of(hd));
             case "count" -> 0L;

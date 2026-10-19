@@ -66,6 +66,17 @@ describe('Chi tiết hóa đơn', () => {
     for (const t of ['Thông tin đơn hàng', 'Khách hàng', 'Giao hàng', 'Sản phẩm', 'Tổng tiền']) expect(html).toContain(`<h2>${t}</h2>`)
     open.mockRestore()
   })
+
+  it('hộp thoại Mã QR có link tải ảnh QR chứa download="QR_HD16.png"', async () => {
+    const w = await montarChiTiet()
+    const btnQr = w.findAll('button').find((b) => b.text().includes('Mã QR'))
+    await btnQr.trigger('click')
+    await flushPromises()
+
+    const downloadLink = document.body.querySelector('a[download="QR_HD16.png"]')
+    expect(downloadLink).toBeTruthy()
+    expect(downloadLink.getAttribute('href')).toContain('data:image/png;base64,')
+  })
 })
 
 describe('Xuất Excel danh sách hóa đơn', () => {
