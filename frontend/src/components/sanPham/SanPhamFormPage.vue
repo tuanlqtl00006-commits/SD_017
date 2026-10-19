@@ -1,7 +1,8 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { taoMa } from '../../constants/thuocTinh'
+import { THUOC_TINH, taoMa } from '../../constants/thuocTinh'
+import ThuocTinhFormModal from '../thuocTinh/ThuocTinhFormModal.vue'
 import { layLuaChon } from '../../utils/text'
 import { NHOM_DANH_MUC, chatLieuHopDanhMuc, idKhongApDung, laDanhMucVot, laKhongApDung, nhomDanhMuc } from '../../utils/danhMuc'
 import { tuDanhSach } from '../../utils/luaChon'
@@ -131,6 +132,42 @@ const { themNhanh, dangThem } = useThemNhanh({
 async function themNhanhOChon(s, ten) {
   const moi = await themNhanh(s.slug, ten)
   if (moi) form[s.field] = moi.id
+}
+
+/* ----- Modal Thêm nhanh thuộc tính bằng nút bấm ----- */
+const modalThemNhanh = ref(null) // null hoặc { slug, label, field, isBienThe, sel }
+const dangLuuThuocTinh = ref(false)
+const loiModalThuocTinh = ref('')
+
+function moThemNhanhModal(s) {
+  loiModalThuocTinh.value = ''
+  modalThemNhanh.value = s
+}
+
+async function luuThuocTinhModal(payload) {
+  if (!modalThemNhanh.value) return
+  const s = modalThemNhanh.value
+  dangLuuThuocTinh.value = true
+  loiModalThuocTinh.value = ''
+  try {
+    const duLieu = { ...payload }
+    if (s.slug === 'chat-lieu' && (!duLieu.nhom || !duLieu.nhom.length)) {
+      duLieu.nhom = nhomChatLieuMoi()
+    }
+    const moi = await thuocTinhService.create(s.slug, duLieu)
+    thuocTinh[s.slug] = [moi, ...thuocTinh[s.slug].filter((x) => x.id !== moi.id)]
+    if (s.isBienThe && s.sel) {
+      if (!s.sel.includes(moi.id)) s.sel.push(moi.id)
+    } else if (s.field) {
+      form[s.field] = moi.id
+    }
+    toast.success(`Đã thêm nhanh ${THUOC_TINH[s.slug]?.label || ''}: ${moi.ten}`)
+    modalThemNhanh.value = null
+  } catch (err) {
+    loiModalThuocTinh.value = err.response?.data?.message || err.message || 'Lỗi lưu thuộc tính'
+  } finally {
+    dangLuuThuocTinh.value = false
+  }
 }
 
 // Đổi danh mục: xóa giá trị riêng của vợt khi chuyển sang danh mục khác (và ngược lại bắt chọn lại)
@@ -606,20 +643,42 @@ async function luuSanPham(xacNhanCapNhat = false) {
           </div>
 
           <div v-for="s in selectsHienThi" :key="s.field" class="col-md-6">
-            <label class="ad-label" :for="`sp-${s.field}`">{{ s.label }} <span class="ad-required">*</span></label>
-            <Select2
-              :id="`sp-${s.field}`"
-              v-model="form[s.field]"
-              :options="dsChon(s)"
-              class="ad-control"
-              :class="{ 'is-invalid': errors[s.field] }"
-              :disabled="khoaOChon(s)"
-              :aria-invalid="!!errors[s.field]"
-              :placeholder="khoaOChon(s) ? 'Chọn danh mục trước…' : `Chọn ${s.label.toLowerCase()}…`"
-              :allow-create="!khoaOChon(s)"
-              :creating="dangThem"
-              @create="themNhanhOChon(s, $event)"
-            />
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="ad-label mb-0" :for="`sp-${s.field}`">{{ s.label }} <span class="ad-required">*</span></label>
+              <button
+                type="button"
+                class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold"
+                :disabled="khoaOChon(s)"
+                :title="`Thêm nhanh ${s.label.toLowerCase()}`"
+                @click="moThemNhanhModal(s)"
+              >
+                <i class="bi bi-plus-circle" aria-hidden="true"></i> Thêm nhanh
+              </button>
+            </div>
+            <div class="d-flex gap-2">
+              <Select2
+                :id="`sp-${s.field}`"
+                v-model="form[s.field]"
+                :options="dsChon(s)"
+                class="ad-control flex-grow-1"
+                :class="{ 'is-invalid': errors[s.field] }"
+                :disabled="khoaOChon(s)"
+                :aria-invalid="!!errors[s.field]"
+                :placeholder="khoaOChon(s) ? 'Chọn danh mục trước…' : `Chọn ${s.label.toLowerCase()}…`"
+                :allow-create="!khoaOChon(s)"
+                :creating="dangThem"
+                @create="themNhanhOChon(s, $event)"
+              />
+              <button
+                type="button"
+                class="ad-btn ad-btn-outline px-2"
+                :disabled="khoaOChon(s)"
+                :title="`Thêm nhanh ${s.label.toLowerCase()}`"
+                @click="moThemNhanhModal(s)"
+              >
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+              </button>
+            </div>
             <p v-if="errors[s.field]" class="ad-error">{{ errors[s.field] }}</p>
             <p v-else-if="s.field === 'idDanhMuc' && daChonDanhMuc && !laVot" class="ad-hint">Danh mục này không có độ cứng, điểm cân bằng, trọng lượng, chu vi cán nên các mục đó được ẩn.</p>
           </div>
@@ -633,25 +692,43 @@ async function luuSanPham(xacNhanCapNhat = false) {
           <h2 class="ad-card-title">Biến thể sản phẩm</h2>
         </div>
         <div v-for="g in nhomTaoBienThe" :key="g.slug" class="ad-gen-row">
-          <span class="ad-label mb-0">{{ g.label }}</span>
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="ad-label mb-0">{{ g.label }}</span>
+            <button
+              type="button"
+              class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold"
+              :title="`Thêm nhanh ${g.label.toLowerCase()}`"
+              @click="moThemNhanhModal({ slug: g.slug, label: g.label, isBienThe: true, sel: g.sel })"
+            >
+              <i class="bi bi-plus-circle" aria-hidden="true"></i> Thêm nhanh
+            </button>
+          </div>
           <div class="d-flex flex-wrap gap-2">
             <button v-for="o in dangHoatDong(g.slug)" :key="o.id" type="button" class="ad-gen-chip" :class="{ on: g.sel.includes(o.id) }" :aria-pressed="g.sel.includes(o.id)" @click="baMau(g.sel, o.id)">
               <span v-if="g.slug === 'mau-sac'" class="bt-dot" :style="{ background: mauHex(o.ten) }" aria-hidden="true"></span>
               <i v-if="g.sel.includes(o.id)" class="bi bi-check2" aria-hidden="true"></i> {{ o.ten }}
             </button>
             <span v-if="!dangHoatDong(g.slug).length" class="text-muted small">Chưa có {{ g.label.toLowerCase() }} nào đang hoạt động.</span>
-            <div class="bt-them-nhanh">
+            <div class="bt-them-nhanh d-flex gap-1">
               <Select2
                 :id="`sp-them-${g.slug}`"
                 :model-value="''"
                 :options="dsThemBienThe(g)"
-                class="ad-control bt-them-nhanh-chon"
+                class="ad-control bt-them-nhanh-chon flex-grow-1"
                 :placeholder="`Tìm hoặc thêm nhanh ${g.label.toLowerCase()}…`"
                 allow-create
                 :creating="dangThem"
                 @update:model-value="tichThem(g, $event)"
                 @create="themNhanhBienThe(g, $event)"
               />
+              <button
+                type="button"
+                class="ad-btn ad-btn-outline px-2"
+                :title="`Thêm nhanh ${g.label.toLowerCase()}`"
+                @click="moThemNhanhModal({ slug: g.slug, label: g.label, isBienThe: true, sel: g.sel })"
+              >
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -883,6 +960,17 @@ async function luuSanPham(xacNhanCapNhat = false) {
       :loading="dangLuu"
       @confirm="luuSanPham(true)"
       @cancel="hoiCapNhat = null"
+    />
+
+    <!-- Modal thêm nhanh thuộc tính bằng nút bấm -->
+    <ThuocTinhFormModal
+      v-if="modalThemNhanh"
+      :cfg="THUOC_TINH[modalThemNhanh.slug]"
+      :all="thuocTinh[modalThemNhanh.slug] || []"
+      :saving="dangLuuThuocTinh"
+      :server-error="loiModalThuocTinh"
+      @save="luuThuocTinhModal"
+      @close="modalThemNhanh = null"
     />
   </div>
 </template>

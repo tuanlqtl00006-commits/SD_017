@@ -9,6 +9,8 @@ import { useToast } from '../../composables/useToast'
 import { tuDanhSach } from '../../utils/luaChon'
 import { cat, timBanTrung } from '../../utils/kiemTra'
 import { chatLieuHopDanhMuc, idKhongApDung, laDanhMucVot, laKhongApDung } from '../../utils/danhMuc'
+import { THUOC_TINH } from '../../constants/thuocTinh'
+import ThuocTinhFormModal from '../thuocTinh/ThuocTinhFormModal.vue'
 
 const props = defineProps({
   tenKhoiTao: { type: String, default: '' },
@@ -67,6 +69,34 @@ const dsChatLieu = computed(() => tuDanhSach(luaChonChatLieu()))
 const dsDoCung = computed(() => tuDanhSach(thuocTinh['do-cung'].filter((x) => x.hoatDong && !laKhongApDung(x))))
 const dsDiemCanBang = computed(() => tuDanhSach(thuocTinh['diem-can-bang'].filter((x) => x.hoatDong && !laKhongApDung(x))))
 const dsMauSac = computed(() => tuDanhSach(thuocTinh['mau-sac'].filter((x) => x.hoatDong)))
+
+/* ----- Thêm nhanh thuộc tính bằng nút bấm ----- */
+const modalThuocTinh = ref(null) // null hoặc { slug, field }
+const dangLuuThuocTinh = ref(false)
+const loiModalThuocTinh = ref('')
+
+function moThemThuocTinh(slug, field) {
+  loiModalThuocTinh.value = ''
+  modalThuocTinh.value = { slug, field }
+}
+
+async function luuThuocTinhModal(payload) {
+  if (!modalThuocTinh.value) return
+  const { slug, field } = modalThuocTinh.value
+  dangLuuThuocTinh.value = true
+  loiModalThuocTinh.value = ''
+  try {
+    const moi = await thuocTinhService.create(slug, payload)
+    thuocTinh[slug] = [moi, ...thuocTinh[slug].filter((x) => x.id !== moi.id)]
+    form[field] = moi.id
+    toast.success(`Đã thêm nhanh ${THUOC_TINH[slug]?.label || ''}: ${moi.ten}`)
+    modalThuocTinh.value = null
+  } catch (err) {
+    loiModalThuocTinh.value = err.response?.data?.message || err.message || 'Lỗi lưu thuộc tính'
+  } finally {
+    dangLuuThuocTinh.value = false
+  }
+}
 
 watch(
   () => form.idDanhMuc,
@@ -226,39 +256,87 @@ onMounted(async () => {
         </div>
 
         <div class="col-md-6">
-          <label class="ad-label" for="sp-tn-dm">Danh mục <span class="ad-required">*</span></label>
-          <Select2 id="sp-tn-dm" v-model="form.idDanhMuc" :options="dsDanhMuc" class="ad-control" :class="{ 'is-invalid': errors.idDanhMuc }" placeholder="Chọn danh mục" />
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="ad-label mb-0" for="sp-tn-dm">Danh mục <span class="ad-required">*</span></label>
+            <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" @click="moThemThuocTinh('danh-muc', 'idDanhMuc')">
+              <i class="bi bi-plus-circle"></i> Thêm nhanh
+            </button>
+          </div>
+          <div class="d-flex gap-2">
+            <Select2 id="sp-tn-dm" v-model="form.idDanhMuc" :options="dsDanhMuc" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idDanhMuc }" placeholder="Chọn danh mục" />
+            <button type="button" class="ad-btn ad-btn-outline px-2" title="Thêm nhanh danh mục" @click="moThemThuocTinh('danh-muc', 'idDanhMuc')"><i class="bi bi-plus-lg"></i></button>
+          </div>
           <p v-if="errors.idDanhMuc" class="ad-error">{{ errors.idDanhMuc }}</p>
         </div>
 
         <div class="col-md-6">
-          <label class="ad-label" for="sp-tn-th">Thương hiệu <span class="ad-required">*</span></label>
-          <Select2 id="sp-tn-th" v-model="form.idThuongHieu" :options="dsThuongHieu" class="ad-control" :class="{ 'is-invalid': errors.idThuongHieu }" placeholder="Chọn thương hiệu" />
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="ad-label mb-0" for="sp-tn-th">Thương hiệu <span class="ad-required">*</span></label>
+            <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" @click="moThemThuocTinh('thuong-hieu', 'idThuongHieu')">
+              <i class="bi bi-plus-circle"></i> Thêm nhanh
+            </button>
+          </div>
+          <div class="d-flex gap-2">
+            <Select2 id="sp-tn-th" v-model="form.idThuongHieu" :options="dsThuongHieu" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idThuongHieu }" placeholder="Chọn thương hiệu" />
+            <button type="button" class="ad-btn ad-btn-outline px-2" title="Thêm nhanh thương hiệu" @click="moThemThuocTinh('thuong-hieu', 'idThuongHieu')"><i class="bi bi-plus-lg"></i></button>
+          </div>
           <p v-if="errors.idThuongHieu" class="ad-error">{{ errors.idThuongHieu }}</p>
         </div>
 
         <div class="col-md-6">
-          <label class="ad-label" for="sp-tn-xx">Xuất xứ <span class="ad-required">*</span></label>
-          <Select2 id="sp-tn-xx" v-model="form.idXuatXu" :options="dsXuatXu" class="ad-control" :class="{ 'is-invalid': errors.idXuatXu }" placeholder="Chọn xuất xứ" />
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="ad-label mb-0" for="sp-tn-xx">Xuất xứ <span class="ad-required">*</span></label>
+            <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" @click="moThemThuocTinh('xuat-xu', 'idXuatXu')">
+              <i class="bi bi-plus-circle"></i> Thêm nhanh
+            </button>
+          </div>
+          <div class="d-flex gap-2">
+            <Select2 id="sp-tn-xx" v-model="form.idXuatXu" :options="dsXuatXu" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idXuatXu }" placeholder="Chọn xuất xứ" />
+            <button type="button" class="ad-btn ad-btn-outline px-2" title="Thêm nhanh xuất xứ" @click="moThemThuocTinh('xuat-xu', 'idXuatXu')"><i class="bi bi-plus-lg"></i></button>
+          </div>
           <p v-if="errors.idXuatXu" class="ad-error">{{ errors.idXuatXu }}</p>
         </div>
 
         <div class="col-md-6">
-          <label class="ad-label" for="sp-tn-cl">Chất liệu <span class="ad-required">*</span></label>
-          <Select2 id="sp-tn-cl" v-model="form.idChatLieu" :options="dsChatLieu" class="ad-control" :class="{ 'is-invalid': errors.idChatLieu }" placeholder="Chọn chất liệu" />
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="ad-label mb-0" for="sp-tn-cl">Chất liệu <span class="ad-required">*</span></label>
+            <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" @click="moThemThuocTinh('chat-lieu', 'idChatLieu')">
+              <i class="bi bi-plus-circle"></i> Thêm nhanh
+            </button>
+          </div>
+          <div class="d-flex gap-2">
+            <Select2 id="sp-tn-cl" v-model="form.idChatLieu" :options="dsChatLieu" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idChatLieu }" placeholder="Chọn chất liệu" />
+            <button type="button" class="ad-btn ad-btn-outline px-2" title="Thêm nhanh chất liệu" @click="moThemThuocTinh('chat-lieu', 'idChatLieu')"><i class="bi bi-plus-lg"></i></button>
+          </div>
           <p v-if="errors.idChatLieu" class="ad-error">{{ errors.idChatLieu }}</p>
         </div>
 
         <template v-if="laVot">
           <div class="col-md-6">
-            <label class="ad-label" for="sp-tn-dc">Độ cứng <span class="ad-required">*</span></label>
-            <Select2 id="sp-tn-dc" v-model="form.idDoCung" :options="dsDoCung" class="ad-control" :class="{ 'is-invalid': errors.idDoCung }" placeholder="Chọn độ cứng" />
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="ad-label mb-0" for="sp-tn-dc">Độ cứng <span class="ad-required">*</span></label>
+              <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" @click="moThemThuocTinh('do-cung', 'idDoCung')">
+                <i class="bi bi-plus-circle"></i> Thêm nhanh
+              </button>
+            </div>
+            <div class="d-flex gap-2">
+              <Select2 id="sp-tn-dc" v-model="form.idDoCung" :options="dsDoCung" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idDoCung }" placeholder="Chọn độ cứng" />
+              <button type="button" class="ad-btn ad-btn-outline px-2" title="Thêm nhanh độ cứng" @click="moThemThuocTinh('do-cung', 'idDoCung')"><i class="bi bi-plus-lg"></i></button>
+            </div>
             <p v-if="errors.idDoCung" class="ad-error">{{ errors.idDoCung }}</p>
           </div>
 
           <div class="col-md-6">
-            <label class="ad-label" for="sp-tn-cb">Điểm cân bằng <span class="ad-required">*</span></label>
-            <Select2 id="sp-tn-cb" v-model="form.idDiemCanBang" :options="dsDiemCanBang" class="ad-control" :class="{ 'is-invalid': errors.idDiemCanBang }" placeholder="Chọn điểm cân bằng" />
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="ad-label mb-0" for="sp-tn-cb">Điểm cân bằng <span class="ad-required">*</span></label>
+              <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" @click="moThemThuocTinh('diem-can-bang', 'idDiemCanBang')">
+                <i class="bi bi-plus-circle"></i> Thêm nhanh
+              </button>
+            </div>
+            <div class="d-flex gap-2">
+              <Select2 id="sp-tn-cb" v-model="form.idDiemCanBang" :options="dsDiemCanBang" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idDiemCanBang }" placeholder="Chọn điểm cân bằng" />
+              <button type="button" class="ad-btn ad-btn-outline px-2" title="Thêm nhanh điểm cân bằng" @click="moThemThuocTinh('diem-can-bang', 'idDiemCanBang')"><i class="bi bi-plus-lg"></i></button>
+            </div>
             <p v-if="errors.idDiemCanBang" class="ad-error">{{ errors.idDiemCanBang }}</p>
           </div>
         </template>
@@ -266,8 +344,16 @@ onMounted(async () => {
         <div class="col-12"><hr class="my-1" /><span class="small fw-semibold text-muted">Biến thể khởi tạo</span></div>
 
         <div class="col-md-4">
-          <label class="ad-label" for="sp-tn-ms">Màu sắc</label>
-          <Select2 id="sp-tn-ms" v-model="form.idMauSac" :options="dsMauSac" class="ad-control" placeholder="Màu mặc định" />
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="ad-label mb-0" for="sp-tn-ms">Màu sắc</label>
+            <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 fw-semibold" @click="moThemThuocTinh('mau-sac', 'idMauSac')">
+              <i class="bi bi-plus-circle"></i> Thêm nhanh
+            </button>
+          </div>
+          <div class="d-flex gap-2">
+            <Select2 id="sp-tn-ms" v-model="form.idMauSac" :options="dsMauSac" class="ad-control flex-grow-1" placeholder="Màu mặc định" />
+            <button type="button" class="ad-btn ad-btn-outline px-2" title="Thêm nhanh màu sắc" @click="moThemThuocTinh('mau-sac', 'idMauSac')"><i class="bi bi-plus-lg"></i></button>
+          </div>
         </div>
 
         <div class="col-md-4">
@@ -293,6 +379,17 @@ onMounted(async () => {
         </button>
       </div>
     </template>
+
+    <!-- Modal thêm nhanh thuộc tính -->
+    <ThuocTinhFormModal
+      v-if="modalThuocTinh"
+      :cfg="THUOC_TINH[modalThuocTinh.slug]"
+      :all="thuocTinh[modalThuocTinh.slug] || []"
+      :saving="dangLuuThuocTinh"
+      :server-error="loiModalThuocTinh"
+      @save="luuThuocTinhModal"
+      @close="modalThuocTinh = null"
+    />
   </BaseModal>
 </template>
 
