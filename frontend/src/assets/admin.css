@@ -1563,10 +1563,13 @@ h2.ad-q-title {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
-.ad-combobox-with-btn .s2-root {
+.ad-combobox-with-btn > :first-child,
+.ad-combobox-with-btn .s2-wrap {
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
 }
 .ad-btn-plus {
   flex: 0 0 46px;

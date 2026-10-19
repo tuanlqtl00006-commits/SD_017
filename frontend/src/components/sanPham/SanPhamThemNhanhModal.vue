@@ -258,7 +258,7 @@ onMounted(async () => {
         <div class="col-md-6">
           <label class="ad-label" for="sp-tn-dm">Danh mục <span class="ad-required">*</span></label>
           <div class="ad-combobox-with-btn">
-            <Select2 id="sp-tn-dm" v-model="form.idDanhMuc" :options="dsDanhMuc" class="ad-control" :class="{ 'is-invalid': errors.idDanhMuc }" placeholder="Chọn danh mục" />
+            <Select2 id="sp-tn-dm" v-model="form.idDanhMuc" :options="dsDanhMuc" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idDanhMuc }" placeholder="Chọn danh mục" />
             <button type="button" class="ad-btn-plus" title="Thêm nhanh danh mục" aria-label="Thêm nhanh danh mục" @click="moThemThuocTinh('danh-muc', 'idDanhMuc')">
               <i class="bi bi-plus-lg" aria-hidden="true"></i>
             </button>
@@ -269,7 +269,7 @@ onMounted(async () => {
         <div class="col-md-6">
           <label class="ad-label" for="sp-tn-th">Thương hiệu <span class="ad-required">*</span></label>
           <div class="ad-combobox-with-btn">
-            <Select2 id="sp-tn-th" v-model="form.idThuongHieu" :options="dsThuongHieu" class="ad-control" :class="{ 'is-invalid': errors.idThuongHieu }" placeholder="Chọn thương hiệu" />
+            <Select2 id="sp-tn-th" v-model="form.idThuongHieu" :options="dsThuongHieu" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idThuongHieu }" placeholder="Chọn thương hiệu" />
             <button type="button" class="ad-btn-plus" title="Thêm nhanh thương hiệu" aria-label="Thêm nhanh thương hiệu" @click="moThemThuocTinh('thuong-hieu', 'idThuongHieu')">
               <i class="bi bi-plus-lg" aria-hidden="true"></i>
             </button>
@@ -280,7 +280,7 @@ onMounted(async () => {
         <div class="col-md-6">
           <label class="ad-label" for="sp-tn-xx">Xuất xứ <span class="ad-required">*</span></label>
           <div class="ad-combobox-with-btn">
-            <Select2 id="sp-tn-xx" v-model="form.idXuatXu" :options="dsXuatXu" class="ad-control" :class="{ 'is-invalid': errors.idXuatXu }" placeholder="Chọn xuất xứ" />
+            <Select2 id="sp-tn-xx" v-model="form.idXuatXu" :options="dsXuatXu" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idXuatXu }" placeholder="Chọn xuất xứ" />
             <button type="button" class="ad-btn-plus" title="Thêm nhanh xuất xứ" aria-label="Thêm nhanh xuất xứ" @click="moThemThuocTinh('xuat-xu', 'idXuatXu')">
               <i class="bi bi-plus-lg" aria-hidden="true"></i>
             </button>
@@ -291,7 +291,7 @@ onMounted(async () => {
         <div class="col-md-6">
           <label class="ad-label" for="sp-tn-cl">Chất liệu <span class="ad-required">*</span></label>
           <div class="ad-combobox-with-btn">
-            <Select2 id="sp-tn-cl" v-model="form.idChatLieu" :options="dsChatLieu" class="ad-control" :class="{ 'is-invalid': errors.idChatLieu }" placeholder="Chọn chất liệu" />
+            <Select2 id="sp-tn-cl" v-model="form.idChatLieu" :options="dsChatLieu" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idChatLieu }" placeholder="Chọn chất liệu" />
             <button type="button" class="ad-btn-plus" title="Thêm nhanh chất liệu" aria-label="Thêm nhanh chất liệu" @click="moThemThuocTinh('chat-lieu', 'idChatLieu')">
               <i class="bi bi-plus-lg" aria-hidden="true"></i>
             </button>
@@ -303,7 +303,7 @@ onMounted(async () => {
           <div class="col-md-6">
             <label class="ad-label" for="sp-tn-dc">Độ cứng <span class="ad-required">*</span></label>
             <div class="ad-combobox-with-btn">
-              <Select2 id="sp-tn-dc" v-model="form.idDoCung" :options="dsDoCung" class="ad-control" :class="{ 'is-invalid': errors.idDoCung }" placeholder="Chọn độ cứng" />
+              <Select2 id="sp-tn-dc" v-model="form.idDoCung" :options="dsDoCung" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idDoCung }" placeholder="Chọn độ cứng" />
               <button type="button" class="ad-btn-plus" title="Thêm nhanh độ cứng" aria-label="Thêm nhanh độ cứng" @click="moThemThuocTinh('do-cung', 'idDoCung')">
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
               </button>
@@ -314,7 +314,7 @@ onMounted(async () => {
           <div class="col-md-6">
             <label class="ad-label" for="sp-tn-cb">Điểm cân bằng <span class="ad-required">*</span></label>
             <div class="ad-combobox-with-btn">
-              <Select2 id="sp-tn-cb" v-model="form.idDiemCanBang" :options="dsDiemCanBang" class="ad-control" :class="{ 'is-invalid': errors.idDiemCanBang }" placeholder="Chọn điểm cân bằng" />
+              <Select2 id="sp-tn-cb" v-model="form.idDiemCanBang" :options="dsDiemCanBang" class="ad-control flex-grow-1" :class="{ 'is-invalid': errors.idDiemCanBang }" placeholder="Chọn điểm cân bằng" />
               <button type="button" class="ad-btn-plus" title="Thêm nhanh điểm cân bằng" aria-label="Thêm nhanh điểm cân bằng" @click="moThemThuocTinh('diem-can-bang', 'idDiemCanBang')">
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
               </button>
@@ -328,7 +328,7 @@ onMounted(async () => {
         <div class="col-md-4">
           <label class="ad-label" for="sp-tn-ms">Màu sắc</label>
           <div class="ad-combobox-with-btn">
-            <Select2 id="sp-tn-ms" v-model="form.idMauSac" :options="dsMauSac" class="ad-control" placeholder="Màu mặc định" />
+            <Select2 id="sp-tn-ms" v-model="form.idMauSac" :options="dsMauSac" class="ad-control flex-grow-1" placeholder="Màu mặc định" />
             <button type="button" class="ad-btn-plus" title="Thêm nhanh màu sắc" aria-label="Thêm nhanh màu sắc" @click="moThemThuocTinh('mau-sac', 'idMauSac')">
               <i class="bi bi-plus-lg" aria-hidden="true"></i>
             </button>

@@ -649,7 +649,7 @@ async function luuSanPham(xacNhanCapNhat = false) {
                 :id="`sp-${s.field}`"
                 v-model="form[s.field]"
                 :options="dsChon(s)"
-                class="ad-control"
+                class="ad-control flex-grow-1"
                 :class="{ 'is-invalid': errors[s.field] }"
                 :disabled="khoaOChon(s)"
                 :aria-invalid="!!errors[s.field]"
@@ -961,10 +961,13 @@ async function luuSanPham(xacNhanCapNhat = false) {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
-.ad-combobox-with-btn :deep(.s2-root) {
+.ad-combobox-with-btn > :first-child,
+.ad-combobox-with-btn :deep(.s2-wrap) {
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
 }
 .ad-btn-plus {
   flex: 0 0 46px;
@@ -1003,7 +1006,8 @@ async function luuSanPham(xacNhanCapNhat = false) {
   align-items: center;
   gap: 6px;
 }
-.bt-them-nhanh-box :deep(.s2-root) {
+.bt-them-nhanh-box > :first-child,
+.bt-them-nhanh-box :deep(.s2-wrap) {
   width: 14rem;
 }
 .bt-them-nhanh-box :deep(.s2-trigger) {

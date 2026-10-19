@@ -321,6 +321,7 @@ function datViTri() {
 <style scoped>
 .s2-wrap {
   position: relative;
+  width: 100%;
 }
 .s2-trigger {
   display: block;
