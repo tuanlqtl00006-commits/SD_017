@@ -180,8 +180,8 @@ const xacNhanLuu = async (w) => {
   await flushPromises()
 }
 
-describe('Form đợt giảm giá: ngày giờ + trạng thái dự kiến', () => {
-  it('thêm mới: mặc định bắt đầu = bây giờ (ngày + giờ phút), kết thúc để trống, chưa có trạng thái dự kiến', async () => {
+describe('Form đợt giảm giá: ngày giờ', () => {
+  it('thêm mới: mặc định bắt đầu = bây giờ (ngày + giờ phút), kết thúc để trống', async () => {
     datGio()
     const { w } = await mo()
     expect(giaTri(w, '#dgg-tu-ngay')).toBe('15/10/2026')
@@ -189,29 +189,25 @@ describe('Form đợt giảm giá: ngày giờ + trạng thái dự kiến', () 
     expect(giaTri(w, '#dgg-den-ngay')).toBe('')
     expect(w.text()).toContain('Ngày giờ bắt đầu')
     expect(w.text()).toContain('Ngày giờ kết thúc')
-    expect(duKien(w)).toContain('Chọn ngày giờ bắt đầu và kết thúc hợp lệ')
     w.unmount()
   })
 
-  it('"Trạng thái dự kiến" cập nhật ngay khi chọn giờ: bắt đầu bây giờ = Đang diễn ra; bắt đầu về sau = Sắp diễn ra (kèm đếm ngược)', async () => {
+  it('chọn ngày giờ bắt đầu và kết thúc hợp lệ', async () => {
     datGio()
     const { w } = await mo()
     await datNgayGio(w, 'dgg-den-ngay', '2099-12-31', '17:00')
-    expect(w.get('[data-testid=dgg-trang-thai-nhan]').text()).toBe('Đang diễn ra')
-    expect(duKien(w)).toContain('kết thúc lúc 31/12/2099 17:00')
     await datNgayGio(w, 'dgg-tu-ngay', '2099-10-20', '08:30')
-    expect(w.get('[data-testid=dgg-trang-thai-nhan]').text()).toBe('Sắp diễn ra')
-    expect(duKien(w)).toContain('Bắt đầu lúc 20/10/2099 08:30, còn')
+    expect(giaTri(w, '#dgg-tu-ngay')).toBe('20/10/2099')
+    expect(giaTri(w, '#dgg-den-ngay')).toBe('31/12/2099')
     w.unmount()
   })
 
-  it('kết thúc trước hoặc cùng phút với bắt đầu: báo ngay dưới ô kết thúc, không có trạng thái dự kiến', async () => {
+  it('kết thúc trước hoặc cùng phút với bắt đầu: báo ngay dưới ô kết thúc', async () => {
     datGio()
     const { w } = await mo()
     await datNgayGio(w, 'dgg-tu-ngay', '2099-10-20', '08:30')
     await datNgayGio(w, 'dgg-den-ngay', '2099-10-20', '07:00')
     expect(loiO(w, 'dgg-den-ngay')).toBe('Ngày giờ kết thúc phải sau ngày giờ bắt đầu.')
-    expect(duKien(w)).toContain('Chọn ngày giờ bắt đầu và kết thúc hợp lệ')
     await datNgayGio(w, null, null)
     await w.get('#dgg-den-ngay-gio').setValue('08:30') // cùng phút với bắt đầu vẫn sai
     expect(loiO(w, 'dgg-den-ngay')).toBe('Ngày giờ kết thúc phải sau ngày giờ bắt đầu.')
@@ -367,7 +363,6 @@ describe('Form SỬA đợt giảm giá: cùng bộ luật như thêm, thêm quy
     expect(loiO(w, 'dgg-den-ngay')).toBe('Ngày giờ kết thúc mới không được ở quá khứ.')
     await datNgayGio(w, 'dgg-den-ngay', '2026-11-30', '12:00')
     expect(w.find('#dgg-den-ngay-msg').exists()).toBe(false)
-    expect(duKien(w)).toContain('Đang giảm giá')
     w.unmount()
   })
 
@@ -381,7 +376,6 @@ describe('Form SỬA đợt giảm giá: cùng bộ luật như thêm, thêm quy
     expect(loiO(w, 'dgg-tu-ngay')).toBe('Ngày giờ bắt đầu mới không được ở quá khứ.')
     await datNgayGio(w, 'dgg-tu-ngay', '2026-10-19', '09:15')
     expect(w.find('#dgg-tu-ngay-msg').exists()).toBe(false)
-    expect(duKien(w)).toContain('Sắp diễn ra')
     w.unmount()
   })
 
@@ -396,12 +390,10 @@ describe('Form SỬA đợt giảm giá: cùng bộ luật như thêm, thêm quy
     w.unmount()
   })
 
-  it('đợt đang NGỪNG hoạt động (công tắc tắt): hiện "Ngừng hoạt động" và trạng thái dự kiến cũng vậy', async () => {
+  it('đợt đang NGỪNG hoạt động (công tắc tắt): hiện "Ngừng hoạt động"', async () => {
     datGio()
     const { w } = await moSua(DOT({ trangThai: 0 }))
     expect(w.get('[data-testid=dgg-trang-thai-hien-tai]').text()).toBe('Ngừng hoạt động')
-    expect(w.get('[data-testid=dgg-trang-thai-nhan]').text()).toBe('Ngừng hoạt động')
-    expect(duKien(w)).toContain('Công tắc của đợt đang tắt')
     w.unmount()
   })
 

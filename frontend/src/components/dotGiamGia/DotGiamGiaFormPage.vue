@@ -536,19 +536,7 @@ const huy = () => router.push('/dot-giam-gia')
           <form class="dgg-form" novalidate @submit.prevent="batDauLuu">
             <div>
               <label class="ad-label" for="dgg-ma">Mã đợt <span class="ad-required">*</span></label>
-              <div class="ad-affix">
-                <input id="dgg-ma" v-model="form.maDot" type="text" class="form-control ad-control ad-input-code" :class="{ 'has-btn': !isEdit }" readonly />
-                <button
-                  v-if="!isEdit"
-                  type="button"
-                  class="ad-affix-btn"
-                  title="Tạo mã khác"
-                  aria-label="Tạo mã đợt khác"
-                  @click="lamMoiMa"
-                >
-                  <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
-                </button>
-              </div>
+              <input id="dgg-ma" v-model="form.maDot" type="text" class="form-control ad-control ad-input-code" readonly />
               <p v-if="isEdit" class="ad-hint">Không thể đổi mã sau khi tạo.</p>
             </div>
 
@@ -607,14 +595,6 @@ const huy = () => router.push('/dot-giam-gia')
               <p v-if="errors.ketThuc" id="dgg-den-ngay-msg" class="ad-error">{{ errors.ketThuc }}</p>
             </div>
 
-            <div class="dgg-du-kien" data-testid="dgg-trang-thai-du-kien" role="status">
-              <span class="dgg-du-kien-nhan">Trạng thái dự kiến:</span>
-              <template v-if="trangThaiDuKien">
-                <span class="ad-pill" :class="TRANG_THAI[trangThaiDuKien].cls" data-testid="dgg-trang-thai-nhan">{{ TRANG_THAI[trangThaiDuKien].label }}</span>
-                <span class="dgg-du-kien-mo-ta">{{ moTaTrangThai }}</span>
-              </template>
-              <span v-else class="dgg-du-kien-mo-ta">Chọn ngày giờ bắt đầu và kết thúc hợp lệ để xem trạng thái dự kiến.</span>
-            </div>
 
             <div>
               <label class="ad-label" for="dgg-mo-ta">Mô tả</label>

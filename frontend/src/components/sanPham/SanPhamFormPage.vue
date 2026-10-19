@@ -28,6 +28,7 @@ import { useThemNhanh } from '../../composables/useThemNhanh'
 import { thuocTinhService } from '../../services/thuocTinhService'
 import { hinhAnhService } from '../../services/hinhAnhService'
 import { useToast } from '../../composables/useToast'
+import { cat, timBanTrung } from '../../utils/kiemTra'
 
 // Trang THÊM / SỬA sản phẩm (đường dẫn /san-pham/them và /san-pham/:id/sua), giống video: có nút "Quay lại danh sách".
 // Trang tự tải dữ liệu cần dùng (các bảng thuộc tính, danh sách sản phẩm để sinh mã, sản phẩm đang sửa).
@@ -323,6 +324,28 @@ const errors = reactive({}) // lưu lỗi của từng ô, ví dụ errors.ten =
 const daBamLuu = ref(false) // chỉ hiện lỗi sau khi người dùng bấm Lưu lần đầu
 const loiDong = ref({}) // lỗi từng dòng biến thể: { key: { soLuong, giaBan } }
 
+const khoaTen = (s) => cat(s).toLowerCase().replace(/\s+/g, ' ')
+const daChamTen = ref(false)
+
+function kiemTraTen() {
+  const ten = cat(form.ten)
+  if (!ten) {
+    if (daBamLuu.value) errors.ten = 'Nhập tên sản phẩm.'
+    else delete errors.ten
+  } else if (ten.length > 255) {
+    errors.ten = 'Tên sản phẩm tối đa 255 ký tự.'
+  } else if (timBanTrung(tatCaSanPham.value, ten, (x) => x.ten, khoaTen, isEdit ? idSua : null)) {
+    errors.ten = 'Tên sản phẩm đã tồn tại.'
+  } else {
+    delete errors.ten
+  }
+}
+
+function chamTen() {
+  daChamTen.value = true
+  kiemTraTen()
+}
+
 // Kiểm tra từng ô. Trả về true nếu hợp lệ, false nếu có lỗi.
 function kiemTra() {
   for (const key of Object.keys(errors)) {
@@ -339,12 +362,14 @@ function kiemTra() {
     errors.ma = 'Mã sản phẩm đã tồn tại. Hãy tải lại trang để lấy mã mới.'
   }
 
-  // Tên sản phẩm: bắt buộc, tối đa 255 ký tự (khớp độ dài cột trong SQL)
-  const ten = String(form.ten).trim()
+  // Tên sản phẩm: bắt buộc, tối đa 255 ký tự (khớp độ dài cột trong SQL), không trùng tên sản phẩm khác
+  const ten = cat(form.ten)
   if (ten === '') {
     errors.ten = 'Nhập tên sản phẩm.'
   } else if (ten.length > 255) {
     errors.ten = 'Tên sản phẩm tối đa 255 ký tự.'
+  } else if (timBanTrung(tatCaSanPham.value, ten, (x) => x.ten, khoaTen, isEdit ? idSua : null)) {
+    errors.ten = 'Tên sản phẩm đã tồn tại.'
   }
 
   // Các ô chọn đang hiện: bắt buộc phải chọn (giá trị '' nghĩa là chưa chọn). Độ cứng, điểm cân bằng chỉ cần với vợt
@@ -373,6 +398,10 @@ function kiemTra() {
 
   return Object.keys(errors).length === 0
 }
+
+watch(() => form.ten, () => {
+  if (daChamTen.value || daBamLuu.value) kiemTraTen()
+})
 
 // Sau khi đã bấm Lưu một lần, người dùng sửa ô nào thì kiểm tra lại ngay để lỗi biến mất
 watch([form, bienThe], () => {
@@ -569,8 +598,10 @@ async function luuSanPham(xacNhanCapNhat = false) {
               placeholder="Nhập tên sản phẩm…"
               autocomplete="off"
               :aria-invalid="!!errors.ten"
+              aria-describedby="sp-ten-msg"
+              @blur="chamTen"
             />
-            <p v-if="errors.ten" class="ad-error">{{ errors.ten }}</p>
+            <p v-if="errors.ten" id="sp-ten-msg" class="ad-error">{{ errors.ten }}</p>
           </div>
 
           <div v-for="s in selectsHienThi" :key="s.field" class="col-md-6">

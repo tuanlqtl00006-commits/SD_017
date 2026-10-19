@@ -524,14 +524,6 @@ function submit() {
           <p v-if="errors.ngayKetThuc" id="pgg-ngay-kt-msg" class="ad-error">{{ errors.ngayKetThuc }}</p>
         </div>
 
-        <div class="col-12 pgg-du-kien" data-testid="pgg-trang-thai-du-kien" role="status">
-          <span class="pgg-du-kien-nhan">Trạng thái dự kiến:</span>
-          <template v-if="trangThaiDuKien">
-            <span class="ad-pill" :class="TRANG_THAI[trangThaiDuKien].cls" data-testid="pgg-trang-thai-nhan">{{ TRANG_THAI[trangThaiDuKien].label }}</span>
-            <span class="pgg-du-kien-mo-ta">{{ moTaTrangThai }}</span>
-          </template>
-          <span v-else class="pgg-du-kien-mo-ta">Chọn ngày giờ bắt đầu và kết thúc hợp lệ để xem trạng thái dự kiến.</span>
-        </div>
       </div>
     </section>
 

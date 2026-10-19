@@ -53,9 +53,7 @@ describe('Thêm đợt giảm giá: chọn sản phẩm + bảng biến thể đ
     await w.get('#dgg-ten').setValue('Sale vợt')
     await w.get('#dgg-gia-tri').setValue('15')
     await w.get('#dgg-tu-ngay').setValue('2099-10-20')
-    await w.get('#dgg-tu-ngay-gio').setValue('00:00')
     await w.get('#dgg-den-ngay').setValue('2099-10-29')
-    expect(w.get('[data-testid=dgg-trang-thai-du-kien]').text()).toContain('Bắt đầu lúc 20/10/2099 00:00')
   })
 
   it('mỗi dòng có ảnh theo màu, tên sản phẩm, biến thể (màu · trọng lượng · chu vi), giá bán và giá sau giảm đúng', async () => {
@@ -116,7 +114,6 @@ describe('Thêm đợt giảm giá: chọn sản phẩm + bảng biến thể đ
     expect(w.get('[data-iso="2099-10-19"]').attributes('disabled')).toBeDefined()
     await w.get('[data-iso="2099-10-31"]').trigger('click')
     expect(w.get('#dgg-den-ngay').element.value).toBe('31/10/2099')
-    expect(w.get('[data-testid=dgg-trang-thai-du-kien]').text()).toContain('Bắt đầu lúc 20/10/2099 08:30')
     await w.get('form').trigger('submit'); await flushPromises()
     ;[...document.body.querySelectorAll('button')].find((b) => /Xác nhận|Đồng ý|Có/.test(b.textContent))?.click(); await flushPromises()
     const luu = mock.calls.post.find((c) => c[0] === '/dot-giam-gia')

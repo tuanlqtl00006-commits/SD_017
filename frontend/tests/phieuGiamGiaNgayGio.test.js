@@ -350,19 +350,13 @@ describe('Form phiếu: bố cục + ngày giờ + trạng thái dự kiến', (
     w.unmount()
   })
 
-  it('Trạng thái dự kiến đổi ngay theo ngày giờ: Đang hoạt động / Sắp diễn ra / Đã kết thúc', async () => {
+  it('chọn ngày giờ bắt đầu và kết thúc hợp lệ', async () => {
     const w = await montarForm()
-    const nhan = () => w.get('[data-testid=pgg-trang-thai-du-kien]').text()
-    expect(nhan()).toContain('Chọn ngày giờ bắt đầu và kết thúc hợp lệ')
-    await nhapNgay(w, 'pgg-ngay-kt', '2026-10-15', '18:00') // bắt đầu 10:00 (bây giờ), kết thúc 18:00 -> đang chạy
-    expect(w.get('[data-testid=pgg-trang-thai-nhan]').text()).toBe('Đang hoạt động')
-    expect(nhan()).toContain('kết thúc lúc 15/10/2026 18:00')
-    expect(nhan()).toContain('8 giờ')
+    await nhapNgay(w, 'pgg-ngay-kt', '2026-10-15', '18:00')
     await nhapNgay(w, 'pgg-ngay-bd', '2026-10-16', '08:00')
     await nhapNgay(w, 'pgg-ngay-kt', '2026-10-17', '08:00')
-    expect(w.get('[data-testid=pgg-trang-thai-nhan]').text()).toBe('Sắp diễn ra')
-    expect(nhan()).toContain('Bắt đầu lúc 16/10/2026 08:00')
-    expect(nhan()).toContain('22 giờ')
+    expect(w.get('#pgg-ngay-bd').element.value).toBe('16/10/2026')
+    expect(w.get('#pgg-ngay-kt').element.value).toBe('17/10/2026')
     w.unmount()
   })
 
@@ -467,7 +461,6 @@ describe('Form SỬA phiếu: kiểm tra y như form thêm + khóa giờ bắt �
     expect(w.get('#pgg-ngay-bd-gio').attributes('disabled')).toBeDefined()
     expect(w.get('[data-testid=pgg-khoa-bat-dau]').text()).toContain('Phiếu đã bắt đầu nên không đổi được ngày giờ bắt đầu.')
     expect(w.get('#pgg-ngay-kt').attributes('disabled')).toBeUndefined()
-    expect(w.get('[data-testid=pgg-trang-thai-nhan]').text()).toBe('Đang hoạt động')
     expect(w.get('#pgg-ma').attributes('readonly')).toBeDefined()
     w.unmount()
   })
@@ -513,7 +506,6 @@ describe('Form SỬA phiếu: kiểm tra y như form thêm + khóa giờ bắt �
     const w = await montarForm({ item: sap, all: [sap] })
     expect(w.get('#pgg-ngay-bd').attributes('disabled')).toBeUndefined()
     expect(w.find('[data-testid=pgg-khoa-bat-dau]').exists()).toBe(false)
-    expect(w.get('[data-testid=pgg-trang-thai-nhan]').text()).toBe('Sắp diễn ra')
     await nhapNgay(w, 'pgg-ngay-bd', '2026-10-14', '08:00')
     expect(khungCua(w, '#pgg-ngay-bd')).toContain('Ngày giờ bắt đầu mới không được ở quá khứ.')
     await nhapNgay(w, 'pgg-ngay-bd', '2026-10-18', '08:00')
@@ -521,10 +513,10 @@ describe('Form SỬA phiếu: kiểm tra y như form thêm + khóa giờ bắt �
     w.unmount()
   })
 
-  it('phiếu đang tắt công tắc: trạng thái dự kiến là "Ngưng hoạt động"', async () => {
+  it('phiếu đang tắt công tắc: có thể mở xem / sửa', async () => {
     const tat = phieu({ id: 9, ma: 'VCHTATCT1', hoatDong: false, ngayBatDau: '2026-10-20T08:00:00', ngayKetThuc: '2026-10-25T23:59:59' })
     const w = await montarForm({ item: tat, all: [tat] })
-    expect(w.get('[data-testid=pgg-trang-thai-nhan]').text()).toBe('Ngưng hoạt động')
+    expect(w.get('#pgg-ma').element.value).toBe('VCHTATCT1')
     w.unmount()
   })
 

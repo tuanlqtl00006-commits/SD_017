@@ -29,7 +29,7 @@ public class KhachHangService {
         if (search != null && !search.trim().isEmpty()) {
             return repository.searchKhachHang(search.trim());
         }
-        return repository.findAll(Sort.by(Sort.Direction.ASC, "id"));
+        return repository.findAll(Sort.by(Sort.Direction.DESC, "id"));
     }
 
     @Transactional(readOnly = true)
