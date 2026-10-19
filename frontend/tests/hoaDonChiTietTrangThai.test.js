@@ -251,13 +251,13 @@ describe('Hủy đơn / báo giao hàng thất bại / giao lại', () => {
     const thatBai = donGiaoHang(8, [TAO, XAC_NHAN, CHO_GIAO, DANG_GIAO, THAT_BAI_LS])
     const put = vi.fn(async () => ({ data: thatBai }))
     const w = await montar(donGiaoHang(4, [TAO, XAC_NHAN, CHO_GIAO, DANG_GIAO]), put)
-    expect(cacBuoc(w)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(cacBuoc(w)).toEqual([1, 2, 3, 4])
     await bamNut(w, 'Giao hàng thất bại')
     await nhapGhiChu('Khách không nghe máy 3 lần')
     await bamXacNhan('Ghi nhận thất bại')
     expect(put).toHaveBeenCalledWith('/hoa-don/1/trang-thai', { trangThaiMoi: 8, ghiChu: 'Khách không nghe máy 3 lần', nguoiThaoTac: 'Quản lý' })
     expect(hopThoai()).toBeNull()
-    expect(cacBuoc(w)).toEqual([1, 2, 3, 4, 8, 5, 6])
+    expect(cacBuoc(w)).toEqual([1, 2, 3, 4, 8])
     expect(buoc(w, 8).classes()).toEqual(expect.arrayContaining(['is-fail', 'is-latest']))
     expect(buoc(w, 8).text()).toContain('Khách không nghe máy 3 lần')
     expect(buoc(w, 8).text()).toContain('09/10/2026')
@@ -429,18 +429,18 @@ describe('Chuyển sang "Đã xác nhận" thì tự mở bản in hóa đơn (P
 /* ===== 4. Dòng thời gian ===== */
 
 describe('Dòng thời gian', () => {
-  it('giao hàng thất bại: bước màu cam nằm ngay sau "Đang giao hàng", bước sau chưa đi', async () => {
+  it('giao hàng thất bại: bước màu cam nằm ngay sau "Đang giao hàng", bước sau chưa đi thì không hiện', async () => {
     const w = await montar(donGiaoHang(8, [TAO, XAC_NHAN, CHO_GIAO, DANG_GIAO, THAT_BAI_LS]))
-    expect(cacBuoc(w)).toEqual([1, 2, 3, 4, 8, 5, 6])
+    expect(cacBuoc(w)).toEqual([1, 2, 3, 4, 8])
     for (const ma of [1, 2, 3, 4]) expect(buoc(w, ma).classes(), `bước ${ma}`).toContain('is-done')
     expect(buoc(w, 8).classes()).toEqual(expect.arrayContaining(['is-fail', 'is-latest']))
-    for (const ma of [5, 6]) expect(buoc(w, ma).classes(), `bước ${ma}`).toContain('is-todo')
+    for (const ma of [5, 6]) expect(w.find(`li.hd-step[data-buoc="${ma}"]`).exists(), `bước ${ma}`).toBe(false)
     expect(buoc(w, 8).text()).toContain('Giao hàng thất bại')
   })
 
   it('giao lại sau thất bại: đơn lại "Đang giao hàng"; bước thất bại vẫn lưu dấu nhưng không còn là bước mới nhất; giờ "Đang giao" là lần đầu bàn giao', async () => {
     const w = await montar(donGiaoHang(4, [TAO, XAC_NHAN, CHO_GIAO, DANG_GIAO, THAT_BAI_LS, GIAO_LAI]))
-    expect(cacBuoc(w)).toEqual([1, 2, 3, 4, 8, 5, 6])
+    expect(cacBuoc(w)).toEqual([1, 2, 3, 4, 8])
     expect(buoc(w, 4).classes()).toContain('is-current')
     expect(buoc(w, 8).classes()).toContain('is-fail')
     expect(buoc(w, 8).classes()).not.toContain('is-latest')
@@ -472,11 +472,18 @@ describe('Dòng thời gian', () => {
     expect(buoc(w, 0).text()).toContain('Đặt nhầm')
   })
 
-  it('đơn thường chưa từng thất bại thì không có bước màu cam', async () => {
+  it('đơn thường chưa từng thất bại thì không có bước màu cam; các bước sau chưa chuyển thì không hiện', async () => {
     const w = await montar(donGiaoHang(4, [TAO, XAC_NHAN, CHO_GIAO, DANG_GIAO]))
-    expect(cacBuoc(w)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(cacBuoc(w)).toEqual([1, 2, 3, 4])
     expect(w.find('.hd-step.is-fail').exists()).toBe(false)
     expect(buoc(w, 4).classes()).toContain('is-current')
+  })
+
+  it('đơn mới tạo ở trạng thái "Chờ xác nhận" chỉ hiện đúng 1 bước; chuyển trạng thái mới hiện thêm', async () => {
+    const w = await montar(donGiaoHang(1))
+    expect(cacBuoc(w)).toEqual([1])
+    expect(buoc(w, 1).classes()).toContain('is-current')
+    for (const ma of [2, 3, 4, 5, 6]) expect(w.find(`li.hd-step[data-buoc="${ma}"]`).exists(), `bước ${ma}`).toBe(false)
   })
 
   it('đơn tại quầy chỉ có 2 bước: Tạo đơn hàng -> Đã hoàn thành', async () => {

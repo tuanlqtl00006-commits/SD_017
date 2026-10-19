@@ -134,7 +134,8 @@ const timeline = computed(() => {
     const cat = viTri + 1 + (chenThatBai && viTriGiao <= viTri ? 1 : 0)
     return [...steps.slice(0, cat), { ...BUOC_DA_HUY, state: 'cancel', time: ls?.thoiGian, user: ls?.nguoiThaoTac, ghiChu: ls?.moTa }]
   }
-  return steps
+  // Chỉ hiển thị các bước đã đạt được hoặc đang đứng; bước tương lai chưa chuyển đến thì không hiện
+  return steps.filter((s) => s.state !== 'todo')
 })
 
 /* ===================== Đổi trạng thái ===================== */
@@ -758,19 +759,27 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
 /* ---------- Dòng thời gian ---------- */
 .hd-timeline {
   display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  justify-content: safe center;
   margin: 0;
-  padding: 0 0 0.25rem;
+  padding: 1.5rem 1rem 1.25rem;
+  background: var(--fs-surface);
+  border-radius: 16px;
+  border: 1px solid var(--fs-line-soft);
   list-style: none;
   overflow-x: auto;
 }
 .hd-step {
   position: relative;
-  flex: 1 0 120px;
+  flex: 0 1 180px;
+  min-width: 130px;
+  max-width: 200px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
-  padding: 0 0.25rem;
+  gap: 0.2rem;
+  padding: 0 0.5rem;
   text-align: center;
 }
 /* Đường nối giữa các bước */
@@ -804,6 +813,7 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
   background: #fff;
   color: #b8c0cc;
   font-size: 1.35rem;
+  transition: all 0.2s ease;
 }
 .hd-step.is-done .hd-step-dot {
   border-color: var(--fs-primary);
@@ -814,7 +824,7 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
   border-color: var(--fs-primary);
   background: var(--fs-primary-soft);
   color: var(--fs-primary);
-  box-shadow: 0 0 0 6px rgba(9, 119, 236, 0.12);
+  box-shadow: 0 0 0 6px rgba(9, 119, 236, 0.14);
 }
 .hd-step.is-cancel .hd-step-dot {
   border-color: var(--fs-danger);
@@ -822,7 +832,7 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
   color: #fff;
 }
 .hd-step-label {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--fs-muted);
 }
@@ -861,6 +871,11 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
   color: var(--fs-muted);
 }
 .hd-step-user {
+  display: inline-block;
+  margin-top: 0.2rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.05);
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.3px;
@@ -872,8 +887,9 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.75rem;
-  margin-top: 1.5rem;
+  margin-top: 1.25rem;
   padding-top: 1.25rem;
   border-top: 1px dashed var(--fs-line);
 }

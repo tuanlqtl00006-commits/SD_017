@@ -1149,10 +1149,18 @@ textarea.ad-control {
 .dgg-stat-gio { font-size: 1rem; }
 /* Bảng biến thể đã chọn */
 .dgg-chosen-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.dgg-chosen-filters :deep(.s2-wrap) { width: auto; min-width: 145px; flex: 0 1 auto; }
+.dgg-chosen-filters :deep(.s2-trigger) {
+  height: 36px;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  font-size: 0.84rem;
+}
 .dgg-chosen-filters .form-select { width: auto; min-width: 145px; }
 .dgg-chosen-search {
   position: relative;
   width: 200px;
+  flex: 0 1 auto;
 }
 .dgg-chosen-search i {
   position: absolute;
