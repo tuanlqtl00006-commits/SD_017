@@ -217,7 +217,6 @@ const bienThe = ref([]) // mỗi dòng: { key, idMauSac, idTrongLuong, idChuVi, 
 const macDinh = reactive({ soLuong: '', giaBan: '' })
 const cheDo = ref(CHE_DO_HIEN_THI_MAC_DINH) // 'mau': nhóm theo màu (như video mẫu) | 'chung': một bảng chung
 const hoiLuu = ref(false) // hiện hộp "Bạn có muốn lưu sản phẩm không?"
-const hoiCapNhat = ref(null) // sản phẩm đã tồn tại: { message, ... } từ backend -> hỏi "bạn muốn cập nhật?"
 
 onMounted(async () => {
   try {
@@ -371,7 +370,7 @@ function kiemTraTen() {
     else delete errors.ten
   } else if (ten.length > 255) {
     errors.ten = 'Tên sản phẩm tối đa 255 ký tự.'
-  } else if (timBanTrung(tatCaSanPham.value, ten, (x) => x.ten, khoaTen, isEdit ? idSua : null)) {
+  } else if (isEdit && timBanTrung(tatCaSanPham.value, ten, (x) => x.ten, khoaTen, idSua)) {
     errors.ten = 'Tên sản phẩm đã tồn tại.'
   } else {
     delete errors.ten
@@ -399,13 +398,13 @@ function kiemTra() {
     errors.ma = 'Mã sản phẩm đã tồn tại. Hãy tải lại trang để lấy mã mới.'
   }
 
-  // Tên sản phẩm: bắt buộc, tối đa 255 ký tự (khớp độ dài cột trong SQL), không trùng tên sản phẩm khác
+  // Tên sản phẩm: bắt buộc, tối đa 255 ký tự (khớp độ dài cột trong SQL); sửa thì không trùng tên SP khác
   const ten = cat(form.ten)
   if (ten === '') {
     errors.ten = 'Nhập tên sản phẩm.'
   } else if (ten.length > 255) {
     errors.ten = 'Tên sản phẩm tối đa 255 ký tự.'
-  } else if (timBanTrung(tatCaSanPham.value, ten, (x) => x.ten, khoaTen, isEdit ? idSua : null)) {
+  } else if (isEdit && timBanTrung(tatCaSanPham.value, ten, (x) => x.ten, khoaTen, idSua)) {
     errors.ten = 'Tên sản phẩm đã tồn tại.'
   }
 
@@ -419,9 +418,13 @@ function kiemTra() {
     errors.idDanhMuc = THIEU_KHONG_AP_DUNG
   }
 
-  // Ảnh không bắt buộc theo yêu cầu người dùng: chỉ kiểm tra không vượt quá số lượng tối đa nếu có tải ảnh
+  // Validate biến thể thêm ảnh (khi thêm mới): nếu có biến thể thì cần thêm ít nhất 1 ảnh cho biến thể
+  const tongAnh = (form.anh?.length || 0) + Object.values(anhTheoMau || {}).reduce((sum, arr) => sum + (arr ? arr.filter(Boolean).length : 0), 0)
+  if (!isEdit && bienThe.value.length && tongAnh === 0) {
+    errors.anhBienThe = 'Vui lòng thêm ít nhất 1 ảnh cho biến thể.'
+  }
   if (form.anh.length > TOI_DA_ANH) {
-    errors.anh = `Mỗi sản phẩm tối đa ${TOI_DA_ANH} ảnh (gồm cả ảnh chính).`
+    errors.anhChung = `Mỗi sản phẩm tối đa ${TOI_DA_ANH} ảnh (gồm cả ảnh chính).`
   }
 
   // Biến thể (nếu có): phải tích ít nhất 1 dòng; mỗi dòng đang tích cần số lượng nguyên >= 0 và giá bán >= 1.000 ₫
@@ -441,7 +444,7 @@ watch(() => form.ten, () => {
 })
 
 // Sau khi đã bấm Lưu một lần, người dùng sửa ô nào thì kiểm tra lại ngay để lỗi biến mất
-watch([form, bienThe], () => {
+watch([form, bienThe, () => ({ ...anhTheoMau })], () => {
   if (daBamLuu.value) kiemTra()
 }, { deep: true })
 
@@ -534,10 +537,11 @@ function guiForm() {
   daBamLuu.value = true
   if (!kiemTra()) {
     if (errors.bienThe) toast.error(errors.bienThe)
-    else if (errors.anh) toast.error(errors.anh)
+    else if (errors.anhBienThe) toast.error(errors.anhBienThe)
+    else if (errors.anhChung) toast.error(errors.anhChung)
     // Kéo tới ô lỗi đầu tiên để người dùng thấy ngay chỗ cần sửa
     nextTick(() => {
-      const o = document.querySelector('#sp-form .is-invalid') || document.getElementById('sp-anh-chung')
+      const o = document.querySelector('#sp-form .is-invalid') || document.querySelector('[data-testid="anh-theo-mau"]')
       o?.scrollIntoView?.({ block: 'center' })
     })
     return // có lỗi thì dừng
@@ -549,7 +553,6 @@ function guiForm() {
 // xacNhanCapNhat = true: người dùng đã đồng ý cập nhật sản phẩm đã tồn tại (xem hộp hỏi bên dưới)
 async function luuSanPham(xacNhanCapNhat = false) {
   hoiLuu.value = false
-  hoiCapNhat.value = null
   // Hợp lệ: chuẩn hóa dữ liệu rồi gọi API.
   // Number(...) vì giá trị lấy từ dropdown có thể là chuỗi, còn id trong dữ liệu là số.
   const duLieu = {
@@ -579,19 +582,17 @@ async function luuSanPham(xacNhanCapNhat = false) {
       duLieu.bienThes = payloadBienThe(bienThe.value)
       const mauDuocChon = [...new Set(duLieu.bienThes.map((b) => b.idMauSac))]
       duLieu.anhTheoMau = payloadAnhTheoMau(anhTheoMau, mauDuocChon)
-      duLieu.xacNhanCapNhat = xacNhanCapNhat
-      await sanPhamService.create(duLieu)
-      if (xacNhanCapNhat) toast.success('Đã cập nhật sản phẩm và biến thể.')
-      else toast.success(bienThe.value.length ? `Đã thêm sản phẩm và ${soChon.value} biến thể.` : 'Đã thêm sản phẩm.')
+      duLieu.xacNhanCapNhat = true
+      const res = await sanPhamService.create(duLieu)
+      if (res && res.ma !== duLieu.ma) {
+        toast.success(`Đã gộp vô sản phẩm trùng "${res.ten}".`)
+      } else {
+        toast.success(bienThe.value.length ? `Đã thêm sản phẩm và ${soChon.value} biến thể.` : 'Đã thêm sản phẩm.')
+      }
     }
     router.push('/san-pham') // về danh sách, sản phẩm mới nằm ở đầu danh sách
   } catch (loi) {
-    // Sản phẩm (cùng tên + danh mục + thương hiệu) đã tồn tại: chưa lưu gì, hỏi người dùng có muốn cập nhật không
-    if (loi.response?.status === 409 && loi.response?.data?.code === 'SAN_PHAM_DA_TON_TAI') {
-      hoiCapNhat.value = { message: loi.message, ...(loi.response.data.chiTiet || {}) }
-    } else {
-      toast.error(loi.message || 'Không thể lưu sản phẩm. Vui lòng thử lại.')
-    }
+    toast.error(loi.message || 'Không thể lưu sản phẩm. Vui lòng thử lại.')
   } finally {
     dangLuu.value = false
   }
@@ -872,6 +873,7 @@ async function luuSanPham(xacNhanCapNhat = false) {
             <p v-if="loiAnhMau[idMau]" class="ad-error mb-0">{{ loiAnhMau[idMau] }}</p>
           </div>
         </div>
+        <p v-if="errors.anhBienThe" class="ad-error mt-2 mb-0" role="alert" data-testid="loi-anh-bien-the">{{ errors.anhBienThe }}</p>
       </section>
 
       <section id="sp-anh-chung" class="ad-card">
@@ -907,7 +909,7 @@ async function luuSanPham(xacNhanCapNhat = false) {
         </div>
         <input id="sp-file-anh-chung" ref="inputFile" type="file" class="d-none" accept="image/jpeg,image/png,image/webp,image/gif" multiple @change="chonFile" />
         <p v-if="loiAnh" class="ad-error">{{ loiAnh }}</p>
-        <p v-else-if="errors.anh" class="ad-error" role="alert" data-testid="loi-anh">{{ errors.anh }}</p>
+        <p v-else-if="errors.anhChung" class="ad-error" role="alert" data-testid="loi-anh">{{ errors.anhChung }}</p>
         <p v-else class="ad-hint">Chọn ảnh JPG, PNG, WEBP, GIF (tối đa {{ TOI_DA_MB }} MB mỗi ảnh, {{ TOI_DA_ANH }} ảnh). Ảnh đầu tiên là ảnh chính (không bắt buộc).</p>
 
         <label class="ad-label mt-3" for="sp-mo-ta">Mô tả</label>
@@ -930,17 +932,6 @@ async function luuSanPham(xacNhanCapNhat = false) {
       confirm-text="Xác nhận lưu"
       @confirm="luuSanPham(false)"
       @cancel="hoiLuu = false"
-    />
-
-    <!-- Sản phẩm đã tồn tại -> hỏi có muốn cập nhật không (thêm biến thể mới, biến thể trùng thì cập nhật giá / số lượng) -->
-    <ConfirmQuestion
-      v-if="hoiCapNhat"
-      title="Sản phẩm đã tồn tại"
-      :message="`${hoiCapNhat.message}${hoiCapNhat.soBienTheMoi || hoiCapNhat.soBienTheCapNhat ? ` Sẽ thêm ${hoiCapNhat.soBienTheMoi || 0} biến thể mới và cập nhật giá bán / số lượng của ${hoiCapNhat.soBienTheCapNhat || 0} biến thể đã có.` : ''}`"
-      confirm-text="Cập nhật"
-      :loading="dangLuu"
-      @confirm="luuSanPham(true)"
-      @cancel="hoiCapNhat = null"
     />
 
     <!-- Modal thêm nhanh thuộc tính bằng nút bấm -->

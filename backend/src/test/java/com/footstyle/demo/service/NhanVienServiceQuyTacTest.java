@@ -105,8 +105,9 @@ class NhanVienServiceQuyTacTest {
 
     @Test
     void soDienThoaiDauSoVaKhongTrung() {
-        assertEquals(QuyTacDuLieu.LOI_SDT, loiO(voi("soDienThoai", "0212345678"), "soDienThoai"));
+        assertEquals(QuyTacDuLieu.LOI_SDT, loiO(voi("soDienThoai", "1212345678"), "soDienThoai"));
         assertEquals(QuyTacDuLieu.LOI_SDT, loiO(voi("soDienThoai", "123"), "soDienThoai"));
+        assertEquals("0212345678", service.them(voi("soDienThoai", "0212345678")).soDienThoai(), "bắt đầu bằng 0 và 10 số là hợp lệ");
         ApiException trung = loi(voi("soDienThoai", "0912000002"));
         assertEquals(HttpStatus.CONFLICT, trung.getStatus());
         assertEquals("Số điện thoại đã được sử dụng.", trung.getLoiTheoTruong().get("soDienThoai"));
@@ -176,7 +177,7 @@ class NhanVienServiceQuyTacTest {
     @Test
     void suaCungBaoLoiTungOGiongHetThem() {
         NhanVienResponse goc = taoMau();
-        NhanVienRequest sai = suaVoi(goc, "Lê 99", LocalDate.now().minusYears(10), "0212345678", null);
+        NhanVienRequest sai = suaVoi(goc, "Lê 99", LocalDate.now().minusYears(10), "1212345678", null);
         ApiException e = assertThrows(ApiException.class, () -> service.sua(goc.id(), sai));
         assertEquals(Map.of("hoTen", QuyTacDuLieu.LOI_HO_TEN_KY_TU, "soDienThoai", QuyTacDuLieu.LOI_SDT, "gioiTinh", "Chọn giới tính.",
                 "ngaySinh", "Nhân viên phải từ đủ 18 tuổi."), e.getLoiTheoTruong());

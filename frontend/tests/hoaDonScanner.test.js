@@ -4,6 +4,8 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import HoaDonScannerModal from '../src/components/hoaDon/HoaDonScannerModal.vue'
 import HoaDonManager from '../src/components/HoaDonManager.vue'
 
+import { quetMaTuAnh } from '../src/utils/qrHoaDon'
+
 const body = () => new DOMWrapper(document.body)
 
 let mockApi
@@ -13,6 +15,14 @@ vi.mock('../src/services/api', () => ({
     get: (_, k) => (...a) => mockApi[k](...a),
   }),
 }))
+
+vi.mock('../src/utils/qrHoaDon', async () => {
+  const actual = await vi.importActual('../src/utils/qrHoaDon')
+  return {
+    ...actual,
+    quetMaTuAnh: vi.fn(),
+  }
+})
 
 const MOCK_HD_CHI_TIET = {
   hoaDon: {
@@ -67,7 +77,7 @@ describe('HoaDonScannerModal - Quét mã hóa đơn', () => {
     }
   })
 
-  it('hiển thị đầy đủ 3 phương thức quét: Camera, Tải ảnh mã, Máy quét / Nhập mã', async () => {
+  it('hiển thị 2 phương thức quét: Camera, Tải ảnh mã (không còn Máy quét / Nhập mã)', async () => {
     const w = mount(HoaDonScannerModal, {
       global: { plugins: [router] },
       attachTo: document.body,
@@ -77,27 +87,27 @@ describe('HoaDonScannerModal - Quét mã hóa đơn', () => {
     const tabs = body().findAll('.ad-segment-item').map((el) => el.text())
     expect(tabs.some((t) => t.includes('Camera'))).toBe(true)
     expect(tabs.some((t) => t.includes('Tải ảnh mã'))).toBe(true)
-    expect(tabs.some((t) => t.includes('Máy quét / Nhập mã'))).toBe(true)
+    expect(tabs.some((t) => t.includes('Máy quét'))).toBe(false)
     w.unmount()
   })
 
-  it('tab Máy quét: nhập mã HD16 và bấm tìm -> tìm thấy thì đóng modal và mở ngay chi tiết hóa đơn', async () => {
+  it('tab Tải ảnh mã: tải ảnh có mã HD16 -> tìm thấy thì đóng modal và mở ngay chi tiết hóa đơn', async () => {
+    vi.mocked(quetMaTuAnh).mockResolvedValue('HD16')
     const w = mount(HoaDonScannerModal, {
       global: { plugins: [router] },
       attachTo: document.body,
     })
     await flushPromises()
 
-    // Chọn tab máy quét
-    const tabMayQuet = body().findAll('.ad-segment-item').find((el) => el.text().includes('Máy quét'))
-    await tabMayQuet.trigger('click')
+    const tabAnh = body().findAll('.ad-segment-item').find((el) => el.text().includes('Tải ảnh mã'))
+    await tabAnh.trigger('click')
     await flushPromises()
 
-    const input = body().get('#hd-input-scan')
-    await input.setValue('HD16')
-
-    const btnTraCuu = body().findAll('button').find((b) => b.text().includes('Tìm & mở hóa đơn') || b.text().includes('Tra cứu'))
-    await btnTraCuu.trigger('click')
+    const input = body().get('#hd-file-qr')
+    const file = new File(['dummy'], 'qr.png', { type: 'image/png' })
+    Object.defineProperty(input.element, 'files', { value: [file] })
+    await input.trigger('change')
+    await new Promise((r) => setTimeout(r, 50))
     await flushPromises()
 
     // Kiểm tra API được gọi
@@ -114,20 +124,22 @@ describe('HoaDonScannerModal - Quét mã hóa đơn', () => {
     w.unmount()
   })
 
-  it('báo lỗi khi không tìm thấy hóa đơn khớp mã', async () => {
+  it('báo lỗi khi không tìm thấy hóa đơn khớp mã từ ảnh', async () => {
+    vi.mocked(quetMaTuAnh).mockResolvedValue('HD_SAI')
     const w = mount(HoaDonScannerModal, {
       global: { plugins: [router] },
       attachTo: document.body,
     })
     await flushPromises()
 
-    const tabMayQuet = body().findAll('.ad-segment-item').find((el) => el.text().includes('Máy quét'))
-    await tabMayQuet.trigger('click')
+    const tabAnh = body().findAll('.ad-segment-item').find((el) => el.text().includes('Tải ảnh mã'))
+    await tabAnh.trigger('click')
     await flushPromises()
 
-    await body().get('#hd-input-scan').setValue('HD_SAI')
-    const btnTraCuu = body().findAll('button').find((b) => b.text().includes('Tìm & mở hóa đơn') || b.text().includes('Tra cứu'))
-    await btnTraCuu.trigger('click')
+    const input = body().get('#hd-file-qr')
+    const file = new File(['dummy'], 'qr.png', { type: 'image/png' })
+    Object.defineProperty(input.element, 'files', { value: [file] })
+    await input.trigger('change')
     await flushPromises()
 
     expect(body().text()).toContain('Không tìm thấy hóa đơn có mã')

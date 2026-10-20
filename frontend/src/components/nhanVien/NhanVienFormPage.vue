@@ -349,7 +349,10 @@ function tinhLoi() {
   // Email chỉ nhập lúc thêm mới; khi sửa email bị khóa nên không cần kiểm tra
   if (!isEdit) {
     let email = loiEmail(form.email, { thieu: 'Nhập email.', dinhDang: LOI_EMAIL_NHAN_VIEN })
-    if (!email && timBanTrung(tatCa.value, form.email, (x) => x.email, khoaEmail, idDangSua)) email = 'Email đã được sử dụng.'
+    if (!email) {
+      const trung = timBanTrung(tatCa.value, form.email, (x) => x.email, khoaEmail, idDangSua)
+      if (trung) email = `Email đã tồn tại (nhân viên ${trung.hoTen || 'khác'}).` // Email đã được sử dụng.
+    }
     if (email) e.email = email
   }
 
@@ -359,7 +362,10 @@ function tinhLoi() {
   }
 
   let sdt = loiSdt(form.soDienThoai, 'Nhập số điện thoại.')
-  if (!sdt && timBanTrung(tatCa.value, form.soDienThoai, (x) => x.soDienThoai, khoaSdt, idDangSua)) sdt = 'Số điện thoại đã được sử dụng.'
+  if (!sdt) {
+    const trung = timBanTrung(tatCa.value, form.soDienThoai, (x) => x.soDienThoai, khoaSdt, idDangSua)
+    if (trung) sdt = `Số điện thoại đã tồn tại (nhân viên ${trung.hoTen || 'khác'}).` // Số điện thoại đã được sử dụng.
+  }
   if (sdt) e.soDienThoai = sdt
 
   if (!cat(form.gioiTinh)) e.gioiTinh = 'Chọn giới tính.'
@@ -400,7 +406,7 @@ function tinhLoi() {
   return e
 }
 
-const { loi, cham, sua, batDauGui, datLoiMayChu, focusLoiDau } = useLoiForm(tinhLoi, { chiKhiLuu: true })
+const { loi, cham, sua, batDauGui, datLoiMayChu, focusLoiDau } = useLoiForm(tinhLoi)
 
 /* ----- Lưu ----- */
 
@@ -615,21 +621,6 @@ async function xacNhanDoiMatKhau() {
               <div data-testid="nv-preview-dia-chi">{{ chuoiDiaChiChinh || 'Chưa thêm địa chỉ' }}</div>
             </div>
           </div>
-
-          <section v-if="isEdit && item" class="ad-card mb-4 p-4">
-            <h2 class="ad-card-title mb-2 fs-6 fw-bold">Trạng thái nhân viên</h2>
-            <button type="button" class="ad-btn w-100" :class="item.hoatDong ? 'text-danger' : 'text-success'" @click="hoiKhoa = true">
-              <i class="bi" :class="item.hoatDong ? 'bi-box-arrow-right' : 'bi-arrow-counterclockwise'" aria-hidden="true"></i>
-              {{ item.hoatDong ? 'Cho nghỉ việc' : 'Cho làm lại' }}
-            </button>
-          </section>
-
-          <section v-if="isEdit && item" class="ad-card mb-4 p-4">
-            <h2 class="ad-card-title mb-2 fs-6 fw-bold">Bảo mật tài khoản</h2>
-            <button type="button" class="ad-btn w-100" @click="moDoiMatKhau">
-              <i class="bi bi-key" aria-hidden="true"></i> Đổi mật khẩu
-            </button>
-          </section>
         </div>
 
         <!-- Cột phải: Thông tin nhân viên + Thông tin địa chỉ -->
@@ -686,7 +677,7 @@ async function xacNhanDoiMatKhau() {
                   @blur="cham('soDienThoai')"
                 />
                 <p v-if="loi.soDienThoai" id="nv-sdt-msg" class="ad-error mt-1">{{ loi.soDienThoai }}</p>
-                <p v-else id="nv-sdt-msg" class="ad-hint mt-1 visually-hidden">10 chữ số, đầu số 03, 05, 07, 08 hoặc 09.</p>
+                <p v-else id="nv-sdt-msg" class="ad-hint mt-1 visually-hidden">10 chữ số, bắt đầu bằng 0.</p>
               </div>
 
               <div class="col-md-6">

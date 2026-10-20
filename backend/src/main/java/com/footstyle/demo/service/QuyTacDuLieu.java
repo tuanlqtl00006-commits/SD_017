@@ -25,14 +25,14 @@ public final class QuyTacDuLieu {
     public static final int TUOI_NHAN_VIEN_TOI_THIEU = 18;
     public static final int TUOI_TOI_DA = 100;
 
-    /** Số điện thoại di động Việt Nam: 10 số, đầu số 03x / 05x / 07x / 08x / 09x. */
-    public static final Pattern SDT = Pattern.compile("^0[35789]\\d{8}$");
+    /** Số điện thoại: 10 chữ số, bắt đầu bằng 0. */
+    public static final Pattern SDT = Pattern.compile("^0\\d{9}$");
     public static final Pattern EMAIL = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$");
     /** Họ tên: bắt đầu bằng chữ cái, chỉ gồm chữ cái (có dấu), khoảng trắng, dấu chấm, nháy đơn, gạch ngang - không có chữ số. */
     public static final Pattern HO_TEN = Pattern.compile("^\\p{L}[\\p{L} .'’-]*$");
     public static final Pattern CCCD = Pattern.compile("^\\d{12}$");
 
-    public static final String LOI_SDT = "Số điện thoại gồm 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.";
+    public static final String LOI_SDT = "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.";
     public static final String LOI_EMAIL = "Email chưa đúng định dạng, ví dụ: ten@gmail.com.";
     public static final String LOI_HO_TEN_KY_TU = "Họ tên chỉ gồm chữ cái và khoảng trắng, không có chữ số hay ký tự đặc biệt.";
 

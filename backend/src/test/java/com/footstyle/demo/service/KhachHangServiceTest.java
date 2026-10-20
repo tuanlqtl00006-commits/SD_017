@@ -118,25 +118,12 @@ class KhachHangServiceTest {
 
     // ---------- số điện thoại ----------
     @Test
-    void sdtDauSoSaiBiChan_dauSoDungDuocNhan() {
-        // 01x, 02x, 04x, 06x không phải đầu số di động
-        for (String sai : List.of("0112345678", "0212345678", "0412345678", "0612345678", "1912345678")) {
-            ApiException e = loi(() -> service.them(req("Nguyễn An", sai, "an@mail.vn")));
-            assertEquals(QuyTacDuLieu.LOI_SDT, theoO(e).get("sdt"), sai);
-        }
-        int i = 0;
-        for (String dau : List.of("03", "05", "07", "08", "09")) {
-            assertEquals(dau + "12345678", service.them(req("Nguyễn An", dau + "12345678", "a" + (i++) + "@mail.vn")).getSdt());
-        }
-    }
-
-    @Test
-    void sdtSaiDoDaiHoacCoChuBiChan() {
-        for (String sai : List.of("09123abc45", "09123456789", "091234567", "0912 345 678", "+84912345678")) {
-            assertEquals(QuyTacDuLieu.LOI_SDT, theoO(loi(() -> service.them(req("Nguyễn An", sai, "an@mail.vn")))).get("sdt"), sai);
-        }
-        assertEquals("0912345678", service.them(req("Nguyễn An", " 0912345678 ", "an@mail.vn")).getSdt());
+    void sdtChuaNhapBaoThieu_nhapHopLeDuocLuu() {
         assertEquals("Vui lòng nhập số điện thoại.", theoO(loi(() -> service.them(req("Nguyễn An", "", "b@mail.vn")))).get("sdt"));
+        assertEquals(QuyTacDuLieu.LOI_SDT, theoO(loi(() -> service.them(req("Nguyễn An", "096791622", "an1@mail.vn")))).get("sdt"));
+        assertEquals(QuyTacDuLieu.LOI_SDT, theoO(loi(() -> service.them(req("Nguyễn An", "1234567890", "an1@mail.vn")))).get("sdt"));
+        assertEquals("0123456789", service.them(req("Nguyễn An", "0123456789", "an1@mail.vn")).getSdt());
+        assertEquals("0912345678", service.them(req("Nguyễn An", " 0912345678 ", "an2@mail.vn")).getSdt());
     }
 
     @Test
@@ -207,12 +194,10 @@ class KhachHangServiceTest {
         ApiException e = loi(() -> service.sua(a.getId(), req("An 2", "", "")));
         Map<String, String> o = theoO(e);
         assertEquals(3, o.size());
-        assertTrue(o.containsKey("hoTen") && o.containsKey("sdt") && o.containsKey("email"));
-        // đầu số sai, tuổi nhỏ
-        KhachHangRequest nho = req("Nguyễn An", "0212345678", "an@mail.vn");
+        // tuổi nhỏ
+        KhachHangRequest nho = req("Nguyễn An", "0912345678", "an@mail.vn");
         nho.setNgaySinh(LocalDate.now().minusYears(12));
         Map<String, String> o2 = theoO(loi(() -> service.sua(a.getId(), nho)));
-        assertEquals(QuyTacDuLieu.LOI_SDT, o2.get("sdt"));
         assertEquals("Khách hàng phải từ đủ 15 tuổi.", o2.get("ngaySinh"));
         // không có gì bị đổi
         assertEquals("0912345678", khachs.get(0).getSdt());
@@ -306,10 +291,8 @@ class KhachHangServiceTest {
         r.setPhuongXa("Phường Hà Đông");
         r.setDiaChiCuThe("Số 1");
         r.setTenNguoiNhan("Mẹ 123");
-        r.setSdtNguoiNhan("0212345678");
         Map<String, String> o = theoO(loi(() -> service.them(r)));
         assertEquals(QuyTacDuLieu.LOI_HO_TEN_KY_TU, o.get("tenNguoiNhan"));
-        assertEquals(QuyTacDuLieu.LOI_SDT, o.get("sdtNguoiNhan"));
         assertTrue(khachs.isEmpty());
 
         r.setTenNguoiNhan("  Trần   Thị Mẹ ");

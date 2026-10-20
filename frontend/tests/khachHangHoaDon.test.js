@@ -137,12 +137,12 @@ describe('Địa chỉ khách hàng (modal)', () => {
     await nutTheoChu('Thêm địa chỉ mới').trigger('click')
     await flushPromises()
     await body().find('#kh-dc-ten').setValue('')
-    await body().find('#kh-dc-sdt').setValue('0212345678') // đầu số 02 không phải di động
+    await body().find('#kh-dc-sdt').setValue('1212345678') // không bắt đầu bằng 0
     await nutTheoChu('Lưu địa chỉ').trigger('click')
     await flushPromises()
     const loi = (id) => body().find(`#${id}`).text()
     expect(loi('kh-dc-ten-msg')).toBe('Vui lòng nhập tên người nhận.')
-    expect(loi('kh-dc-sdt-msg')).toContain('bắt đầu bằng 03, 05, 07, 08 hoặc 09')
+    expect(loi('kh-dc-sdt-msg')).toContain('bắt đầu bằng 0')
     expect(loi('kh-dc-tinh-msg')).toBe('Vui lòng chọn Tỉnh/Thành phố.')
     expect(loi('kh-dc-phuong-msg')).toBe('Vui lòng chọn Phường/Xã.')
     expect(loi('kh-dc-chi-tiet-msg')).toContain('địa chỉ cụ thể')

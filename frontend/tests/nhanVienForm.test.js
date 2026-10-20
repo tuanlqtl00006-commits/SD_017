@@ -14,6 +14,16 @@ vi.mock('vue-router', () => ({
 
 vi.mock('../src/services/nhanVienService', () => ({ nhanVienService: svc }))
 
+vi.mock('jsqr', () => ({ default: vi.fn() }))
+
+vi.mock('../src/utils/cccd', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    quetQrTuAnh: vi.fn(async (file) => (file ? file._noiDung : null)),
+  }
+})
+
 vi.mock('../src/services/diaChiHanhChinhService', () => {
   const tinh = [{ code: 1, name: 'Thành phố Hà Nội' }, { code: 33, name: 'Tỉnh Hưng Yên' }]
   const phuong = { 1: [{ code: 10, name: 'Phường Hồng Hà' }, { code: 11, name: 'Phường Hà Đông' }], 33: [{ code: 20, name: 'Phường Thái Bình' }] }
@@ -228,17 +238,18 @@ describe('Thêm nhân viên', () => {
 
 describe('Quét căn cước công dân', () => {
   async function quet(w, noiDung) {
-    await w.findAll('button').find((b) => b.text().includes('Quét căn cước')).trigger('click')
+    await w.findAll('button').find((b) => b.text().includes('Quét CCCD') || b.text().includes('Quét căn cước')).trigger('click')
     await flushPromises()
     expect(dom('.modal')).toBeTruthy()
-    // mở camera thất bại trong jsdom (không có thiết bị) -> chuyển sang "Máy quét"
-    const tab = [...document.body.querySelectorAll('.ad-segment-item')].find((l) => l.textContent.includes('Máy quét'))
+    // mở camera thất bại trong jsdom (không có thiết bị) -> chuyển sang "Tải ảnh QR"
+    const tab = [...document.body.querySelectorAll('.ad-segment-item')].find((l) => l.textContent.includes('Tải ảnh QR'))
     tab.querySelector('input').click()
     await flushPromises()
-    const o = dom('#cccd-dan')
-    o.value = noiDung
-    o.dispatchEvent(new Event('input'))
-    o.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    const input = dom('#cccd-file')
+    const fakeFile = { name: 'qr.png', _noiDung: noiDung }
+    Object.defineProperty(input, 'files', { value: [fakeFile], configurable: true })
+    input.dispatchEvent(new Event('change'))
+    await new Promise((r) => setTimeout(r, 50))
     await flushPromises()
   }
 
@@ -412,17 +423,15 @@ describe('Đã bỏ vị trí làm việc', () => {
 })
 
 describe('Trạng thái nhân viên: Còn làm / Đã nghỉ', () => {
-  it('trang chi tiết: nhân viên còn làm hiện nút "Cho nghỉ việc", đã nghỉ hiện "Cho làm lại"', async () => {
+  it('trang chi tiết: hiển thị đúng trạng thái nhân viên Còn làm / Đã nghỉ', async () => {
     state.params = { id: '1' }
     let w = await moForm()
     expect(w.text()).toContain('Còn làm')
-    expect(w.text()).toContain('Cho nghỉ việc')
     expect(w.text()).not.toContain('Khóa tài khoản')
     w.unmount()
     document.body.innerHTML = ''
     w = await moForm([{ ...NV_CO_SAN[0], hoatDong: false }])
     expect(w.text()).toContain('Đã nghỉ')
-    expect(w.text()).toContain('Cho làm lại')
     expect(w.text()).not.toContain('Mở khóa')
     w.unmount()
   })

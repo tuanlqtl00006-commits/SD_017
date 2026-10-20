@@ -14,15 +14,13 @@ const emit = defineEmits(['close', 'scanned'])
 const CACH_QUET = [
   { key: 'camera', label: 'Camera', icon: 'bi-camera' },
   { key: 'anh', label: 'Tải ảnh QR', icon: 'bi-image' },
-  { key: 'may-quet', label: 'Máy quét', icon: 'bi-upc-scan' },
 ]
-const tab = ref('camera') // camera | anh | may-quet
+const tab = ref('camera') // camera | anh
 const loi = ref('')
 const nhac = ref('') // nhắc nhẹ khi camera thấy mã QR không phải của CCCD
 const dangMoCamera = ref(false)
 const cameraSan = ref(false)
 const dangDocAnh = ref(false)
-const noiDungDan = ref('')
 
 const videoRef = ref(null)
 const oDan = ref(null)
@@ -149,7 +147,6 @@ watch(tab, async (t) => {
   dungCamera()
   await nextTick()
   if (t === 'camera') moCamera()
-  if (t === 'may-quet') oDan.value?.focus()
 })
 
 onMounted(moCamera)
@@ -188,23 +185,6 @@ onBeforeUnmount(() => {
       <input id="cccd-file" type="file" accept="image/*" class="form-control ad-control" :disabled="dangDocAnh" @change="chonAnh" />
       <p v-if="dangDocAnh" class="ad-hint">Đang đọc ảnh…</p>
       <p v-else class="ad-hint">Ảnh nên rõ nét, mã QR đủ lớn và không bị lóa.</p>
-    </div>
-
-    <!-- Máy quét -->
-    <div v-if="tab === 'may-quet'">
-      <label class="ad-label" for="cccd-dan">Nội dung mã QR</label>
-      <input
-        id="cccd-dan"
-        ref="oDan"
-        v-model="noiDungDan"
-        type="text"
-        class="form-control ad-control"
-        placeholder="Bấm vào ô này rồi quét bằng máy quét mã vạch, hoặc dán nội dung mã"
-        autocomplete="off"
-        @keydown.enter.prevent="docNoiDungDan"
-      />
-      <p class="ad-hint">Máy quét cầm tay sẽ tự gõ nội dung và nhấn Enter. Có thể dán nội dung rồi bấm “Đọc mã”.</p>
-      <button type="button" class="ad-btn ad-btn-primary mt-2" :disabled="!noiDungDan.trim()" @click="docNoiDungDan">Đọc mã</button>
     </div>
 
     <p v-if="loi" class="ad-error mt-3" role="alert">{{ loi }}</p>

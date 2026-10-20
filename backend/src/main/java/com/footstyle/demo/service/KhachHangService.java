@@ -71,8 +71,8 @@ public class KhachHangService {
                 if (tenNguoiNhan.length() < 2 || tenNguoiNhan.length() > 100) loi.them("tenNguoiNhan", "Họ tên từ 2 đến 100 ký tự.");
                 else if (!QuyTacDuLieu.HO_TEN.matcher(tenNguoiNhan).matches()) loi.them("tenNguoiNhan", QuyTacDuLieu.LOI_HO_TEN_KY_TU);
             }
-            if (!sdtNguoiNhan.isEmpty() && !QuyTacDuLieu.SDT.matcher(sdtNguoiNhan).matches()) {
-                loi.them("sdtNguoiNhan", QuyTacDuLieu.LOI_SDT);
+            if (!sdtNguoiNhan.isEmpty()) {
+                if (!QuyTacDuLieu.SDT.matcher(sdtNguoiNhan).matches()) loi.them("sdtNguoiNhan", QuyTacDuLieu.LOI_SDT);
             }
         }
         loi.nemNeuCoLoi();

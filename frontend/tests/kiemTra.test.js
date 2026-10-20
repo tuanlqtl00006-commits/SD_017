@@ -38,12 +38,12 @@ const cong = (iso, n) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-describe('Số điện thoại: 10 số, đầu số 03/05/07/08/09', () => {
-  it('đầu số di động hợp lệ', () => {
-    for (const dau of ['03', '05', '07', '08', '09']) expect(loiSdt(`${dau}12345678`)).toBe('')
+describe('Số điện thoại: 10 số, bắt đầu bằng 0', () => {
+  it('10 chữ số bắt đầu bằng 0 đều hợp lệ', () => {
+    for (const dau of ['01', '02', '03', '04', '05', '06', '07', '08', '09']) expect(loiSdt(`${dau}12345678`)).toBe('')
   })
-  it('đầu số 01, 02, 04, 06 hoặc không bắt đầu bằng 0 bị chặn', () => {
-    for (const sai of ['0112345678', '0212345678', '0412345678', '0612345678', '1912345678', '9912345678']) expect(loiSdt(sai)).toBe(LOI_SDT)
+  it('không bắt đầu bằng 0 bị chặn', () => {
+    for (const sai of ['1912345678', '9912345678', '2123456789', '8812345678']) expect(loiSdt(sai)).toBe(LOI_SDT)
   })
   it('sai độ dài / có chữ / có dấu cách / +84 bị chặn', () => {
     for (const sai of ['091234567', '09123456789', '09123abc45', '0912 345 678', '+84912345678', '091-234-5678']) expect(loiSdt(sai)).toBe(LOI_SDT)

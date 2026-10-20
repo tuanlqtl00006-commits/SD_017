@@ -11,21 +11,18 @@ const router = useRouter()
 const CACH_QUET = [
   { key: 'camera', label: 'Camera', icon: 'bi-camera' },
   { key: 'anh', label: 'Tải ảnh mã', icon: 'bi-image' },
-  { key: 'may-quet', label: 'Máy quét / Nhập mã', icon: 'bi-upc-scan' },
 ]
 
-const tab = ref('camera') // camera | anh | may-quet
+const tab = ref('camera') // camera | anh
 const loi = ref('')
 const dangMoCamera = ref(false)
 const cameraSan = ref(false)
 const dangDocAnh = ref(false)
 const dangTraCuu = ref(false)
-const noiDungDan = ref('')
 const maDangTraCuu = ref('')
 
 // Quản lý thiết bị camera
 const videoRef = ref(null)
-const oDan = ref(null)
 const dsThietBiCamera = ref([])
 const idCameraDangDung = ref('')
 let stream = null
@@ -88,11 +85,8 @@ async function xuLyMa(chuoiRaw) {
 function thuLai() {
   loi.value = ''
   maDangTraCuu.value = ''
-  noiDungDan.value = ''
   if (tab.value === 'camera') {
     moCamera()
-  } else if (tab.value === 'may-quet') {
-    nextTick(() => oDan.value?.focus())
   }
 }
 
@@ -233,18 +227,11 @@ async function chonAnh(e) {
   }
 }
 
-/* ===================== 4. Máy quét cầm tay / Nhập mã ===================== */
-function docNoiDungDan() {
-  if (!noiDungDan.value.trim()) return
-  xuLyMa(noiDungDan.value)
-}
-
 watch(tab, async (t) => {
   loi.value = ''
   dungCamera()
   await nextTick()
   if (t === 'camera') moCamera()
-  if (t === 'may-quet') oDan.value?.focus()
 })
 
 onMounted(() => {
@@ -326,34 +313,6 @@ onBeforeUnmount(() => {
         </p>
         <p v-else class="ad-hint mt-2">
           Ảnh nên chụp rõ nét, không bị mờ nhòe hoặc bóng lóa để nhận diện nhanh nhất.
-        </p>
-      </div>
-
-      <!-- 3. Tab Máy quét / Nhập mã -->
-      <div v-if="tab === 'may-quet'">
-        <label class="ad-label" for="hd-input-scan">Mã hóa đơn</label>
-        <div class="input-group">
-          <input
-            id="hd-input-scan"
-            ref="oDan"
-            v-model="noiDungDan"
-            type="text"
-            class="form-control ad-control"
-            placeholder="Dùng máy quét cầm tay quét vào mã, hoặc nhập mã (vd: HD16)..."
-            autocomplete="off"
-            @keydown.enter.prevent="docNoiDungDan"
-          />
-          <button
-            type="button"
-            class="ad-btn ad-btn-primary"
-            :disabled="!noiDungDan.trim()"
-            @click="docNoiDungDan"
-          >
-            <i class="bi bi-search me-1" aria-hidden="true"></i> Tìm & mở hóa đơn
-          </button>
-        </div>
-        <p class="ad-hint mt-2">
-          Hỗ trợ máy quét mã vạch / QR cầm tay (USB hoặc Bluetooth). Máy quét sẽ tự gõ và mở ngay hóa đơn.
         </p>
       </div>
     </div>

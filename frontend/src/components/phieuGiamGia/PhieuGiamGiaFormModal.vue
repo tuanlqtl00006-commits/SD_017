@@ -569,14 +569,12 @@ function submit() {
     <!-- ===== Đối tượng áp dụng ===== -->
     <section class="ad-card" data-testid="pgg-doi-tuong">
       <div class="ad-card-head">
-        <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-people"></i></span>
         <h2 class="ad-card-title">Đối tượng áp dụng</h2>
       </div>
 
       <div class="pgg-radios" role="radiogroup" aria-label="Đối tượng áp dụng">
         <label v-for="(nhan, key) in DOI_TUONG" :key="key" class="pgg-radio" :class="{ 'is-chon': form.hinhThuc === key, 'is-khoa': isEdit && daCoNguoiDung }">
           <input v-model="form.hinhThuc" type="radio" name="hinhThuc" :value="key" :disabled="isEdit && daCoNguoiDung" />
-          <i class="bi" :class="HINH_THUC[key].icon" aria-hidden="true"></i>
           <span>{{ nhan }}</span>
         </label>
       </div>

@@ -64,7 +64,7 @@ Thêm một ràng buộc đi kèm: **ngày vào làm không được sớm hơn 
 
 | Trường | Quy tắc | Lý do |
 |---|---|---|
-| Số điện thoại (khách hàng, người nhận, nhân viên) | đúng **10 chữ số**, đầu số 03, 05, 07, 08 hoặc 09 | Kế hoạch đánh số di động Việt Nam (đã chuyển 11 số về 10 số năm 2018); đây là quy ước viễn thông, không phải điều luật |
+| Số điện thoại (khách hàng, người nhận, nhân viên) | đúng **10 chữ số**, bắt đầu bằng 0 | Quy ước số điện thoại 10 chữ số, bắt đầu bằng 0 |
 | Email | có dạng `ten@tenmien.xx`, tối đa 255 ký tự | Định dạng thông dụng; email nhân viên dùng làm tên đăng nhập và nhận mail tài khoản |
 | Họ tên | bắt đầu bằng chữ cái, chỉ gồm chữ cái (có dấu), khoảng trắng, `.` `'` `-`, không có chữ số; khách 2-100 ký tự, nhân viên 2-60 ký tự | Chặn nhập số / ký tự lạ |
 | Số căn cước công dân | đúng **12 chữ số**, không bắt buộc, không trùng | Số định danh cá nhân hiện hành có 12 số |

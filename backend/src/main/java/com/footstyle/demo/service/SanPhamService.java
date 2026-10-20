@@ -7,6 +7,7 @@ import com.footstyle.demo.dto.SanPhamResponse;
 import com.footstyle.demo.entity.HinhAnhSanPham;
 import com.footstyle.demo.entity.MauSac;
 import com.footstyle.demo.entity.SanPham;
+import com.footstyle.demo.entity.ThuocTinh;
 import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.ChatLieuRepository;
 import com.footstyle.demo.repository.DanhMucRepository;
@@ -123,10 +124,11 @@ public class SanPhamService {
         return toResponse(sp, hinhAnhRepo.findBySanPhamId(sp.getId()));
     }
 
-    // Người dùng đã đồng ý cập nhật sản phẩm đã có: ghi thông tin mới vào sản phẩm cũ (giữ mã), rồi thêm / cập nhật biến thể
+    // Người dùng thêm sản phẩm trùng tên hoặc cập nhật: gộp thông tin mới vào sản phẩm cũ (giữ mã), rồi thêm / cập nhật biến thể
     private SanPhamResponse capNhatSanPhamDaCo(SanPham sp, SanPhamRequest req, List<String> anh, Map<Integer, List<String>> anhMau) {
         String moTaCu = sp.getMoTa();
         napDuLieu(sp, req, false);
+        sp.setTrangThai(SanPham.HOAT_DONG);
         if (sp.getMoTa() == null) {
             sp.setMoTa(moTaCu); // form để trống mô tả thì giữ mô tả cũ, không xóa
         }
@@ -152,21 +154,36 @@ public class SanPhamService {
         return toResponse(sp, hinhAnhRepo.findBySanPhamId(sp.getId()));
     }
 
-    // Tìm sản phẩm đã có cùng tên (bỏ qua hoa thường, khoảng trắng thừa) + danh mục + thương hiệu; không có thì null
+    // Tìm sản phẩm đã có trùng tất cả thông tin: tên + danh mục + thương hiệu + xuất xứ + chất liệu + độ cứng + điểm cân bằng; không có thì null
     private SanPham timSanPhamTrung(SanPhamRequest req) {
-        if (req.idDanhMuc() == null || req.idThuongHieu() == null) {
-            return null; // thiếu thì để napDuLieu báo lỗi "Chọn danh mục / thương hiệu"
+        if (req.idDanhMuc() == null || req.idThuongHieu() == null
+                || req.idXuatXu() == null || req.idChatLieu() == null) {
+            return null;
         }
         String ten = chuanHoaTen(req.ten());
         if (ten.isEmpty()) {
             return null;
         }
         for (SanPham sp : sanPhamRepo.findByDanhMucIdAndThuongHieuId(req.idDanhMuc(), req.idThuongHieu())) {
-            if (chuanHoaTen(sp.getTenSanPham()).equalsIgnoreCase(ten)) {
+            if (chuanHoaTen(sp.getTenSanPham()).equalsIgnoreCase(ten)
+                    && bangNhauId(sp.getXuatXu(), req.idXuatXu())
+                    && bangNhauId(sp.getChatLieu(), req.idChatLieu())
+                    && bangNhauId(sp.getDoCung(), req.idDoCung())
+                    && bangNhauId(sp.getDiemCanBang(), req.idDiemCanBang())) {
                 return sp;
             }
         }
         return null;
+    }
+
+    private boolean bangNhauId(ThuocTinh tt, Integer id) {
+        if (tt == null && id == null) {
+            return true;
+        }
+        if (tt == null || id == null) {
+            return false;
+        }
+        return tt.getId().equals(id);
     }
 
     private String chuanHoaTen(String ten) {
@@ -178,11 +195,11 @@ public class SanPhamService {
         SanPham sp = timSanPham(id);
         List<String> anh = layDanhSachAnh(req);
         Map<Integer, List<String>> anhMau = layAnhTheoMau(req); // null trong request = giữ nguyên ảnh theo màu
-        // Đổi tên / danh mục / thương hiệu thành đúng bộ của một sản phẩm KHÁC thì thành 2 sản phẩm trùng nhau
+        // Đổi thông tin thành đúng bộ của một sản phẩm KHÁC thì thành 2 sản phẩm trùng nhau
         SanPham trung = timSanPhamTrung(req);
         if (trung != null && !trung.getId().equals(sp.getId())) {
             throw ApiException.conflict("Đã có sản phẩm \"" + trung.getTenSanPham() + "\" (" + trung.getMaSanPham()
-                    + ") cùng tên, danh mục và thương hiệu. Hãy đặt tên khác.");
+                    + ") có cùng tất cả thông tin. Hãy đặt tên hoặc thuộc tính khác.");
         }
         napDuLieu(sp, req, false);
         // Sửa sản phẩm cũng phải còn ảnh: ảnh chung gửi lên thay hoàn toàn ảnh chung cũ, ảnh theo màu gửi lên thì thay ảnh của màu đó

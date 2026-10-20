@@ -161,12 +161,14 @@ describe('Form nhân viên: lỗi hiện dưới từng ô khi rời ô', () => 
     const w = await moForm()
     await roiO(w, '#nv-sdt')
     expect(loiO(w, 'nv-sdt-msg')).toBe('Nhập số điện thoại.')
-    for (const sai of ['0123456789', '0212345678', '091234567', '09123456789', '09123abcde']) {
+    for (const sai of ['1123456789', '2212345678', '091234567', '09123456789', '09123abcde']) {
       await w.find('#nv-sdt').setValue(sai)
       expect(loiO(w, 'nv-sdt-msg'), sai).toBe(LOI_SDT)
     }
+    await w.find('#nv-sdt').setValue('0123456789')
+    expect(loiO(w, 'nv-sdt-msg')).toBe('')
     await w.find('#nv-sdt').setValue('0912000001') // trùng NV01
-    expect(loiO(w, 'nv-sdt-msg')).toBe('Số điện thoại đã được sử dụng.')
+    expect(loiO(w, 'nv-sdt-msg')).toBe('Số điện thoại đã tồn tại (nhân viên Nguyễn Hoàng Long).')
     await w.find('#nv-sdt').setValue('0987654321')
     expect(loiO(w, 'nv-sdt-msg')).toBe('')
     expect(w.find('#nv-sdt-msg').classes()).toContain('ad-hint')
@@ -182,7 +184,7 @@ describe('Form nhân viên: lỗi hiện dưới từng ô khi rời ô', () => 
       expect(loiO(w, 'nv-email-msg'), sai).toBe('Email chưa đúng định dạng, ví dụ: ten@footstyle.vn.')
     }
     await w.find('#nv-email').setValue('LONG@Footstyle.vn')
-    expect(loiO(w, 'nv-email-msg')).toBe('Email đã được sử dụng.')
+    expect(loiO(w, 'nv-email-msg')).toBe('Email đã tồn tại (nhân viên Nguyễn Hoàng Long).')
     await w.find('#nv-email').setValue('moi@footstyle.vn')
     expect(loiO(w, 'nv-email-msg')).toBe('')
     w.unmount()
@@ -341,8 +343,8 @@ describe('Form nhân viên: bấm lưu', () => {
     const w = await moForm()
     await dienHopLe(w, { email: 'long@footstyle.vn', sdt: '0912000001' })
     await submit(w)
-    expect(loiO(w, 'nv-email-msg')).toBe('Email đã được sử dụng.')
-    expect(loiO(w, 'nv-sdt-msg')).toBe('Số điện thoại đã được sử dụng.')
+    expect(loiO(w, 'nv-email-msg')).toBe('Email đã tồn tại (nhân viên Nguyễn Hoàng Long).')
+    expect(loiO(w, 'nv-sdt-msg')).toBe('Số điện thoại đã tồn tại (nhân viên Nguyễn Hoàng Long).')
     expect(svc.create).not.toHaveBeenCalled()
     w.unmount()
   })
@@ -461,10 +463,10 @@ describe('Form SỬA nhân viên: kiểm tra giống hệt form thêm', () => {
     expect(loiO(w, 'nv-ho-ten-msg')).toBe(LOI_HO_TEN_KY_TU)
     await goVaRoi(w, '#nv-ho-ten', '')
     expect(loiO(w, 'nv-ho-ten-msg')).toBe('Nhập họ tên.')
-    await goVaRoi(w, '#nv-sdt', '0112345678')
+    await goVaRoi(w, '#nv-sdt', '1112345678')
     expect(loiO(w, 'nv-sdt-msg')).toBe(LOI_SDT)
     await goVaRoi(w, '#nv-sdt', '0912000001') // của NV01
-    expect(loiO(w, 'nv-sdt-msg')).toBe('Số điện thoại đã được sử dụng.')
+    expect(loiO(w, 'nv-sdt-msg')).toBe('Số điện thoại đã tồn tại (nhân viên Nguyễn Hoàng Long).')
     await goVaRoi(w, '#nv-ngay-sinh', '')
     expect(loiO(w, 'nv-ngay-sinh-msg')).toBe('Nhập ngày sinh.')
     await goVaRoi(w, '#nv-ngay-sinh', '01/01/2015')

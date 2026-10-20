@@ -146,15 +146,13 @@ describe('Form sản phẩm theo danh mục', () => {
       expect(mock.calls.post.length).toBe(0)
     } finally { THUOC_TINH['do-cung'] = bak }
   })
-  it('thêm sản phẩm trùng tên sản phẩm đã có: báo lỗi "Tên sản phẩm đã tồn tại.", không gửi API', async () => {
+  it('thêm sản phẩm trùng tên sản phẩm đã có: cho phép nhập bình thường, không báo lỗi và không hiện thông báo trùng', async () => {
     const { w } = await montar('/san-pham/them')
     await w.get('#sp-ten').setValue('  astrox   99  ')
     await w.get('#sp-ten').trigger('blur')
-    expect(w.find('#sp-ten-msg').text()).toBe('Tên sản phẩm đã tồn tại.')
-    expect(w.get('#sp-ten').classes()).toContain('is-invalid')
-    await w.get('form').trigger('submit')
-    await flushPromises()
-    expect(mock.calls.post.length).toBe(0)
+    expect(w.find('#sp-ten-msg').exists()).toBe(false)
+    expect(w.get('#sp-ten').classes()).not.toContain('is-invalid')
+    expect(w.find('#sp-ten-trung').exists()).toBe(false)
   })
   it('sửa sản phẩm: đổi sang tên sản phẩm khác thì báo lỗi, giữ tên của chính nó thì hợp lệ', async () => {
     mock = mockApi({ get: (url) => (url === '/san-pham/2' ? { id: 2, ma: 'SP002', ten: 'Grip Yonex', idDanhMuc: 5, idThuongHieu: 1, idXuatXu: 1, idChatLieu: 1, idDoCung: 90, idDiemCanBang: 91, anhChinh: '/api/uploads/grip.png', anhPhu: [], moTa: '', hoatDong: true } : undefined) })

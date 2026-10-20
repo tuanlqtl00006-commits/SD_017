@@ -56,6 +56,13 @@ function tinhLoi() {
 }
 const { loi, cham, sua, batDauGui, datLoiMayChu, focusLoiDau, datLai } = useLoiForm(tinhLoi)
 
+function nhapSdtNhan(e) {
+  const so = (e?.target?.value ?? f.sdtNguoiNhan ?? '').replace(/\D/g, '').slice(0, 10)
+  f.sdtNguoiNhan = so
+  if (e?.target) e.target.value = so
+  sua('sdtNguoiNhan')
+}
+
 /* ----- Danh sách ----- */
 async function fetchAddresses() {
   try {
@@ -232,11 +239,11 @@ const tieuDe = computed(() => `Địa chỉ của ${props.customer?.hoTen || 'kh
             inputmode="numeric"
             class="form-control ad-control"
             :class="{ 'is-invalid': loi.sdtNguoiNhan }"
-            maxlength="15"
+            maxlength="10"
             autocomplete="off"
             :aria-invalid="!!loi.sdtNguoiNhan"
             aria-describedby="kh-dc-sdt-msg"
-            @input="sua('sdtNguoiNhan')"
+            @input="nhapSdtNhan"
             @blur="cham('sdtNguoiNhan')"
           />
           <p v-if="loi.sdtNguoiNhan" id="kh-dc-sdt-msg" class="ad-error">{{ loi.sdtNguoiNhan }}</p>

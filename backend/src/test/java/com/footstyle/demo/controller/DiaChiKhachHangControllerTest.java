@@ -60,11 +60,11 @@ class DiaChiKhachHangControllerTest {
 
     @Test
     void sdtPhaiDungDauSoDiDong() {
-        // 01x, 02x, 04x, 06x không phải đầu số di động; 03x, 05x, 07x, 08x, 09x là đầu số hợp lệ
-        for (String sai : new String[] {"0112345678", "0212345678", "0412345678", "0612345678", "1912345678"}) {
+        // không bắt đầu bằng 0 bị chặn
+        for (String sai : new String[] {"1112345678", "1212345678", "9412345678", "8612345678", "1912345678"}) {
             assertEquals(QuyTacDuLieu.LOI_SDT, loi(dc("An", sai, "Hà Nội", "Hà Đông", "Số 1")), sai);
         }
-        for (String dung : new String[] {"0312345678", "0512345678", "0712345678", "0812345678", "0912345678"}) {
+        for (String dung : new String[] {"0112345678", "0212345678", "0312345678", "0512345678", "0712345678", "0812345678", "0912345678"}) {
             DiaChiKhachHang d = dc("An", dung, "Hà Nội", "Hà Đông", "Số 1");
             DiaChiKhachHangController.chuanHoa(d);
             assertEquals(dung, d.getSdtNguoiNhan());
@@ -81,7 +81,7 @@ class DiaChiKhachHangControllerTest {
 
     @Test
     void loiBaoTheoTungOCungLuc() {
-        ApiException e = assertThrows(ApiException.class, () -> DiaChiKhachHangController.chuanHoa(dc("", "0212345678", "", " ", "")));
+        ApiException e = assertThrows(ApiException.class, () -> DiaChiKhachHangController.chuanHoa(dc("", "1212345678", "", " ", "")));
         assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
         assertEquals(List.of("tenNguoiNhan", "sdtNguoiNhan", "tinhThanhPho", "phuongXa", "diaChiCuThe"), List.copyOf(e.getLoiTheoTruong().keySet()));
         assertEquals("Vui lòng nhập tên người nhận.", e.getLoiTheoTruong().get("tenNguoiNhan"));

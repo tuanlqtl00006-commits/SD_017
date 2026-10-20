@@ -23,16 +23,16 @@ export const COT_MAU = [
   { header: 'Tỉnh/Thành phố (*)', key: 'tinhThanh', width: 22, text: true },
 ]
 
-/** Hai dòng ví dụ (hợp lệ, email @example.com): người dùng xóa hoặc ghi đè trước khi nhập thật. */
+/** Hai dòng ví dụ (hợp lệ, điền đầy đủ tất cả các cột, email @gmail.com, địa chỉ chuẩn): người dùng xóa hoặc ghi đè trước khi nhập thật. */
 export function dongMau(homNay = todayIso()) {
   return [
     {
-      hoTen: 'Nguyễn Văn Mẫu', gioiTinh: 'Nam', ngaySinh: '25/12/2000', soDienThoai: '0900000001', email: 'nguyen.van.mau@example.com',
-      canCuoc: '001200012345', ngayVaoLam: '', vaiTro: 'Nhân viên', diaChiCuThe: 'Số 12 Nguyễn Trãi', phuongXa: 'Phường Hà Đông', tinhThanh: 'Thành phố Hà Nội',
+      hoTen: 'Nguyễn Văn Mẫu', gioiTinh: 'Nam', ngaySinh: '25/12/2000', soDienThoai: '0900000001', email: 'nguyenvanmau.footstyle@gmail.com',
+      canCuoc: '001200012345', ngayVaoLam: formatDate(homNay), vaiTro: 'Nhân viên', diaChiCuThe: 'Số 12 Nguyễn Trãi', phuongXa: 'Phường Thượng Đình', tinhThanh: 'Thành phố Hà Nội',
     },
     {
-      hoTen: 'Trần Thị Ví Dụ', gioiTinh: 'Nữ', ngaySinh: '03/04/1998', soDienThoai: '0900000002', email: 'tran.thi.vi.du@example.com',
-      canCuoc: '', ngayVaoLam: formatDate(homNay), vaiTro: '', diaChiCuThe: 'Số 8 Lê Lợi', phuongXa: 'Phường Thái Bình', tinhThanh: 'Tỉnh Hưng Yên',
+      hoTen: 'Trần Thị Ví Dụ', gioiTinh: 'Nữ', ngaySinh: '03/04/1998', soDienThoai: '0900000002', email: 'tranthividu.footstyle@gmail.com',
+      canCuoc: '001200098765', ngayVaoLam: formatDate(homNay), vaiTro: 'Quản lý', diaChiCuThe: 'Số 8 Lê Lợi', phuongXa: 'Phường Lam Sơn', tinhThanh: 'Tỉnh Hưng Yên',
     },
   ]
 }

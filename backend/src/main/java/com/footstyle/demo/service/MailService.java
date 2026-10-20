@@ -63,7 +63,7 @@ public class MailService {
     private volatile String lyDoDangNhap = "";
     /** Lô thư gần nhất của từng phiếu (theo mã phiếu). */
     private final Map<String, LoThu> loThu = new ConcurrentHashMap<>();
-    private final ExecutorService luongGui = Executors.newFixedThreadPool(2, r -> {
+    private final ExecutorService luongGui = Executors.newFixedThreadPool(10, r -> {
         Thread t = new Thread(r, "gui-mail");
         t.setDaemon(true);
         return t;

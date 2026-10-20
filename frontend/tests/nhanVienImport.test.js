@@ -140,7 +140,7 @@ describe('Nhập Excel: bước chọn file', () => {
 describe('Nhập Excel: file sai thì CẢ FILE bị từ chối', () => {
   const LOI = [
     { dong: 3, truong: 'email', cot: 'Email', thongBao: 'Email đã được sử dụng.' },
-    { dong: 3, truong: 'soDienThoai', cot: 'Số điện thoại', thongBao: 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.' },
+    { dong: 3, truong: 'soDienThoai', cot: 'Số điện thoại', thongBao: 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.' },
     { dong: 7, truong: 'ngaySinh', cot: 'Ngày sinh', thongBao: 'Nhân viên phải từ đủ 18 tuổi.' },
   ]
 
@@ -156,7 +156,7 @@ describe('Nhập Excel: file sai thì CẢ FILE bị từ chối', () => {
     expect(phan).toContain('Có 3 lỗi ở 2/10 dòng')
     expect(qa('[data-testid=nv-import-loi] tbody tr').map((tr) => [...tr.children].map((td) => td.textContent.trim()))).toEqual([
       ['3', 'Email', 'Email đã được sử dụng.'],
-      ['3', 'Số điện thoại', 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.'],
+      ['3', 'Số điện thoại', 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.'],
       ['7', 'Ngày sinh', 'Nhân viên phải từ đủ 18 tuổi.'],
     ])
     expect(qa('[data-testid=nv-import-loi] thead th').map((th) => th.textContent.trim())).toEqual(['Dòng', 'Cột', 'Lỗi'])

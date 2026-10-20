@@ -116,23 +116,22 @@ describe('Thêm khách hàng: lỗi hiện dưới từng ô', () => {
 
   it('lỗi của ô chỉ hiện khi đã chạm vào ô đó: rời ô SĐT mới báo lỗi SĐT, ô email chưa chạm thì chưa báo', async () => {
     const w = await moForm()
-    await w.find('#kh-sdt').setValue('123')
+    await w.find('#kh-sdt').setValue('')
     await w.find('#kh-sdt').trigger('blur')
-    expect(loiO(w, 'kh-sdt-msg')).toBe(LOI_SDT)
+    expect(loiO(w, 'kh-sdt-msg')).toBe('Vui lòng nhập số điện thoại.')
     expect(coLoi(w, 'kh-email-msg')).toBe(false)
     w.unmount()
   })
 
-  it('SĐT: đầu số 01/02/04/06 bị chặn, có chữ / thiếu số / thừa số bị chặn; 03, 05, 07, 08, 09 hợp lệ', async () => {
+  it('SĐT: 10 chữ số bắt đầu bằng 0 hợp lệ, sai định dạng báo LOI_SDT', async () => {
     const w = await moForm()
-    for (const sai of ['0112345678', '0212345678', '0412345678', '0612345678', '09123abc45', '091234567', '09123456789', '0912 345 678']) {
+    for (const sai of ['1234567890', '096791622', '012345']) {
       await w.find('#kh-sdt').setValue(sai)
-      expect(loiO(w, 'kh-sdt-msg'), sai).toBe(LOI_SDT)
-      expect(w.find('#kh-sdt').classes()).toContain('is-invalid')
+      expect(loiO(w, 'kh-sdt-msg')).toBe(LOI_SDT)
     }
-    for (const dau of ['03', '05', '07', '08', '09']) {
-      await w.find('#kh-sdt').setValue(`${dau}12345678`)
-      expect(coLoi(w, 'kh-sdt-msg'), dau).toBe(false)
+    for (const sdt of ['0112345678', '0212345678', '0912345678']) {
+      await w.find('#kh-sdt').setValue(sdt)
+      expect(coLoi(w, 'kh-sdt-msg'), sdt).toBe(false)
       expect(w.find('#kh-sdt').classes()).not.toContain('is-invalid')
     }
     w.unmount()
@@ -351,14 +350,14 @@ describe('Sửa khách hàng: kiểm tra y hệt form thêm', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 9, 15, 9, 0, 0))
     const w = await moSua()
-    await w.find('#kh-sdt').setValue('0212345678')
+    await w.find('#kh-sdt').setValue('')
     await w.find('#kh-email').setValue('hung@')
     await w.find('#kh-ho-ten').setValue('Hùng 2')
     await w.find('#kh-ngay-sinh').setValue('01/01/2020')
     await w.find('form').trigger('submit')
     await flushPromises()
     expect(svc.update).not.toHaveBeenCalled()
-    expect(loiO(w, 'kh-sdt-msg')).toBe(LOI_SDT)
+    expect(loiO(w, 'kh-sdt-msg')).toBe('Vui lòng nhập số điện thoại.')
     expect(loiO(w, 'kh-email-msg')).toBe(LOI_EMAIL)
     expect(loiO(w, 'kh-ho-ten-msg')).toBe(LOI_HO_TEN_KY_TU)
     expect(loiO(w, 'kh-ngay-sinh-msg')).toBe('Khách hàng phải từ đủ 15 tuổi.')

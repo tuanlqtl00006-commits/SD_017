@@ -153,6 +153,21 @@ describe('Biến thể = màu x trọng lượng x chu vi (cô: "2 x 2 x 2 = 8 t
     const { w } = await montar(); await dienCoBan(w, 5); await taoHaiMau(w)
     expect(w.get('[data-testid=tong-bien-the]').text()).toContain('Tổng cộng 2 biến thể')
   })
+
+  it('validate biến thể thêm ảnh: chưa thêm ảnh nào thì báo lỗi, thêm ít nhất 1 ảnh thì không báo', async () => {
+    const { w } = await montar(); await dienCoBan(w, 5); await taoHaiMau(w)
+    // Chưa thêm ảnh nào -> bấm lưu phải báo lỗi
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(w.find('[data-testid=loi-anh-bien-the]').exists()).toBe(true)
+    expect(w.find('[data-testid=loi-anh-bien-the]').text()).toContain('thêm ít nhất 1 ảnh')
+    expect(coHopXacNhan()).toBe(false)
+
+    // Thêm 1 ảnh cho biến thể màu Đen -> không báo lỗi, cho phép lưu
+    await chonAnhMau(w, 1, 'den.png')
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(w.find('[data-testid=loi-anh-bien-the]').exists()).toBe(false)
+    expect(coHopXacNhan()).toBe(true)
+  })
 })
 
 describe('"Thêm nhanh" ngay trong ô chọn (cô: "chưa có thêm nhanh")', () => {

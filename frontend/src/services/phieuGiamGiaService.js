@@ -48,10 +48,10 @@ export const phieuGiamGiaService = {
  * cho tới khi mọi thư có kết quả, rồi trả về { trangThai: 'DA_GUI' | 'LOI' | 'CHUA_CAU_HINH' | 'CHUA_XONG', ... }.
  * Không ném lỗi: backend không trả lời được thì trả về trangThai 'KHONG_RO'.
  */
-export async function theoDoiKetQuaMail(id, { lan = 20, cach = 1500, cho = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+export async function theoDoiKetQuaMail(id, { lan = 30, cach = 600, cho = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   let kq = null
   for (let i = 0; i < lan; i++) {
-    await cho(cach)
+    await cho(i === 0 ? 300 : cach)
     try {
       kq = await phieuGiamGiaService.ketQuaMail(id)
     } catch {

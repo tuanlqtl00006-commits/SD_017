@@ -128,6 +128,13 @@ function tinhLoi() {
 
 const { loi, cham, sua, batDauGui, datLoiMayChu, focusLoiDau } = useLoiForm(tinhLoi)
 
+function nhapSdt(e) {
+  const so = (e?.target?.value ?? form.sdt ?? '').replace(/\D/g, '').slice(0, 10)
+  form.sdt = so
+  if (e?.target) e.target.value = so
+  sua('sdt')
+}
+
 /* ----- Tải dữ liệu ----- */
 function napForm(k) {
   khach.value = k
@@ -224,9 +231,6 @@ async function luu() {
         </button>
         <div>
           <h1 class="ad-page-title m-0">{{ isEdit ? 'Chỉnh sửa khách hàng' : 'Thêm khách hàng mới' }}</h1>
-          <p class="kh-top-sub">
-            {{ isEdit ? 'Cập nhật hồ sơ cá nhân và sổ địa chỉ giao hàng của khách hàng.' : 'Điền thông tin liên hệ và địa chỉ giao hàng mặc định để tạo hồ sơ mới.' }}
-          </p>
         </div>
       </div>
       <div v-if="isEdit && khach" class="d-flex align-items-center gap-2">
@@ -277,12 +281,12 @@ async function luu() {
                 inputmode="numeric"
                 class="form-control ad-control"
                 :class="{ 'is-invalid': loi.sdt }"
-                maxlength="15"
+                maxlength="10"
                 placeholder="Ví dụ: 0912345678"
                 autocomplete="off"
                 :aria-invalid="!!loi.sdt"
                 aria-describedby="kh-sdt-msg"
-                @input="sua('sdt')"
+                @input="nhapSdt"
                 @blur="cham('sdt')"
               />
               <p v-if="loi.sdt" id="kh-sdt-msg" class="ad-error">{{ loi.sdt }}</p>

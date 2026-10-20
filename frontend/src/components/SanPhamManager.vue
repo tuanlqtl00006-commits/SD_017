@@ -340,9 +340,6 @@ function xuatExcel() {
         <div class="ad-filter-top-btns">
           <button type="button" class="ad-btn" @click="datLaiBoLoc"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại bộ lọc</button>
           <button type="button" class="ad-btn" @click="xuatExcel"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Xuất Excel</button>
-          <button type="button" class="ad-btn text-primary fw-semibold" title="Thêm nhanh sản phẩm kèm biến thể khởi tạo" @click="hienThemNhanh = true">
-            <i class="bi bi-lightning-charge-fill text-warning" aria-hidden="true"></i> Thêm nhanh
-          </button>
           <button type="button" class="ad-btn ad-btn-primary" @click="moTrangThem"><i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm sản phẩm</button>
         </div>
       </div>

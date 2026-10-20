@@ -18,14 +18,14 @@ export const TUOI_KHACH_TOI_THIEU = 15
 export const TUOI_NHAN_VIEN_TOI_THIEU = 18
 export const TUOI_TOI_DA = 100
 
-/** Số điện thoại di động Việt Nam: 10 số, đầu số 03x / 05x / 07x / 08x / 09x. */
-export const SDT = /^0[35789]\d{8}$/
+/** Số điện thoại: 10 chữ số, bắt đầu bằng 0. */
+export const SDT = /^0\d{9}$/
 export const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 /** Họ tên: bắt đầu bằng chữ cái, chỉ gồm chữ cái (có dấu), khoảng trắng, dấu chấm, nháy đơn, gạch ngang - không có chữ số. */
 export const HO_TEN = /^\p{L}[\p{L} .'’-]*$/u
 export const CCCD = /^\d{12}$/
 
-export const LOI_SDT = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.'
+export const LOI_SDT = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.'
 export const LOI_EMAIL = 'Email chưa đúng định dạng, ví dụ: ten@gmail.com.'
 export const LOI_HO_TEN_KY_TU = 'Họ tên chỉ gồm chữ cái và khoảng trắng, không có chữ số hay ký tự đặc biệt.'
 export const LOI_CCCD = 'Số căn cước công dân gồm đúng 12 chữ số.'

@@ -118,6 +118,12 @@ watch(
 
 const khoaTen = (s) => cat(s).toLowerCase().replace(/\s+/g, ' ')
 
+const spTrung = computed(() => {
+  const ten = cat(form.ten)
+  if (!ten) return null
+  return (props.danhSachSanPham || []).find((x) => khoaTen(x.ten) === khoaTen(ten)) || null
+})
+
 function kiemTraTen() {
   const ten = cat(form.ten)
   if (!ten) {
@@ -125,8 +131,6 @@ function kiemTraTen() {
     else delete errors.ten
   } else if (ten.length > 255) {
     errors.ten = 'Tên sản phẩm tối đa 255 ký tự.'
-  } else if (timBanTrung(props.danhSachSanPham, ten, (x) => x.ten, khoaTen, null)) {
-    errors.ten = 'Tên sản phẩm đã tồn tại.'
   } else {
     delete errors.ten
   }
@@ -195,10 +199,15 @@ async function submit() {
       anhPhu: [],
       moTa: '',
       bienThes,
+      xacNhanCapNhat: true,
     }
 
     const moi = await sanPhamService.create(payload)
-    toast.success(`Đã thêm nhanh sản phẩm "${moi.ten}".`)
+    if ((moi && moi.ma !== payload.ma) || spTrung.value) {
+      toast.success(`Đã gộp vô sản phẩm trùng "${moi.ten}".`)
+    } else {
+      toast.success(`Đã thêm nhanh sản phẩm "${moi.ten}".`)
+    }
     emit('saved', moi)
     emit('close')
   } catch (err) {

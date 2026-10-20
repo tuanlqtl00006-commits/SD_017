@@ -479,7 +479,7 @@ class NhanVienImportServiceTest {
 
     @Test
     void soDongBaoLoiLaSoDongThatCuaExcel_duCoDongTrongPhiaTruoc() {
-        List<Object> sai = XlsxMau.nhanVien("Trần Văn Nam", "nam.tv@footstyle.vn", "0211222333");
+        List<Object> sai = XlsxMau.nhanVien("Trần Văn Nam", "nam.tv@footstyle.vn", "1211222333");
         ApiException e = tuChoi(XlsxMau.tao(XlsxMau.TIEU_DE, List.of(), List.of(), sai), false);
         assertEquals(List.of("4:soDienThoai"), List.copyOf(loiTheoDong(e).keySet()));
     }
@@ -547,12 +547,12 @@ class NhanVienImportServiceTest {
     void sdtDaCoTrongHeThong_vaDauSoSai_vaSoThieuChuSo() {
         ApiException trung = tuChoi(motDong(C_SDT, "0912000001"), true); // của NV01
         assertEquals("Số điện thoại đã được sử dụng.", loiTheoDong(trung).get("2:soDienThoai"));
-        for (Object sdt : new Object[] {"0212345678", "091234567", "09123456789", "+84912345678", "09123abc78", 912345}) {
+        for (Object sdt : new Object[] {"1212345678", "091234567", "09123456789", "+84912345678", "09123abc78", 912345}) {
             ApiException e = tuChoi(motDong(C_SDT, sdt), true);
             assertEquals(QuyTacDuLieu.LOI_SDT, loiTheoDong(e).get("2:soDienThoai"), String.valueOf(sdt));
         }
-        // Chuẩn: 10 số đầu 03/05/07/08/09, có thể gõ dạng số (mất số 0 đầu) hoặc có khoảng trắng / dấu chấm
-        for (Object sdt : new Object[] {"0351234567", "0501234567", "0781234567", "0891234567", "0911 222 333", "0911.222.333", "0911-222-333", 911222333, 351234567}) {
+        // Chuẩn: 10 số bắt đầu bằng 0, có thể gõ dạng số (mất số 0 đầu) hoặc có khoảng trắng / dấu chấm
+        for (Object sdt : new Object[] {"0123456789", "0212345678", "0351234567", "0501234567", "0781234567", "0891234567", "0911 222 333", "0911.222.333", "0911-222-333", 911222333, 351234567}) {
             assertEquals(1, dich.nhap(motDong(C_SDT, sdt), true).soNhanVien(), "phải nhận: " + sdt);
         }
     }
@@ -601,7 +601,7 @@ class NhanVienImportServiceTest {
         byte[] f = XlsxMau.tao(XlsxMau.TIEU_DE,
                 XlsxMau.nhanVien("Nam 1", "a@footstyle.vn", "0911000001"),
                 XlsxMau.nhanVien("Nam Hai", "b-khong-hop-le", "0911000002"),
-                XlsxMau.nhanVien("Nam Ba", "c@footstyle.vn", "0211000003"));
+                XlsxMau.nhanVien("Nam Ba", "c@footstyle.vn", "1211000003"));
         ApiException e = tuChoi(f, true);
         assertEquals(List.of("2:hoTen", "3:email", "4:soDienThoai"), List.copyOf(loiTheoDong(e).keySet()));
         assertEquals(3, e.getChiTiet().get("soDongLoi"));
