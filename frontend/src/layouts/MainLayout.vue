@@ -129,6 +129,9 @@ const toggle = (key) => { open[key] = !open[key] }
           </template>
         </div>
 
+        <RouterLink to="/shop" class="btn btn-outline-primary btn-sm rounded-3 px-3 fw-medium d-flex align-items-center gap-2">
+          <i class="bi bi-globe"></i> Xem Website Bán Hàng
+        </RouterLink>
         <button type="button" class="btn btn-light btn-sm border rounded-3 px-3 fw-medium d-flex align-items-center gap-2">
           <i class="bi bi-arrow-left-right text-secondary"></i> Ca làm việc <span class="ad-live-dot" aria-hidden="true"></span>
         </button>

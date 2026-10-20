@@ -1,0 +1,577 @@
+/* ==========================================================================
+   FootStyle Client Storefront CSS
+   Tone màu chủ đạo: Xanh dương (#1d4ed8), Trắng (#ffffff)
+   ========================================================================== */
+
+:root {
+  --vnb-orange: #1d4ed8;
+  --vnb-orange-hover: #1e40af;
+  --vnb-orange-light: #eff6ff;
+  --vnb-orange-border: #60a5fa;
+  --vnb-red: #dc2626;
+  --vnb-dark: #1e293b;
+  --vnb-gray-bg: #f5f5f5;
+  --vnb-border: #e2e8f0;
+}
+
+/* Bù zoom 75% admin nhưng không quá to - dùng hệ số 0.90 để giao diện vừa vặn */
+.client-app {
+  zoom: calc(1 / var(--ui-zoom, 0.75) * 0.90);
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #333333;
+  background-color: #fbfbfb;
+}
+
+/* Container rộng giúp tràn đều màn hình không bị co cụm vào giữa */
+.vnb-container {
+  width: 100%;
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* TOP HEADER GỌN - Logo to nổi bật */
+.vnb-top-header {
+  background: #ffffff;
+  padding: 8px 0;
+  border-bottom: 2px solid #1d4ed8;
+}
+
+.vnb-logo {
+  height: 72px;
+  max-width: 230px;
+  object-fit: contain;
+  transition: transform 0.2s;
+}
+
+.vnb-logo:hover {
+  transform: scale(1.03);
+}
+
+.vnb-hotline {
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vnb-hotline-num {
+  color: #dc2626;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+
+.vnb-store-loc {
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.vnb-store-loc:hover {
+  color: #1d4ed8;
+}
+
+/* Ô TÌM KIẾM VỪA VẶN - viền xanh dương */
+.vnb-search-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+}
+
+.vnb-search-input {
+  border-radius: 9999px;
+  border: 2px solid #93c5fd;
+  background-color: #fff;
+  font-size: 0.875rem;
+  height: 40px;
+  padding: 8px 42px 8px 18px;
+  transition: all 0.2s;
+}
+
+.vnb-search-input:focus {
+  background-color: #fff;
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
+}
+
+.vnb-search-icon-btn {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #1d4ed8;
+  font-size: 1.1rem;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* 3 NÚT TRÒN: TRA CỨU, TÀI KHOẢN, GIỎ HÀNG */
+.vnb-header-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: #333;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.vnb-header-action span {
+  margin-top: 3px;
+  letter-spacing: 0.3px;
+}
+
+.vnb-header-action:hover {
+  color: #1d4ed8;
+}
+
+.vnb-action-icon-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid #93c5fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  font-size: 1.1rem;
+  background: #ffffff;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.vnb-header-action:hover .vnb-action-icon-circle {
+  border-color: #1d4ed8;
+  background-color: #eff6ff;
+  transform: translateY(-2px);
+}
+
+.vnb-cart-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #dc2626;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  line-height: 1.2;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.4);
+}
+
+/* BLUE NAVIGATION BAR */
+.vnb-nav-bar {
+  background-color: #1d4ed8;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+
+.vnb-nav-list {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.vnb-nav-list::-webkit-scrollbar {
+  display: none;
+}
+
+.vnb-nav-item {
+  position: relative;
+}
+
+.vnb-nav-link {
+  display: inline-block;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 10px 13px;
+  text-decoration: none;
+  letter-spacing: 0.3px;
+  transition: background-color 0.15s;
+}
+
+.vnb-nav-link:hover,
+.vnb-nav-link.router-link-exact-active {
+  background-color: rgba(0, 0, 0, 0.15);
+  color: #ffffff;
+}
+
+/* 4 SERVICE BOXES */
+.vnb-service-box {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  height: 100%;
+}
+
+.vnb-service-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px dashed #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+}
+
+.vnb-service-title {
+  font-size: 0.825rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  color: #1e293b;
+}
+
+.vnb-service-title .highlight {
+  color: #1d4ed8;
+}
+
+.vnb-service-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.25;
+}
+
+/* SECTION TITLES WITH ORANGE UNDERLINE */
+.vnb-section-title-wrap {
+  text-align: center;
+  margin-bottom: 1.75rem;
+  position: relative;
+}
+
+.vnb-section-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #1d4ed8;
+  margin-bottom: 6px;
+  text-transform: capitalize;
+}
+
+.vnb-title-underline {
+  width: 60px;
+  height: 3px;
+  background-color: #1d4ed8;
+  margin: 0 auto;
+  border-radius: 2px;
+}
+
+/* CATEGORY TABS ("TẤT CẢ", "VỢT CẦU LÔNG", ...) */
+.vnb-cat-tabs {
+  display: flex;
+  border: 1px solid #e2e8f0;
+  border-bottom: none;
+  background: #ffffff;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.vnb-cat-tab {
+  padding: 10px 22px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #333333;
+  text-decoration: none;
+  border-right: 1px solid #e2e8f0;
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-bottom: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.vnb-cat-tab:hover {
+  color: #1d4ed8;
+}
+
+.vnb-cat-tab.active {
+  background-color: #1d4ed8;
+  color: #ffffff;
+}
+
+/* PRODUCT CAROUSEL / SLIDER CONTAINER WITH BLUE BORDER */
+.vnb-carousel-frame {
+  border: 3px solid #1d4ed8;
+  background: #ffffff;
+  padding: 12px;
+  position: relative;
+}
+
+.vnb-arrow-btn {
+  position: absolute;
+  top: 45%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s;
+}
+
+.vnb-arrow-btn:hover {
+  background: #1d4ed8;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+
+.vnb-arrow-prev {
+  left: 6px;
+}
+
+.vnb-arrow-next {
+  right: 6px;
+}
+
+/* VNB PRODUCT CARD */
+.vnb-product-item {
+  padding: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  cursor: pointer;
+  transition: transform 0.2s;
+  background: #fff;
+  border-right: 1px solid #f1f5f9;
+}
+
+.vnb-product-item:last-child {
+  border-right: none;
+}
+
+.vnb-product-item:hover {
+  transform: translateY(-3px);
+}
+
+.vnb-img-box {
+  position: relative;
+  width: 100%;
+  height: 210px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.vnb-product-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform 0.3s;
+}
+
+.vnb-product-item:hover .vnb-product-img {
+  transform: scale(1.08);
+}
+
+.vnb-badge-discount {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background-color: #dc2626;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.vnb-badge-premium {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background-color: #1d4ed8;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.vnb-product-name {
+  font-size: 0.825rem;
+  color: #333333;
+  line-height: 1.35;
+  margin-bottom: 6px;
+  height: 2.3rem;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.vnb-product-name:hover {
+  color: #1d4ed8;
+}
+
+.vnb-product-price {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #dc2626;
+}
+
+.vnb-product-old-price {
+  font-size: 0.775rem;
+  color: #94a3b8;
+  text-decoration: line-through;
+  margin-left: 6px;
+}
+
+/* 4 CATEGORY CARDS WITH DIAGONAL BLUE BANNER RIBBON */
+.vnb-cat-card {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+
+.vnb-cat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 20px -3px rgba(29, 78, 216, 0.3);
+}
+
+.vnb-cat-bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s;
+}
+
+.vnb-cat-card:hover .vnb-cat-bg-img {
+  transform: scale(1.08);
+}
+
+.vnb-cat-ribbon {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  background: #1d4ed8;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 0;
+  text-align: center;
+  transform: rotate(-10deg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* FLOATING BACK TO TOP BUTTON */
+.vnb-back-to-top {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 40px;
+  height: 40px;
+  background-color: #1d4ed8;
+  color: white;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  z-index: 999;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.vnb-back-to-top:hover {
+  background-color: #1e40af;
+  transform: translateY(-3px);
+}
+
+/* CATALOG PAGE SIDEBAR (Screenshot 1) */
+.vnb-filter-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #1e293b;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.vnb-filter-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.vnb-filter-item {
+  margin-bottom: 8px;
+}
+
+.vnb-filter-item label {
+  font-size: 0.825rem;
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vnb-filter-item input[type="checkbox"] {
+  border-radius: 3px;
+  border-color: #cbd5e1;
+}
+
+.vnb-filter-item input[type="checkbox"]:checked {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+}

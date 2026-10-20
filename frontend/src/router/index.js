@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '../layouts/MainLayout.vue'
+import ClientLayout from '../layouts/ClientLayout.vue'
 import { THUOC_TINH_LIST } from '../constants/thuocTinh'
 
 // meta.title / meta.parent: hiển thị trên header (kiểu "Quản lý giảm giá / Phiếu giảm giá").
@@ -133,6 +134,60 @@ const routes = [
         name: 'nhan-vien-chi-tiet',
         component: () => import('../components/nhanVien/NhanVienFormPage.vue'),
         meta: { parent: 'Nhân viên', parentTo: '/nhan-vien', title: 'Chi tiết nhân viên' },
+      },
+    ],
+  },
+  {
+    path: '/shop',
+    component: ClientLayout,
+    children: [
+      {
+        path: '',
+        name: 'shop-home',
+        component: () => import('../views/client/HomeView.vue'),
+        meta: { title: 'Trang chủ - FootStyle' },
+      },
+      {
+        path: 'san-pham',
+        name: 'shop-catalog',
+        component: () => import('../views/client/ProductCatalogView.vue'),
+        meta: { title: 'Tất cả sản phẩm - FootStyle' },
+      },
+      {
+        path: 'san-pham/:id(\\d+)',
+        name: 'shop-product-detail',
+        component: () => import('../views/client/ProductDetailView.vue'),
+        meta: { title: 'Chi tiết sản phẩm - FootStyle' },
+      },
+      {
+        path: 'gio-hang',
+        name: 'shop-cart',
+        component: () => import('../views/client/CartView.vue'),
+        meta: { title: 'Giỏ hàng của bạn' },
+      },
+      {
+        path: 'thanh-toan',
+        name: 'shop-checkout',
+        component: () => import('../views/client/CheckoutView.vue'),
+        meta: { title: 'Thanh toán đơn hàng' },
+      },
+      {
+        path: 'dat-hang-thanh-cong',
+        name: 'shop-order-success',
+        component: () => import('../views/client/OrderSuccessView.vue'),
+        meta: { title: 'Đặt hàng thành công' },
+      },
+      {
+        path: 'tra-cuu',
+        name: 'shop-order-lookup',
+        component: () => import('../views/client/OrderLookupView.vue'),
+        meta: { title: 'Tra cứu đơn hàng' },
+      },
+      {
+        path: 'tai-khoan',
+        name: 'shop-account',
+        component: () => import('../views/client/AccountView.vue'),
+        meta: { title: 'Tài khoản cá nhân' },
       },
     ],
   },
