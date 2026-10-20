@@ -343,7 +343,7 @@ function tinhLoi() {
   const homNay = todayIso()
   const idDangSua = item.value?.id ?? null
 
-  const ten = loiHoTen(form.hoTen, { thieu: 'Nhập họ tên.', toiDa: 60 })
+  const ten = loiHoTen(form.hoTen, { thieu: 'Nhập họ tên.', boDoDai: true })
   if (ten) e.hoTen = ten
 
   // Email chỉ nhập lúc thêm mới; khi sửa email bị khóa nên không cần kiểm tra

@@ -107,11 +107,11 @@ export function vaoLamKhiDuTuoi(ngaySinh, ngayVaoLam, tuoi = TUOI_NHAN_VIEN_TOI_
 
 /* ===== Từng ô: trả về câu báo lỗi hoặc '' ===== */
 
-/** Họ tên. thieu = câu báo khi để trống; toiDa = số ký tự tối đa (khách hàng 100, nhân viên 60). */
-export function loiHoTen(giaTri, { thieu = 'Vui lòng nhập họ tên.', toiDa = 100 } = {}) {
+/** Họ tên. thieu = câu báo khi để trống; toiDa = số ký tự tối đa; boDoDai = không kiểm tra giới hạn độ dài. */
+export function loiHoTen(giaTri, { thieu = 'Vui lòng nhập họ tên.', toiDa = 100, boDoDai = false } = {}) {
   const ten = chuanHoaHoTen(giaTri)
   if (!ten) return thieu
-  if (ten.length < 2 || ten.length > toiDa) return `Họ tên từ 2 đến ${toiDa} ký tự.`
+  if (!boDoDai && (ten.length < 2 || ten.length > toiDa)) return `Họ tên từ 2 đến ${toiDa} ký tự.`
   if (!HO_TEN.test(ten)) return LOI_HO_TEN_KY_TU
   return ''
 }

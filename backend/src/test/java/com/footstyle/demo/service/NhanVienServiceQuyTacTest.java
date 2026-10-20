@@ -99,8 +99,7 @@ class NhanVienServiceQuyTacTest {
             assertEquals("Họ tên chỉ gồm chữ cái và khoảng trắng, không có chữ số hay ký tự đặc biệt.", loiO(voi("hoTen", ten), "hoTen"), ten);
         }
         assertEquals("Nhập họ tên.", loiO(voi("hoTen", "   "), "hoTen"));
-        assertEquals("Họ tên từ 2 đến 60 ký tự.", loiO(voi("hoTen", "A"), "hoTen"));
-        assertEquals("Họ tên từ 2 đến 60 ký tự.", loiO(voi("hoTen", "An".repeat(31)), "hoTen"));
+        assertEquals("A", service.them(voi("hoTen", "A")).hoTen(), "1 ký tự vẫn hợp lệ");
     }
 
     @Test

@@ -572,10 +572,11 @@ class NhanVienImportServiceTest {
         KetQua kq = dich.nhap(motDong(C_TEN, "  Trần    Văn   Nam  "), false);
         assertEquals("Trần Văn Nam", kho.theoEmail("nam.tv@footstyle.vn").getHoTen());
         assertEquals("TVN01", kq.taiKhoan().get(0).ma());
-        for (String ten : new String[] {"Nam 2", "N", "123", "Nam@", "_Nam"}) {
+        for (String ten : new String[] {"Nam 2", "123", "Nam@", "_Nam"}) {
             ApiException e = tuChoi(motDong(C_TEN, ten), true);
             assertFalse(loiTheoDong(e).get("2:hoTen").isEmpty(), ten);
         }
+        assertEquals(1, dich.nhap(XlsxMau.tao(XlsxMau.TIEU_DE, XlsxMau.nhanVien("N", "n.moi@footstyle.vn", "0911999888")), true).soNhanVien(), "tên 1 ký tự được chấp nhận");
     }
 
     @Test

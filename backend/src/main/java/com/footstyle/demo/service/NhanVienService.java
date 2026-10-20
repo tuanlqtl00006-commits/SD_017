@@ -281,8 +281,6 @@ public class NhanVienService {
         String hoTen = QuyTacDuLieu.chuanHoaHoTen(req.hoTen());
         if (hoTen.isEmpty()) {
             loi.them("hoTen", "Nhập họ tên.");
-        } else if (hoTen.length() < 2 || hoTen.length() > 60) {
-            loi.them("hoTen", "Họ tên từ 2 đến 60 ký tự.");
         } else if (!QuyTacDuLieu.HO_TEN.matcher(hoTen).matches()) {
             loi.them("hoTen", QuyTacDuLieu.LOI_HO_TEN_KY_TU);
         }

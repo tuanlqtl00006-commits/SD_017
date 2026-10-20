@@ -403,16 +403,16 @@ GO
 
 -- 2. Dữ liệu nhan_vien (Mật khẩu mặc định: Footstyle@123)
 INSERT INTO nhan_vien (id_vai_tro, ma_nhan_vien, ho_ten, gioi_tinh, ngay_sinh, sdt, email, mat_khau, dia_chi, ngay_vao_lam, trang_thai) VALUES
-(1, 'NV01', N'Nguyễn Hoàng Long', 1, '1992-03-14', '0912000001', 'long.nh@footstyle.vn', 'Footstyle@123', N'Số 15 ngõ 120 Trần Phú, Phường Hà Đông, Thành phố Hà Nội', '2022-01-10', 1),
-(1, 'NV02', N'Trần Thu Hà',       0, '1994-07-22', '0912000002', 'ha.tt@footstyle.vn',   'Footstyle@123', N'Số 22 Nguyễn Trãi, Phường Thanh Xuân, Thành phố Hà Nội', '2022-03-01', 1),
-(2, 'NV03', N'Lê Quốc Bảo',       1, '1999-11-05', '0912000003', 'bao.lq@footstyle.vn',  'Footstyle@123', N'Số 8 Lê Văn Lương, Phường Thanh Xuân, Thành phố Hà Nội', '2023-02-15', 1),
-(2, 'NV04', N'Phạm Minh Anh',     0, '2000-01-18', '0912000004', 'anh.pm@footstyle.vn',  'Footstyle@123', N'Số 31 phố Kim Mã, Phường Ba Đình, Thành phố Hà Nội', '2023-05-20', 1),
-(2, 'NV05', N'Vũ Hoàng Nam',      1, '1998-09-30', '0912000005', 'nam.vh@footstyle.vn',  'Footstyle@123', N'Thị trấn Quốc Oai, Xã Quốc Oai, Thành phố Hà Nội', '2023-08-01', 1),
-(2, 'NV06', N'Đỗ Thùy Trang',     0, '2001-05-09', '0912000006', 'trang.dt@footstyle.vn','Footstyle@123', N'Số 45 Trần Thái Tông, Phường Cầu Giấy, Thành phố Hà Nội', '2024-01-08', 1),
-(2, 'NV07', N'Bùi Đức Mạnh',      1, '1997-12-02', '0912000007', 'manh.bd@footstyle.vn', 'Footstyle@123', N'Số 3 ngõ 66 Nguyễn Văn Cừ, Phường Long Biên, Hà Nội', '2023-10-12', 0),
-(2, 'NV08', N'Ngô Linh Chi',      0, '2002-04-27', '0912000008', 'chi.nl@footstyle.vn',  'Footstyle@123', N'Số 19 Phạm Văn Đồng, Phường Bắc Từ Liêm, Hà Nội', '2024-06-03', 1),
-(2, 'NV09', N'Hoàng Tuấn Anh',    1, '1996-08-11', '0912000009', 'anh.ht@footstyle.vn',  'Footstyle@123', N'Số 7 Hoàng Quốc Việt, Phường Cầu Giấy, Hà Nội', '2024-09-16', 1),
-(2, 'NV10', N'Đặng Mai Hương',    0, '1995-02-25', '0912000010', 'huong.dm@footstyle.vn','Footstyle@123', N'Số 52 phố Minh Khai, Phường Hai Bà Trưng, Hà Nội', '2022-11-21', 0);
+(1, 'NV01', N'Nguyễn Hoàng Long', 1, '1992-03-14', '0912000001', 'long.nh@gmail.com', 'Footstyle@123', N'Số 15 ngõ 120 Trần Phú, Phường Hà Đông, Thành phố Hà Nội', '2022-01-10', 1),
+(1, 'NV02', N'Trần Thu Hà',       0, '1994-07-22', '0912000002', 'ha.tt@gmail.com',   'Footstyle@123', N'Số 22 Nguyễn Trãi, Phường Thanh Xuân, Thành phố Hà Nội', '2022-03-01', 1),
+(2, 'NV03', N'Lê Quốc Bảo',       1, '1999-11-05', '0912000003', 'bao.lq@gmail.com',  'Footstyle@123', N'Số 8 Lê Văn Lương, Phường Thanh Xuân, Thành phố Hà Nội', '2023-02-15', 1),
+(2, 'NV04', N'Phạm Minh Anh',     0, '2000-01-18', '0912000004', 'anh.pm@gmail.com',  'Footstyle@123', N'Số 31 phố Kim Mã, Phường Ba Đình, Thành phố Hà Nội', '2023-05-20', 1),
+(2, 'NV05', N'Vũ Hoàng Nam',      1, '1998-09-30', '0912000005', 'nam.vh@gmail.com',  'Footstyle@123', N'Thị trấn Quốc Oai, Xã Quốc Oai, Thành phố Hà Nội', '2023-08-01', 1),
+(2, 'NV06', N'Đỗ Thùy Trang',     0, '2001-05-09', '0912000006', 'trang.dt@gmail.com','Footstyle@123', N'Số 45 Trần Thái Tông, Phường Cầu Giấy, Thành phố Hà Nội', '2024-01-08', 1),
+(2, 'NV07', N'Bùi Đức Mạnh',      1, '1997-12-02', '0912000007', 'manh.bd@gmail.com', 'Footstyle@123', N'Số 3 ngõ 66 Nguyễn Văn Cừ, Phường Long Biên, Hà Nội', '2023-10-12', 0),
+(2, 'NV08', N'Ngô Linh Chi',      0, '2002-04-27', '0912000008', 'chi.nl@gmail.com',  'Footstyle@123', N'Số 19 Phạm Văn Đồng, Phường Bắc Từ Liêm, Hà Nội', '2024-06-03', 1),
+(2, 'NV09', N'Hoàng Tuấn Anh',    1, '1996-08-11', '0912000009', 'anh.ht@gmail.com',  'Footstyle@123', N'Số 7 Hoàng Quốc Việt, Phường Cầu Giấy, Hà Nội', '2024-09-16', 1),
+(2, 'NV10', N'Đặng Mai Hương',    0, '1995-02-25', '0912000010', 'huong.dm@gmail.com','Footstyle@123', N'Số 52 phố Minh Khai, Phường Hai Bà Trưng, Hà Nội', '2022-11-21', 0);
 GO
 
 -- 3. Dá»¯ liá»‡u khach_hang

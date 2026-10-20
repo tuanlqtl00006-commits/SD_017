@@ -283,7 +283,7 @@ describe.skipIf(!coBackend)('Khớp từng quy tắc với backend (QuyTacDuLieu
     expect(kh).toContain('Họ tên từ 2 đến 100 ký tự.')
     expect(kh).toContain('Số điện thoại đã tồn tại.')
     expect(kh).toContain('Email đã tồn tại.')
-    for (const cau of ['Nhập mật khẩu cho nhân viên mới.', 'Mật khẩu từ 8 đến 50 ký tự.', 'Mật khẩu phải có cả chữ và số, không chứa khoảng trắng.', LOI_CCCD, 'Họ tên từ 2 đến 60 ký tự.']) {
+    for (const cau of ['Nhập mật khẩu cho nhân viên mới.', 'Mật khẩu từ 8 đến 50 ký tự.', 'Mật khẩu phải có cả chữ và số, không chứa khoảng trắng.', LOI_CCCD]) {
       expect(nv, `backend thiếu: ${cau}`).toContain(cau)
     }
     expect(loiMatKhau('')).toBe('Nhập mật khẩu cho nhân viên mới.')
