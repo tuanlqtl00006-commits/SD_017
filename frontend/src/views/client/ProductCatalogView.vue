@@ -59,9 +59,13 @@ onMounted(async () => {
 function syncFromUrl() {
   if (route.query.search) {
     searchKeyword.value = String(route.query.search)
+  } else {
+    searchKeyword.value = ''
   }
   if (route.query.thuongHieu) {
     selectedBrands.value = [String(route.query.thuongHieu)]
+  } else {
+    selectedBrands.value = []
   }
 }
 
