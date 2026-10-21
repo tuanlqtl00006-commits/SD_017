@@ -21,6 +21,11 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Integer> {
 
     boolean existsByMaKhachHang(String maKhachHang);
 
+    /** Đăng nhập của khách hàng (trang bán online): theo email hoặc SĐT. */
+    java.util.Optional<KhachHang> findFirstByEmailIgnoreCase(String email);
+
+    java.util.Optional<KhachHang> findFirstBySdt(String sdt);
+
     @Query("SELECT k FROM KhachHang k WHERE k.hoTen LIKE %:keyword% OR k.sdt LIKE %:keyword% "
             + "OR k.email LIKE %:keyword% OR k.maKhachHang LIKE %:keyword% ORDER BY k.id DESC")
     List<KhachHang> searchKhachHang(@Param("keyword") String keyword);

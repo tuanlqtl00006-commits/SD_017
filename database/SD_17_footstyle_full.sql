@@ -245,7 +245,9 @@ CREATE TABLE hinh_anh_san_pham (
     duong_dan_hinh_anh VARCHAR(500) NOT NULL,
     la_anh_chinh BIT DEFAULT 0,
     trang_thai TINYINT DEFAULT 1,
+    id_mau_sac INT NULL,
     FOREIGN KEY (id_san_pham) REFERENCES san_pham(id),
+    FOREIGN KEY (id_mau_sac) REFERENCES mau_sac(id)
 );
 GO
 
@@ -314,7 +316,66 @@ CREATE TABLE phuong_thuc_thanh_toan (
 );
 GO
 
--- 23. Báº£ng hoa_don
+-- 23. Báº£ng ca_lam_viec
+CREATE TABLE ca_lam_viec (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    ma_ca VARCHAR(20) UNIQUE NOT NULL,
+    ten_ca NVARCHAR(100) NOT NULL,
+    gio_bat_dau TIME NOT NULL,
+    gio_ket_thuc TIME NOT NULL,
+    trang_thai TINYINT NOT NULL DEFAULT 1,
+    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+GO
+
+-- 24. Báº£ng lich_lam_viec
+CREATE TABLE lich_lam_viec (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    id_nhan_vien INT NOT NULL,
+    id_ca_lam_viec INT NOT NULL,
+    ngay_lam DATE NOT NULL,
+    ghi_chu NVARCHAR(255),
+    trang_thai TINYINT NOT NULL DEFAULT 1,
+    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ux_lich_lam_viec UNIQUE (id_nhan_vien, id_ca_lam_viec, ngay_lam),
+    FOREIGN KEY (id_nhan_vien) REFERENCES nhan_vien(id),
+    FOREIGN KEY (id_ca_lam_viec) REFERENCES ca_lam_viec(id)
+);
+GO
+
+-- 25. Báº£ng giao_ca
+CREATE TABLE giao_ca (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    ma_giao_ca VARCHAR(20) UNIQUE NOT NULL,
+    id_nhan_vien INT NOT NULL,
+    id_lich_lam_viec INT NULL,
+    thoi_gian_nhan_ca DATETIME NOT NULL,
+    tien_dau_ca DECIMAL(18,0) NOT NULL DEFAULT 0,
+    ghi_chu_nhan_ca NVARCHAR(500),
+    so_phut_di_muon INT NULL,
+    thoi_gian_ket_ca DATETIME NULL,
+    so_hoa_don INT NULL,
+    doanh_thu DECIMAL(18,0) NULL,
+    tien_mat_thu DECIMAL(18,0) NULL,
+    chuyen_khoan_thu DECIMAL(18,0) NULL,
+    tien_mat_he_thong DECIMAL(18,0) NULL,
+    tien_mat_thuc_te DECIMAL(18,0) NULL,
+    chenh_lech DECIMAL(18,0) NULL,
+    tien_ban_giao DECIMAL(18,0) NULL,
+    id_nhan_vien_nhan_ban_giao INT NULL,
+    ghi_chu_ket_ca NVARCHAR(500),
+    trang_thai TINYINT NOT NULL DEFAULT 1,
+    FOREIGN KEY (id_nhan_vien) REFERENCES nhan_vien(id),
+    FOREIGN KEY (id_lich_lam_viec) REFERENCES lich_lam_viec(id),
+    FOREIGN KEY (id_nhan_vien_nhan_ban_giao) REFERENCES nhan_vien(id)
+);
+GO
+
+CREATE UNIQUE INDEX ux_giao_ca_dang_mo ON giao_ca (id_nhan_vien) WHERE trang_thai = 1;
+GO
+
+-- 26. Báº£ng hoa_don
 CREATE TABLE hoa_don (
     id INT IDENTITY(1,1) PRIMARY KEY,
     id_nhan_vien INT,
@@ -340,7 +401,9 @@ CREATE TABLE hoa_don (
     FOREIGN KEY (id_nhan_vien) REFERENCES nhan_vien(id),
     FOREIGN KEY (id_khach_hang) REFERENCES khach_hang(id),
     FOREIGN KEY (id_phieu_giam_gia) REFERENCES phieu_giam_gia(id),
+        id_giao_ca INT NULL,
     FOREIGN KEY (id_phuong_thuc_thanh_toan) REFERENCES phuong_thuc_thanh_toan(id)
+    FOREIGN KEY (id_giao_ca) REFERENCES giao_ca(id)
 );
 GO
 
@@ -367,7 +430,9 @@ CREATE TABLE lich_su_thanh_toan (
     thoi_gian DATETIME DEFAULT CURRENT_TIMESTAMP,
     trang_thai TINYINT DEFAULT 1,
     mo_ta NVARCHAR(MAX),
-    FOREIGN KEY (id_hoa_don) REFERENCES hoa_don(id)
+    id_phuong_thuc_thanh_toan INT NULL,
+    FOREIGN KEY (id_hoa_don) REFERENCES hoa_don(id),
+    FOREIGN KEY (id_phuong_thuc_thanh_toan) REFERENCES phuong_thuc_thanh_toan(id)
 );
 GO
 
@@ -379,8 +444,62 @@ CREATE TABLE lich_su_hoa_don (
     hanh_dong NVARCHAR(255) NOT NULL,
     thoi_gian DATETIME DEFAULT CURRENT_TIMESTAMP,
     mo_ta NVARCHAR(MAX),
-    FOREIGN KEY (id_hoa_don) REFERENCES hoa_don(id)
+    id_phuong_thuc_thanh_toan INT NULL,
+    FOREIGN KEY (id_hoa_don) REFERENCES hoa_don(id),
+    FOREIGN KEY (id_phuong_thuc_thanh_toan) REFERENCES phuong_thuc_thanh_toan(id)
 );
+GO
+
+-- 29. Báº£ng hoi_thoai
+CREATE TABLE hoi_thoai (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    loai TINYINT NOT NULL,
+    tieu_de NVARCHAR(150),
+    id_khach_hang INT NULL,
+    ten_khach NVARCHAR(100),
+    sdt_khach VARCHAR(15),
+    ma_truy_cap VARCHAR(64),
+    che_do TINYINT NOT NULL DEFAULT 1,
+    id_nhan_vien_phu_trach INT NULL,
+    khoa_rieng VARCHAR(50) NULL,
+    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_khach_hang) REFERENCES khach_hang(id),
+    FOREIGN KEY (id_nhan_vien_phu_trach) REFERENCES nhan_vien(id)
+);
+GO
+
+CREATE UNIQUE INDEX ux_hoi_thoai_khoa_rieng ON hoi_thoai (khoa_rieng) WHERE khoa_rieng IS NOT NULL;
+GO
+
+-- 30. Báº£ng thanh_vien_hoi_thoai
+CREATE TABLE thanh_vien_hoi_thoai (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    id_hoi_thoai INT NOT NULL,
+    id_nhan_vien INT NOT NULL,
+    id_tin_nhan_da_doc INT NOT NULL DEFAULT 0,
+    ngay_tham_gia DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ux_thanh_vien_hoi_thoai UNIQUE (id_hoi_thoai, id_nhan_vien),
+    FOREIGN KEY (id_hoi_thoai) REFERENCES hoi_thoai(id),
+    FOREIGN KEY (id_nhan_vien) REFERENCES nhan_vien(id)
+);
+GO
+
+-- 31. Báº£ng tin_nhan
+CREATE TABLE tin_nhan (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    id_hoi_thoai INT NOT NULL,
+    loai_nguoi_gui TINYINT NOT NULL,
+    id_nhan_vien INT NULL,
+    ten_nguoi_gui NVARCHAR(100),
+    noi_dung NVARCHAR(2000) NOT NULL,
+    thoi_gian DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_hoi_thoai) REFERENCES hoi_thoai(id),
+    FOREIGN KEY (id_nhan_vien) REFERENCES nhan_vien(id)
+);
+GO
+
+CREATE INDEX ix_tin_nhan_hoi_thoai ON tin_nhan (id_hoi_thoai, id);
 GO
 
 -- Các chỉ mục ràng buộc duy nhất (Unique Index)
@@ -548,22 +667,31 @@ JOIN do_cung dc ON dc.ma_do_cung = s.dc
 JOIN diem_can_bang cb ON cb.ma_diem_can_bang = s.cb;
 GO
 
--- 7. Dá»¯ liá»‡u hinh_anh_san_pham (đầy đủ cho cả 6 sản phẩm theo màu sắc)
-INSERT INTO hinh_anh_san_pham (id_san_pham, duong_dan_hinh_anh, la_anh_chinh, trang_thai)
-SELECT p.id, a.url, a.chinh, 1
+-- 7. Dữ liệu hinh_anh_san_pham (đầy đủ cho các sản phẩm theo màu sắc)
+INSERT INTO hinh_anh_san_pham (id_san_pham, duong_dan_hinh_anh, la_anh_chinh, trang_thai, id_mau_sac)
+SELECT p.id, a.url, a.chinh, 1, ms.id
 FROM (VALUES
-    ('SP01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-astrox-99-pro-do-chinh-hang_1694735015.webp', 1),
-    ('SP01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-astrox-99-pro-do-chinh-hang_1694735015.webp', 1),
-    ('SP01', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-astrox-99-pro-trang-chinh-hang_1694735210.webp', 1),
-    ('SP02', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-lining-axforce-80-chinh-hang_1694735300.webp', 1),
-    ('SP02', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-lining-axforce-80-chinh-hang_1694735300.webp', 1),
-    ('SP03', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-victor-thruster-ryuga-ii-chinh-hang_1694735400.webp', 1),
-    ('SP03', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-victor-thruster-ryuga-ii-chinh-hang_1694735400.webp', 1),
-    ('SP04', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-yonex-nanoflare-800-pro-chinh-hang_1699235000.webp', 1),
-    ('SP05', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-mizuno-fortius-10-quick-chinh-hang_1694735600.webp', 1),
-    ('SP06', 'https://cdn.shopvnb.com/uploads/gallery/vot-cau-long-kumpoo-power-control-k520-pro_1694735700.webp', 1)
-) AS a(ma_sp, url, chinh)
+    ('SP01', '/api/uploads/sp01_astrox99_do.svg', 1, NULL),
+    ('SP01', '/api/uploads/sp01_astrox99_den.svg', 0, 'MS01'),
+    ('SP01', '/api/uploads/sp01_astrox99_do.svg', 0, 'MS03'),
+    ('SP01', '/api/uploads/sp01_astrox99_trang.svg', 0, 'MS02'),
+    ('SP01', '/api/uploads/sp01_astrox99_trang.svg', 0, 'MS05'),
+    ('SP02', '/api/uploads/sp02_axforce80_den.svg', 1, NULL),
+    ('SP02', '/api/uploads/sp02_axforce80_den.svg', 0, 'MS01'),
+    ('SP02', '/api/uploads/sp02_axforce80_xanh.svg', 0, 'MS04'),
+    ('SP03', '/api/uploads/sp03_thruster_den.svg', 1, NULL),
+    ('SP03', '/api/uploads/sp03_thruster_den.svg', 0, 'MS01'),
+    ('SP03', '/api/uploads/sp03_thruster_do.svg', 0, 'MS03'),
+    ('SP04', '/api/uploads/sp04_nanoflare800_den.svg', 1, NULL),
+    ('SP04', '/api/uploads/sp04_nanoflare800_den.svg', 0, 'MS01'),
+    ('SP05', '/api/uploads/sp05_fortius10_trang.svg', 1, NULL),
+    ('SP05', '/api/uploads/sp05_fortius10_trang.svg', 0, 'MS02'),
+    ('SP06', '/api/uploads/sp06_kumpoo_k520_den.svg', 1, NULL),
+    ('SP06', '/api/uploads/sp06_kumpoo_k520_den.svg', 0, 'MS01'),
+    ('SP06', '/api/uploads/sp06_kumpoo_k520_trang.svg', 0, 'MS02')
+) AS a(ma_sp, url, chinh, ma_ms)
 JOIN san_pham p ON p.ma_san_pham = a.ma_sp
+LEFT JOIN mau_sac ms ON ms.ma_mau_sac = a.ma_ms;
 GO
 
 -- 8. Dá»¯ liá»‡u san_pham_chi_tiet (14 biến thể)
@@ -914,3 +1042,38 @@ BEGIN
 END
 GO
 
+
+
+-- ThĂªm phÆ°Æ¡ng thá»©c thanh toĂ¡n PT05 vĂ  3 ca máº·c Ä‘á»‹nh
+INSERT INTO phuong_thuc_thanh_toan (id_hinh_thuc_thanh_toan, ma_phuong_thuc, ten_phuong_thuc, trang_thai)
+SELECT h.id, 'PT05', N'Tiá»n máº·t + chuyá»ƒn khoáº£n', 1 FROM hinh_thuc_thanh_toan h WHERE h.ma_hinh_thuc = 'HT01'
+AND NOT EXISTS (SELECT 1 FROM phuong_thuc_thanh_toan t WHERE t.ma_phuong_thuc = 'PT05');
+GO
+
+INSERT INTO ca_lam_viec (ma_ca, ten_ca, gio_bat_dau, gio_ket_thuc, trang_thai)
+SELECT v.ma, v.ten, v.bd, v.kt, 1 FROM (VALUES
+    ('CA01', N'Ca sĂ¡ng', CAST('07:00' AS TIME), CAST('12:00' AS TIME)),
+    ('CA02', N'Ca chiá»u', CAST('12:00' AS TIME), CAST('17:00' AS TIME)),
+    ('CA03', N'Ca tá»‘i', CAST('17:00' AS TIME), CAST('22:00' AS TIME))
+) AS v(ma, ten, bd, kt)
+WHERE NOT EXISTS (SELECT 1 FROM ca_lam_viec c WHERE c.ma_ca = v.ma);
+GO
+
+-- =====================================================================
+-- DỮ LIỆU MẪU GIAO CA (GIAI ĐOẠN 3)
+-- =====================================================================
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+IF NOT EXISTS (SELECT 1 FROM giao_ca WHERE ma_giao_ca = 'GC001')
+BEGIN
+    INSERT INTO giao_ca (ma_giao_ca, id_nhan_vien, id_lich_lam_viec, thoi_gian_nhan_ca, tien_dau_ca, ghi_chu_nhan_ca, so_phut_di_muon, thoi_gian_ket_ca, so_hoa_don, doanh_thu, tien_mat_thu, chuyen_khoan_thu, tien_mat_he_thong, tien_mat_thuc_te, chenh_lech, tien_ban_giao, id_nhan_vien_nhan_ban_giao, ghi_chu_ket_ca, trang_thai)
+    VALUES
+    ('GC001', 1, NULL, '2026-10-18 07:00:00', 1000000, N'Nhận ca sáng đầy đủ', 0, '2026-10-18 12:05:00', 4, 3450000, 1850000, 1600000, 2850000, 2850000, 0, 1000000, 2, N'Ca sáng đông khách, kiểm tiền khớp 100%', 2),
+    ('GC002', 2, NULL, '2026-10-18 12:05:00', 1000000, N'Nhận bàn giao từ Long', 0, '2026-10-18 17:10:00', 6, 5200000, 2700000, 2500000, 3700000, 3700000, 0, 1000000, 3, N'Kiểm tiền đầy đủ, bàn giao Bảo', 2),
+    ('GC003', 3, 13, '2026-10-19 06:55:00', 1000000, N'Đúng giờ', 0, '2026-10-19 12:00:00', 3, 2800000, 1300000, 1500000, 2300000, 2300000, 0, 1000000, 2, N'Bàn giao cho Hà ca chiều', 2),
+    ('GC004', 2, 29, '2026-10-19 12:18:00', 1000000, N'Đi muộn 18 phút do kẹt xe', 18, '2026-10-19 17:05:00', 5, 4600000, 2200000, 2400000, 3200000, 3150000, -50000, 1000000, 1, N'Thiếu 50.000đ do nhầm tiền thối đơn hàng, nhân viên tự bù', 2),
+    ('GC005', 1, 15, '2026-10-20 07:00:00', 1000000, N'Nhận ca sáng', 0, '2026-10-20 12:00:00', 4, 3100000, 1600000, 1500000, 2600000, 2600000, 0, 1000000, 2, N'Hoàn thành ca làm việc sáng', 2);
+
+    UPDATE TOP (2) hoa_don SET id_giao_ca = (SELECT id FROM giao_ca WHERE ma_giao_ca = 'GC005') WHERE loai_hoa_don = 1;
+END
+GO

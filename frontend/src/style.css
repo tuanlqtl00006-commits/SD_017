@@ -303,3 +303,10 @@ code {
 body {
   zoom: var(--ui-zoom);
 }
+
+/* Khi ở trang đăng nhập độc lập, reset zoom về 1 để giao diện 100% full màn hình chuẩn tỉ lệ, không bị hở đáy */
+body:has(.dn-trang),
+body.dn-body-no-zoom {
+  zoom: 1 !important;
+  overflow: hidden !important;
+}

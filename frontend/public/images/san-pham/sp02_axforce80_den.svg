@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <radialGradient id="bgG" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#27272a" />
+      <stop offset="100%" stop-color="#09090b" />
+    </radialGradient>
+    <linearGradient id="frameGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="50%" stop-color="#27272a" />
+      <stop offset="100%" stop-color="#eab308" />
+    </linearGradient>
+    <linearGradient id="shaftGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#27272a" />
+      <stop offset="50%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#27272a" />
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity="0.35" />
+    </filter>
+    <pattern id="racketStrings" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M 0,0 L 8,0 M 0,0 L 0,8" stroke="rgba(255,255,255,0.22)" stroke-width="0.8" />
+    </pattern>
+  </defs>
+
+  <!-- Background Card -->
+  <rect width="500" height="500" rx="28" fill="url(#bgG)" />
+  <circle cx="250" cy="190" r="140" fill="none" stroke="#eab308" stroke-opacity="0.12" stroke-width="2" />
+  <circle cx="250" cy="190" r="170" fill="none" stroke="#eab308" stroke-opacity="0.06" stroke-width="1" stroke-dasharray="6,6" />
+
+  <!-- Brand Badge Top -->
+  <g transform="translate(30, 36)">
+    <rect x="0" y="0" width="100" height="26" rx="13" fill="#eab308" fill-opacity="0.18" />
+    <text x="50" y="17" fill="#eab308" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="1.2">LINING</text>
+  </g>
+
+  <!-- Spec Tag Top Right -->
+  <g transform="translate(370, 36)">
+    <rect x="0" y="0" width="100" height="26" rx="13" fill="#ffffff" fill-opacity="0.08" />
+    <text x="50" y="17" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" text-anchor="middle">Đen Carbon Gold</text>
+  </g>
+
+  <!-- Racket Group with 3D angle and Drop Shadow -->
+  <g filter="url(#dropShadow)" transform="rotate(-32 250 250) translate(0, -10)">
+    <!-- Strings -->
+    <ellipse cx="250" cy="160" rx="76" ry="102" fill="url(#racketStrings)" />
+    <!-- Stencil Logo inside Strings -->
+    <text x="250" y="172" fill="#eab308" fill-opacity="0.35" font-family="sans-serif" font-size="34" font-weight="900" text-anchor="middle">LI</text>
+    
+    <!-- Outer Racket Frame -->
+    <ellipse cx="250" cy="160" rx="80" ry="108" fill="none" stroke="url(#frameGrad)" stroke-width="10" />
+    <!-- Inner Accent Rim -->
+    <ellipse cx="250" cy="160" rx="74" ry="100" fill="none" stroke="#eab308" stroke-width="1.8" stroke-opacity="0.8" />
+    
+    <!-- T-Joint -->
+    <path d="M 243,266 C 243,285 245,290 250,295 C 255,290 257,285 257,266 Z" fill="#18181b" />
+    <circle cx="250" cy="275" r="4" fill="#eab308" />
+
+    <!-- Shaft -->
+    <rect x="247" y="285" width="6" height="110" rx="3" fill="url(#shaftGrad)" />
+    <!-- Cone -->
+    <path d="M 245,395 L 255,395 L 257,412 L 243,412 Z" fill="#eab308" />
+
+    <!-- Grip -->
+    <rect x="243" y="412" width="14" height="80" rx="4" fill="#1e293b" />
+    <!-- Grip Wraps -->
+    <path d="M 243,425 L 257,430 M 243,445 L 257,450 M 243,465 L 257,470" stroke="#334155" stroke-width="1.5" />
+    <!-- End Cap -->
+    <rect x="242" y="490" width="16" height="8" rx="2" fill="#eab308" />
+  </g>
+
+  <!-- Bottom Label Bar -->
+  <g transform="translate(0, 420)">
+    <rect x="24" y="0" width="452" height="60" rx="18" fill="#0f172a" fill-opacity="0.85" stroke="#ffffff" stroke-opacity="0.08" />
+    <text x="44" y="27" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700">Lining Axforce 80</text>
+    <text x="44" y="46" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="12">Chính hãng · Bảo hành 90 ngày</text>
+    <circle cx="440" cy="30" r="14" fill="#eab308" fill-opacity="0.2" />
+    <path d="M 436,30 L 439,33 L 445,27" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

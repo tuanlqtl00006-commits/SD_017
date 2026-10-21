@@ -148,7 +148,9 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        for (String sql : LENH) {
+        java.util.List<String> tatCa = new java.util.ArrayList<>(LENH);
+        tatCa.addAll(SchemaGiaiDoan3.LENH); // giai đoạn 3: ca làm việc, lịch làm việc, giao ca, chat (sau các lệnh cũ)
+        for (String sql : tatCa) {
             try {
                 // Lệnh INSERT cần QUOTED_IDENTIFIER ON khi bảng có chỉ mục lọc; JDBC mặc định đã bật.
                 jdbc.execute(sql);
@@ -159,7 +161,7 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
             }
         }
         rutGonMaCu();
-        log.info("Đã kiểm tra / nâng cấp cấu trúc CSDL (can_cuoc_cong_dan, dia_chi_nhan_vien, chat_lieu.nhom_ap_dung, hinh_anh_san_pham.id_mau_sac, mã gọn...).");
+        log.info("Đã kiểm tra / nâng cấp cấu trúc CSDL (can_cuoc_cong_dan, dia_chi_nhan_vien, chat_lieu.nhom_ap_dung, hinh_anh_san_pham.id_mau_sac, mã gọn, giai đoạn 3: ca làm việc, giao ca, chat...).");
     }
 
     /**

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '../services/api'
 import { useToast } from '../composables/useToast'
@@ -7,8 +7,8 @@ import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatDate, formatMoney, todayIso } from '../utils/format'
 import { TRANG_THAI_HOA_DON, TT } from '../constants/hoaDon'
 import {
-  KHOANG_NHANH, TT_HOAN_THANH, congNgay, donGanNhat, gomCot, kyTruoc, lamTronTran, locTheoKhoang,
-  nhanTienGon, phanTramThayDoi, theoLoaiDon, tinhKhoang, tongHop, xepHang,
+  KHOANG_NHANH, TT_HOAN_THANH, congNgay, donGanNhat, gomCot, khoangGuiMayChu, khungGioHienThi, kyTruoc, lamTronTran,
+  locTheoKhoang, nhanTienGon, phanTram, phanTramThayDoi, theoLoaiDon, tinhKhoang, tongHop, xepHang,
 } from '../utils/thongKe'
 import DateInput from './common/DateInput.vue'
 
@@ -40,6 +40,7 @@ const TRANG_THAI = Object.fromEntries(
 const ttOf = (v) => TRANG_THAI[v] ?? { label: 'Không rõ', color: '#7a8696' }
 
 async function load() {
+  taiGd3()
   try {
     const res = await api.get('/hoa-don', { params: { page: 0, size: 2000 } })
     hoaDon.value = res.data.content ?? []
@@ -129,6 +130,43 @@ const topNhanVien = computed(() => xepHang(trongKhoang.value, (h) => h.tenNhanVi
 const topKhach = computed(() => xepHang(trongKhoang.value, (h) => h.tenKhachHang))
 const ganDay = computed(() => donGanNhat(trongKhoang.value, 8))
 const ngayHienThi = (v) => { const s = String(v ?? '').slice(0, 10); return s ? formatDate(s) : '' }
+
+/* ----- Giai đoạn 3: sản phẩm bán chạy, sắp hết hàng, phương thức thanh toán, ca / giờ, chuyên cần, giao ca (GET /api/thong-ke) ----- */
+const gd3 = ref({})
+const dangTaiGd3 = ref(true)
+const loiGd3 = ref('')
+const khoangGd3 = computed(() => khoangGuiMayChu(kq.value.tu, kq.value.den, homNay.value))
+let lanTai = 0
+async function taiGd3() {
+  const lan = ++lanTai
+  try {
+    const { tuNgay, denNgay } = khoangGd3.value
+    const res = await api.get('/thong-ke', { params: { tuNgay, denNgay } })
+    if (lan !== lanTai) return
+    gd3.value = res?.data && typeof res.data === 'object' ? res.data : {}
+    loiGd3.value = ''
+  } catch (e) {
+    if (lan === lanTai) loiGd3.value = e.message || 'Không tải được thống kê bán hàng và ca làm việc.'
+  } finally {
+    if (lan === lanTai) dangTaiGd3.value = false
+  }
+}
+watch(() => [khoangGd3.value.tuNgay, khoangGd3.value.denNgay], taiGd3)
+
+const banChay = computed(() => (Array.isArray(gd3.value.sanPhamBanChay) ? gd3.value.sanPhamBanChay : []))
+const sapHet = computed(() => (Array.isArray(gd3.value.sapHetHang) ? gd3.value.sapHetHang : []))
+const pctGon = (v) => `${(Math.round((Number(v) || 0) * 10) / 10).toLocaleString('vi-VN')}%`
+const theoPt = computed(() => {
+  const ds = Array.isArray(gd3.value.theoPhuongThuc) ? gd3.value.theoPhuongThuc : []
+  const tong = ds.reduce((s, x) => s + (Number(x.soTien) || 0), 0)
+  return ds.map((x) => ({ ...x, pct: phanTram(x.soTien, tong) }))
+})
+const theoGio = computed(() => {
+  const ds = khungGioHienThi(Array.isArray(gd3.value.theoGio) ? gd3.value.theoGio : [])
+  const max = Math.max(1, ...ds.map((x) => Number(x.soDon) || 0))
+  return ds.map((x) => ({ ...x, pct: ((Number(x.soDon) || 0) / max) * 100 }))
+})
+const gioDongNhat = computed(() => theoGio.value.reduce((m, x) => (Number(x.soDon) > Number(m?.soDon ?? 0) ? x : m), null))
 </script>
 
 <template>
@@ -238,6 +276,77 @@ const ngayHienThi = (v) => { const s = String(v ?? '').slice(0, 10); return s ? 
         </section>
       </div>
 
+
+      <!-- ===== Giai đoạn 3 ===== -->
+      <div v-if="loiGd3" class="col-12"><div class="alert alert-warning small mb-0" role="alert" data-test="tk-loi-gd3">{{ loiGd3 }}</div></div>
+      <div v-if="khoangGd3.catBot" class="col-12"><p class="text-muted small mb-0">Các mục bên dưới tính trong 1 năm gần nhất ({{ formatDate(khoangGd3.tuNgay) }} – {{ formatDate(khoangGd3.denNgay) }}).</p></div>
+
+      <div class="col-12 col-xl-7">
+        <section class="ad-card h-100 mb-0" data-test="tk-ban-chay">
+          <h3 class="fs-6 fw-bold mb-3">Sản phẩm bán chạy</h3>
+          <div v-if="dangTaiGd3" class="ad-empty">Đang tải…</div>
+          <div v-else-if="!banChay.length" class="ad-empty">Chưa bán được sản phẩm nào trong khoảng này.</div>
+          <div v-else class="ad-table-wrap">
+            <div class="ad-table-scroll">
+              <table class="ad-table">
+                <thead><tr><th>#</th><th>Sản phẩm</th><th>Bán chạy nhất</th><th class="text-end">Số lượng</th><th class="text-end">Doanh thu</th></tr></thead>
+                <tbody>
+                  <tr v-for="(p, i) in banChay" :key="p.idSanPham">
+                    <td><span class="tk-hang">{{ i + 1 }}</span></td>
+                    <td>{{ p.tenSanPham }}<small class="text-muted d-block">{{ p.maSanPham }}<template v-if="p.thuongHieu"> · {{ p.thuongHieu }}</template> · {{ p.soDon }} đơn</small></td>
+                    <td class="small">{{ p.phanLoaiBanChay || '—' }}</td>
+                    <td class="text-end fw-semibold">{{ p.soLuong }}</td>
+                    <td class="text-end ad-nowrap">{{ formatMoney(p.doanhThu) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-12 col-xl-5">
+        <section class="ad-card h-100 mb-0" data-test="tk-sap-het">
+          <div class="d-flex align-items-center mb-3 gap-2">
+            <h3 class="fs-6 fw-bold m-0 me-auto">Sắp hết hàng</h3>
+            <span v-if="!dangTaiGd3" class="small text-muted">{{ gd3.soSapHet ?? 0 }} phân loại còn ≤ {{ gd3.nguongSapHet ?? 5 }}<template v-if="gd3.soHetHang"> · <b class="text-danger">{{ gd3.soHetHang }} hết hàng</b></template></span>
+          </div>
+          <div v-if="dangTaiGd3" class="ad-empty">Đang tải…</div>
+          <div v-else-if="!sapHet.length" class="ad-empty">Không có sản phẩm nào sắp hết.</div>
+          <ul v-else class="list-unstyled m-0 tk-sap-het">
+            <li v-for="c in sapHet" :key="c.id">
+              <span class="tk-ten"><RouterLink :to="`/san-pham/${c.idSanPham}/sua`">{{ c.tenSanPham }}</RouterLink><small class="text-muted d-block">{{ c.ma }}<template v-if="c.phanLoai"> · {{ c.phanLoai }}</template></small></span>
+              <span class="ad-pill" :class="c.tonKho <= 0 ? 'ad-pill-red' : c.tonKho <= 2 ? 'ad-pill-orange' : 'ad-pill-amber'">{{ c.tonKho <= 0 ? 'Hết hàng' : `Còn ${c.tonKho}` }}</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="col-12 col-lg-6">
+        <section class="ad-card h-100 mb-0" data-test="tk-phuong-thuc">
+          <h3 class="fs-6 fw-bold mb-3">Doanh thu theo phương thức thanh toán</h3>
+          <div v-if="!theoPt.length" class="ad-empty">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
+          <div v-for="p in theoPt" :key="p.ten" class="mb-3">
+            <div class="d-flex justify-content-between small mb-1"><span class="fw-medium">{{ p.ten }}</span><span>{{ formatMoney(p.soTien) }} · {{ pctGon(p.pct) }}</span></div>
+            <div class="progress" style="height: 10px"><div class="progress-bar" :style="{ width: p.pct + '%' }"></div></div>
+            <small class="text-muted">{{ p.soDon }} đơn</small>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-12 col-lg-6">
+        <section class="ad-card h-100 mb-0" data-test="tk-theo-gio">
+          <h3 class="fs-6 fw-bold mb-1">Khung giờ đông khách</h3>
+          <p class="small text-muted mb-3">{{ gioDongNhat && gioDongNhat.soDon > 0 ? `Đông nhất ${gioDongNhat.gio}h - ${gioDongNhat.gio + 1}h (${gioDongNhat.soDon} đơn)` : 'Số đơn hoàn thành theo giờ tạo đơn' }}</p>
+          <div class="tk-gio" role="img" aria-label="Biểu đồ số đơn theo giờ">
+            <div v-for="g in theoGio" :key="g.gio" class="tk-gio-cot" :title="`${g.gio}h: ${g.soDon} đơn · ${formatMoney(g.doanhThu)}`">
+              <span class="tk-gio-thanh" :style="{ height: Math.max(g.pct, g.soDon ? 4 : 0) + '%' }"></span>
+              <small>{{ g.gio % 2 === 0 ? g.gio : '' }}</small>
+            </div>
+          </div>
+        </section>
+      </div>
+
       <div class="col-12">
         <section class="ad-card mb-0" data-test="tk-gan-day">
           <div class="d-flex align-items-center mb-3">
@@ -282,4 +391,16 @@ const ngayHienThi = (v) => { const s = String(v ?? '').slice(0, 10); return s ? 
 .tk-rank li:last-child { border-bottom: 0; }
 .tk-hang { width: 1.7rem; height: 1.7rem; border-radius: 50%; background: #eaf3fe; color: #0977ec; font-weight: 700; font-size: 0.8rem; display: grid; place-items: center; flex: none; }
 .tk-ten { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tk-vua { color: #d97706; }
+.tk-sap-het li { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid #eef2f7; font-size: 0.9rem; }
+.tk-sap-het li:last-child { border-bottom: 0; }
+.tk-sap-het { max-height: 420px; overflow-y: auto; }
+.tk-gio { display: flex; align-items: flex-end; gap: 3px; height: 170px; padding-top: 6px; }
+.tk-gio-cot { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.tk-gio-thanh { width: 100%; max-width: 22px; background: #0977ec; border-radius: 4px 4px 0 0; }
+.tk-gio-cot small { font-size: 0.7rem; color: #7a8696; height: 1rem; margin-top: 4px; }
+.tk-gc-so { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.tk-gc-so div { background: #f7f9fc; border-radius: 10px; padding: 0.6rem 0.75rem; display: flex; flex-direction: column; }
+.tk-gc-so span { font-size: 0.78rem; color: #7a8696; }
+.tk-gc-so b { font-size: 1.05rem; }
 </style>

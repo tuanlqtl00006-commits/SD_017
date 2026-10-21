@@ -3,7 +3,15 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue({
+      template: {
+        transformAssetUrls: {
+          includeAbsolute: false,
+        },
+      },
+    }),
+  ],
   // jsqr (đọc mã QR căn cước) chỉ được nạp khi bấm "Quét căn cước": khai báo sẵn để Vite biên dịch ngay lúc khởi động,
   // tránh lỗi "Outdated Optimize Dep" / "Failed to fetch dynamically imported module" ở lần quét đầu tiên khi chạy npm run dev.
   optimizeDeps: {

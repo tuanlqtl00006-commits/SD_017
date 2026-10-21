@@ -192,3 +192,48 @@ export function nhanTienGon(v) {
   if (v >= 1e3) return `${so(v / 1e3)}k`
   return String(v)
 }
+
+/* ---------- Giai đoạn 3: dữ liệu từ GET /api/thong-ke ---------- */
+
+/** Khoảng ngày gửi lên máy chủ: "Tất cả" (không giới hạn) đổi thành 1 năm gần nhất vì máy chủ chỉ cho xem tối đa 1 năm. */
+export function khoangGuiMayChu(tu, den, homNay) {
+  const d = den || homNay
+  let t = tu || congNgay(d, -365)
+  if (soNgay(t, d) > 367) t = congNgay(d, -365)
+  return { tuNgay: t, denNgay: d, catBot: !tu || t !== tu }
+}
+
+/** Phần trăm của một phần trong tổng (0 khi tổng = 0), làm tròn 1 chữ số. */
+export function phanTram(v, tong) {
+  const t = Number(tong) || 0
+  return t > 0 ? Math.round(((Number(v) || 0) / t) * 1000) / 10 : 0
+}
+
+/** 570 phút -> '9,5 giờ'; 45 -> '45 phút'; 0 -> '0 giờ'. */
+export function gioLam(phut) {
+  const p = Number(phut) || 0
+  if (p > 0 && p < 60) return `${p} phút`
+  const g = Math.round((p / 60) * 10) / 10
+  return `${String(g).replace('.', ',')} giờ`
+}
+
+/** Tỷ lệ đi làm đúng giờ trên các ca đã làm (null nếu chưa làm ca nào). */
+export function tyLeDungGio(r) {
+  const lam = Number(r?.soCaDaLam) || 0
+  return lam ? phanTram(lam - (Number(r?.soLanDiMuon) || 0), lam) : null
+}
+
+/** Tỷ lệ có mặt theo lịch: đã làm / (đã làm + vắng); chưa có ca nào đã qua thì null. */
+export function tyLeCoMat(r) {
+  const lam = Number(r?.soCaDaLam) || 0
+  const vang = Number(r?.soCaVang) || 0
+  return lam + vang ? phanTram(lam, lam + vang) : null
+}
+
+/** Cắt 24 khung giờ còn đoạn có đơn (luôn hiện ít nhất 8h - 21h) để biểu đồ giờ không bị trống hai đầu. */
+export function khungGioHienThi(theoGio = []) {
+  const coDon = theoGio.filter((g) => Number(g.soDon) > 0).map((g) => g.gio)
+  const dau = Math.min(8, ...coDon)
+  const cuoi = Math.max(21, ...coDon)
+  return theoGio.filter((g) => g.gio >= dau && g.gio <= cuoi)
+}

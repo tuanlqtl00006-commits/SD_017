@@ -97,6 +97,10 @@ public class HoaDon {
     @Column(name = "trang_thai")
     private Integer trangThai;
 
+    /** Giai đoạn 3: hóa đơn bán tại quầy thuộc ca nào (bảng giao_ca), để tổng kết tiền khi giao ca. Đơn online: null. */
+    @Column(name = "id_giao_ca")
+    private Integer idGiaoCa;
+
     @OneToMany(mappedBy = "hoaDon")
     @com.fasterxml.jackson.annotation.JsonIgnore
     private List<HoaDonChiTiet> danhSachChiTiet;

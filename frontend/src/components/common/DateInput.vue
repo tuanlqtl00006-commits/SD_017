@@ -293,14 +293,40 @@ function datViTri() {
 <style scoped>
 .di-wrap {
   position: relative;
+  width: 100%;
+  display: block;
 }
 .di-wrap .di-input {
-  padding-right: 2.4rem;
+  width: 100%;
+  padding-right: 2.5rem !important;
+  box-sizing: border-box;
+}
+.di-wrap .di-input:not(.form-control) {
+  height: 46px;
+  padding: 0.5rem 2.5rem 0.5rem 0.9rem !important;
+  font-size: 0.88rem;
+  color: var(--fs-text, #18242f);
+  background-color: #fff;
+  border: 1px solid #dce3ec;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  outline: none;
+}
+.di-wrap .di-input:not(.form-control):focus {
+  border-color: var(--fs-primary, #0977ec);
+  box-shadow: 0 0 0 4px rgba(9, 119, 236, 0.14);
+}
+.di-wrap .di-input:not(.form-control):disabled,
+.di-wrap .di-input:not(.form-control)[readonly] {
+  background-color: #f3f5f9;
+  color: var(--fs-muted, #717d8d);
+  cursor: not-allowed;
 }
 .di-btn {
   position: absolute;
   top: 50%;
-  right: 0.35rem;
+  right: 0.45rem;
   transform: translateY(-50%);
   width: 2rem;
   height: 2rem;
@@ -312,6 +338,7 @@ function datViTri() {
   color: #5b6573;
   font-size: 0.95rem;
   cursor: pointer;
+  z-index: 2;
 }
 .di-btn:hover:not(:disabled),
 .di-wrap.is-open .di-btn {

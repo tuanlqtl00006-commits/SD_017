@@ -42,4 +42,8 @@ public class LichSuThanhToan {
 
     @Column(name = "mo_ta")
     private String moTa;
+
+    /** Giai đoạn 3: lần trả tiền này bằng phương thức nào (tiền mặt / chuyển khoản...). Dữ liệu cũ: null. */
+    @Column(name = "id_phuong_thuc_thanh_toan")
+    private Integer idPhuongThucThanhToan;
 }

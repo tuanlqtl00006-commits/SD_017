@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <radialGradient id="bgG" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#450a0a" />
+      <stop offset="100%" stop-color="#140303" />
+    </radialGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <rect width="500" height="500" rx="28" fill="url(#bgG)" />
+  
+  <g transform="translate(30, 36)">
+    <rect x="0" y="0" width="100" height="26" rx="13" fill="#facc15" fill-opacity="0.18" />
+    <text x="50" y="17" fill="#facc15" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="1.2">YONEX</text>
+  </g>
+  <g transform="translate(370, 36)">
+    <rect x="0" y="0" width="100" height="26" rx="13" fill="#ffffff" fill-opacity="0.08" />
+    <text x="50" y="17" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11" font-weight="600" text-anchor="middle">Đỏ Thi Đấu</text>
+  </g>
+
+  <!-- Shirt Graphic -->
+  <g filter="url(#dropShadow)" transform="translate(50, 40)">
+    <!-- Sleeves & Torso -->
+    <path d="M 140,110 L 80,160 L 110,200 L 145,175 L 145,330 L 255,330 L 255,175 L 290,200 L 320,160 L 260,110 C 240,135 160,135 140,110 Z" fill="#dc2626" />
+    <!-- Dynamic Color Blocking Panel -->
+    <path d="M 145,175 L 210,135 L 255,175 L 255,330 L 210,330 L 145,260 Z" fill="#1e293b" fill-opacity="0.85" />
+    <!-- Racing Speed Line -->
+    <path d="M 120,185 L 230,330" stroke="#facc15" stroke-width="12" stroke-linecap="round" />
+    <path d="M 140,180 L 250,325" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+    <!-- Collar -->
+    <path d="M 170,115 C 185,140 215,140 230,115 C 215,125 185,125 170,115 Z" fill="#facc15" />
+    <!-- Chest Logo -->
+    <text x="175" y="175" fill="#ffffff" font-family="sans-serif" font-size="13" font-weight="800">Yonex</text>
+  </g>
+
+  <!-- Bottom Label Bar -->
+  <g transform="translate(0, 420)">
+    <rect x="24" y="0" width="452" height="60" rx="18" fill="#0f172a" fill-opacity="0.85" stroke="#ffffff" stroke-opacity="0.08" />
+    <text x="44" y="27" fill="#ffffff" font-family="system-ui, sans-serif" font-size="16" font-weight="700">Áo đấu Yonex Tour Elite</text>
+    <text x="44" y="46" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="12">Vải thoáng khí VeryCool · Co giãn 4 chiều</text>
+    <circle cx="440" cy="30" r="14" fill="#facc15" fill-opacity="0.2" />
+    <path d="M 436,30 L 439,33 L 445,27" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

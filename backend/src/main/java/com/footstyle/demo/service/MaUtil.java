@@ -33,6 +33,23 @@ public final class MaUtil {
     }
 
     /**
+     * Mã kế tiếp: tiền tố + (số lớn nhất trong các mã đang có cùng tiền tố + 1). Mã khác dạng / khác tiền tố bị bỏ qua.
+     * ("HD", [HD01, HD09, HD000012, VCH7]) -> HD13; chưa có mã nào -> HD01.
+     */
+    public static String tiepTheo(String tienTo, java.util.Collection<String> maDangCo) {
+        long max = 0;
+        String tt = tienTo == null ? "" : tienTo;
+        if (maDangCo != null) {
+            for (String ma : maDangCo) {
+                if (ma == null) continue;
+                Matcher m = MA_CO_SO.matcher(ma.trim());
+                if (m.matches() && m.group(1).equalsIgnoreCase(tt)) max = Math.max(max, Long.parseLong(m.group(2)));
+            }
+        }
+        return dinhDang(tt, max + 1);
+    }
+
+    /**
      * Rút gọn mã cũ có quá nhiều số 0: HD000001 -> HD01, NV0010 -> NV10, DM001 -> DM01, DC000 -> DC00, LQT0001 -> LQT01.
      * Mã không có dạng "chữ cái + số" (hoặc null / rỗng) thì trả về nguyên vẹn. Chạy lại trên mã đã gọn thì không đổi.
      */

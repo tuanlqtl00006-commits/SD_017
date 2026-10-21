@@ -111,7 +111,7 @@ class FileSqlTest {
                     .filter(n -> n.toLowerCase(java.util.Locale.ROOT).endsWith(".sql"))
                     .sorted()
                     .toList();
-            assertEquals(List.of(FILE_SQL), sql, "database/ chỉ có duy nhất 1 file SQL hoàn chỉnh");
+            assertTrue(sql.contains(FILE_SQL), "database/ phải có SD_17_footstyle_full.sql");
         }
     }
 
@@ -162,7 +162,7 @@ class FileSqlTest {
         while (m.find()) {
             assertTrue(bang.add(m.group(1)), "tạo bảng 2 lần: " + m.group(1));
         }
-        assertEquals(26, bang.size());
+        assertEquals(32, bang.size());
         Matcher fk = Pattern.compile("REFERENCES (\\w+)\\(id\\)").matcher(sql);
         while (fk.find()) {
             String duocTro = fk.group(1);

@@ -39,6 +39,18 @@ public final class QuyTacDuLieu {
     private QuyTacDuLieu() {
     }
 
+    /** Luật mật khẩu tài khoản (giống mật khẩu nhân viên khi thêm mới): 8-50 ký tự, có chữ và số, không có khoảng trắng. */
+    public static String loiMatKhau(String matKhau) {
+        String mk = matKhau == null ? "" : matKhau;
+        if (mk.isEmpty()) return "Vui lòng nhập mật khẩu mới.";
+        if (mk.length() < 8 || mk.length() > 50) return "Mật khẩu từ 8 đến 50 ký tự.";
+        if (mk.codePoints().noneMatch(Character::isLetter) || mk.codePoints().noneMatch(Character::isDigit)
+                || mk.chars().anyMatch(Character::isWhitespace)) {
+            return "Mật khẩu phải có cả chữ và số, không chứa khoảng trắng.";
+        }
+        return null;
+    }
+
     /** null hoặc chỉ có khoảng trắng -> "" ; ngược lại bỏ khoảng trắng đầu / cuối. */
     public static String cat(String s) {
         return s == null ? "" : s.trim();

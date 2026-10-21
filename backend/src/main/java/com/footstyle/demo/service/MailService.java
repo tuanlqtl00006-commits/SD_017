@@ -271,6 +271,30 @@ public class MailService {
         luongGui.submit(() -> gui(den, thu, logoGan, lo));
     }
 
+    /**
+     * Thư mật khẩu tạm khi nhân viên bấm "Quên mật khẩu" ở trang đăng nhập (gửi nền, không bắt người dùng chờ).
+     * Chưa cấu hình Gmail thì nội dung thư (kèm mật khẩu tạm) được ghi vào log như các thư khác.
+     */
+    public void guiMatKhauTam(String hoTen, String email, String matKhauTam) {
+        if (email == null || !email.contains("@")) return;
+        final String den = email.trim();
+        String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
+        String tieuDe = "[" + tenCuaHang + "] Mật khẩu tạm để đăng nhập";
+        String banChu = "Xin chào " + ten + ",\n\n"
+                + "Bạn (hoặc ai đó) vừa yêu cầu cấp lại mật khẩu tài khoản " + tenCuaHang + ".\n"
+                + "Mật khẩu tạm: " + matKhauTam + "\n\n"
+                + "Hãy đăng nhập bằng mật khẩu này rồi đổi mật khẩu ngay (menu tài khoản > Đổi mật khẩu).\n"
+                + "Nếu không phải bạn yêu cầu, hãy báo cho quản lý cửa hàng.\n";
+        String html = "<div style=\"font-family:Arial,sans-serif;font-size:15px;color:#18242f\">"
+                + "<p>Xin chào <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(ten) + "</b>,</p>"
+                + "<p>Bạn (hoặc ai đó) vừa yêu cầu cấp lại mật khẩu tài khoản " + org.springframework.web.util.HtmlUtils.htmlEscape(tenCuaHang) + ".</p>"
+                + "<p>Mật khẩu tạm: <b style=\"font-size:18px;letter-spacing:1px\">" + org.springframework.web.util.HtmlUtils.htmlEscape(matKhauTam) + "</b></p>"
+                + "<p>Hãy đăng nhập bằng mật khẩu này rồi <b>đổi mật khẩu ngay</b> (menu tài khoản &gt; Đổi mật khẩu).</p>"
+                + "<p style=\"color:#7b8794\">Nếu không phải bạn yêu cầu, hãy báo cho quản lý cửa hàng.</p></div>";
+        final ThuMail thu = new ThuMail(tieuDe, banChu, html);
+        luongGui.submit(() -> gui(den, thu, null));
+    }
+
     void gui(String den, ThuMail thu, byte[] logoGan) {
         gui(den, thu, logoGan, null);
     }
