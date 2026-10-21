@@ -9,6 +9,7 @@ const cartStore = useCartStore()
 
 const searchQuery = ref('')
 const showProductDropdown = ref(false)
+const showGuideDropdown = ref(false)
 
 function handleSearch() {
   if (searchQuery.value.trim()) {
@@ -30,16 +31,16 @@ function handleSearch() {
         </RouterLink>
 
         <!-- Hotline -->
-        <div class="vnb-hotline flex-shrink-0 d-none d-lg-flex">
+        <a href="tel:0977508430" class="vnb-hotline text-decoration-none flex-shrink-0 d-none d-lg-flex" title="Bấm để gọi hotline hỗ trợ">
           <i class="bi bi-headset text-danger" style="font-size:1.2rem;"></i>
           <span>HOTLINE: <strong class="vnb-hotline-num">0977508430</strong></span>
-        </div>
+        </a>
 
         <!-- Hệ thống cửa hàng -->
-        <div class="vnb-store-loc flex-shrink-0 d-none d-md-flex">
+        <RouterLink to="/shop/lien-he" class="vnb-store-loc flex-shrink-0 d-none d-md-flex text-decoration-none" title="Xem danh sách chi nhánh FootStyle">
           <i class="bi bi-geo-alt-fill text-danger" style="font-size:1.1rem;"></i>
           <span>HỆ THỐNG CỬA HÀNG</span>
-        </div>
+        </RouterLink>
 
         <!-- Ô Tìm kiếm -->
         <div class="vnb-search-wrap flex-grow-1" style="min-width:160px; max-width:340px;">
@@ -59,7 +60,7 @@ function handleSearch() {
         <!-- 3 Nút tròn: Tra cứu, Tài khoản, Giỏ hàng -->
         <div class="d-flex align-items-center gap-3 flex-shrink-0">
           <!-- Tra cứu đơn hàng -->
-          <RouterLink to="/shop/tra-cuu" class="vnb-header-action">
+          <RouterLink to="/shop/tra-cuu" class="vnb-header-action" title="Tra cứu tiến độ đơn hàng">
             <div class="vnb-action-icon-circle">
               <i class="bi bi-binoculars-fill"></i>
             </div>
@@ -67,7 +68,7 @@ function handleSearch() {
           </RouterLink>
 
           <!-- Tài khoản cá nhân -->
-          <RouterLink to="/shop/tai-khoan" class="vnb-header-action">
+          <RouterLink to="/shop/tai-khoan" class="vnb-header-action" title="Hồ sơ tài khoản & sổ địa chỉ">
             <div class="vnb-action-icon-circle">
               <i class="bi bi-person-fill"></i>
             </div>
@@ -75,7 +76,7 @@ function handleSearch() {
           </RouterLink>
 
           <!-- Giỏ hàng -->
-          <RouterLink to="/shop/gio-hang" class="vnb-header-action">
+          <RouterLink to="/shop/gio-hang" class="vnb-header-action" title="Xem giỏ hàng">
             <div class="vnb-action-icon-circle">
               <i class="bi bi-cart3"></i>
               <span v-if="cartStore.totalCount > 0" class="vnb-cart-badge">
@@ -89,13 +90,16 @@ function handleSearch() {
       </div>
     </header>
 
-    <!-- Navigation Bar màu cam VNB -->
+    <!-- Navigation Bar màu xanh dương VNB / FootStyle -->
     <nav class="vnb-nav-bar">
       <div class="vnb-container d-flex justify-content-between align-items-center">
         <ul class="vnb-nav-list flex-grow-1" style="justify-content: space-evenly;">
+          <!-- 1. TRANG CHỦ -->
           <li class="vnb-nav-item">
             <RouterLink to="/shop" class="vnb-nav-link">TRANG CHỦ</RouterLink>
           </li>
+
+          <!-- 2. SẢN PHẨM (DROPDOWN) -->
           <li
             class="vnb-nav-item dropdown"
             @mouseenter="showProductDropdown = true"
@@ -105,46 +109,124 @@ function handleSearch() {
               SẢN PHẨM <i class="bi bi-chevron-down small" style="font-size: 0.7rem;"></i>
             </RouterLink>
             <ul
-              class="dropdown-menu shadow rounded-0 border-0 m-0 py-2"
+              class="dropdown-menu shadow rounded-3 border-0 m-0 py-2"
               :class="{ show: showProductDropdown }"
               style="font-size: 0.9rem;"
             >
-              <li><RouterLink to="/shop/san-pham" class="dropdown-item py-2 fw-semibold">Tất cả sản phẩm</RouterLink></li>
+              <li>
+                <RouterLink to="/shop/san-pham" class="dropdown-item py-2 fw-semibold" @click="showProductDropdown = false">
+                  Tất cả sản phẩm
+                </RouterLink>
+              </li>
               <li><hr class="dropdown-divider"></li>
-              <li><RouterLink to="/shop/san-pham" class="dropdown-item py-2">Vợt cầu lông</RouterLink></li>
-              <li><RouterLink to="/shop/san-pham" class="dropdown-item py-2">Giày cầu lông</RouterLink></li>
-              <li><RouterLink to="/shop/san-pham" class="dropdown-item py-2">Áo cầu lông</RouterLink></li>
-              <li><RouterLink to="/shop/san-pham" class="dropdown-item py-2">Váy cầu lông</RouterLink></li>
-              <li><RouterLink to="/shop/san-pham" class="dropdown-item py-2">Quần cầu lông</RouterLink></li>
-              <li><RouterLink to="/shop/san-pham" class="dropdown-item py-2">Phụ kiện & Cước</RouterLink></li>
+              <li>
+                <RouterLink :to="{ path: '/shop/san-pham', query: { search: 'Vợt' } }" class="dropdown-item py-2" @click="showProductDropdown = false">
+                  <i class="bi bi-crosshair text-primary me-2"></i> Vợt cầu lông
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/san-pham', query: { search: 'Giày' } }" class="dropdown-item py-2" @click="showProductDropdown = false">
+                  <i class="bi bi-lightning-charge text-danger me-2"></i> Giày cầu lông
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/san-pham', query: { search: 'Áo' } }" class="dropdown-item py-2" @click="showProductDropdown = false">
+                  <i class="bi bi-tsunami text-success me-2"></i> Áo cầu lông
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/san-pham', query: { search: 'Váy' } }" class="dropdown-item py-2" @click="showProductDropdown = false">
+                  <i class="bi bi-flower1 text-warning me-2"></i> Váy cầu lông
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/san-pham', query: { search: 'Quần' } }" class="dropdown-item py-2" @click="showProductDropdown = false">
+                  <i class="bi bi-columns-gap text-info me-2"></i> Quần cầu lông
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/san-pham', query: { search: 'Cước' } }" class="dropdown-item py-2" @click="showProductDropdown = false">
+                  <i class="bi bi-backpack text-secondary me-2"></i> Phụ kiện & Cước đan
+                </RouterLink>
+              </li>
             </ul>
           </li>
+
+          <!-- 3. SALE OFF -->
           <li class="vnb-nav-item">
-            <RouterLink :to="{ path: '/shop/san-pham', query: { khuyenMai: '1' } }" class="vnb-nav-link text-warning">
+            <RouterLink :to="{ path: '/shop/san-pham', query: { khuyenMai: '1' } }" class="vnb-nav-link text-warning fw-black">
               SALE OFF
             </RouterLink>
           </li>
+
+          <!-- 4. TIN TỨC -->
           <li class="vnb-nav-item">
-            <a href="#" class="vnb-nav-link" @click.prevent>TIN TỨC</a>
+            <RouterLink to="/shop/tin-tuc" class="vnb-nav-link">TIN TỨC</RouterLink>
           </li>
+
+          <!-- 5. TUYỂN DỤNG -->
           <li class="vnb-nav-item">
-            <a href="#" class="vnb-nav-link" @click.prevent>TUYỂN DỤNG</a>
+            <RouterLink to="/shop/tuyen-dung" class="vnb-nav-link">TUYỂN DỤNG</RouterLink>
           </li>
+
+          <!-- 6. CHÍNH SÁCH NHƯỢNG QUYỀN -->
           <li class="vnb-nav-item d-none d-xl-inline-block">
-            <a href="#" class="vnb-nav-link" @click.prevent>CHÍNH SÁCH NHƯỢNG QUYỀN</a>
+            <RouterLink to="/shop/nhuong-quyen" class="vnb-nav-link">CHÍNH SÁCH NHƯỢNG QUYỀN</RouterLink>
           </li>
-          <li class="vnb-nav-item">
-            <a href="#" class="vnb-nav-link" @click.prevent>HƯỚNG DẪN <i class="bi bi-chevron-down small" style="font-size: 0.7rem;"></i></a>
+
+          <!-- 7. HƯỚNG DẪN (DROPDOWN) -->
+          <li
+            class="vnb-nav-item dropdown"
+            @mouseenter="showGuideDropdown = true"
+            @mouseleave="showGuideDropdown = false"
+          >
+            <RouterLink to="/shop/huong-dan" class="vnb-nav-link d-flex align-items-center gap-1">
+              HƯỚNG DẪN <i class="bi bi-chevron-down small" style="font-size: 0.7rem;"></i>
+            </RouterLink>
+            <ul
+              class="dropdown-menu shadow rounded-3 border-0 m-0 py-2"
+              :class="{ show: showGuideDropdown }"
+              style="font-size: 0.9rem;"
+            >
+              <li>
+                <RouterLink to="/shop/huong-dan" class="dropdown-item py-2 fw-semibold" @click="showGuideDropdown = false">
+                  Trung tâm hướng dẫn
+                </RouterLink>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="dropdown-item py-2" @click="showGuideDropdown = false">
+                  <i class="bi bi-cart-check text-primary me-2"></i> Hướng dẫn mua hàng & thanh toán
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'chon-vot' } }" class="dropdown-item py-2" @click="showGuideDropdown = false">
+                  <i class="bi bi-crosshair text-danger me-2"></i> Hướng dẫn chọn vợt cầu lông
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'size-giay' } }" class="dropdown-item py-2" @click="showGuideDropdown = false">
+                  <i class="bi bi-rulers text-success me-2"></i> Bảng quy đổi size giày
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="dropdown-item py-2" @click="showGuideDropdown = false">
+                  <i class="bi bi-shield-check text-warning me-2"></i> Chính sách bảo hành & đổi trả
+                </RouterLink>
+              </li>
+            </ul>
           </li>
+
+          <!-- 8. GIỚI THIỆU -->
           <li class="vnb-nav-item d-none d-lg-inline-block">
-            <a href="#" class="vnb-nav-link" @click.prevent>GIỚI THIỆU</a>
+            <RouterLink to="/shop/gioi-thieu" class="vnb-nav-link">GIỚI THIỆU</RouterLink>
           </li>
+
+          <!-- 9. LIÊN HỆ -->
           <li class="vnb-nav-item">
-            <a href="#" class="vnb-nav-link" @click.prevent>LIÊN HỆ</a>
+            <RouterLink to="/shop/lien-he" class="vnb-nav-link">LIÊN HỆ</RouterLink>
           </li>
         </ul>
-
-        <!-- Nút chuyển sang trang quản trị đã bị xóa -->
       </div>
     </nav>
 
@@ -164,7 +246,10 @@ function handleSearch() {
             </p>
             <div class="small text-secondary">
               <p class="mb-1"><i class="bi bi-geo-alt-fill text-warning me-2"></i> Trụ sở: 123 Đường Cầu Diễn, Bắc Từ Liêm, Hà Nội</p>
-              <p class="mb-1"><i class="bi bi-telephone-fill text-warning me-2"></i> Hotline: 0977508430 (8:00 - 21:30)</p>
+              <p class="mb-1">
+                <i class="bi bi-telephone-fill text-warning me-2"></i> Hotline: 
+                <a href="tel:0977508430" class="text-white text-decoration-none fw-bold">0977508430</a> (8:00 - 21:30)
+              </p>
               <p class="mb-0"><i class="bi bi-envelope-fill text-warning me-2"></i> Email: cskh@footstyle.vn</p>
             </div>
           </div>
@@ -172,10 +257,26 @@ function handleSearch() {
           <div class="col-lg-2 col-md-6 col-6">
             <h6 class="text-uppercase fw-bold text-warning mb-3">Chính sách</h6>
             <ul class="list-unstyled small d-flex flex-column gap-2 text-secondary">
-              <li>Chính sách bảo hành</li>
-              <li>Đổi trả trong 7 ngày</li>
-              <li>Chính sách giao hàng</li>
-              <li>Bảo mật thông tin</li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="text-secondary text-decoration-none hover-white">
+                  Chính sách bảo hành
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="text-secondary text-decoration-none hover-white">
+                  Đổi trả trong 7 ngày
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="text-secondary text-decoration-none hover-white">
+                  Chính sách giao hàng
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="text-secondary text-decoration-none hover-white">
+                  Bảo mật thông tin
+                </RouterLink>
+              </li>
             </ul>
           </div>
 
@@ -183,9 +284,21 @@ function handleSearch() {
             <h6 class="text-uppercase fw-bold text-warning mb-3">Hỗ trợ khách hàng</h6>
             <ul class="list-unstyled small d-flex flex-column gap-2 text-secondary">
               <li><RouterLink to="/shop/tra-cuu" class="text-secondary text-decoration-none hover-white">Tra cứu đơn hàng</RouterLink></li>
-              <li>Hướng dẫn chọn vợt</li>
-              <li>Bảng quy đổi size giày</li>
-              <li>Câu hỏi thường gặp</li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'chon-vot' } }" class="text-secondary text-decoration-none hover-white">
+                  Hướng dẫn chọn vợt
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'size-giay' } }" class="text-secondary text-decoration-none hover-white">
+                  Bảng quy đổi size giày
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink to="/shop/huong-dan" class="text-secondary text-decoration-none hover-white">
+                  Câu hỏi thường gặp
+                </RouterLink>
+              </li>
             </ul>
           </div>
 
@@ -195,8 +308,13 @@ function handleSearch() {
               <span class="badge bg-secondary p-2">COD Tiền mặt</span>
               <span class="badge bg-secondary p-2">VietQR Banking</span>
             </div>
-            <div class="small text-secondary">
+            <div class="small text-secondary mb-3">
               Vận chuyển hỏa tốc toàn quốc qua GHTK, GHN, ViettelPost.
+            </div>
+            <div>
+              <RouterLink to="/shop/nhuong-quyen" class="btn btn-outline-warning btn-sm rounded-pill fw-bold">
+                Hợp tác nhượng quyền →
+              </RouterLink>
             </div>
           </div>
         </div>
@@ -212,5 +330,9 @@ function handleSearch() {
 <style scoped>
 .hover-white:hover {
   color: #fff !important;
+}
+
+.fw-black {
+  font-weight: 900;
 }
 </style>
