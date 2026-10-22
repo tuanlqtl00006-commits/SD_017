@@ -24,4 +24,10 @@ public class ThongKeController {
                                        @RequestParam(required = false) Integer nguong) {
         return service.tongHop(tuNgay, denNgay, nguong);
     }
+
+    /** API trả về dữ liệu liên kết toàn hệ thống từ CSDL cho trang Quản lý Thống kê. */
+    @GetMapping("/tong-quan")
+    public Map<String, Object> layTongQuan() {
+        return service.layTongQuan();
+    }
 }
