@@ -1,24 +1,32 @@
 package com.footstyle.demo.service;
 
 import com.footstyle.demo.entity.CaLamViec;
+import com.footstyle.demo.entity.DotGiamGia;
 import com.footstyle.demo.entity.GiaoCa;
 import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.entity.HoaDonChiTiet;
+import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.LichLamViec;
 import com.footstyle.demo.entity.LichSuThanhToan;
 import com.footstyle.demo.entity.NhanVien;
+import com.footstyle.demo.entity.PhieuGiamGia;
 import com.footstyle.demo.entity.PhuongThucThanhToan;
 import com.footstyle.demo.entity.SanPham;
 import com.footstyle.demo.entity.SanPhamChiTiet;
 import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.CaLamViecRepository;
+import com.footstyle.demo.repository.DotGiamGiaRepository;
 import com.footstyle.demo.repository.GiaoCaRepository;
 import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
+import com.footstyle.demo.repository.KhachHangRepository;
 import com.footstyle.demo.repository.LichLamViecRepository;
 import com.footstyle.demo.repository.LichSuThanhToanRepository;
+import com.footstyle.demo.repository.NhanVienRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaRepository;
 import com.footstyle.demo.repository.PhuongThucThanhToanRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
+import com.footstyle.demo.repository.SanPhamRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -32,8 +40,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +69,18 @@ public class ThongKeService {
     private final CaLamViecRepository caRepo;
     private final LichLamViecRepository lichRepo;
     private final GiaoCaRepository giaoCaRepo;
+    @Autowired(required = false)
+    private SanPhamRepository sanPhamRepository;
+    @Autowired(required = false)
+    private DotGiamGiaRepository dotGiamGiaRepository;
+    @Autowired(required = false)
+    private PhieuGiamGiaRepository phieuGiamGiaRepository;
+    @Autowired(required = false)
+    private KhachHangRepository khachHangRepository;
+    @Autowired(required = false)
+    private NhanVienRepository nhanVienRepository;
+    @Autowired(required = false)
+    private LichGiamGiaService lichGiamGiaService;
     private Clock dongHo = Clock.systemDefaultZone();
 
     public ThongKeService(HoaDonRepository hoaDonRepo, HoaDonChiTietRepository chiTietRepo, LichSuThanhToanRepository thanhToanRepo,
@@ -374,5 +397,211 @@ public class ThongKeService {
 
     private static long tien(BigDecimal v) {
         return v == null ? 0 : v.longValue();
+    }
+
+    /* ---------------- Liên kết toàn hệ thống & CSDL (GET /api/thong-ke/tong-quan) ---------------- */
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> layTongQuan() {
+        LocalDateTime now = LocalDateTime.now(dongHo);
+        Map<Long, Double> giamHomNay = lichGiamGiaService != null ? lichGiamGiaService.giamHomNay() : Map.of();
+
+        List<Map<String, Object>> chiTietHoaDon = new ArrayList<>();
+        for (HoaDonChiTiet ct : chiTietRepo.findAll()) {
+            HoaDon hd = ct.getHoaDon();
+            if (hd == null) continue;
+            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
+            SanPham sp = spct != null ? spct.getSanPham() : null;
+
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("idHoaDon", hd.getId());
+            m.put("maHoaDon", hd.getMaHoaDon());
+            m.put("ngayTao", hd.getNgayTao());
+            m.put("trangThaiHoaDon", hd.getTrangThai());
+            m.put("idBienThe", spct != null ? spct.getId() : null);
+            m.put("maBienThe", spct != null ? spct.getMaSpct() : null);
+            m.put("tenBienThe", moTaBienThe(spct));
+            m.put("soLuongTon", spct != null && spct.getSoLuongTon() != null ? spct.getSoLuongTon() : 0);
+            m.put("idSanPham", sp != null ? sp.getId() : null);
+            m.put("maSanPham", sp != null ? sp.getMaSanPham() : null);
+            m.put("tenSanPham", sp != null ? sp.getTenSanPham() : "Sản phẩm");
+            m.put("tenThuongHieu", sp != null && sp.getThuongHieu() != null ? sp.getThuongHieu().getTen() : "Khác");
+            m.put("tenDanhMuc", sp != null && sp.getDanhMuc() != null ? sp.getDanhMuc().getTen() : "Khác");
+            m.put("soLuong", ct.getSoLuong() != null ? ct.getSoLuong() : 0);
+            m.put("donGia", ct.getDonGia() != null ? ct.getDonGia() : BigDecimal.ZERO);
+            m.put("thanhTien", ct.getThanhTien() != null ? ct.getThanhTien() : BigDecimal.ZERO);
+            chiTietHoaDon.add(m);
+        }
+
+        List<Map<String, Object>> uuDaiHoaDon = new ArrayList<>();
+        for (HoaDon hd : hoaDonRepo.findAll()) {
+            KhachHang kh = hd.getKhachHang();
+            NhanVien nv = hd.getNhanVien();
+            PhieuGiamGia pgg = hd.getPhieuGiamGia();
+            boolean taiQuay = Integer.valueOf(HoaDon.TAI_QUAY).equals(hd.getLoaiDon());
+
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("idHoaDon", hd.getId());
+            m.put("maHoaDon", hd.getMaHoaDon());
+            m.put("ngayTao", hd.getNgayTao());
+            m.put("trangThai", hd.getTrangThai());
+            m.put("idKhachHang", kh != null ? kh.getId() : null);
+            m.put("maKhachHang", kh != null ? kh.getMaKhachHang() : null);
+            m.put("tenKhachHang", kh != null ? kh.getHoTen() : null);
+            m.put("sdtKhachHang", kh != null ? kh.getSdt() : null);
+            m.put("idNhanVien", nv != null ? nv.getId() : null);
+            m.put("maNhanVien", nv != null ? nv.getMaNhanVien() : null);
+            m.put("tenNhanVien", nv != null ? nv.getHoTen() : null);
+            m.put("idPhieuGiamGia", pgg != null ? pgg.getId() : null);
+            m.put("maPhieuGiamGia", pgg != null ? pgg.getMaPhieu() : null);
+            m.put("tenPhieuGiamGia", pgg != null ? pgg.getTenPhieu() : null);
+            m.put("soTienGiam", hd.getSoTienGiam() != null ? hd.getSoTienGiam() : BigDecimal.ZERO);
+            m.put("phiVanChuyen", taiQuay || hd.getPhiVanChuyen() == null ? BigDecimal.ZERO : hd.getPhiVanChuyen());
+            m.put("tongTienHang", hd.getTongTien() != null ? hd.getTongTien() : BigDecimal.ZERO);
+            uuDaiHoaDon.add(m);
+        }
+
+        List<SanPhamChiTiet> dsBienThe = spctRepo.findAll();
+        long tongBienTheHoatDong = 0;
+        long tongTonKho = 0;
+        long soBienTheSapHet = 0;
+        long soBienTheHetHang = 0;
+        List<Map<String, Object>> tonKhoCanhBao = new ArrayList<>();
+
+        List<SanPhamChiTiet> bienTheDangBan = new ArrayList<>();
+        for (SanPhamChiTiet b : dsBienThe) {
+            SanPham sp = b.getSanPham();
+            if (!Integer.valueOf(1).equals(b.getTrangThai()) || sp == null || !Integer.valueOf(1).equals(sp.getTrangThai())) {
+                continue;
+            }
+            tongBienTheHoatDong++;
+            int ton = b.getSoLuongTon() != null ? b.getSoLuongTon() : 0;
+            tongTonKho += Math.max(ton, 0);
+            if (ton <= 0) soBienTheHetHang++;
+            else if (ton <= 5) soBienTheSapHet++;
+            if (ton <= 10) bienTheDangBan.add(b);
+        }
+        bienTheDangBan.sort(Comparator.comparingInt(b -> b.getSoLuongTon() != null ? b.getSoLuongTon() : 0));
+
+        for (int i = 0; i < Math.min(bienTheDangBan.size(), 8); i++) {
+            SanPhamChiTiet b = bienTheDangBan.get(i);
+            SanPham sp = b.getSanPham();
+            Double ptGiam = b.getId() != null ? giamHomNay.get(b.getId().longValue()) : null;
+            long giaBan = b.getGiaBan() != null ? b.getGiaBan() : 0L;
+            long giaSauGiam = ptGiam != null && ptGiam > 0 ? Math.round(giaBan * (100.0 - ptGiam) / 100.0) : giaBan;
+
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("idBienThe", b.getId());
+            m.put("maBienThe", b.getMaSpct());
+            m.put("idSanPham", sp != null ? sp.getId() : null);
+            m.put("maSanPham", sp != null ? sp.getMaSanPham() : null);
+            m.put("tenSanPham", sp != null ? sp.getTenSanPham() : "");
+            m.put("tenThuongHieu", sp != null && sp.getThuongHieu() != null ? sp.getThuongHieu().getTen() : "");
+            m.put("tenBienThe", moTaBienThe(b));
+            m.put("giaBan", giaBan);
+            m.put("giaSauGiam", giaSauGiam);
+            m.put("phanTramGiam", ptGiam != null ? ptGiam : 0);
+            m.put("soLuongTon", b.getSoLuongTon() != null ? b.getSoLuongTon() : 0);
+            tonKhoCanhBao.add(m);
+        }
+
+        long tongSanPhamHoatDong = sanPhamRepository == null ? 0 : sanPhamRepository.findAll().stream()
+                .filter(s -> Integer.valueOf(1).equals(s.getTrangThai()))
+                .count();
+        long tongKhachHangHoatDong = khachHangRepository == null ? 0 : khachHangRepository.findAll().stream()
+                .filter(k -> Integer.valueOf(1).equals(k.getTrangThai()))
+                .count();
+        long tongNhanVienHoatDong = nhanVienRepository == null ? 0 : nhanVienRepository.findAll().stream()
+                .filter(n -> Integer.valueOf(1).equals(n.getTrangThai()))
+                .count();
+
+        long soDotDangDienRa = 0;
+        long soDotSapDienRa = 0;
+        List<Map<String, Object>> dotDangChay = new ArrayList<>();
+        if (dotGiamGiaRepository != null) {
+            for (DotGiamGia d : dotGiamGiaRepository.findAll()) {
+                if (!Integer.valueOf(1).equals(d.getTrangThai())) continue;
+                if (d.getNgayKetThuc() != null && d.getNgayKetThuc().isBefore(now)) continue;
+                boolean sapDienRa = d.getNgayBatDau() != null && d.getNgayBatDau().isAfter(now);
+                if (sapDienRa) soDotSapDienRa++;
+                else soDotDangDienRa++;
+
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("id", d.getId());
+                m.put("maDot", d.getMaDot());
+                m.put("tenDot", d.getTenDot());
+                m.put("phanTramGiamDot", d.getPhanTramGiamDot());
+                m.put("ngayBatDau", d.getNgayBatDau());
+                m.put("ngayKetThuc", d.getNgayKetThuc());
+                m.put("trangThaiText", sapDienRa ? "Sắp diễn ra" : "Đang diễn ra");
+                dotDangChay.add(m);
+            }
+        }
+
+        long soPhieuDangHoatDong = 0;
+        List<Map<String, Object>> phieuDangChay = new ArrayList<>();
+        if (phieuGiamGiaRepository != null) {
+            for (PhieuGiamGia p : phieuGiamGiaRepository.findAllByOrderByIdDesc()) {
+                if (!Integer.valueOf(1).equals(p.getTrangThai())) continue;
+                if (p.getNgayKetThuc() != null && p.getNgayKetThuc().isBefore(now)) continue;
+                boolean sapDienRa = p.getNgayBatDau() != null && p.getNgayBatDau().isAfter(now);
+                soPhieuDangHoatDong++;
+
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("id", p.getId());
+                m.put("maPhieu", p.getMaPhieu());
+                m.put("tenPhieu", p.getTenPhieu());
+                m.put("loaiGiam", p.getLoaiGiam());
+                m.put("giaTriGiam", p.getGiaTriGiam());
+                m.put("soLuong", p.getSoLuong());
+                m.put("soLuongDaDung", p.getSoLuongDaDung() != null ? p.getSoLuongDaDung() : 0);
+                m.put("ngayBatDau", p.getNgayBatDau());
+                m.put("ngayKetThuc", p.getNgayKetThuc());
+                m.put("trangThaiText", sapDienRa ? "Sắp diễn ra" : "Đang hoạt động");
+                phieuDangChay.add(m);
+            }
+        }
+
+        Map<String, Object> heThong = new LinkedHashMap<>();
+        heThong.put("tongSanPhamHoatDong", tongSanPhamHoatDong);
+        heThong.put("tongBienTheHoatDong", tongBienTheHoatDong);
+        heThong.put("tongTonKho", tongTonKho);
+        heThong.put("soBienTheSapHet", soBienTheSapHet);
+        heThong.put("soBienTheHetHang", soBienTheHetHang);
+        heThong.put("tongKhachHangHoatDong", tongKhachHangHoatDong);
+        heThong.put("tongNhanVienHoatDong", tongNhanVienHoatDong);
+        heThong.put("soDotDangDienRa", soDotDangDienRa);
+        heThong.put("soDotSapDienRa", soDotSapDienRa);
+        heThong.put("dotDangChay", dotDangChay);
+        heThong.put("soPhieuDangHoatDong", soPhieuDangHoatDong);
+        heThong.put("phieuDangChay", phieuDangChay);
+
+        Map<String, Object> kq = new LinkedHashMap<>();
+        kq.put("chiTietHoaDon", chiTietHoaDon);
+        kq.put("uuDaiHoaDon", uuDaiHoaDon);
+        kq.put("tonKhoCanhBao", tonKhoCanhBao);
+        kq.put("heThong", heThong);
+        return kq;
+    }
+
+    private String moTaBienThe(SanPhamChiTiet spct) {
+        if (spct == null) return "";
+        List<String> phan = new ArrayList<>();
+        if (spct.getMauSac() != null && hopLeThuocTinh(spct.getMauSac().getTen())) {
+            phan.add(spct.getMauSac().getTen().trim());
+        }
+        if (spct.getTrongLuong() != null && hopLeThuocTinh(spct.getTrongLuong().getTen())) {
+            phan.add(spct.getTrongLuong().getTen().trim());
+        }
+        if (spct.getChuVi() != null && hopLeThuocTinh(spct.getChuVi().getTen())) {
+            phan.add(spct.getChuVi().getTen().trim());
+        }
+        return phan.isEmpty() ? Objects.toString(spct.getMaSpct(), "") : String.join(" · ", phan);
+    }
+
+    private boolean hopLeThuocTinh(String ten) {
+        if (ten == null || ten.trim().isEmpty()) return false;
+        String t = ten.trim().toLowerCase(Locale.ROOT);
+        return !t.contains("không áp dụng") && !t.contains("khong ap dung");
     }
 }
