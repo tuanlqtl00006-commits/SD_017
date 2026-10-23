@@ -178,10 +178,17 @@
   box-shadow: 0 2px 4px rgba(220, 38, 38, 0.4);
 }
 
-/* BLUE NAVIGATION BAR */
+/* BLUE NAVIGATION BAR & MEGA MENU */
 .vnb-nav-bar {
+  position: relative;
   background-color: #1d4ed8;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+
+/* Wrapper bao nav + mega menu để position: relative */
+.vnb-nav-wrapper {
+  position: relative;
+  z-index: 1000;
 }
 
 .vnb-nav-list {
@@ -209,7 +216,7 @@
   font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
-  padding: 10px 13px;
+  padding: 11px 14px;
   text-decoration: none;
   letter-spacing: 0.3px;
   transition: background-color 0.15s;
@@ -219,6 +226,109 @@
 .vnb-nav-link.router-link-exact-active {
   background-color: rgba(0, 0, 0, 0.15);
   color: #ffffff;
+}
+
+/* MEGA MENU FULL-WIDTH DROPDOWN */
+.vnb-mega-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  width: 100%;
+  background-color: #ffffff;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+  border-top: 3px solid #1d4ed8;
+  border-bottom: 1px solid #e5e7eb;
+  z-index: 1050;
+  padding: 24px 0 32px 0;
+  animation: vnbFadeDown 0.15s ease-out;
+}
+
+@keyframes vnbFadeDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vnb-mega-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  column-gap: 28px;
+  row-gap: 30px;
+}
+
+.vnb-mega-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.vnb-mega-title {
+  color: #1d4ed8;
+  font-size: 0.825rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #e5e7eb;
+  text-decoration: none;
+  display: block;
+  letter-spacing: 0.2px;
+}
+
+.vnb-mega-title:hover {
+  color: #1e40af;
+}
+
+.vnb-mega-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.vnb-mega-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.vnb-mega-link {
+  color: #4b5563;
+  font-size: 0.795rem;
+  text-decoration: none;
+  line-height: 1.4;
+  transition: color 0.15s ease, transform 0.15s ease;
+  display: inline-block;
+  white-space: normal;
+}
+
+.vnb-mega-link:hover {
+  color: #1d4ed8;
+  transform: translateX(3px);
+}
+
+.vnb-mega-more {
+  color: #ea580c;
+  font-size: 0.795rem;
+  font-weight: 600;
+  text-decoration: none;
+  margin-top: 4px;
+  display: inline-block;
+}
+
+.vnb-mega-more:hover {
+  text-decoration: underline;
+  color: #c2410c;
 }
 
 /* 4 SERVICE BOXES */
