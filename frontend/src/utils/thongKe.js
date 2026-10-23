@@ -9,6 +9,7 @@ export const TT_HUY = 0
 
 /** Các mốc nhanh. v = số ngày gần nhất; 0 = tất cả; -1 = tự chọn từ ngày - đến ngày. */
 export const KHOANG_NHANH = [
+  { v: 1, t: 'Hôm nay' },
   { v: 7, t: '7 ngày' },
   { v: 30, t: '30 ngày' },
   { v: 90, t: '90 ngày' },
@@ -236,4 +237,160 @@ export function khungGioHienThi(theoGio = []) {
   const dau = Math.min(8, ...coDon)
   const cuoi = Math.max(21, ...coDon)
   return theoGio.filter((g) => g.gio >= dau && g.gio <= cuoi)
+}
+
+/* ----- Liên kết đa bảng từ CSDL (Sản phẩm / Biến thể / Thương hiệu / Danh mục / Ưu đãi) ----- */
+
+/** Lọc danh sách chi tiết mặt hàng theo khoảng ngày và chỉ lấy đơn đã hoàn thành (trangThaiHoaDon = 6). */
+export function locChiTietHoanThanh(chiTiet, tu, den) {
+  return (chiTiet ?? []).filter((c) => {
+    if (c.trangThaiHoaDon !== TT_HOAN_THANH) return false
+    const n = ngayCua(c)
+    if (!n) return false
+    return (!tu || n >= tu) && (!den || n <= den)
+  })
+}
+
+/**
+ * Top biến thể / sản phẩm bán chạy nhất trong khoảng [tu, den] (từ bảng hoa_don_chi_tiet).
+ * tieuChi = 'soLuong' (mặc định) hoặc 'doanhThu'.
+ */
+export function topSanPhamBanChay(chiTiet, tu, den, gioiHan = 6, tieuChi = 'soLuong') {
+  const ds = locChiTietHoanThanh(chiTiet, tu, den)
+  const m = new Map()
+  for (const c of ds) {
+    const khoa = String(c.idBienThe ?? c.maBienThe ?? c.tenSanPham ?? '')
+    if (!khoa) continue
+    let r = m.get(khoa)
+    if (!r) {
+      r = {
+        khoa,
+        idSanPham: c.idSanPham ?? null,
+        maSanPham: c.maSanPham ?? '',
+        tenSanPham: c.tenSanPham ?? 'Sản phẩm',
+        idBienThe: c.idBienThe ?? null,
+        maBienThe: c.maBienThe ?? '',
+        tenBienThe: c.tenBienThe ?? '',
+        tenThuongHieu: c.tenThuongHieu ?? 'Khác',
+        soLuong: 0,
+        doanhThu: 0,
+        donSet: new Set(),
+        soLuongTon: Number(c.soLuongTon ?? 0),
+      }
+      m.set(khoa, r)
+    }
+    r.soLuong += Number(c.soLuong || 0)
+    r.doanhThu += Number(c.thanhTien || 0)
+    if (c.idHoaDon != null) r.donSet.add(c.idHoaDon)
+  }
+  return [...m.values()]
+    .map(({ donSet, ...rest }) => ({ ...rest, soDon: donSet.size }))
+    .sort((a, b) =>
+      tieuChi === 'doanhThu'
+        ? b.doanhThu - a.doanhThu || b.soLuong - a.soLuong
+        : b.soLuong - a.soLuong || b.doanhThu - a.doanhThu,
+    )
+    .slice(0, gioiHan)
+}
+
+/** Cơ cấu doanh thu & số lượng bán ra theo Thương hiệu trong khoảng [tu, den]. */
+export function theoThuongHieu(chiTiet, tu, den) {
+  const ds = locChiTietHoanThanh(chiTiet, tu, den)
+  const m = new Map()
+  for (const c of ds) {
+    const ten = String(c.tenThuongHieu || 'Khác').trim() || 'Khác'
+    const r = m.get(ten) ?? { ten, v: 0, soLuong: 0 }
+    r.v += Number(c.thanhTien || 0)
+    r.soLuong += Number(c.soLuong || 0)
+    m.set(ten, r)
+  }
+  const tong = [...m.values()].reduce((s, x) => s + x.v, 0)
+  return [...m.values()]
+    .map((x) => ({ ...x, pct: tong ? (x.v / tong) * 100 : 0 }))
+    .sort((a, b) => b.v - a.v || b.soLuong - a.soLuong)
+}
+
+/** Cơ cấu doanh thu & số lượng bán ra theo Danh mục sản phẩm trong khoảng [tu, den]. */
+export function theoDanhMuc(chiTiet, tu, den) {
+  const ds = locChiTietHoanThanh(chiTiet, tu, den)
+  const m = new Map()
+  for (const c of ds) {
+    const ten = String(c.tenDanhMuc || 'Khác').trim() || 'Khác'
+    const r = m.get(ten) ?? { ten, v: 0, soLuong: 0 }
+    r.v += Number(c.thanhTien || 0)
+    r.soLuong += Number(c.soLuong || 0)
+    m.set(ten, r)
+  }
+  const tong = [...m.values()].reduce((s, x) => s + x.v, 0)
+  return [...m.values()]
+    .map((x) => ({ ...x, pct: tong ? (x.v / tong) * 100 : 0 }))
+    .sort((a, b) => b.v - a.v || b.soLuong - a.soLuong)
+}
+
+/** Tổng hợp hiệu quả giảm giá (Phiếu giảm giá & số tiền giảm trên hóa đơn hoàn thành) trong khoảng [tu, den]. */
+export function tongHopUuDai(uuDaiHoaDon, tu, den, gioiHan = 5) {
+  const ds = locTheoKhoang(uuDaiHoaDon, tu, den).filter((u) => u.trangThai === TT_HOAN_THANH)
+  let tongTienGiam = 0
+  let soDonDungPhieu = 0
+  const m = new Map()
+
+  for (const u of ds) {
+    const giam = Number(u.soTienGiam || 0)
+    tongTienGiam += giam
+    if (u.maPhieuGiamGia) {
+      soDonDungPhieu++
+      const r = m.get(u.maPhieuGiamGia) ?? {
+        id: u.idPhieuGiamGia ?? null,
+        maPhieu: u.maPhieuGiamGia,
+        tenPhieu: u.tenPhieuGiamGia || u.maPhieuGiamGia,
+        soDon: 0,
+        tongGiam: 0,
+      }
+      r.soDon++
+      r.tongGiam += giam
+      m.set(u.maPhieuGiamGia, r)
+    }
+  }
+
+  const topPhieu = [...m.values()]
+    .sort((a, b) => b.soDon - a.soDon || b.tongGiam - a.tongGiam)
+    .slice(0, gioiHan)
+
+  return {
+    tongTienGiam,
+    soDonDungPhieu,
+    topPhieu,
+  }
+}
+
+/**
+ * Tổng kết nhanh 4 mốc cố định: Hôm nay · 7 ngày qua · Tháng này · Năm nay
+ * (dùng cho bảng đối chiếu nhanh khi báo cáo doanh thu ngày/tuần/tháng/năm).
+ */
+export function tongKetMocThoiGian(hoaDon, chiTiet, homNay) {
+  const hn = String(homNay || '').slice(0, 10)
+  const dauThang = hn ? `${hn.slice(0, 7)}-01` : ''
+  const dauNam = hn ? `${hn.slice(0, 4)}-01-01` : ''
+  const bayNgay = hn ? congNgay(hn, -6) : ''
+
+  const cacMoc = [
+    { ma: 'homNay', nhan: 'Hôm nay', tu: hn, den: hn, khoang: 1 },
+    { ma: 'tuan', nhan: '7 ngày qua', tu: bayNgay, den: hn, khoang: 7 },
+    { ma: 'thangNay', nhan: 'Tháng này', tu: dauThang, den: hn, khoang: -1 },
+    { ma: 'namNay', nhan: 'Năm nay', tu: dauNam, den: hn, khoang: -1 },
+  ]
+
+  return cacMoc.map((m) => {
+    const dsHd = locTheoKhoang(hoaDon, m.tu, m.den)
+    const th = tongHop(dsHd)
+    const soSanPham = locChiTietHoanThanh(chiTiet, m.tu, m.den).reduce((s, c) => s + Number(c.soLuong || 0), 0)
+    return {
+      ...m,
+      doanhThu: th.doanhThu,
+      tongDon: th.tongDon,
+      hoanThanh: th.hoanThanh,
+      huy: th.huy,
+      soSanPham,
+    }
+  })
 }
