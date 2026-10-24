@@ -15,6 +15,7 @@ const showGuideDropdown = ref(false)
 const megaMenuData = [
   // Hàng 1
   {
+    key: 'vot-cau-long',
     title: 'VỢT CẦU LÔNG',
     search: 'Vợt',
     links: [
@@ -32,6 +33,7 @@ const megaMenuData = [
     hasMore: true,
   },
   {
+    key: 'giay-cau-long',
     title: 'GIÀY CẦU LÔNG',
     search: 'Giày',
     links: [
@@ -49,6 +51,7 @@ const megaMenuData = [
     hasMore: true,
   },
   {
+    key: 'ao-cau-long',
     title: 'ÁO CẦU LÔNG',
     search: 'Áo',
     links: [
@@ -66,6 +69,7 @@ const megaMenuData = [
     hasMore: true,
   },
   {
+    key: 'vay-cau-long',
     title: 'VÁY CẦU LÔNG',
     search: 'Váy',
     links: [
@@ -82,6 +86,7 @@ const megaMenuData = [
     hasMore: false,
   },
   {
+    key: 'quan-cau-long',
     title: 'QUẦN CẦU LÔNG',
     search: 'Quần',
     links: [
@@ -100,6 +105,7 @@ const megaMenuData = [
   },
   // Hàng 2
   {
+    key: 'tui-vot-cau-long',
     title: 'TÚI VỢT CẦU LÔNG',
     search: 'Túi',
     links: [
@@ -109,6 +115,7 @@ const megaMenuData = [
     hasMore: false,
   },
   {
+    key: 'balo-cau-long',
     title: 'BALO CẦU LÔNG',
     search: 'Balo',
     links: [
@@ -118,6 +125,7 @@ const megaMenuData = [
     hasMore: false,
   },
   {
+    key: 'phu-kien-cau-long',
     title: 'PHỤ KIỆN CẦU LÔNG',
     search: 'Phụ kiện',
     links: [
@@ -127,6 +135,7 @@ const megaMenuData = [
     hasMore: false,
   },
   {
+    key: 'vot-pickleball',
     title: 'VỢT PICKLEBALL',
     search: 'Vợt Pickleball',
     links: [
@@ -136,6 +145,7 @@ const megaMenuData = [
     hasMore: false,
   },
   {
+    key: 'giay-pickleball',
     title: 'GIÀY PICKLEBALL',
     search: 'Giày Pickleball',
     links: [
@@ -339,7 +349,7 @@ function handleSearch() {
               class="vnb-mega-col"
             >
               <RouterLink
-                :to="{ path: '/shop/san-pham', query: { search: cat.search } }"
+                :to="{ path: '/shop/san-pham', query: { danhMuc: cat.key } }"
                 class="vnb-mega-title"
                 @click="showProductDropdown = false"
               >
@@ -348,7 +358,7 @@ function handleSearch() {
               <ul class="vnb-mega-links">
                 <li v-for="link in cat.links" :key="link">
                   <RouterLink
-                    :to="{ path: '/shop/san-pham', query: { search: link } }"
+                    :to="{ path: '/shop/san-pham', query: { danhMuc: cat.key, search: link } }"
                     class="vnb-mega-link"
                     @click="showProductDropdown = false"
                   >
@@ -357,7 +367,7 @@ function handleSearch() {
                 </li>
                 <li v-if="cat.hasMore">
                   <RouterLink
-                    :to="{ path: '/shop/san-pham', query: { search: cat.search } }"
+                    :to="{ path: '/shop/san-pham', query: { danhMuc: cat.key } }"
                     class="vnb-mega-more"
                     @click="showProductDropdown = false"
                   >
