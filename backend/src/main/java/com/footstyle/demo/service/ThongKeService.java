@@ -399,6 +399,11 @@ public class ThongKeService {
         return v == null ? 0 : v.longValue();
     }
 
+    private static BigDecimal khongAm(BigDecimal v) {
+        if (v == null || v.compareTo(BigDecimal.ZERO) < 0) return BigDecimal.ZERO;
+        return v;
+    }
+
     /* ---------------- Liên kết toàn hệ thống & CSDL (GET /api/thong-ke/tong-quan) ---------------- */
 
     @Transactional(readOnly = true)
@@ -427,9 +432,9 @@ public class ThongKeService {
             m.put("tenSanPham", sp != null ? sp.getTenSanPham() : "Sản phẩm");
             m.put("tenThuongHieu", sp != null && sp.getThuongHieu() != null ? sp.getThuongHieu().getTen() : "Khác");
             m.put("tenDanhMuc", sp != null && sp.getDanhMuc() != null ? sp.getDanhMuc().getTen() : "Khác");
-            m.put("soLuong", ct.getSoLuong() != null ? ct.getSoLuong() : 0);
-            m.put("donGia", ct.getDonGia() != null ? ct.getDonGia() : BigDecimal.ZERO);
-            m.put("thanhTien", ct.getThanhTien() != null ? ct.getThanhTien() : BigDecimal.ZERO);
+            m.put("soLuong", ct.getSoLuong() != null ? Math.max(0, ct.getSoLuong()) : 0);
+            m.put("donGia", khongAm(ct.getDonGia()));
+            m.put("thanhTien", khongAm(ct.getThanhTien()));
             chiTietHoaDon.add(m);
         }
 
@@ -455,9 +460,9 @@ public class ThongKeService {
             m.put("idPhieuGiamGia", pgg != null ? pgg.getId() : null);
             m.put("maPhieuGiamGia", pgg != null ? pgg.getMaPhieu() : null);
             m.put("tenPhieuGiamGia", pgg != null ? pgg.getTenPhieu() : null);
-            m.put("soTienGiam", hd.getSoTienGiam() != null ? hd.getSoTienGiam() : BigDecimal.ZERO);
-            m.put("phiVanChuyen", taiQuay || hd.getPhiVanChuyen() == null ? BigDecimal.ZERO : hd.getPhiVanChuyen());
-            m.put("tongTienHang", hd.getTongTien() != null ? hd.getTongTien() : BigDecimal.ZERO);
+            m.put("soTienGiam", khongAm(hd.getSoTienGiam()));
+            m.put("phiVanChuyen", taiQuay ? BigDecimal.ZERO : khongAm(hd.getPhiVanChuyen()));
+            m.put("tongTienHang", khongAm(hd.getTongTien()));
             uuDaiHoaDon.add(m);
         }
 
@@ -483,7 +488,7 @@ public class ThongKeService {
         }
         bienTheDangBan.sort(Comparator.comparingInt(b -> b.getSoLuongTon() != null ? b.getSoLuongTon() : 0));
 
-        for (int i = 0; i < Math.min(bienTheDangBan.size(), 8); i++) {
+        for (int i = 0; i < Math.min(bienTheDangBan.size(), 20); i++) {
             SanPhamChiTiet b = bienTheDangBan.get(i);
             SanPham sp = b.getSanPham();
             Double ptGiam = b.getId() != null ? giamHomNay.get(b.getId().longValue()) : null;
