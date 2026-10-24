@@ -394,3 +394,18 @@ export function tongKetMocThoiGian(hoaDon, chiTiet, homNay) {
     }
   })
 }
+
+const ISO_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Validate khoảng ngày tự chọn (phát hiện sai định dạng, đảo ngược ngày, ngày tương lai, khoảng quá 366 ngày). */
+export function kiemTraKhoangNgay(tu, den, homNay) {
+  const t = String(tu || '').trim()
+  const d = String(den || '').trim()
+  if (t && !ISO_RE.test(t)) return { loai: 'loi', hopLe: false }
+  if (d && !ISO_RE.test(d)) return { loai: 'loi', hopLe: false }
+  if (t && d && t > d) return { loai: 'daoNguoc', hopLe: true }
+  if ((t && homNay && t > homNay) || (d && homNay && d > homNay)) return { loai: 'tuongLai', hopLe: true }
+  if (t && d && soNgay(t, d) > 366) return { loai: 'khoangRong', hopLe: true }
+  return null
+}
+
