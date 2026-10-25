@@ -7,3 +7,6 @@ uploads/
 # Chứa mật khẩu ứng dụng Gmail - không đẩy lên GitHub (dùng mail.properties.example làm mẫu)
 backend/src/main/resources/mail.properties
 backend/backend.log
+
+# Cau hinh / ghi chu rieng cua cong cu tren may (khong dua len GitHub)
+.claude/
