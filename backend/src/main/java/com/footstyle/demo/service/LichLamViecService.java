@@ -44,6 +44,9 @@ public class LichLamViecService {
     /** Xem lịch tối đa 62 ngày một lần (2 tháng). */
     static final int SO_NGAY_XEM_TOI_DA = 62;
     static final Duration CA_NGAN_NHAT = Duration.ofMinutes(30);
+    /** Giờ mở / đóng cửa (app.cua-hang.gio-mo-cua = 7:00 - 22:00): ca làm phải nằm trong khoảng này, không có ca 3 giờ sáng hay 11 giờ đêm. */
+    static final LocalTime GIO_MO_CUA = LocalTime.of(7, 0);
+    static final LocalTime GIO_DONG_CUA = LocalTime.of(22, 0);
 
     private final CaLamViecRepository caRepo;
     private final LichLamViecRepository lichRepo;
@@ -102,7 +105,10 @@ public class LichLamViecService {
         else if (caRepo.existsByTenCaIgnoreCaseAndIdNot(ten, idBoQua)) loi.trung("tenCa", "Tên ca đã tồn tại.");
         LocalTime bd = docGio(req == null ? null : req.gioBatDau(), "gioBatDau", "giờ bắt đầu", loi);
         LocalTime kt = docGio(req == null ? null : req.gioKetThuc(), "gioKetThuc", "giờ kết thúc", loi);
-        if (bd != null && kt != null) {
+        String khungGio = GIO_MO_CUA.format(GIO) + " - " + GIO_DONG_CUA.format(GIO);
+        if (bd != null && bd.isBefore(GIO_MO_CUA)) loi.them("gioBatDau", "Cửa hàng mở cửa từ " + GIO_MO_CUA.format(GIO) + ", ca phải nằm trong giờ mở cửa (" + khungGio + ").");
+        if (kt != null && kt.isAfter(GIO_DONG_CUA)) loi.them("gioKetThuc", "Cửa hàng đóng cửa lúc " + GIO_DONG_CUA.format(GIO) + ", ca phải nằm trong giờ mở cửa (" + khungGio + ").");
+        if (bd != null && kt != null && !loi.co("gioBatDau") && !loi.co("gioKetThuc")) {
             if (!bd.isBefore(kt)) loi.them("gioKetThuc", "Giờ kết thúc phải sau giờ bắt đầu (không có ca qua đêm).");
             else if (Duration.between(bd, kt).compareTo(CA_NGAN_NHAT) < 0) loi.them("gioKetThuc", "Một ca dài ít nhất 30 phút.");
         }

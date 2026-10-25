@@ -24,6 +24,12 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Integer>, JpaSpe
     /** Hóa đơn bán trong một ca (giai đoạn 3: hoa_don.id_giao_ca). */
     List<HoaDon> findByIdGiaoCaOrderByNgayTaoAsc(Integer idGiaoCa);
 
+    /** Mọi hóa đơn tạo trong khoảng [tu, den] (thống kê so sánh: doanh thu dự kiến tính cả đơn chưa hoàn thành). */
+    List<HoaDon> findByNgayTaoBetween(java.time.LocalDateTime tu, java.time.LocalDateTime den);
+
+    /** Hóa đơn chờ tại quầy của một nhân viên (loại 1, trạng thái 1 - chưa thanh toán), cũ trước. */
+    List<HoaDon> findByNhanVien_IdAndLoaiDonAndTrangThaiOrderByNgayTaoAscIdAsc(Integer idNhanVien, Integer loaiDon, Integer trangThai);
+
     /** Mọi mã hóa đơn (để cấp mã mới = số lớn nhất + 1). */
     @Query("select h.maHoaDon from HoaDon h")
     List<String> findAllMaHoaDon();

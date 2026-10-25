@@ -7,9 +7,12 @@ import {
   capNhatGia, chuoiVietQR, crc16, docHoaDonCho, doiSoLuong, ghiHoaDonCho, goiYTienKhachDua, noiDungChuyenKhoan, soHoaDonCho,
   taoHoaDonMoi, themVaoGio, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang, xoaKhoiGio,
 } from '../src/utils/banHang'
+import { chongGio, congNgayIso, demTheoCa, gomLich, ngayTrongTuan, nhanTuan, thu2CuaTuan } from '../src/utils/lichTuan'
+import { htmlBienBanGiaoCa, moTaChenhLech, thoiLuong, tinhChenhLech } from '../src/utils/giaoCa'
 import { duongDanQuayLaiAnToan, layPhien, layToken, luuPhien, xoaPhien } from '../src/services/phien'
 import { daCauHinhNganHang } from '../src/constants/thanhToan'
 import { _datLaiAuth, useAuth } from '../src/composables/useAuth'
+import { _datLaiGiaoCa } from '../src/composables/useGiaoCa'
 import router, { kiemTraTruyCap } from '../src/router'
 
 const SP = { id: 1, ma: 'SP01-DEN-4U-G5', tenSanPham: 'Yonex Astrox 99 Pro', phanLoai: 'Đen · 4U · G5', giaGoc: 4290000, phanTramGiam: 10, donGia: 3861000, tonKho: 3 }
@@ -108,6 +111,53 @@ describe('Bán tại quầy: thanh toán', () => {
   })
 })
 
+/* ====================== Lịch làm việc / giao ca ====================== */
+
+describe('Lịch làm việc theo tuần', () => {
+  it('thứ 2 của tuần, 7 ngày, nhãn tuần, qua tháng / năm', () => {
+    expect(thu2CuaTuan('2026-10-16')).toBe('2026-10-12') // thứ 6
+    expect(thu2CuaTuan('2026-10-18')).toBe('2026-10-12') // chủ nhật thuộc tuần trước đó
+    expect(thu2CuaTuan('2026-10-19')).toBe('2026-10-19')
+    expect(congNgayIso('2026-12-30', 3)).toBe('2027-01-02')
+    const tuan = ngayTrongTuan('2026-10-12')
+    expect(tuan.map((d) => d.thu)).toEqual(['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'])
+    expect(tuan[6]).toEqual({ iso: '2026-10-18', thu: 'Chủ nhật', ngay: '18/10' })
+    expect(nhanTuan('2026-12-28')).toBe('Tuần 28/12 - 03/01/2027')
+  })
+
+  it('gom lịch theo ô nhân viên × ngày, đếm người mỗi ca, kiểm tra chồng giờ', () => {
+    const ds = [
+      { idNhanVien: 3, ngayLam: '2026-10-16', idCa: 2, gioBatDau: '12:00' },
+      { idNhanVien: 3, ngayLam: '2026-10-16', idCa: 1, gioBatDau: '07:00' },
+      { idNhanVien: 4, ngayLam: '2026-10-16', idCa: 1, gioBatDau: '07:00' },
+    ]
+    expect(gomLich(ds)['3|2026-10-16'].map((l) => l.idCa)).toEqual([1, 2])
+    expect(demTheoCa(ds)).toEqual({ '2026-10-16': { 1: 2, 2: 1 } })
+    expect(chongGio({ gioBatDau: '07:00', gioKetThuc: '12:00' }, { gioBatDau: '12:00', gioKetThuc: '17:00' })).toBe(false)
+    expect(chongGio({ gioBatDau: '07:00', gioKetThuc: '12:00' }, { gioBatDau: '10:00', gioKetThuc: '14:00' })).toBe(true)
+  })
+})
+
+describe('Giao ca', () => {
+  it('thời lượng ca, chênh lệch tiền mặt', () => {
+    expect(thoiLuong('2026-10-16T07:00:00', '2026-10-16T11:05:00')).toBe('4 giờ 05 phút')
+    expect(thoiLuong('2026-10-16T07:00:00', '2026-10-16T07:35:00')).toBe('35 phút')
+    expect(thoiLuong('2026-10-16T07:00:00', '2026-10-16T06:00:00')).toBe('')
+    expect(tinhChenhLech('', 100)).toBeNull()
+    expect(tinhChenhLech(950000, 1000000)).toBe(-50000)
+    expect(moTaChenhLech(0)).toEqual({ nhan: 'Khớp', kieu: 'ok' })
+    expect(moTaChenhLech(-50000).nhan).toBe('Thiếu 50.000 ₫')
+    expect(moTaChenhLech(20000)).toEqual({ nhan: 'Thừa 20.000 ₫', kieu: 'thua' })
+  })
+
+  it('biên bản giao ca thoát ký tự HTML trong ghi chú', () => {
+    const html = htmlBienBanGiaoCa({ maGiaoCa: 'GC07', tenNhanVien: 'Lê Quốc Bảo', ghiChuKetCa: '<script>alert(1)</script>', chenhLech: 0, hoaDons: [] })
+    expect(html).toContain('GC07')
+    expect(html).not.toContain('<script>alert(1)</script>')
+    expect(html).toContain('&lt;script&gt;')
+  })
+})
+
 /* ====================== Đăng nhập / phân quyền ====================== */
 
 describe('Phiên đăng nhập', () => {
@@ -136,10 +186,15 @@ describe('Phiên đăng nhập', () => {
 describe('Kiểm tra truy cập trang', () => {
   const NV = { id: 3, ma: 'NV03', hoTen: 'Lê Quốc Bảo', vaiTro: 'NHAN_VIEN' }
   const QL = { id: 1, ma: 'NV01', hoTen: 'Nguyễn Hoàng Long', vaiTro: 'QUAN_LY' }
-  function dangNhapLa(nd) {
+  function dangNhapLa(nd, dangTrongCa = true) {
     luuPhien({ token: 'x.y', hetHan: '2099-01-01T00:00:00', nguoiDung: nd, nho: true })
-    api.get.mockImplementation(async (url) => (url === '/auth/cau-hinh' ? { data: { batDangNhap: true } } : { data: nd }))
+    api.get.mockImplementation(async (url) => {
+      if (url === '/auth/cau-hinh') return { data: { batDangNhap: true } }
+      if (url === '/giao-ca/hien-tai') return { data: { dangMo: dangTrongCa ? { id: 1, maGiaoCa: 'GC01' } : null, lichHomNay: [] } }
+      return { data: nd }
+    })
     _datLaiAuth()
+    _datLaiGiaoCa()
   }
   const trang = (fullPath, meta, name) => ({ fullPath, meta, name, query: {} })
 
@@ -147,6 +202,7 @@ describe('Kiểm tra truy cập trang', () => {
     api.get.mockResolvedValue({ data: { batDangNhap: true } })
     _datLaiAuth()
     expect(await kiemTraTruyCap(trang('/ban-hang', { roles: ['quan-ly', 'nhan-vien'] }))).toEqual({ path: '/dang-nhap', query: { quayLai: '/ban-hang' } })
+    expect(await kiemTraTruyCap(trang('/ho-tro', { congKhai: true }, 'ho-tro-khach'))).toBe(true)
     expect(await kiemTraTruyCap(trang('/shop', { congKhai: true }, 'shop-home'))).toBe(true)
     expect(await kiemTraTruyCap(trang('/dang-nhap', { congKhai: true }, 'dang-nhap'))).toBe(true)
   })
@@ -159,6 +215,14 @@ describe('Kiểm tra truy cập trang', () => {
     dangNhapLa(QL)
     expect(await kiemTraTruyCap(trang('/thong-ke', { roles: ['quan-ly'] }))).toBe(true)
     expect(useAuth().trangChu()).toBe('/thong-ke')
+  })
+
+  it('nhân viên chưa vào ca: mọi trang đều chuyển về /vao-ca (kèm trang định mở); quản lý không bắt buộc', async () => {
+    dangNhapLa(NV, false)
+    expect(await kiemTraTruyCap(trang('/hoa-don', { roles: ['quan-ly', 'nhan-vien'] }))).toEqual({ path: '/vao-ca', query: { quayLai: '/hoa-don' } })
+    expect(await kiemTraTruyCap(trang('/vao-ca', { roles: ['quan-ly', 'nhan-vien'], khongCanVaoCa: true }, 'vao-ca'))).toBe(true)
+    dangNhapLa(QL, false)
+    expect(await kiemTraTruyCap(trang('/hoa-don', { roles: ['quan-ly', 'nhan-vien'] }))).toBe(true)
   })
 
   it('khách hàng đăng nhập ở trang bán online không vào được trang quản trị (kể cả trang của nhân viên)', async () => {

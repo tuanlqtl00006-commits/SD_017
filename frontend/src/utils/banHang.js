@@ -196,3 +196,8 @@ export function chuoiVietQR({ bin, soTaiKhoan, soTien, noiDung }) {
   s += '6304'
   return s + crc16(s)
 }
+
+/** Phí giao hàng khi bán tại quầy mà khách muốn giao (giống web bán online / backend BanHangService.phiGiaoHang). */
+export function phiGiaoHang(tongTienHang) {
+  return Number(tongTienHang) >= 1000000 ? 0 : 30000
+}

@@ -170,10 +170,11 @@ describe('Trang Thống kê', () => {
     ])
     const k = kpiText(w)
     expect(k).toHaveLength(4)
+    expect(k[0]).toContain('Doanh thu thực tế')
     expect(k[0]).toContain('3.000.000')
-    expect(k[1]).toContain('Tổng đơn hàng')
-    expect(k[1]).toMatch(/Tổng đơn hàng\s*3/)
-    expect(k[2]).toMatch(/Đơn hoàn thành\s*2/)
+    expect(k[1]).toContain('Doanh thu dự kiến')
+    expect(k[1]).toContain('3.000.000')
+    expect(k[2]).toMatch(/Đơn hoàn thành\s*2\/3/)
     expect(k[3]).toMatch(/Đơn đã hủy\s*1/)
     w.unmount()
   })
@@ -223,19 +224,23 @@ describe('Trang Thống kê', () => {
     w.unmount()
   })
 
-  it('bảng đơn gần đây dùng mã hóa đơn gọn (HD01...), có link tới chi tiết; đơn hủy gạch ngang', async () => {
+  it('doanh thu dự kiến gồm đơn đang xử lý / đang giao, bỏ đơn hủy và hóa đơn chờ tại quầy; có Hôm nay, bỏ bảng đơn gần đây', async () => {
     const w = await moTrang([
-      hd(1, ngay(3), 1000000, 6, { tenKhachHang: 'Phạm Mai' }),
-      hd(2, ngay(1), 500000, 0),
-      hd(100, ngay(0), 2000000, 6),
+      hd(1, ngay(0), 1000000, 6),
+      hd(2, ngay(0), 500000, 4, { loaiDon: 'Trực tuyến', doanhThu: 470000 }),
+      hd(3, ngay(1), 800000, 0),
+      hd(4, ngay(0), 900000, 1), // hóa đơn chờ tại quầy (chưa thanh toán)
     ])
-    const dong = w.findAll('[data-test="tk-gan-day"] tbody tr')
-    expect(dong.map((r) => r.find('a').text())).toEqual(['HD100', 'HD02', 'HD01'])
-    expect(dong[0].find('a').attributes('href')).toBe('/hoa-don/100')
-    expect(dong[2].text()).toContain('Phạm Mai')
-    expect(dong[1].text()).toContain('Khách vãng lai')
-    expect(dong[1].text()).toContain('Đã hủy')
-    expect(dong[1].find('.text-decoration-line-through').exists()).toBe(true)
+    const k = kpiText(w)
+    expect(k[0]).toContain('1.000.000')
+    expect(k[1]).toContain('1.470.000')
+    expect(k[1]).toContain('Còn 470.000')
+    expect(k[2]).toMatch(/Đơn hoàn thành\s*1\/3/)
+    await w.findAll('button').find((b) => b.text() === 'Hôm nay').trigger('click')
+    expect(kpiText(w)[2]).toMatch(/Đơn hoàn thành\s*1\/2/)
+    expect(w.find('[data-test="tk-gan-day"]').exists()).toBe(false)
+    expect(w.find('[data-test="tk-xuat-excel"]').exists()).toBe(true)
+    expect(w.find('[data-test="tk-so-sanh"]').attributes('href')).toBe('/thong-ke/so-sanh')
     w.unmount()
   })
 
@@ -252,7 +257,6 @@ describe('Trang Thống kê', () => {
   it('chưa có dữ liệu: các khối báo trống, không lỗi, số liệu về 0', async () => {
     const w = await moTrang([])
     expect(w.text()).toContain('Chưa có đơn hoàn thành trong khoảng này.')
-    expect(w.text()).toContain('Chưa có đơn trong khoảng này.')
     expect(kpiText(w)[0]).toContain('0 ₫')
     w.unmount()
   })

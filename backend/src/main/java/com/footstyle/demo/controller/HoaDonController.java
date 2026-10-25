@@ -3,6 +3,7 @@ package com.footstyle.demo.controller;
 import com.footstyle.demo.dto.HoaDonRequest;
 import com.footstyle.demo.dto.HoaDonTrangThaiRequest;
 import com.footstyle.demo.service.HoaDonService;
+import com.footstyle.demo.service.HoaDonSuaService;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class HoaDonController {
 
     private final HoaDonService hoaDonService;
+    private final HoaDonSuaService hoaDonSuaService;
 
     @GetMapping
     public Map<String, Object> getListHoaDon(
@@ -68,5 +70,18 @@ public class HoaDonController {
     @PutMapping("/{id}/trang-thai")
     public Map<String, Object> doiTrangThai(@PathVariable Integer id, @RequestBody HoaDonTrangThaiRequest req) {
         return hoaDonService.doiTrangThai(id, req);
+    }
+
+    /** Sửa đơn online MỘT lần khi còn Chờ xác nhận (người nhận, địa chỉ, sản phẩm) -> tính lại tiền, hoàn phí / phụ phí. */
+    @PutMapping("/{id}/sua-don")
+    public Map<String, Object> suaDon(@PathVariable Integer id, @RequestBody(required = false) HoaDonSuaService.SuaDonRequest req) {
+        return hoaDonSuaService.suaDon(id, req);
+    }
+
+    /** Đơn online chuyển khoản: xác nhận đã nhận tiền của khách. */
+    @PostMapping("/{id}/xac-nhan-thanh-toan")
+    public Map<String, Object> xacNhanThanhToan(@PathVariable Integer id,
+                                                @RequestBody(required = false) HoaDonSuaService.XacNhanThanhToanRequest req) {
+        return hoaDonSuaService.xacNhanThanhToan(id, req);
     }
 }

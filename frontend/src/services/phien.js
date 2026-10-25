@@ -75,3 +75,12 @@ export function duongDanQuayLaiAnToan(p) {
   if (p.startsWith('/dang-nhap')) return null
   return p
 }
+
+// Khi API báo nhân viên chưa vào ca (409 CHUA_NHAN_CA, vd ca vừa bị kết ở cửa sổ khác): main.js đưa về trang Vào ca.
+let xuLyChuaVaoCa = null
+export function datXuLyChuaVaoCa(fn) {
+  xuLyChuaVaoCa = fn
+}
+export function baoChuaVaoCa() {
+  if (xuLyChuaVaoCa) xuLyChuaVaoCa()
+}

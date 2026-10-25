@@ -76,6 +76,24 @@ class XacThucInterceptorTest {
     }
 
     @Test
+    void nhanVienChuaVaoCa_chiVaoCaXemLichDuoc_conLaiBiChan409() {
+        mau.chuaVaoCa.add(mau.nhanVien.getId());
+        String t = mau.tokenCua(mau.nhanVien);
+        XacThucInterceptor.KetQua chan = it.xacThuc("GET", "/api/hoa-don", bearer(t));
+        assertEquals(409, chan.status());
+        assertEquals("CHUA_NHAN_CA", chan.code());
+        assertEquals(409, it.xacThuc("POST", "/api/ban-hang/thanh-toan", bearer(t)).status());
+        assertEquals(409, it.xacThuc("GET", "/api/chat/hoi-thoai", bearer(t)).status());
+        assertEquals(0, it.xacThuc("GET", "/api/giao-ca/hien-tai", bearer(t)).status());
+        assertEquals(0, it.xacThuc("POST", "/api/giao-ca/nhan-ca", bearer(t)).status());
+        assertEquals(0, it.xacThuc("GET", "/api/auth/toi", bearer(t)).status());
+        assertEquals(0, it.xacThuc("GET", "/api/lich-lam-viec/cua-toi", bearer(t)).status());
+        // Quản lý không bắt buộc vào ca (vẫn xem thống kê, quản lý sản phẩm...)
+        mau.chuaVaoCa.add(mau.quanLy.getId());
+        assertEquals(0, it.xacThuc("GET", "/api/thong-ke/tong-quan", bearer(mau.tokenCua(mau.quanLy))).status());
+    }
+
+    @Test
     void quanLy_vaoDuocMoiThu() {
         String t = mau.tokenCua(mau.quanLy);
         XacThucInterceptor.KetQua kq = it.xacThuc("DELETE", "/api/khach-hang/2", bearer(t));

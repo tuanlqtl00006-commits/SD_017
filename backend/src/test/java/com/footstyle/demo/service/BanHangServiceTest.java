@@ -286,7 +286,7 @@ class BanHangServiceTest {
     }
 
     private BanHangService.ThanhToanRequest don(Integer idKhach, String phieu, long tienMat, long ck, BanHangService.DongHang... dongs) {
-        return new BanHangService.ThanhToanRequest(idKhach, phieu, null, List.of(dongs), tienMat, ck, null, null);
+        return new BanHangService.ThanhToanRequest(idKhach, phieu, null, List.of(dongs), tienMat, ck, null, null, null);
     }
 
     /* ---------- tìm sản phẩm ---------- */
@@ -352,7 +352,7 @@ class BanHangServiceTest {
     @Test
     void thanhToanKetHop_vaChuyenKhoanDu() {
         moCa();
-        service.thanhToan(new BanHangService.ThanhToanRequest(1, null, " Khách quen ", List.of(dong(cau, 4, 250_000L)), 800_000L, 300_000L, "FT2610", null));
+        service.thanhToan(new BanHangService.ThanhToanRequest(1, null, " Khách quen ", List.of(dong(cau, 4, 250_000L)), 800_000L, 300_000L, "FT2610", null, null));
         HoaDon hd = m.hoaDons.get(0);
         assertEquals(5, hd.getIdPhuongThucThanhToan(), "PT05 kết hợp");
         assertEquals("Khách quen", hd.getGhiChu());
@@ -397,7 +397,7 @@ class BanHangServiceTest {
         List<Map<String, Object>> items = (List<Map<String, Object>>) e.getChiTiet().get("items");
         assertEquals(3_861_000L, items.get(0).get("donGiaMoi"));
         Map<String, Object> kq = service.thanhToan(new BanHangService.ThanhToanRequest(null, null, null,
-                List.of(dong(vot, 1, 4_290_000L)), 5_000_000L, 0L, null, true));
+                List.of(dong(vot, 1, 4_290_000L)), 5_000_000L, 0L, null, true, null));
         assertEquals(3_861_000L, kq.get("thanhTien"));
     }
 
@@ -451,6 +451,26 @@ class BanHangServiceTest {
         assertTrue(loi(() -> service.thanhToan(don(1, "MOTLAN", 500_000, 0, dong(cau, 2, 250_000L)))).getMessage().contains("tối đa 1 lần"));
         // khách lẻ không bị giới hạn theo khách
         service.thanhToan(don(null, "MOTLAN", 500_000, 0, dong(cau, 2, 250_000L)));
+    }
+
+    @Test
+    void phieuBiSuaMucGiamKhiHoaDonDangCho_baoPhieuThayDoi_khongTuDoiTien() {
+        moCa();
+        PhieuGiamGia p = phieu("GIAM50K", 1, 2, 50_000, null, 0, 100, 0, null);
+        // màn hình đang hiện giảm 50.000; quản lý vừa sửa phiếu thành giảm 30.000
+        p.setGiaTriGiam(30_000L);
+        BanHangService.ThanhToanRequest cu = new BanHangService.ThanhToanRequest(null, "GIAM50K", null, List.of(dong(cau, 2, 250_000L)),
+                450_000L, 0L, null, null, 50_000L);
+        ApiException e = loi(() -> service.thanhToan(cu));
+        assertEquals(HttpStatus.CONFLICT, e.getStatus());
+        assertEquals("PHIEU_THAY_DOI", e.getCode());
+        assertEquals(Map.of("maPhieu", "GIAM50K", "soTienGiamCu", 50_000L, "soTienGiamMoi", 30_000L), e.getChiTiet());
+        assertTrue(e.getMessage().contains("mức giảm đổi từ 50.000 ₫ thành 30.000 ₫"));
+        assertTrue(m.hoaDons.isEmpty(), "chưa tạo hóa đơn, chưa trừ kho");
+        // nhân viên xem lại (màn hình đã cập nhật mức giảm mới) rồi thanh toán
+        Map<String, Object> kq = service.thanhToan(new BanHangService.ThanhToanRequest(null, "GIAM50K", null, List.of(dong(cau, 2, 250_000L)),
+                470_000L, 0L, null, null, 30_000L));
+        assertEquals(470_000L, kq.get("thanhTien"));
     }
 
     @Test

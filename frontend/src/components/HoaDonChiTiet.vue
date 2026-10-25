@@ -6,6 +6,7 @@ import api from '../services/api'
 import BaseModal from './common/BaseModal.vue'
 import Select2 from './common/Select2.vue'
 import VanChuyenLogo from './common/VanChuyenLogo.vue'
+import SuaDonModal from './hoaDon/SuaDonModal.vue'
 import { useToast } from '../composables/useToast'
 import {
   BUOC_DA_HUY, BUOC_GIAO_THAT_BAI, LUONG_GIAO_HANG, LUONG_TAI_QUAY, TT,
@@ -261,6 +262,26 @@ async function xacNhanDoiTrangThai() {
 }
 
 const showLichSu = ref(false)
+
+/* ===================== Case khó online: sửa đơn 1 lần, xác nhận chuyển khoản ===================== */
+const moSuaDon = ref(false)
+function daSuaDon(d) {
+  moSuaDon.value = false
+  setData(d)
+}
+const dangXacNhanTt = ref(false)
+async function xacNhanChuyenKhoan() {
+  if (dangXacNhanTt.value) return
+  dangXacNhanTt.value = true
+  try {
+    setData((await api.post(`/hoa-don/${idHoaDon}/xac-nhan-thanh-toan`, {})).data)
+    toast.success('Đã ghi nhận khách chuyển khoản.')
+  } catch (e) {
+    toast.error(e.message || 'Không xác nhận được thanh toán.')
+  } finally {
+    dangXacNhanTt.value = false
+  }
+}
 const showQrModal = ref(false)
 const lichSuMoiTruoc = computed(() => [...lichSu.value].reverse())
 
@@ -318,7 +339,10 @@ const MAU = {
   'xanh la': '#1f9d55', hong: '#e75480', cam: '#fd7e14', tim: '#6f42c1', xam: '#9ca3af', bac: '#c0c6cf', nau: '#8b5a2b',
 }
 const mauHex = (ten) => MAU[normalizeText(ten)] ?? '#cbd5e1'
-const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '—'
+// Bỏ "Không áp dụng" (sản phẩm không phải vợt) để cột thông số không lặp chữ vô nghĩa
+const thongSo = (x) => [x.trongLuong, x.chuVi].filter((v) => v && normalizeText(v) !== 'khong ap dung').join(' · ') || '—'
+// Có giảm giá thật (đơn giá thấp hơn giá gốc) thì mới gạch giá gốc - không hiện "0%"
+const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc)
 </script>
 
 <template>
@@ -399,9 +423,18 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
             >
               <i class="bi" :class="n.icon" aria-hidden="true"></i> {{ n.text }}
             </button>
+            <button v-if="hd.duocChinhSua" type="button" class="ad-btn" data-testid="hd-sua-don" @click="moSuaDon = true">
+              <i class="bi bi-pencil-square" aria-hidden="true"></i> Chỉnh sửa đơn
+            </button>
+            <button v-if="data.duocXacNhanThanhToan" type="button" class="ad-btn" data-testid="hd-xac-nhan-ck" :disabled="dangXacNhanTt" @click="xacNhanChuyenKhoan">
+              <i class="bi bi-bank" aria-hidden="true"></i> Xác nhận đã nhận chuyển khoản
+            </button>
             <button type="button" class="ad-btn" @click="showLichSu = true">
               <i class="bi bi-clock-history" aria-hidden="true"></i> Lịch sử thao tác
             </button>
+            <p v-if="hd.daChinhSua" class="hd-khoa w-100 mb-0" role="note">
+              <i class="bi bi-pencil" aria-hidden="true"></i> Đơn đã được chỉnh sửa 1 lần (xem Lịch sử thao tác), không sửa thêm được.
+            </p>
           </div>
         </section>
 
@@ -577,14 +610,13 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
                   <th>Màu sắc</th>
                   <th>Thông số</th>
                   <th class="text-center">Số lượng</th>
-                  <th class="text-center">Giảm giá</th>
                   <th class="text-end">Đơn giá</th>
                   <th class="text-end">Thành tiền</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!sanPhamHienThi.length">
-                  <td colspan="10">
+                  <td colspan="9">
                     <div class="ad-empty">
                       <i class="bi bi-inbox" aria-hidden="true"></i>
                       <strong>{{ sanPham.length ? 'Không có sản phẩm phù hợp' : 'Hóa đơn chưa có sản phẩm' }}</strong>
@@ -610,13 +642,10 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
                   </td>
                   <td class="ad-nowrap">{{ thongSo(x) }}</td>
                   <td class="text-center fw-semibold">{{ x.soLuong }}</td>
-                  <td class="text-center">
-                    <span v-if="x.phanTramGiam > 0" class="ad-pill ad-pill-red">-{{ x.phanTramGiam }}%</span>
-                    <span v-else class="text-muted">—</span>
-                  </td>
+                  <!-- Cô: không ghi "Giảm giá 0%"; có giảm thì gạch giá gốc và ghi giá mới, không giảm thì chỉ một giá -->
                   <td class="text-end ad-nowrap">
-                    <div v-if="x.phanTramGiam > 0" class="hd-old-price">{{ money(x.giaGoc) }}</div>
-                    <div>{{ money(x.donGia) }}</div>
+                    <div v-if="coGiam(x)" class="hd-old-price" data-test="hd-gia-goc">{{ money(x.giaGoc) }}</div>
+                    <div :class="{ 'hd-new-price': coGiam(x) }">{{ money(x.donGia) }}</div>
                   </td>
                   <td class="text-end ad-nowrap fw-semibold hd-money">{{ money(x.thanhTien) }}</td>
                 </tr>
@@ -627,6 +656,8 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
 
       </section>
     </template>
+
+    <SuaDonModal v-if="moSuaDon && data" :data="data" @close="moSuaDon = false" @saved="daSuaDon" />
 
     <!-- Hộp thoại: lịch sử thao tác -->
     <BaseModal v-if="showLichSu" title="Lịch sử thao tác" size="lg" @close="showLichSu = false">
@@ -1135,6 +1166,10 @@ const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '
   font-size: 0.78rem;
   color: var(--fs-muted);
   text-decoration: line-through;
+}
+.hd-new-price {
+  color: var(--fs-danger, #dc2626);
+  font-weight: 600;
 }
 .hd-money {
   color: var(--fs-primary);

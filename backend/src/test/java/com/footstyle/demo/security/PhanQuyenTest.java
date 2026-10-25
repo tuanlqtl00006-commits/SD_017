@@ -56,6 +56,9 @@ class PhanQuyenTest {
         assertTrue(PhanQuyen.duocPhep(NV, "GET", "/api/lich-lam-viec/cua-toi"));
         assertTrue(PhanQuyen.duocPhep(NV, "PUT", "/api/auth/doi-mat-khau"));
         assertTrue(PhanQuyen.duocPhep(NV, "POST", "/api/hinh-anh/upload"));
+        assertTrue(PhanQuyen.duocPhep(NV, "POST", "/api/tro-ly/hoi"));
+        assertFalse(PhanQuyen.congKhai("POST", "/api/tro-ly/hoi"), "trợ lý nội bộ phải đăng nhập");
+        assertFalse(PhanQuyen.duocPhep(NV, "POST", "/api/lich-lam-viec/import"), "nhập Excel lịch chỉ Quản lý");
     }
 
     @Test

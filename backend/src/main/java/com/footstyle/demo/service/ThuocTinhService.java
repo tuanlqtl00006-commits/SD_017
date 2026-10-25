@@ -172,9 +172,12 @@ public class ThuocTinhService {
 
     // Tên: bắt buộc, tối đa 100 ký tự, không trùng bản ghi khác. Trả về tên đã chuẩn hóa khoảng trắng.
     private String kiemTraTen(String loai, String tenGui, Integer idBoQua) {
-        String ten = tenGui == null ? "" : tenGui.trim().replaceAll("\\s+", " ");
+        String ten = ThuocTinhHopLe.chuanHoa(loai, tenGui);
         loi(ten.isEmpty(), "Nhập tên " + nhan.get(loai) + ".");
         loi(ten.length() > 100, "Tên tối đa 100 ký tự.");
+        // Giá trị phải đúng chuẩn thị trường (màu không có số, trọng lượng 4U (80-84g), chu vi G1 - G6...)
+        String sai = ThuocTinhHopLe.loi(loai, ten);
+        loi(sai != null, sai);
         if (repo(loai).existsByTenIgnoreCaseAndIdNot(ten, idBoQua)) {
             throw ApiException.conflict("Tên " + nhan.get(loai) + " đã tồn tại.");
         }

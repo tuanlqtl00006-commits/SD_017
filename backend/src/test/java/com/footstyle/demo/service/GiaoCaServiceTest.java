@@ -37,7 +37,7 @@ class GiaoCaServiceTest {
 
     private Map<String, Object> nhanCa(String gio, long tienDau, String ghiChu) {
         service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, gio));
-        return service.nhanCa(new GiaoCaService.NhanCaRequest(tien(tienDau), ghiChu, null));
+        return service.nhanCa(new GiaoCaService.NhanCaRequest(tien(tienDau), ghiChu, null, tien(0)));
     }
 
     @Test
@@ -115,6 +115,20 @@ class GiaoCaServiceTest {
         ApiException e = loi(() -> nhanCa("07:00", 1_500_000, "  "));
         assertTrue(e.getLoiTheoTruong().get("ghiChu").contains("2.000.000 ₫"));
         assertEquals("GC02", nhanCa("07:00", 1_500_000, "Ca trước lấy 500k mua đồ").get("maGiaoCa"));
+    }
+
+    @Test
+    void vaoCa_phaiXacNhanChuyenKhoanCaTruoc_lechThiGhiLyDo() {
+        caTruocBanGiao(2_000_000);
+        m.giaoCas.get(m.giaoCas.size() - 1).setChuyenKhoanThu(tien(1_200_000));
+        CaLamMau.dangNhap(m.bao);
+        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "07:00"));
+        assertEquals(tien(1_200_000), service.hienTai().get("chuyenKhoanCaTruoc"));
+        ApiException e = loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(tien(2_000_000), null, null, null)));
+        assertTrue(e.getLoiTheoTruong().containsKey("chuyenKhoanCaTruoc"), "có ca trước thì bắt buộc nhập chuyển khoản");
+        e = loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(tien(2_000_000), null, null, tien(1_000_000))));
+        assertTrue(e.getLoiTheoTruong().get("ghiChu").contains("1.200.000 ₫"));
+        assertEquals("GC02", service.nhanCa(new GiaoCaService.NhanCaRequest(tien(2_000_000), null, null, tien(1_200_000))).get("maGiaoCa"));
     }
 
     @Test

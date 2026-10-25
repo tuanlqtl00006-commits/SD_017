@@ -6,9 +6,11 @@ import { computed, onMounted, ref } from 'vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import CaLamViecTab from './CaLamViecTab.vue'
 import XepLichModal from './XepLichModal.vue'
+import LichImportModal from './LichImportModal.vue'
 import { lichLamViecService } from '../../services/lichLamViecService'
 import { useToast } from '../../composables/useToast'
 import { formatDate, todayIso } from '../../utils/format'
+import { xuatLichTuan } from '../../utils/mauLichLamViec'
 import { congNgayIso, demTheoCa, gomLich, mauCa, ngayTrongTuan, nhanTuan, thu2CuaTuan } from '../../utils/lichTuan'
 
 const toast = useToast()
@@ -83,6 +85,16 @@ async function xacNhanXoa() {
   }
 }
 
+/* ----- Excel ----- */
+const moNhapExcel = ref(false)
+function xuatExcel() {
+  if (!lich.value.length) {
+    toast.error('Tuần này chưa có lịch nào để xuất.')
+    return
+  }
+  xuatLichTuan(lich.value, thu2.value)
+}
+
 /* ----- Sao chép tuần trước ----- */
 const moSaoChep = ref(false)
 const dangSaoChep = ref(false)
@@ -124,6 +136,8 @@ async function saoChep() {
           <button type="button" class="ad-btn ad-btn-sm" @click="doiTuan(0)">Tuần này</button>
         </div>
         <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="ad-btn" data-testid="ll-xuat-excel" @click="xuatExcel"><i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i> Xuất Excel</button>
+          <button type="button" class="ad-btn" data-testid="ll-nhap-excel" @click="moNhapExcel = true"><i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i> Nhập Excel</button>
           <button type="button" class="ad-btn" @click="moSaoChep = true"><i class="bi bi-files" aria-hidden="true"></i> Sao chép tuần trước</button>
           <button type="button" class="ad-btn ad-btn-primary" :disabled="!caDangDung.length" @click="moXepNhanh"><i class="bi bi-calendar-plus" aria-hidden="true"></i> Xếp lịch nhanh</button>
         </div>
@@ -188,6 +202,7 @@ async function saoChep() {
     </section>
 
     <XepLichModal v-if="moXep" :nhan-viens="nhanViens" :cas="cas" :ngays="ngays" :chon-san="chonSan" @close="moXep = false" @xong="taiLich" />
+    <LichImportModal v-if="moNhapExcel" :nhan-viens="nhanViens" :cas="cas" :thu2="thu2" :hom-nay="homNay" @close="moNhapExcel = false" @imported="taiLich" />
     <ConfirmDialog
       v-if="xoa"
       title="Bỏ ca khỏi lịch"

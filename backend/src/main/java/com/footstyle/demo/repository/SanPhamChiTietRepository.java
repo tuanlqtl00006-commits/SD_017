@@ -16,6 +16,12 @@ public interface SanPhamChiTietRepository extends JpaRepository<SanPhamChiTiet, 
     int truTonKho(@org.springframework.data.repository.query.Param("id") Integer id,
                   @org.springframework.data.repository.query.Param("soLuong") int soLuong);
 
+    /** Trả hàng về kho (bỏ sản phẩm khỏi hóa đơn chờ / hủy hóa đơn chờ tại quầy). */
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
+    @org.springframework.data.jpa.repository.Query("update SanPhamChiTiet c set c.soLuongTon = c.soLuongTon + :soLuong where c.id = :id")
+    int congTonKho(@org.springframework.data.repository.query.Param("id") Integer id,
+                   @org.springframework.data.repository.query.Param("soLuong") int soLuong);
+
     java.util.Optional<SanPhamChiTiet> findFirstByMaSpctIgnoreCase(String maSpct);
 
     List<SanPhamChiTiet> findAllByOrderByIdDesc();

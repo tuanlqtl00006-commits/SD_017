@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { baoHetPhien, layToken } from './phien';
+import { baoChuaVaoCa, baoHetPhien, layToken } from './phien';
 
 const api = axios.create({
     baseURL: '/api', // Dùng proxy trong vite.config.js để chuyển hướng sang http://localhost:8081/api
@@ -43,6 +43,7 @@ api.interceptors.response.use(
         if (error.status === 401 && MA_HET_PHIEN.includes(error.code) && !String(error.config?.url ?? '').includes('/auth/dang-nhap')) {
             baoHetPhien(error.message);
         }
+        if (error.status === 409 && error.code === 'CHUA_NHAN_CA') baoChuaVaoCa();
         return Promise.reject(error);
     }
 );

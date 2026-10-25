@@ -295,6 +295,30 @@ public class MailService {
         luongGui.submit(() -> gui(den, thu, null));
     }
 
+    /**
+     * Gửi NGAY (chờ kết quả) một thư báo cáo HTML kèm ảnh nhúng kiểu CID (biểu đồ thống kê): anh = { cid -> PNG }.
+     * Trả về true nếu gửi thật, false nếu chưa cấu hình Gmail (chỉ ghi log). Lỗi gửi thì ném ra để giao diện báo.
+     */
+    public boolean guiBaoCao(String den, String tieuDe, String banChu, String html, Map<String, byte[]> anh) throws Exception {
+        JavaMailSender sender = mailSender.getIfAvailable();
+        if (sender == null || !duocCauHinh()) {
+            log.warn("[MAIL GIẢ LẬP - CHƯA cấu hình Gmail nên KHÔNG gửi thật] Đến: {} | Tiêu đề: {}\n{}", den, tieuDe, banChu);
+            return false;
+        }
+        MimeMessage m = sender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(m, true, "UTF-8");
+        if (from != null && !from.isBlank()) helper.setFrom(from, tenCuaHang);
+        helper.setTo(den);
+        helper.setSubject(tieuDe);
+        helper.setText(banChu, html); // phải gọi trước addInline
+        for (Map.Entry<String, byte[]> e : anh.entrySet()) {
+            helper.addInline(e.getKey(), new ByteArrayResource(e.getValue()), "image/png");
+        }
+        sender.send(m);
+        log.info("Đã gửi báo cáo '{}' đến {}", tieuDe, den);
+        return true;
+    }
+
     void gui(String den, ThuMail thu, byte[] logoGan) {
         gui(den, thu, logoGan, null);
     }

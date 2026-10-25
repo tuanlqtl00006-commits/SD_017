@@ -12,6 +12,10 @@ const props = defineProps({ cas: { type: Array, default: () => [] } })
 const emit = defineEmits(['doi'])
 const toast = useToast()
 
+// Giờ mở / đóng cửa của cửa hàng (app.cua-hang.gio-mo-cua)
+const GIO_MO_CUA = '07:00'
+const GIO_DONG_CUA = '22:00'
+
 const moForm = ref(false)
 const dangLuu = ref(false)
 const f = reactive({ id: null, tenCa: '', gioBatDau: '', gioKetThuc: '' })
@@ -29,9 +33,12 @@ const { loi, sua, cham, batDauGui, datLoiMayChu, datLai, focusLoiDau } = useLoiF
   const ten = f.tenCa.trim()
   if (!ten) e.tenCa = 'Vui lòng nhập tên ca.'
   else if (ten.length > 100) e.tenCa = 'Tên ca tối đa 100 ký tự.'
+  // Ca phải nằm trong giờ mở cửa của cửa hàng (7:00 - 22:00), giống kiểm tra ở backend
   if (!f.gioBatDau) e.gioBatDau = 'Vui lòng nhập giờ bắt đầu.'
+  else if (f.gioBatDau < GIO_MO_CUA) e.gioBatDau = `Cửa hàng mở cửa từ ${GIO_MO_CUA}, ca phải nằm trong giờ mở cửa (${GIO_MO_CUA} - ${GIO_DONG_CUA}).`
   if (!f.gioKetThuc) e.gioKetThuc = 'Vui lòng nhập giờ kết thúc.'
-  else if (f.gioBatDau && f.gioKetThuc <= f.gioBatDau) e.gioKetThuc = 'Giờ kết thúc phải sau giờ bắt đầu (không có ca qua đêm).'
+  else if (f.gioKetThuc.slice(0, 5) > GIO_DONG_CUA) e.gioKetThuc = `Cửa hàng đóng cửa lúc ${GIO_DONG_CUA}, ca phải nằm trong giờ mở cửa (${GIO_MO_CUA} - ${GIO_DONG_CUA}).`
+  else if (f.gioBatDau && !e.gioBatDau && f.gioKetThuc <= f.gioBatDau) e.gioKetThuc = 'Giờ kết thúc phải sau giờ bắt đầu (không có ca qua đêm).'
   return e
 })
 
@@ -138,12 +145,12 @@ async function doiTrangThai(c) {
       <div class="row g-2 mt-1">
         <div class="col-6">
           <label class="ad-label" for="ca-bd">Bắt đầu <span class="ad-required">*</span></label>
-          <input id="ca-bd" v-model="f.gioBatDau" type="time" class="form-control ad-control" :class="{ 'is-invalid': loi.gioBatDau }" @input="sua('gioBatDau')" />
+          <input id="ca-bd" v-model="f.gioBatDau" type="time" :min="GIO_MO_CUA" :max="GIO_DONG_CUA" class="form-control ad-control" :class="{ 'is-invalid': loi.gioBatDau }" @input="sua('gioBatDau')" />
           <p v-if="loi.gioBatDau" class="ad-error">{{ loi.gioBatDau }}</p>
         </div>
         <div class="col-6">
           <label class="ad-label" for="ca-kt">Kết thúc <span class="ad-required">*</span></label>
-          <input id="ca-kt" v-model="f.gioKetThuc" type="time" class="form-control ad-control" :class="{ 'is-invalid': loi.gioKetThuc }" @input="sua('gioKetThuc')" />
+          <input id="ca-kt" v-model="f.gioKetThuc" type="time" :min="GIO_MO_CUA" :max="GIO_DONG_CUA" class="form-control ad-control" :class="{ 'is-invalid': loi.gioKetThuc }" @input="sua('gioKetThuc')" />
           <p v-if="loi.gioKetThuc" class="ad-error">{{ loi.gioKetThuc }}</p>
         </div>
       </div>

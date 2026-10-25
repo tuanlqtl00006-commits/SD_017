@@ -246,7 +246,7 @@ public class ThongKeService {
             if (h.getNgayTao() == null) continue;
             int g = h.getNgayTao().getHour();
             so[g]++;
-            tien[g] += tien(h.getThanhTien());
+            tien[g] += tien(DoanhThu.cua(h));
         }
         List<Map<String, Object>> kq = new ArrayList<>();
         for (int g = 0; g < 24; g++) {
@@ -281,7 +281,7 @@ public class ThongKeService {
                 }
             }
             x[0]++;
-            x[1] += tien(h.getThanhTien());
+            x[1] += tien(DoanhThu.cua(h));
         }
         List<Map<String, Object>> kq = new ArrayList<>();
         for (Map.Entry<String, long[]> e : tong.entrySet()) kq.add(caDto(e.getKey(), gio.get(e.getKey()), e.getValue()));

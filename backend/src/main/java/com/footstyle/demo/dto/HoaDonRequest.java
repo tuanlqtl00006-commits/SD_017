@@ -13,6 +13,8 @@ public class HoaDonRequest {
     private String maNhanVien;
     private String tenNhanVien;
     private BigDecimal tongTien;
+    /** Tiền hàng sau giảm giá, không gồm phí vận chuyển (dùng cho thống kê doanh thu). */
+    private BigDecimal doanhThu;
     private LocalDateTime ngayTao;
     private String loaiDon;
     private Integer trangThai;

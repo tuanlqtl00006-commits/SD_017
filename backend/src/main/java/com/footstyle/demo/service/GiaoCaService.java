@@ -71,7 +71,14 @@ public class GiaoCaService {
         return LocalDateTime.now(dongHo).truncatedTo(ChronoUnit.SECONDS);
     }
 
-    public record NhanCaRequest(BigDecimal tienDauCa, String ghiChu, Integer idLichLamViec) {
+    /**
+     * chuyenKhoanCaTruoc: số tiền chuyển khoản của ca trước mà người vào ca xác nhận (đối chiếu sao kê ngân hàng).
+     * Có ca trước thì bắt buộc nhập; khác số hệ thống ghi nhận thì bắt buộc ghi lý do (giống tiền mặt).
+     */
+    public record NhanCaRequest(BigDecimal tienDauCa, String ghiChu, Integer idLichLamViec, BigDecimal chuyenKhoanCaTruoc) {
+        public NhanCaRequest(BigDecimal tienDauCa, String ghiChu, Integer idLichLamViec) {
+            this(tienDauCa, ghiChu, idLichLamViec, null);
+        }
     }
 
     public record KetCaRequest(BigDecimal tienMatThucTe, BigDecimal tienBanGiao, Integer idNhanVienNhanBanGiao, String ghiChu) {
@@ -91,6 +98,9 @@ public class GiaoCaService {
         kq.put("goiYTienDauCa", truoc.map(g -> soTien(g.getTienBanGiao())).orElse(null));
         kq.put("nguoiBanGiao", truoc.map(g -> g.getNhanVien().getHoTen()).orElse(null));
         kq.put("thoiGianBanGiao", truoc.map(GiaoCa::getThoiGianKetCa).orElse(null));
+        kq.put("maCaTruoc", truoc.map(GiaoCa::getMaGiaoCa).orElse(null));
+        kq.put("tienMatCaTruoc", truoc.map(g -> soTien(g.getTienMatThucTe())).orElse(null));
+        kq.put("chuyenKhoanCaTruoc", truoc.map(g -> soTien(g.getChuyenKhoanThu())).orElse(null));
         List<Map<String, Object>> lich = new ArrayList<>();
         for (LichLamViec l : lichHomNay(nd.id())) {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -130,10 +140,19 @@ public class GiaoCaService {
         kiemTraTien(tien, "tienDauCa", "tiền đầu ca", loi);
         String ghiChu = gon(req == null ? null : req.ghiChu());
         if (ghiChu != null && ghiChu.length() > 500) loi.them("ghiChu", "Ghi chú tối đa 500 ký tự.");
-        BigDecimal goiY = giaoCaRepo.findFirstByTrangThaiOrderByThoiGianKetCaDescIdDesc(GiaoCa.DA_GIAO_CA)
-                .map(g -> soTien(g.getTienBanGiao())).orElse(null);
+        Optional<GiaoCa> caTruoc = giaoCaRepo.findFirstByTrangThaiOrderByThoiGianKetCaDescIdDesc(GiaoCa.DA_GIAO_CA);
+        BigDecimal goiY = caTruoc.map(g -> soTien(g.getTienBanGiao())).orElse(null);
         if (!loi.co("tienDauCa") && goiY != null && tien.compareTo(goiY) != 0 && ghiChu == null) {
             loi.them("ghiChu", "Tiền đầu ca khác tiền ca trước bàn giao (" + dinhDangTien(goiY) + "). Vui lòng ghi lý do.");
+        }
+        // Đối soát chuyển khoản của ca trước (cô: vào ca phải nhập cả tiền mặt lẫn chuyển khoản của ca trước)
+        if (caTruoc.isPresent()) {
+            BigDecimal ck = req == null ? null : req.chuyenKhoanCaTruoc();
+            BigDecimal ckHeThong = soTien(caTruoc.get().getChuyenKhoanThu());
+            kiemTraTien(ck, "chuyenKhoanCaTruoc", "số tiền chuyển khoản của ca trước", loi);
+            if (!loi.co("chuyenKhoanCaTruoc") && ck.compareTo(ckHeThong) != 0 && ghiChu == null) {
+                loi.them("ghiChu", "Chuyển khoản ca trước khác số hệ thống ghi nhận (" + dinhDangTien(ckHeThong) + "). Vui lòng ghi lý do.");
+            }
         }
         LichLamViec lich = null;
         if (req != null && req.idLichLamViec() != null) {
@@ -195,6 +214,11 @@ public class GiaoCaService {
         NguoiDung nd = XacThuc.nhanVien();
         GiaoCa gc = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA)
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "Bạn không có ca nào đang mở để giao.", "CHUA_NHAN_CA", null));
+        long soCho = hoaDonRepo.findByIdGiaoCaOrderByNgayTaoAsc(gc.getId()).stream().filter(HoaDonChoService::laHoaDonCho).count();
+        if (soCho > 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "Còn " + soCho + " hóa đơn chờ chưa thanh toán (đang giữ hàng trong kho). "
+                    + "Hãy thanh toán hoặc hủy trước khi giao ca.", "CON_HOA_DON_CHO", Map.of("soHoaDonCho", soCho));
+        }
         Map<String, Object> tk = tongKet(gc);
         BigDecimal heThong = (BigDecimal) tk.get("tienMatHeThong");
 
@@ -252,7 +276,7 @@ public class GiaoCaService {
         int soHoaDon = 0;
         BigDecimal doanhThu = BigDecimal.ZERO;
         for (HoaDon hd : hoaDonRepo.findByIdGiaoCaOrderByNgayTaoAsc(gc.getId())) {
-            if (Integer.valueOf(HoaDon.DA_HUY).equals(hd.getTrangThai())) continue;
+            if (Integer.valueOf(HoaDon.DA_HUY).equals(hd.getTrangThai()) || HoaDonChoService.laHoaDonCho(hd)) continue; // bỏ đơn hủy + hóa đơn chờ chưa thanh toán
             soHoaDon++;
             doanhThu = doanhThu.add(soTien(hd.getThanhTien()));
         }

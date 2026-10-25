@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { taoMa } from '../../constants/thuocTinh'
 import { NHOM_DANH_MUC } from '../../utils/danhMuc'
+import { chuanHoaThuocTinh, loiThuocTinh } from '../../utils/thuocTinhHopLe'
 
 const props = defineProps({
   cfg: { type: Object, required: true }, // cấu hình trong THUOC_TINH
@@ -39,7 +40,8 @@ function validate() {
   if (touched.ten || submitted.value) {
     if (!ten) e.ten = `Nhập tên ${props.cfg.label.toLowerCase()}.`
     else if (ten.length > 100) e.ten = 'Tên tối đa 100 ký tự.'
-    else if (props.all.some((x) => x.id !== props.item?.id && x.ten.toLowerCase() === ten.toLowerCase())) {
+    else if (loiThuocTinh(props.cfg.slug, ten)) e.ten = loiThuocTinh(props.cfg.slug, ten)
+    else if (props.all.some((x) => x.id !== props.item?.id && x.ten.toLowerCase() === chuanHoaThuocTinh(props.cfg.slug, ten).toLowerCase())) {
       e.ten = `Tên ${props.cfg.label.toLowerCase()} đã tồn tại.`
     }
   }
@@ -70,7 +72,8 @@ function submit() {
     nextTick(() => document.querySelector('#tt-form .is-invalid')?.focus())
     return
   }
-  emit('save', laChatLieu ? { ten: String(form.ten).trim(), nhom: [...form.nhom] } : { ten: String(form.ten).trim() })
+  const ten = chuanHoaThuocTinh(props.cfg.slug, form.ten)
+  emit('save', laChatLieu ? { ten, nhom: [...form.nhom] } : { ten })
 }
 
 onMounted(() => document.getElementById('tt-ten')?.focus())

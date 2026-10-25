@@ -1,6 +1,7 @@
 import { computed, reactive } from 'vue'
 import api from '../services/api'
 import { layPhien, luuPhien, xoaPhien } from '../services/phien'
+import { datLaiGiaoCa } from './useGiaoCa'
 
 // Trạng thái đăng nhập dùng chung toàn trang (một bản duy nhất, giống useToast).
 //  - nguoiDung: { id, ma, hoTen, email, vaiTro: 'QUAN_LY' | 'NHAN_VIEN', tenVaiTro } hoặc null
@@ -64,6 +65,7 @@ async function dangNhapKhachHang({ taiKhoan, matKhau, nho = true }) {
 
 /** Lưu phiên mới (sau đăng nhập hoặc đổi mật khẩu - backend cấp token mới). */
 function ghiPhien(kq, nho = layPhien()?.nho ?? true) {
+  if (trangThai.nguoiDung?.id !== kq.nguoiDung?.id || trangThai.nguoiDung?.vaiTro !== kq.nguoiDung?.vaiTro) datLaiGiaoCa() // đổi tài khoản: tải lại ca của người mới
   luuPhien({ token: kq.token, hetHan: kq.hetHan, nguoiDung: kq.nguoiDung, nho })
   trangThai.nguoiDung = kq.nguoiDung
   trangThai.batDangNhap = true
@@ -74,6 +76,7 @@ function ghiPhien(kq, nho = layPhien()?.nho ?? true) {
 function dangXuat() {
   xoaPhien()
   trangThai.nguoiDung = null
+  datLaiGiaoCa()
 }
 
 /** Trang mở đầu sau khi đăng nhập theo vai trò. */

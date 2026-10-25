@@ -159,17 +159,20 @@ class LichLamViecServiceTest {
     void themSuaCa_kiemTraTungO_maTuTang() {
         ApiException e = loi(() -> service.themCa(new LichLamViecService.CaRequest(" ", "25:00", "")));
         assertEquals(List.of("tenCa", "gioBatDau", "gioKetThuc"), List.copyOf(e.getLoiTheoTruong().keySet()));
-        e = loi(() -> service.themCa(new LichLamViecService.CaRequest("Ca đêm", "22:00", "06:00")));
+        e = loi(() -> service.themCa(new LichLamViecService.CaRequest("Ca chiều muộn", "20:00", "15:00")));
         assertTrue(e.getLoiTheoTruong().get("gioKetThuc").contains("qua đêm"));
+        e = loi(() -> service.themCa(new LichLamViecService.CaRequest("Ca đêm", "03:00", "23:00")));
+        assertTrue(e.getLoiTheoTruong().get("gioBatDau").contains("giờ mở cửa"), "3 giờ sáng cửa hàng chưa mở");
+        assertTrue(e.getLoiTheoTruong().get("gioKetThuc").contains("giờ mở cửa"), "11 giờ đêm cửa hàng đã đóng");
         e = loi(() -> service.themCa(new LichLamViecService.CaRequest("Ca ngắn", "08:00", "08:20")));
         assertTrue(e.getLoiTheoTruong().get("gioKetThuc").contains("30 phút"));
-        assertEquals(HttpStatus.CONFLICT, loi(() -> service.themCa(new LichLamViecService.CaRequest("ca SÁNG", "06:00", "08:00"))).getStatus());
+        assertEquals(HttpStatus.CONFLICT, loi(() -> service.themCa(new LichLamViecService.CaRequest("ca SÁNG", "07:00", "08:00"))).getStatus());
         Map<String, Object> moi = service.themCa(new LichLamViecService.CaRequest("  Ca   hành chính ", "08:00", "17:00:00"));
         assertEquals("CA05", moi.get("maCa"));
         assertEquals("Ca hành chính", moi.get("tenCa"));
         assertEquals("17:00", moi.get("gioKetThuc"));
-        Map<String, Object> sua = service.suaCa(1, new LichLamViecService.CaRequest("Ca sáng", "06:30", "11:30"));
-        assertEquals("06:30", sua.get("gioBatDau"), "sửa chính nó không bị báo trùng tên");
+        Map<String, Object> sua = service.suaCa(1, new LichLamViecService.CaRequest("Ca sáng", "07:30", "11:30"));
+        assertEquals("07:30", sua.get("gioBatDau"), "sửa chính nó không bị báo trùng tên");
         assertEquals(false, service.doiTrangThaiCa(1).get("hoatDong"));
     }
 }

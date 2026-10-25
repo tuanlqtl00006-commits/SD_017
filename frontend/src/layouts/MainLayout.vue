@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import ToastHost from '../components/common/ToastHost.vue'
 import DoiMatKhauModal from '../components/auth/DoiMatKhauModal.vue'
 import GiaoCaNut from '../components/giaoCa/GiaoCaNut.vue'
+import TroLyNoiBo from '../components/troLy/TroLyNoiBo.vue'
 import { THUOC_TINH_LIST } from '../constants/thuocTinh'
 import { useAuth } from '../composables/useAuth'
 import { useChatChuaDoc } from '../composables/useChatChuaDoc'
@@ -80,6 +81,11 @@ const menu = computed(() =>
     .filter((m) => m.roles.includes(role.value))
     .map((m) => (m.children ? { ...m, children: m.children.filter((c) => !c.roles || c.roles.includes(role.value)) } : m)),
 )
+const tongChuaDoc = computed(() => (chuaDoc.dem.hoTro || 0) + (chuaDoc.dem.noiBo || 0))
+const nhanSo = (n) => (n > 99 ? '99+' : n)
+function moThongBao() {
+  router.push(chuaDoc.dem.hoTro > 0 ? '/ho-tro-truc-tuyen' : '/chat-noi-bo')
+}
 
 /* ----- Tài khoản (góc phải header) ----- */
 const moTaiKhoan = ref(false)
@@ -183,8 +189,18 @@ const toggle = (key) => { open[key] = !open[key] }
           </template>
         </div>
 
+        <a href="/shop" target="_blank" rel="noopener" class="btn btn-light btn-sm border rounded-3 px-3 fw-medium d-flex align-items-center gap-2" title="Mở trang bán hàng online trong tab mới">
+          <i class="bi bi-shop-window text-secondary" aria-hidden="true"></i>
+          <span class="d-none d-lg-inline">Cửa hàng online</span>
+        </a>
+        <TroLyNoiBo />
         <GiaoCaNut v-if="auth.daDangNhap.value && !auth.laKhachHang.value" />
-
+        <div class="position-relative">
+          <button type="button" class="btn btn-light rounded-circle p-2 lh-1 text-muted" :aria-label="tongChuaDoc ? `${tongChuaDoc} tin nhắn chưa đọc` : 'Tin nhắn'" title="Tin nhắn chưa đọc" @click="moThongBao">
+            <i class="bi bi-bell"></i>
+          </button>
+          <span v-if="tongChuaDoc" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">{{ nhanSo(tongChuaDoc) }}</span>
+        </div>
         <div ref="taiKhoanRef" class="position-relative ms-1">
           <button type="button" class="ad-tk-nut" :aria-expanded="moTaiKhoan" aria-haspopup="menu" @click="moTaiKhoan = !moTaiKhoan">
             <span class="ad-tk-avatar">{{ auth.vietTat.value }}</span>

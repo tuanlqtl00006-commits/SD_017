@@ -13,6 +13,12 @@ export const lichLamViecService = {
   xepLich: (body) => api.post('/lich-lam-viec', body).then((r) => r.data),
   xoaLich: (id) => api.delete(`/lich-lam-viec/${id}`).then((r) => r.data),
   saoChepTuan: (tuanNguon, tuanDich) => api.post('/lich-lam-viec/sao-chep-tuan', { tuanNguon, tuanDich }).then((r) => r.data),
+  importExcel: (file, { chiKiemTra = false } = {}) => {
+    const data = new FormData()
+    data.append('file', file)
+    data.append('chiKiemTra', String(chiKiemTra))
+    return api.post('/lich-lam-viec/import', data, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data)
+  },
 
   lichSuGiaoCa: (params) => api.get('/giao-ca', { params }).then((r) => r.data),
   chiTietGiaoCa: (id) => api.get(`/giao-ca/${id}`).then((r) => r.data),

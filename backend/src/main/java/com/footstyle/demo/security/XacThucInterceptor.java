@@ -1,8 +1,10 @@
 package com.footstyle.demo.security;
 
+import com.footstyle.demo.entity.GiaoCa;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.NhanVien;
 import com.footstyle.demo.entity.VaiTro;
+import com.footstyle.demo.repository.GiaoCaRepository;
 import com.footstyle.demo.repository.KhachHangRepository;
 import com.footstyle.demo.repository.NhanVienRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,13 +36,15 @@ public class XacThucInterceptor implements HandlerInterceptor {
     private final TokenXacThuc token;
     private final NhanVienRepository nhanVienRepo;
     private final KhachHangRepository khachHangRepo;
+    private final GiaoCaRepository giaoCaRepo;
     private final boolean batDangNhap;
 
     public XacThucInterceptor(TokenXacThuc token, NhanVienRepository nhanVienRepo, KhachHangRepository khachHangRepo,
-                              @Value("${app.auth.bat:true}") boolean batDangNhap) {
+                              GiaoCaRepository giaoCaRepo, @Value("${app.auth.bat:true}") boolean batDangNhap) {
         this.token = token;
         this.nhanVienRepo = nhanVienRepo;
         this.khachHangRepo = khachHangRepo;
+        this.giaoCaRepo = giaoCaRepo;
         this.batDangNhap = batDangNhap;
     }
 
@@ -104,6 +108,10 @@ public class XacThucInterceptor implements HandlerInterceptor {
         }
         if (!PhanQuyen.duocPhep(nd, method, path)) {
             return new KetQua(403, "KHONG_DU_QUYEN", PhanQuyen.lyDoTuChoi(nd), nd);
+        }
+        if (PhanQuyen.canVaoCa(nd, method, path)
+                && giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA).isEmpty()) {
+            return new KetQua(409, "CHUA_NHAN_CA", "Bạn chưa vào ca. Hãy vào ca (nhập tiền đầu ca) trước khi làm việc.", nd);
         }
         return KetQua.choQua(nd);
     }

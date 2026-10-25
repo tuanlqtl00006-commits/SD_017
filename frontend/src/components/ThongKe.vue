@@ -7,10 +7,11 @@ import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatDate, formatMoney, todayIso } from '../utils/format'
 import { TRANG_THAI_HOA_DON, TT } from '../constants/hoaDon'
 import {
-  KHOANG_NHANH, TT_HOAN_THANH, congNgay, donGanNhat, gomCot, khoangGuiMayChu, khungGioHienThi, kyTruoc, lamTronTran,
-  locTheoKhoang, nhanTienGon, phanTram, phanTramThayDoi, theoLoaiDon, tinhKhoang, tongHop, xepHang,
+  KHOANG_NHANH, TT_HOAN_THANH, congNgay, gioLam, gomCot, khoangGuiMayChu, khungGioHienThi, kyTruoc, lamTronTran,
+  laHoaDonCho, locTheoKhoang, nhanTienGon, phanTram, phanTramThayDoi, theoLoaiDon, tinhKhoang, tongHop, tyLeCoMat, tyLeDungGio, xepHang,
 } from '../utils/thongKe'
 import DateInput from './common/DateInput.vue'
+import { exportExcel } from '../utils/exportExcel'
 
 // Trang Thống kê: tính từ danh sách hóa đơn có sẵn (GET /api/hoa-don), không cần thêm API mới.
 // Doanh thu chỉ tính đơn đã hoàn thành. Có so sánh với kỳ liền trước (cùng độ dài) khi chọn 7 / 30 / 90 ngày hoặc tự chọn đủ 2 đầu.
@@ -37,13 +38,13 @@ const MAU_TRANG_THAI = {
 const TRANG_THAI = Object.fromEntries(
   Object.entries(MAU_TRANG_THAI).map(([ma, color]) => [ma, { label: TRANG_THAI_HOA_DON[ma].label, color }]),
 )
-const ttOf = (v) => TRANG_THAI[v] ?? { label: 'Không rõ', color: '#7a8696' }
 
 async function load() {
   taiGd3()
   try {
     const res = await api.get('/hoa-don', { params: { page: 0, size: 2000 } })
-    hoaDon.value = res.data.content ?? []
+    // Hóa đơn chờ tại quầy (chưa thanh toán, đang giữ hàng) không phải đơn bán: bỏ khỏi thống kê
+    hoaDon.value = (res.data.content ?? []).filter((h) => !laHoaDonCho(h))
     homNay.value = todayIso()
   } catch (e) {
     toast.error(e.message || 'Không tải được dữ liệu thống kê.')
@@ -82,11 +83,15 @@ const kpi = computed(() => {
   const a = tk.value
   const b = tkTruoc.value ?? {}
   return [
-    { label: 'Doanh thu', value: formatMoney(a.doanhThu), icon: 'bi-cash-coin', note: 'Từ đơn đã hoàn thành', so: soSanh(a.doanhThu, b.doanhThu) },
-    { label: 'Tổng đơn hàng', value: a.tongDon, icon: 'bi-receipt', note: 'Trong khoảng đã chọn', so: soSanh(a.tongDon, b.tongDon) },
+    { label: 'Doanh thu thực tế', value: formatMoney(a.doanhThu), icon: 'bi-cash-coin', note: 'Đơn đã hoàn thành, không gồm phí ship', so: soSanh(a.doanhThu, b.doanhThu) },
     {
-      label: 'Đơn hoàn thành', value: a.hoanThanh, icon: 'bi-check2-circle',
-      note: a.hoanThanh ? `${pct(a.tyLeHoanThanh)} đơn · TB ${formatMoney(a.trungBinh)}/đơn` : 'Chưa có đơn',
+      label: 'Doanh thu dự kiến', value: formatMoney(a.doanhThuDuKien), icon: 'bi-graph-up-arrow',
+      note: a.doanhThuDuKien > a.doanhThu ? `Còn ${formatMoney(a.doanhThuDuKien - a.doanhThu)} từ đơn đang xử lý / giao` : 'Mọi đơn chưa hủy',
+      so: soSanh(a.doanhThuDuKien, b.doanhThuDuKien),
+    },
+    {
+      label: 'Đơn hoàn thành', value: `${a.hoanThanh}/${a.tongDon}`, icon: 'bi-check2-circle',
+      note: a.hoanThanh ? `${pct(a.tyLeHoanThanh)} tổng đơn · TB ${formatMoney(a.trungBinh)}/đơn` : 'Chưa có đơn hoàn thành',
       so: soSanh(a.hoanThanh, b.hoanThanh),
     },
     {
@@ -128,7 +133,6 @@ const donut = computed(() => {
 const theoLoai = computed(() => theoLoaiDon(trongKhoang.value))
 const topNhanVien = computed(() => xepHang(trongKhoang.value, (h) => h.tenNhanVien))
 const topKhach = computed(() => xepHang(trongKhoang.value, (h) => h.tenKhachHang))
-const ganDay = computed(() => donGanNhat(trongKhoang.value, 8))
 const ngayHienThi = (v) => { const s = String(v ?? '').slice(0, 10); return s ? formatDate(s) : '' }
 
 /* ----- Giai đoạn 3: sản phẩm bán chạy, sắp hết hàng, phương thức thanh toán, ca / giờ, chuyên cần, giao ca (GET /api/thong-ke) ----- */
@@ -155,11 +159,15 @@ watch(() => [khoangGd3.value.tuNgay, khoangGd3.value.denNgay], taiGd3)
 
 const banChay = computed(() => (Array.isArray(gd3.value.sanPhamBanChay) ? gd3.value.sanPhamBanChay : []))
 const sapHet = computed(() => (Array.isArray(gd3.value.sapHetHang) ? gd3.value.sapHetHang : []))
-const pctGon = (v) => `${(Math.round((Number(v) || 0) * 10) / 10).toLocaleString('vi-VN')}%`
 const theoPt = computed(() => {
   const ds = Array.isArray(gd3.value.theoPhuongThuc) ? gd3.value.theoPhuongThuc : []
   const tong = ds.reduce((s, x) => s + (Number(x.soTien) || 0), 0)
   return ds.map((x) => ({ ...x, pct: phanTram(x.soTien, tong) }))
+})
+const theoCa = computed(() => {
+  const ds = Array.isArray(gd3.value.theoCa) ? gd3.value.theoCa : []
+  const max = Math.max(1, ...ds.map((x) => Number(x.doanhThu) || 0))
+  return ds.map((x) => ({ ...x, pct: ((Number(x.doanhThu) || 0) / max) * 100 }))
 })
 const theoGio = computed(() => {
   const ds = khungGioHienThi(Array.isArray(gd3.value.theoGio) ? gd3.value.theoGio : [])
@@ -167,6 +175,55 @@ const theoGio = computed(() => {
   return ds.map((x) => ({ ...x, pct: ((Number(x.soDon) || 0) / max) * 100 }))
 })
 const gioDongNhat = computed(() => theoGio.value.reduce((m, x) => (Number(x.soDon) > Number(m?.soDon ?? 0) ? x : m), null))
+const chuyenCan = computed(() => (Array.isArray(gd3.value.chuyenCan) ? gd3.value.chuyenCan : []))
+const giaoCa = computed(() => gd3.value.giaoCa ?? { soCaDaGiao: 0, soCaLech: 0, tongThieu: 0, tongThua: 0, caLech: [] })
+const pctGon = (v) => (v === null || v === undefined ? '—' : `${String(v).replace('.', ',')}%`)
+
+/* ----- Xuất Excel: đúng số liệu đang xem theo bộ lọc ở trên, mỗi bảng một sheet ----- */
+function xuatExcel() {
+  const a = tk.value
+  const T = (header, key, width = 18, money = false) => ({ header, key, width, money })
+  const sheets = [
+    {
+      sheetName: 'Tổng quan',
+      columns: [T('Chỉ số', 'ten', 34), T('Giá trị', 'gt', 20, true), T('Ghi chú', 'ghiChu', 50)],
+      rows: [
+        { ten: 'Khoảng thời gian', gt: moTaKhoang.value },
+        { ten: 'Doanh thu thực tế', gt: a.doanhThu, ghiChu: 'Đơn đã hoàn thành, không gồm phí ship' },
+        { ten: 'Doanh thu dự kiến', gt: a.doanhThuDuKien, ghiChu: 'Mọi đơn chưa hủy (gồm đơn đang xử lý / đang giao)' },
+        { ten: 'Tổng đơn', gt: a.tongDon },
+        { ten: 'Đơn hoàn thành', gt: a.hoanThanh },
+        { ten: 'Đơn đã hủy', gt: a.huy },
+        { ten: 'Giá trị trung bình / đơn', gt: a.trungBinh },
+      ],
+    },
+    {
+      sheetName: `Doanh thu theo ${bieuDo.value.donVi}`,
+      columns: [T('Mốc', 'nhan', 16), T('Số đơn hoàn thành', 'so'), T('Doanh thu thực tế', 'v', 20, true)],
+      rows: cot.value.map((c) => ({ nhan: c.nhan, so: c.so, v: c.v })),
+    },
+    { sheetName: 'Theo loại đơn', columns: [T('Loại đơn', 'ten', 20), T('Doanh thu', 'v', 20, true), T('Tỷ trọng %', 'pct')], rows: theoLoai.value.map((l) => ({ ...l, pct: Math.round(l.pct * 10) / 10 })) },
+    { sheetName: 'Nhân viên', columns: [T('Nhân viên', 'ten', 28), T('Số đơn', 'so'), T('Doanh thu', 'v', 20, true)], rows: topNhanVien.value },
+    { sheetName: 'Khách hàng', columns: [T('Khách hàng', 'ten', 28), T('Số đơn', 'so'), T('Doanh thu', 'v', 20, true)], rows: topKhach.value },
+    {
+      sheetName: 'Sản phẩm bán chạy',
+      columns: [T('Mã', 'maSanPham', 12), T('Sản phẩm', 'tenSanPham', 36), T('Bán chạy nhất', 'phanLoaiBanChay', 22), T('Số lượng', 'soLuong'), T('Số đơn', 'soDon'), T('Doanh thu', 'doanhThu', 20, true)],
+      rows: banChay.value,
+    },
+    { sheetName: 'Sắp hết hàng', columns: [T('Mã', 'ma', 20), T('Sản phẩm', 'tenSanPham', 36), T('Phân loại', 'phanLoai', 22), T('Tồn kho', 'tonKho')], rows: sapHet.value },
+    { sheetName: 'Phương thức TT', columns: [T('Phương thức', 'ten', 22), T('Số đơn', 'soDon'), T('Số tiền thu', 'soTien', 20, true)], rows: theoPt.value },
+    { sheetName: 'Theo ca', columns: [T('Ca', 'tenCa', 18), T('Giờ', 'gio', 16), T('Số đơn', 'soDon'), T('Doanh thu', 'doanhThu', 20, true)], rows: theoCa.value },
+    {
+      sheetName: 'Chuyên cần',
+      columns: [T('Mã NV', 'maNhanVien', 10), T('Nhân viên', 'hoTen', 26), T('Ca theo lịch', 'soCaLich'), T('Đã làm', 'soCaDaLam'), T('Vắng', 'soCaVang'), T('Đi muộn', 'soLanDiMuon'), T('Ngoài lịch', 'soCaNgoaiLich')],
+      rows: chuyenCan.value,
+    },
+  ]
+  const ten = kq.value.tu || kq.value.den ? `${kq.value.tu || 'dau'}_${kq.value.den || homNay.value}` : 'tat-ca'
+  exportExcel({ filename: `thong-ke_${ten}.xlsx`, sheets })
+  toast.success('Đã xuất file Excel thống kê.')
+}
+const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua' : 'tk-xau')
 </script>
 
 <template>
@@ -182,6 +239,10 @@ const gioDongNhat = computed(() => theoGio.value.reduce((m, x) => (Number(x.soDo
         </div>
         <div class="btn-group flex-wrap" role="group" aria-label="Khoảng thời gian">
           <button v-for="o in KHOANG_NHANH" :key="o.v" type="button" class="btn btn-sm" :class="khoang === o.v ? 'btn-primary' : 'btn-outline-primary'" :aria-pressed="khoang === o.v" @click="khoang = o.v">{{ o.t }}</button>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="ad-btn ad-btn-sm" data-test="tk-xuat-excel" :disabled="loading" @click="xuatExcel"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Xuất Excel</button>
+          <RouterLink to="/thong-ke/so-sanh" class="ad-btn ad-btn-sm ad-btn-primary" data-test="tk-so-sanh"><i class="bi bi-bar-chart-line" aria-hidden="true"></i> So sánh</RouterLink>
         </div>
       </div>
       <div v-if="khoang === -1" class="d-flex flex-wrap align-items-end gap-3 mt-3" data-test="tk-tu-chon">
@@ -322,9 +383,10 @@ const gioDongNhat = computed(() => theoGio.value.reduce((m, x) => (Number(x.soDo
         </section>
       </div>
 
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <section class="ad-card h-100 mb-0" data-test="tk-phuong-thuc">
-          <h3 class="fs-6 fw-bold mb-3">Doanh thu theo phương thức thanh toán</h3>
+          <h3 class="fs-6 fw-bold mb-1">Tiền thu theo phương thức thanh toán</h3>
+          <p class="small text-muted mb-3">Số tiền khách thực trả (gồm cả phí ship), khác với doanh thu.</p>
           <div v-if="!theoPt.length" class="ad-empty">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
           <div v-for="p in theoPt" :key="p.ten" class="mb-3">
             <div class="d-flex justify-content-between small mb-1"><span class="fw-medium">{{ p.ten }}</span><span>{{ formatMoney(p.soTien) }} · {{ pctGon(p.pct) }}</span></div>
@@ -334,7 +396,21 @@ const gioDongNhat = computed(() => theoGio.value.reduce((m, x) => (Number(x.soDo
         </section>
       </div>
 
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-md-6 col-lg-4">
+        <section class="ad-card h-100 mb-0" data-test="tk-theo-ca">
+          <h3 class="fs-6 fw-bold mb-3">Doanh thu theo ca làm việc</h3>
+          <div v-if="!theoCa.length" class="ad-empty">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
+          <div v-for="c in theoCa" :key="c.tenCa" class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <span class="fw-medium">{{ c.tenCa }}<small v-if="c.gio" class="text-muted"> ({{ c.gio }})</small></span><span>{{ formatMoney(c.doanhThu) }}</span>
+            </div>
+            <div class="progress" style="height: 10px"><div class="progress-bar bg-info" :style="{ width: c.pct + '%' }"></div></div>
+            <small class="text-muted">{{ c.soDon }} đơn</small>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-4">
         <section class="ad-card h-100 mb-0" data-test="tk-theo-gio">
           <h3 class="fs-6 fw-bold mb-1">Khung giờ đông khách</h3>
           <p class="small text-muted mb-3">{{ gioDongNhat && gioDongNhat.soDon > 0 ? `Đông nhất ${gioDongNhat.gio}h - ${gioDongNhat.gio + 1}h (${gioDongNhat.soDon} đơn)` : 'Số đơn hoàn thành theo giờ tạo đơn' }}</p>
@@ -347,30 +423,62 @@ const gioDongNhat = computed(() => theoGio.value.reduce((m, x) => (Number(x.soDo
         </section>
       </div>
 
-      <div class="col-12">
-        <section class="ad-card mb-0" data-test="tk-gan-day">
-          <div class="d-flex align-items-center mb-3">
-            <h3 class="fs-6 fw-bold m-0 me-auto">Đơn hàng gần đây</h3>
-            <RouterLink to="/hoa-don" class="small">Xem tất cả</RouterLink>
+      <div class="col-12 col-xl-8">
+        <section class="ad-card h-100 mb-0" data-test="tk-chuyen-can">
+          <div class="d-flex align-items-center mb-3 gap-2">
+            <h3 class="fs-6 fw-bold m-0 me-auto">Chuyên cần theo lịch làm việc</h3>
+            <RouterLink to="/lich-lam-viec" class="small">Xếp lịch</RouterLink>
           </div>
-          <div v-if="!ganDay.length" class="ad-empty">Chưa có đơn trong khoảng này.</div>
+          <div v-if="dangTaiGd3" class="ad-empty">Đang tải…</div>
+          <div v-else-if="!chuyenCan.length" class="ad-empty">Chưa có lịch làm việc / ca nào trong khoảng này.</div>
           <div v-else class="ad-table-wrap">
             <div class="ad-table-scroll">
               <table class="ad-table">
-                <thead><tr><th>Mã hóa đơn</th><th>Khách hàng</th><th>Ngày tạo</th><th>Loại đơn</th><th>Trạng thái</th><th class="text-end">Tổng tiền</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Nhân viên</th><th class="text-end">Ca theo lịch</th><th class="text-end">Đã làm</th><th class="text-end">Vắng</th>
+                    <th class="text-end">Đi muộn</th><th class="text-end">Ngoài lịch</th><th class="text-end">Giờ làm</th><th class="text-end">Có mặt</th><th class="text-end">Đúng giờ</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  <tr v-for="h in ganDay" :key="h.id ?? h.maHoaDon">
-                    <td class="ad-nowrap"><RouterLink :to="`/hoa-don/${h.id}`" class="ad-code">{{ h.maHoaDon }}</RouterLink></td>
-                    <td>{{ h.tenKhachHang || 'Khách vãng lai' }}</td>
-                    <td class="ad-nowrap">{{ ngayHienThi(h.ngayTao) }}</td>
-                    <td class="ad-nowrap">{{ h.loaiDon }}</td>
-                    <td class="ad-nowrap"><span class="ad-dot me-2 d-inline-block" :style="{ background: ttOf(h.trangThai).color }"></span>{{ ttOf(h.trangThai).label }}</td>
-                    <td class="ad-nowrap text-end fw-semibold" :class="{ 'text-decoration-line-through text-muted': h.trangThai === 0 }">{{ formatMoney(h.tongTien) }}</td>
+                  <tr v-for="r in chuyenCan" :key="r.idNhanVien">
+                    <td>{{ r.hoTen }}<small class="text-muted d-block">{{ r.maNhanVien }}</small></td>
+                    <td class="text-end">{{ r.soCaLich }}<small v-if="r.soCaChuaToi" class="text-muted d-block">{{ r.soCaChuaToi }} chưa tới</small></td>
+                    <td class="text-end">{{ r.soCaDaLam }}</td>
+                    <td class="text-end" :class="{ 'text-danger fw-semibold': r.soCaVang }">{{ r.soCaVang }}</td>
+                    <td class="text-end" :class="{ 'text-warning fw-semibold': r.soLanDiMuon }">{{ r.soLanDiMuon }}<small v-if="r.tongPhutMuon" class="text-muted d-block">{{ r.tongPhutMuon }} phút</small></td>
+                    <td class="text-end">{{ r.soCaNgoaiLich }}</td>
+                    <td class="text-end ad-nowrap">{{ gioLam(r.soPhutLam) }}</td>
+                    <td class="text-end fw-semibold" :class="mauTyLe(tyLeCoMat(r))">{{ pctGon(tyLeCoMat(r)) }}</td>
+                    <td class="text-end fw-semibold" :class="mauTyLe(tyLeDungGio(r))">{{ pctGon(tyLeDungGio(r)) }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
+          <p class="small text-muted mt-2 mb-0">Vắng: ca theo lịch đã kết thúc mà không nhận ca. Đi muộn: nhận ca trễ quá 15 phút.</p>
+        </section>
+      </div>
+
+      <div class="col-12 col-xl-4">
+        <section class="ad-card h-100 mb-0" data-test="tk-giao-ca">
+          <div class="d-flex align-items-center mb-3 gap-2">
+            <h3 class="fs-6 fw-bold m-0 me-auto">Giao ca &amp; đối soát tiền mặt</h3>
+            <RouterLink to="/giao-ca" class="small">Lịch sử giao ca</RouterLink>
+          </div>
+          <div class="tk-gc-so">
+            <div><span>Ca đã giao</span><b>{{ giaoCa.soCaDaGiao }}</b></div>
+            <div><span>Ca lệch tiền</span><b :class="{ 'text-danger': giaoCa.soCaLech }">{{ giaoCa.soCaLech }}</b></div>
+            <div><span>Tổng thiếu</span><b class="text-danger">{{ formatMoney(giaoCa.tongThieu || 0) }}</b></div>
+            <div><span>Tổng thừa</span><b class="text-warning">{{ formatMoney(giaoCa.tongThua || 0) }}</b></div>
+          </div>
+          <div v-if="!(giaoCa.caLech || []).length" class="ad-empty mt-3">{{ dangTaiGd3 ? 'Đang tải…' : 'Không có ca nào lệch tiền. Tốt lắm!' }}</div>
+          <ul v-else class="list-unstyled m-0 mt-3 tk-rank">
+            <li v-for="g in giaoCa.caLech" :key="g.id">
+              <span class="tk-ten">{{ g.maGiaoCa }} · {{ g.tenNhanVien }}<small class="text-muted d-block">{{ ngayHienThi(g.thoiGianKetCa) }}<template v-if="g.ghiChu"> · {{ g.ghiChu }}</template></small></span>
+              <b :class="g.chenhLech < 0 ? 'text-danger' : 'text-warning'">{{ g.chenhLech > 0 ? '+' : '' }}{{ formatMoney(g.chenhLech) }}</b>
+            </li>
+          </ul>
         </section>
       </div>
     </div>

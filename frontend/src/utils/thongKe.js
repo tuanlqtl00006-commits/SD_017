@@ -6,6 +6,7 @@ import { toIso } from './format'
 
 export const TT_HOAN_THANH = 6
 export const TT_HUY = 0
+export const TT_HOAN_TIEN = 7
 
 /** Các mốc nhanh. v = số ngày gần nhất; 0 = tất cả; -1 = tự chọn từ ngày - đến ngày. */
 export const KHOANG_NHANH = [
@@ -37,7 +38,8 @@ export function soNgay(tu, den) {
 }
 
 export const ngayCua = (h) => String(h?.ngayTao ?? '').slice(0, 10)
-const tien = (h) => Number(h?.tongTien || 0)
+// Doanh thu = tiền hàng sau giảm giá, KHÔNG gồm phí ship (cô: 500k giảm 10% = 450k, ship 30k -> doanh thu 450k)
+const tien = (h) => Number(h?.doanhThu ?? h?.tongTien ?? 0)
 
 /**
  * Khoảng ngày cần xem -> { tu, den } ('yyyy-mm-dd'; '' nghĩa là không giới hạn phía đó).
@@ -71,16 +73,27 @@ export function kyTruoc(tu, den) {
 
 /* ----- Tổng hợp ----- */
 
+/** Hóa đơn chờ tại quầy (chưa thanh toán, đang giữ hàng trong kho) - không phải đơn bán nên không vào thống kê. */
+export function laHoaDonCho(h) {
+  return h?.loaiDon === 'Tại quầy' && h?.trangThai === 1
+}
+
+/**
+ * Doanh thu THỰC TẾ: đơn đã hoàn thành. Doanh thu DỰ KIẾN: mọi đơn chưa hủy / chưa hoàn tiền (gồm đơn đang xử lý, đang giao)
+ * - số tiền sẽ thu nếu các đơn đang chạy đều hoàn thành. Cả hai không gồm phí ship.
+ */
 export function tongHop(ds) {
   const list = ds ?? []
   const xong = list.filter((h) => h.trangThai === TT_HOAN_THANH)
   const huy = list.filter((h) => h.trangThai === TT_HUY)
   const doanhThu = xong.reduce((s, h) => s + tien(h), 0)
+  const doanhThuDuKien = list.filter((h) => h.trangThai !== TT_HUY && h.trangThai !== TT_HOAN_TIEN).reduce((s, h) => s + tien(h), 0)
   return {
     tongDon: list.length,
     hoanThanh: xong.length,
     huy: huy.length,
     doanhThu,
+    doanhThuDuKien,
     trungBinh: xong.length ? Math.round(doanhThu / xong.length) : 0,
     tyLeHoanThanh: list.length ? (xong.length / list.length) * 100 : 0,
     tyLeHuy: list.length ? (huy.length / list.length) * 100 : 0,

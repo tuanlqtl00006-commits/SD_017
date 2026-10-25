@@ -4,6 +4,7 @@ import ClientLayout from '../layouts/ClientLayout.vue'
 import { THUOC_TINH_LIST } from '../constants/thuocTinh'
 import { useAuth } from '../composables/useAuth'
 import { useToast } from '../composables/useToast'
+import { useGiaoCa } from '../composables/useGiaoCa'
 import { duongDanQuayLaiAnToan } from '../services/phien'
 
 // meta.roles: vai trò được vào trang ('quan-ly' | 'nhan-vien'); meta.congKhai: trang không cần đăng nhập.
@@ -22,6 +23,12 @@ const routes = [
         name: 'thong-ke',
         component: () => import('../components/ThongKe.vue'),
         meta: { title: 'Thống kê', roles: QL },
+      },
+      {
+        path: 'thong-ke/so-sanh',
+        name: 'thong-ke-so-sanh',
+        component: () => import('../components/thongKe/ThongKeSoSanh.vue'),
+        meta: { parent: 'Thống kê', parentTo: '/thong-ke', title: 'So sánh doanh thu', roles: QL },
       },
       {
         path: 'hoa-don',
@@ -142,7 +149,7 @@ const routes = [
         component: () => import('../components/nhanVien/NhanVienFormPage.vue'),
         meta: { parent: 'Nhân viên', parentTo: '/nhan-vien', title: 'Chi tiết nhân viên', roles: QL },
       },
-      // ===== Giai đoạn 3: Bán hàng tại quầy =====
+      // ===== Giai đoạn 3 =====
       {
         path: 'ban-hang',
         name: 'ban-hang',
@@ -182,6 +189,12 @@ const routes = [
         meta: { parent: 'Trò chuyện', title: 'Chat nội bộ', roles: NV },
       },
     ],
+  },
+  {
+    path: '/ho-tro',
+    name: 'ho-tro-khach',
+    component: () => import('../components/chat/HoTroKhachPage.vue'),
+    meta: { congKhai: true, title: 'Hỗ trợ trực tuyến - FootStyle' },
   },
   // Bán hàng online cho khách (Giao diện chuẩn nhóm)
   {
@@ -230,6 +243,18 @@ const routes = [
         name: 'shop-order-lookup',
         component: () => import('../views/client/OrderLookupView.vue'),
         meta: { congKhai: true, title: 'Tra cứu đơn hàng' },
+      },
+      {
+        path: 'dang-nhap',
+        name: 'shop-dang-nhap',
+        component: () => import('../views/client/KhachDangNhapView.vue'),
+        meta: { congKhai: true, title: 'Đăng nhập khách hàng - FootStyle' },
+      },
+      {
+        path: 'goi-y-ai',
+        name: 'shop-goi-y-ai',
+        component: () => import('../views/client/GoiYAiView.vue'),
+        meta: { congKhai: true, title: 'Gợi ý AI từ hình ảnh - FootStyle' },
       },
       {
         path: 'tai-khoan',
@@ -285,6 +310,13 @@ const routes = [
     redirect: '/shop/thanh-toan',
     meta: { congKhai: true },
   },
+  // Vào ca: trang riêng (không có menu), nhân viên chưa vào ca thì chỉ ở trang này
+  {
+    path: '/vao-ca',
+    name: 'vao-ca',
+    component: () => import('../components/giaoCa/VaoCaPage.vue'),
+    meta: { title: 'Vào ca làm việc', roles: NV, khongCanVaoCa: true },
+  },
   // Trang không cần đăng nhập
   {
     path: '/dang-nhap',
@@ -329,6 +361,14 @@ export async function kiemTraTruyCap(to) {
   if (roles && !roles.includes(auth.vaiTro.value)) {
     useToast().error('Tài khoản của bạn không có quyền vào trang này.')
     return auth.trangChu()
+  }
+  // Nhân viên bắt buộc vào ca trước khi làm bất cứ việc gì (backend cũng chặn API bằng mã CHUA_NHAN_CA)
+  if (auth.vaiTro.value === 'nhan-vien' && !to.meta?.khongCanVaoCa) {
+    const giaoCa = useGiaoCa()
+    if (!giaoCa.trangThai.daTai) await giaoCa.taiLai()
+    if (giaoCa.trangThai.daTai && !giaoCa.dangTrongCa.value) {
+      return { path: '/vao-ca', query: to.fullPath && to.fullPath !== '/' ? { quayLai: to.fullPath } : {} }
+    }
   }
   return true
 }

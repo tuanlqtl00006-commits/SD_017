@@ -106,6 +106,7 @@ public class HoaDonService {
             request.setTenNhanVien(hd.getNhanVien() != null ? hd.getNhanVien().getHoTen() : "Không xác định");
             // Số tiền khách phải trả (đã trừ giảm giá, cộng phí ship - đơn tại quầy không có phí ship)
             request.setTongTien(hd.getThanhTien() != null ? thanhTien(hd) : hd.getTongTien());
+            request.setDoanhThu(hd.getThanhTien() != null ? thanhTien(hd).subtract(phiVanChuyen(hd)).max(BigDecimal.ZERO) : hd.getTongTien());
             request.setNgayTao(hd.getNgayTao());
             request.setTrangThai(hd.getTrangThai());
             request.setLoaiDon(tenLoaiDon(hd.getLoaiDon()));
@@ -168,6 +169,12 @@ public class HoaDonService {
             chuyenDuoc.add(m);
         }
         info.put("chuyenDuoc", chuyenDuoc);
+        // Case khó online: quản lý / nhân viên chỉ được sửa đơn MỘT lần, khi đơn giao hàng còn Chờ xác nhận (khách không tự sửa)
+        boolean daSua = lichSuHoaDonRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId()).stream()
+                .anyMatch(l -> HoaDonSuaService.HANH_DONG_SUA.equals(l.getHanhDong()));
+        info.put("daChinhSua", daSua);
+        info.put("duocChinhSua", !laTaiQuay(hd) && trangThai == HoaDon.CHO_XAC_NHAN && !daSua);
+        info.put("idPhuongThucThanhToan", hd.getIdPhuongThucThanhToan());
         info.put("ngayTao", hd.getNgayTao());
         info.put("ngayCapNhat", hd.getNgayCapNhat());
         info.put("tongTien", soTien(hd.getTongTien()));
@@ -231,6 +238,9 @@ public class HoaDonService {
         }
         response.put("thanhToan", thanhToan);
         response.put("daThanhToan", daThanhToan);
+        // Đơn online khách chọn chuyển khoản: nhân viên kiểm tra sao kê rồi bấm "Xác nhận đã nhận chuyển khoản"
+        response.put("duocXacNhanThanhToan", !laTaiQuay(hd) && HoaDonSuaService.CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())
+                && !HoaDonLuongTrangThai.laTrangThaiCuoi(trangThai) && daThanhToan.compareTo(thanhTien(hd)) < 0);
 
         // Lịch sử thao tác (cũ -> mới)
         List<Map<String, Object>> lichSu = new ArrayList<>();
@@ -295,6 +305,7 @@ public class HoaDonService {
             }
 
             item.put("id", ct.getId());
+            item.put("idBienThe", spct != null ? spct.getId() : null);
             item.put("maSpct", spct != null ? spct.getMaSpct() : "---");
             item.put("tenSanPham", sp != null ? sp.getTenSanPham() : "Sản phẩm không xác định");
             item.put("tenDanhMuc", sp != null && sp.getDanhMuc() != null ? sp.getDanhMuc().getTen() : null);
@@ -348,7 +359,12 @@ public class HoaDonService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        if (moi == HoaDon.DA_HUY) {
+        // Đơn online chỉ trừ tồn kho khi nhân viên xác nhận (lúc khách đặt chưa trừ) - tránh tồn kho âm khi nhiều đơn cùng chờ
+        boolean chuaTruKho = !laTaiQuay(hd) && hienTai == HoaDon.CHO_XAC_NHAN;
+        if (chuaTruKho && moi == HoaDon.DA_XAC_NHAN) {
+            truTonKhoKhiXacNhan(hd);
+        }
+        if (moi == HoaDon.DA_HUY && !chuaTruKho) {
             hoanTonKho(hd); // cả khi hủy sau giao hàng thất bại: hàng đã về cửa hàng
         }
         hd.setTrangThai(moi);
@@ -379,11 +395,31 @@ public class HoaDonService {
             }
         }
 
+        // Case khó online 1: hủy đơn khách đã trả trước (chuyển khoản) -> ghi khoản HOÀN PHÍ trả lại khách
+        String hoanPhi = "";
+        if (moi == HoaDon.DA_HUY) {
+            BigDecimal daTra = BigDecimal.ZERO;
+            for (LichSuThanhToan tt : lichSuThanhToanRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+                if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN) daTra = daTra.add(soTien(tt.getSoTien()));
+            }
+            if (daTra.signum() > 0) {
+                LichSuThanhToan tt = new LichSuThanhToan();
+                tt.setHoaDon(hd);
+                tt.setSoTien(daTra.negate());
+                tt.setThoiGian(now);
+                tt.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
+                tt.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
+                tt.setMoTa("Hoàn phí cho khách khi hủy đơn");
+                lichSuThanhToanRepository.save(tt);
+                hoanPhi = " - Hoàn phí cho khách " + GiaoCaService.dinhDangTien(daTra);
+            }
+        }
+
         LichSuHoaDon ls = new LichSuHoaDon();
         ls.setHoaDon(hd);
         ls.setHanhDong(HoaDonLuongTrangThai.ten(moi));
         ls.setThoiGian(now);
-        ls.setMoTa(ghiChu.isEmpty() ? HoaDonLuongTrangThai.moTaMacDinh(hienTai, moi) : ghiChu);
+        ls.setMoTa((ghiChu.isEmpty() ? HoaDonLuongTrangThai.moTaMacDinh(hienTai, moi) : ghiChu) + hoanPhi);
         String nguoi = req.nguoiThaoTac() == null ? "" : req.nguoiThaoTac().trim();
         ls.setNguoiThaoTac(nguoi.isEmpty() ? "Quản lý" : nguoi);
         lichSuHoaDonRepository.save(ls);
@@ -392,6 +428,36 @@ public class HoaDonService {
     }
 
     /* ===================== Hàm phụ ===================== */
+
+    /**
+     * Xác nhận đơn online: kiểm tra đủ hàng cho TẤT CẢ dòng trước (báo hết các dòng thiếu một lần), rồi trừ có điều kiện từng biến thể.
+     * Hai nhân viên cùng xác nhận 2 đơn tranh món cuối: lệnh trừ có điều kiện của đơn sau trả 0 -> báo lỗi, cả giao dịch bị hủy.
+     */
+    private void truTonKhoKhiXacNhan(HoaDon hd) {
+        Map<Integer, SanPhamChiTiet> bienThe = new LinkedHashMap<>();
+        Map<Integer, Integer> canTru = new LinkedHashMap<>();
+        for (HoaDonChiTiet ct : hoaDonChiTietRepository.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
+            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
+            int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
+            if (spct == null || spct.getId() == null || sl <= 0) continue;
+            bienThe.putIfAbsent(spct.getId(), spct);
+            canTru.merge(spct.getId(), sl, Integer::sum);
+        }
+        List<String> thieu = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
+            SanPhamChiTiet spct = bienThe.get(e.getKey());
+            int ton = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
+            if (ton < e.getValue()) thieu.add(spct.getMaSpct() + " (còn " + ton + ", đơn cần " + e.getValue() + ")");
+        }
+        if (!thieu.isEmpty()) {
+            throw ApiException.conflict("Không đủ hàng để xác nhận đơn: " + String.join("; ", thieu) + ". Hãy nhập thêm hàng hoặc liên hệ khách.");
+        }
+        for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
+            if (sanPhamChiTietRepository.truTonKho(e.getKey(), e.getValue()) == 0) {
+                throw ApiException.conflict("Sản phẩm " + bienThe.get(e.getKey()).getMaSpct() + " vừa hết hàng (đơn khác vừa được xác nhận). Hãy tải lại rồi thử lại.");
+            }
+        }
+    }
 
     /** Hủy đơn: trả số lượng của từng dòng hóa đơn về tồn kho biến thể (gộp các dòng cùng biến thể). */
     private void hoanTonKho(HoaDon hd) {

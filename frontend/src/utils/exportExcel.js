@@ -159,7 +159,19 @@ function zipStore(files) {
  *   text : true = cả cột là văn bản (định dạng "@"): giữ số 0 đầu của số điện thoại / căn cước và ngày dd/mm/yyyy dạng chữ
  */
 export function buildXlsx({ sheetName = 'Sheet1', columns, rows }) {
-  const safeName = sheetName.replace(/[[\]:*?/\\]/g, ' ').slice(0, 31) || 'Sheet1'
+  return buildXlsxNhieuSheet([{ sheetName, columns, rows }])
+}
+
+/** Tạo Blob .xlsx nhiều sheet: sheets = [{ sheetName, columns, rows }] (vd báo cáo thống kê: mỗi bảng một sheet). */
+export function buildXlsxNhieuSheet(sheets) {
+  const daDung = new Set()
+  const ten = sheets.map((sh, i) => {
+    let t = String(sh.sheetName || `Sheet${i + 1}`).replace(/[[\]:*?/\\]/g, ' ').slice(0, 31) || `Sheet${i + 1}`
+    while (daDung.has(t.toLowerCase())) t = `${t.slice(0, 27)} ${i + 1}`
+    daDung.add(t.toLowerCase())
+    return t
+  })
+  const so = sheets.map((_, i) => i + 1)
   return zipStore([
     {
       name: '[Content_Types].xml',
@@ -169,7 +181,7 @@ export function buildXlsx({ sheetName = 'Sheet1', columns, rows }) {
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
         '<Default Extension="xml" ContentType="application/xml"/>' +
         '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
-        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        so.map((n) => `<Override PartName="/xl/worksheets/sheet${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') +
         '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
         '</Types>',
     },
@@ -186,25 +198,25 @@ export function buildXlsx({ sheetName = 'Sheet1', columns, rows }) {
       text:
         XML_HEAD +
         '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        `<sheets><sheet name="${escapeXml(safeName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+        `<sheets>${so.map((n) => `<sheet name="${escapeXml(ten[n - 1])}" sheetId="${n}" r:id="rId${n}"/>`).join('')}</sheets></workbook>`,
     },
     {
       name: 'xl/_rels/workbook.xml.rels',
       text:
         XML_HEAD +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
-        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+        so.map((n) => `<Relationship Id="rId${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${n}.xml"/>`).join('') +
+        `<Relationship Id="rId${so.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
         '</Relationships>',
     },
     { name: 'xl/styles.xml', text: STYLES_XML },
-    { name: 'xl/worksheets/sheet1.xml', text: sheetXml(columns, rows) },
+    ...sheets.map((sh, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, text: sheetXml(sh.columns, sh.rows) })),
   ])
 }
 
 /** Tạo file .xlsx và tải về máy. */
-export function exportExcel({ filename, ...options }) {
-  const url = URL.createObjectURL(buildXlsx(options))
+export function exportExcel({ filename, sheets, ...options }) {
+  const url = URL.createObjectURL(sheets ? buildXlsxNhieuSheet(sheets) : buildXlsx(options))
   const link = document.createElement('a')
   link.href = url
   link.download = filename

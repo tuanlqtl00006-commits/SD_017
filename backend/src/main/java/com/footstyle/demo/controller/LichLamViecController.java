@@ -1,6 +1,9 @@
 package com.footstyle.demo.controller;
 
+import com.footstyle.demo.exception.ApiException;
+import com.footstyle.demo.service.LichLamViecImportService;
 import com.footstyle.demo.service.LichLamViecService;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /** Lịch làm việc. /cua-toi: mọi nhân viên (lịch của mình); còn lại: quản lý (PhanQuyen). */
 @RestController
@@ -22,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class LichLamViecController {
 
     private final LichLamViecService service;
+    private final LichLamViecImportService importService;
 
     @GetMapping
     public List<Map<String, Object>> lich(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tuNgay,
@@ -59,6 +64,18 @@ public class LichLamViecController {
             return LocalDate.parse(s.trim());
         } catch (java.time.format.DateTimeParseException e) {
             throw com.footstyle.demo.exception.ApiException.badRequest("Ngày không hợp lệ: " + s + " (định dạng yyyy-MM-dd).");
+        }
+    }
+
+    /** Nhập lịch từ file Excel: chiKiemTra=true chỉ kiểm tra + xem trước; sai một dòng thì cả file bị từ chối (422). */
+    @PostMapping("/import")
+    public LichLamViecImportService.KetQua importExcel(@RequestParam("file") MultipartFile file,
+            @RequestParam(value = "chiKiemTra", required = false, defaultValue = "false") boolean chiKiemTra) {
+        if (file == null || file.isEmpty()) throw ApiException.badRequest("Chưa chọn file Excel để nhập.");
+        try {
+            return importService.nhap(file.getBytes(), chiKiemTra);
+        } catch (IOException e) {
+            throw ApiException.badRequest("Không đọc được file đã tải lên.");
         }
     }
 

@@ -42,6 +42,7 @@ public final class PhanQuyen {
             "/api/giao-ca",
             "/api/ho-tro",
             "/api/chat",
+            "/api/tro-ly",
             "/api/hinh-anh/upload",
             "/api/lich-lam-viec/cua-toi");
 
@@ -60,6 +61,16 @@ public final class PhanQuyen {
     /** Ngoại lệ chỉ Quản lý (dù nằm trong nhóm nhân viên dùng được ở trên). */
     private static final List<String[]> CHI_QUAN_LY = List.<String[]>of(
             new String[] {"DELETE", "/api/khach-hang"});
+
+    /**
+     * Nhân viên CHƯA VÀO CA chỉ gọi được các API này (đăng nhập / đăng xuất, vào ca, xem lịch của mình).
+     * Mọi chức năng khác bắt buộc vào ca trước (cô: "nhân viên không bấm vào ca thì vẫn làm được à?").
+     */
+    private static final List<String> KHONG_CAN_VAO_CA = List.of(
+            "/api/auth",
+            "/api/giao-ca",
+            "/api/lich-lam-viec/cua-toi",
+            "/api/ca-lam-viec");
 
     /** Khách hàng đăng nhập (trang bán online) dùng được. */
     private static final List<String> KHACH_HANG = List.of("/api/auth", "/api/khach");
@@ -104,6 +115,15 @@ public final class PhanQuyen {
             for (String g : NHAN_VIEN_CHI_XEM) if (thuoc(p, g)) return true;
         }
         return false;
+    }
+
+    /** true nếu `nd` là nhân viên (không phải quản lý) và API này đòi phải đang trong ca. */
+    public static boolean canVaoCa(NguoiDung nd, String method, String path) {
+        if (nd == null || !nd.laNhanVien() || nd.laQuanLy()) return false;
+        if (congKhai(method, path)) return false;
+        String p = chuanHoa(path);
+        for (String g : KHONG_CAN_VAO_CA) if (thuoc(p, g)) return false;
+        return true;
     }
 
     /** Câu báo khi không đủ quyền. */

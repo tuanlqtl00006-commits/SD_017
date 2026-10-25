@@ -125,6 +125,7 @@ class CaLamMau {
     NhanVienRepository nhanVienRepo() {
         return KhoGia.tao(NhanVienRepository.class, (ten, a) -> switch (ten) {
             case "findById" -> nhanViens.stream().filter(n -> n.getId().equals(a[0])).findFirst();
+            case "findFirstByMaNhanVienIgnoreCase" -> nhanViens.stream().filter(n -> n.getMaNhanVien().equalsIgnoreCase((String) a[0])).findFirst();
             case "findByTrangThaiOrderByHoTenAsc" -> nhanViens.stream().filter(n -> n.getTrangThai().equals(a[0]))
                     .sorted(Comparator.comparing(NhanVien::getHoTen)).toList();
             default -> KhoGia.KHONG_CO;

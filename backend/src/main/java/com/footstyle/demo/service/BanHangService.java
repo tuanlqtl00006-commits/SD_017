@@ -109,6 +109,74 @@ public class BanHangService {
         return kq;
     }
 
+    /**
+     * Bộ lọc bảng chọn sản phẩm tại quầy (cô: dạng bảng có phân trang, mới nhất trước, lọc giống trang sản phẩm + khoảng giá).
+     * trang bắt đầu từ 0; giá lọc theo giá đang bán (đã trừ đợt giảm giá).
+     */
+    public record LocSanPham(String q, Integer idDanhMuc, Integer idThuongHieu, Integer idMauSac, Integer idTrongLuong, Integer idChuVi,
+                             Long giaTu, Long giaDen, Integer trang, Integer kichThuoc) {
+    }
+
+    static final int KICH_THUOC_TRANG_MAC_DINH = 10;
+
+    /**
+     * Bảng chọn sản phẩm: chỉ biến thể đang bán VÀ còn hàng (hết hàng thì tự biến mất), mới nhất trước.
+     * Trả về { items, tongSo, trang, soTrang, kichThuoc, boLoc: { danhMuc, thuongHieu, mauSac, trongLuong, chuVi } }.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> locSanPham(LocSanPham loc) {
+        LocSanPham l = loc == null ? new LocSanPham(null, null, null, null, null, null, null, null, null, null) : loc;
+        if (l.giaTu() != null && l.giaTu() < 0 || l.giaDen() != null && l.giaDen() < 0) throw ApiException.badRequest("Giá lọc không được âm.");
+        if (l.giaTu() != null && l.giaDen() != null && l.giaTu() > l.giaDen()) throw ApiException.badRequest("Giá từ phải nhỏ hơn hoặc bằng giá đến.");
+        int kt = l.kichThuoc() == null ? KICH_THUOC_TRANG_MAC_DINH : Math.max(1, Math.min(50, l.kichThuoc()));
+        String k = boDau(l.q());
+        Map<Long, Double> giam = giamGiaService.phanTramTheoBienThe(bayGio());
+        List<SanPhamChiTiet> ds = new ArrayList<>();
+        Map<String, Map<Integer, String>> boLoc = new LinkedHashMap<>();
+        for (String ten : List.of("danhMuc", "thuongHieu", "mauSac", "trongLuong", "chuVi")) boLoc.put(ten, new LinkedHashMap<>());
+        for (SanPhamChiTiet c : spctRepo.findAllByOrderByIdDesc()) {
+            if (!dangBan(c) || c.getSoLuongTon() == null || c.getSoLuongTon() <= 0) continue;
+            SanPham sp = c.getSanPham();
+            if (sp.getDanhMuc() != null) boLoc.get("danhMuc").put(sp.getDanhMuc().getId(), sp.getDanhMuc().getTen());
+            if (sp.getThuongHieu() != null) boLoc.get("thuongHieu").put(sp.getThuongHieu().getId(), sp.getThuongHieu().getTen());
+            if (c.getMauSac() != null) boLoc.get("mauSac").put(c.getMauSac().getId(), c.getMauSac().getTen());
+            if (c.getTrongLuong() != null && !NhomDanhMuc.laKhongApDung(c.getTrongLuong().getTen())) boLoc.get("trongLuong").put(c.getTrongLuong().getId(), c.getTrongLuong().getTen());
+            if (c.getChuVi() != null && !NhomDanhMuc.laKhongApDung(c.getChuVi().getTen())) boLoc.get("chuVi").put(c.getChuVi().getId(), c.getChuVi().getTen());
+            if (!k.isEmpty() && !boDau(chuoiTim(c)).contains(k)) continue;
+            if (l.idDanhMuc() != null && (sp.getDanhMuc() == null || !l.idDanhMuc().equals(sp.getDanhMuc().getId()))) continue;
+            if (l.idThuongHieu() != null && (sp.getThuongHieu() == null || !l.idThuongHieu().equals(sp.getThuongHieu().getId()))) continue;
+            if (l.idMauSac() != null && (c.getMauSac() == null || !l.idMauSac().equals(c.getMauSac().getId()))) continue;
+            if (l.idTrongLuong() != null && (c.getTrongLuong() == null || !l.idTrongLuong().equals(c.getTrongLuong().getId()))) continue;
+            if (l.idChuVi() != null && (c.getChuVi() == null || !l.idChuVi().equals(c.getChuVi().getId()))) continue;
+            long gia = PhieuApDung.giaSauDot(c.getGiaBan() == null ? 0 : c.getGiaBan(), giam.getOrDefault(c.getId().longValue(), 0.0));
+            if (l.giaTu() != null && gia < l.giaTu()) continue;
+            if (l.giaDen() != null && gia > l.giaDen()) continue;
+            ds.add(c);
+        }
+        int soTrang = Math.max(1, (ds.size() + kt - 1) / kt);
+        int trang = l.trang() == null ? 0 : Math.max(0, Math.min(soTrang - 1, l.trang()));
+        Map<Integer, List<HinhAnhSanPham>> anh = anhTheoSanPham();
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (SanPhamChiTiet c : ds.subList(Math.min(ds.size(), trang * kt), Math.min(ds.size(), trang * kt + kt))) {
+            Map<String, Object> m = bienTheDto(c, giam, anh);
+            m.put("danhMuc", c.getSanPham().getDanhMuc() == null ? null : c.getSanPham().getDanhMuc().getTen());
+            items.add(m);
+        }
+        Map<String, Object> luaChon = new LinkedHashMap<>();
+        boLoc.forEach((ten, m) -> luaChon.put(ten, m.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue(Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .filter(e -> e.getKey() != null && e.getValue() != null)
+                .map(e -> Map.<String, Object>of("id", e.getKey(), "ten", e.getValue())).toList()));
+        Map<String, Object> kq = new LinkedHashMap<>();
+        kq.put("items", items);
+        kq.put("tongSo", ds.size());
+        kq.put("trang", trang);
+        kq.put("soTrang", soTrang);
+        kq.put("kichThuoc", kt);
+        kq.put("boLoc", luaChon);
+        return kq;
+    }
+
     /** Quét mã QR / mã vạch: đúng mã biến thể (không phân biệt hoa thường). */
     @Transactional(readOnly = true)
     public Map<String, Object> timTheoMa(String ma) {
@@ -137,7 +205,7 @@ public class BanHangService {
         return sb.toString();
     }
 
-    private Map<Integer, List<HinhAnhSanPham>> anhTheoSanPham() {
+    Map<Integer, List<HinhAnhSanPham>> anhTheoSanPham() {
         Map<Integer, List<HinhAnhSanPham>> m = new HashMap<>();
         for (HinhAnhSanPham a : hinhAnhRepo.findByTrangThaiOrderByLaAnhChinhDescIdAsc(1)) {
             m.computeIfAbsent(a.getSanPham().getId(), k -> new ArrayList<>()).add(a);
@@ -261,8 +329,9 @@ public class BanHangService {
     public record DongHang(Integer idBienThe, Integer soLuong, Long donGia) {
     }
 
+    /** soTienGiam: mức giảm của phiếu đang hiện trên màn hình (null = không so); lệch với mức giảm lúc thanh toán thì báo PHIEU_THAY_DOI. */
     public record ThanhToanRequest(Integer idKhachHang, String maPhieu, String ghiChu, List<DongHang> items,
-                                   Long tienMat, Long chuyenKhoan, String maGiaoDich, Boolean xacNhanGiaMoi) {
+                                   Long tienMat, Long chuyenKhoan, String maGiaoDich, Boolean xacNhanGiaMoi, Long soTienGiam) {
     }
 
     @Transactional
@@ -323,41 +392,17 @@ public class BanHangService {
             kh = khachHangRepo.findById(req.idKhachHang()).orElseThrow(() -> ApiException.notFound("Không tìm thấy khách hàng."));
             if (!Integer.valueOf(1).equals(kh.getTrangThai())) throw ApiException.conflict("Khách hàng đang ngừng hoạt động.");
         }
-        PhieuGiamGia phieu = null;
-        PhieuGiamGiaKhachHang phieuCuaKhach = null;
-        long giam = 0;
-        String maPhieu = req.maPhieu() == null ? "" : req.maPhieu().trim();
-        if (!maPhieu.isEmpty()) {
-            phieu = phieuRepo.findFirstByMaPhieuIgnoreCase(maPhieu).orElse(null);
-            if (phieu != null && kh != null) {
-                for (PhieuGiamGiaKhachHang x : phieuKhachRepo.findByIdKhachHang(kh.getId())) {
-                    if (x.getIdPhieuGiamGia().equals(phieu.getId()) && x.getNgaySuDung() == null) phieuCuaKhach = x;
-                }
-            }
-            long daDung = kh == null || phieu == null ? 0
-                    : hoaDonRepo.countByKhachHang_IdAndPhieuGiamGia_IdAndTrangThaiNot(kh.getId(), phieu.getId(), HoaDon.DA_HUY);
-            String lyDo = PhieuApDung.lyDoKhongDung(phieu, tongTienHang, luc, kh != null, phieuCuaKhach != null, daDung);
-            if (lyDo != null) throw new ApiException(HttpStatus.CONFLICT, "Không dùng được phiếu " + maPhieu + ": " + lyDo, "PHIEU_KHONG_HOP_LE", null);
-            giam = PhieuApDung.soTienGiam(phieu, tongTienHang);
-        }
+        KetQuaPhieu kp = kiemTraPhieu(req.maPhieu(), kh, tongTienHang, luc, req.soTienGiam());
+        PhieuGiamGia phieu = kp.phieu();
+        long giam = kp.giam();
         long thanhTien = tongTienHang - giam;
 
         // 4. Tiền khách trả
-        long tienMat = req.tienMat() == null ? 0 : req.tienMat();
-        long chuyenKhoan = req.chuyenKhoan() == null ? 0 : req.chuyenKhoan();
-        if (tienMat < 0 || chuyenKhoan < 0) throw ApiException.badRequest("Số tiền không được âm.");
-        if (tienMat > TIEN_TOI_DA || chuyenKhoan > TIEN_TOI_DA) throw ApiException.badRequest("Số tiền quá lớn.");
-        if (chuyenKhoan > thanhTien) {
-            throw ApiException.badRequest("Tiền chuyển khoản (" + tien(chuyenKhoan) + ") không được lớn hơn số tiền phải trả (" + tien(thanhTien) + ").");
-        }
-        if (tienMat + chuyenKhoan < thanhTien) {
-            throw ApiException.badRequest("Khách trả chưa đủ, còn thiếu " + tien(thanhTien - tienMat - chuyenKhoan) + ".");
-        }
-        String maGiaoDich = req.maGiaoDich() == null ? null : req.maGiaoDich().trim();
-        if (maGiaoDich != null && maGiaoDich.length() > 100) throw ApiException.badRequest("Mã giao dịch tối đa 100 ký tự.");
-        if (maGiaoDich != null && maGiaoDich.isEmpty()) maGiaoDich = null;
-        long tienMatThu = thanhTien - chuyenKhoan; // phần tiền mặt thực giữ lại (đã trừ tiền thừa trả khách)
-        long tienThua = tienMat - tienMatThu;
+        KetQuaTien t = kiemTraTien(req.tienMat(), req.chuyenKhoan(), req.maGiaoDich(), thanhTien);
+        long tienMat = t.tienMat();
+        long chuyenKhoan = t.chuyenKhoan();
+        long tienMatThu = t.tienMatThu();
+        long tienThua = t.tienThua();
 
         // 5. Trừ tồn kho có điều kiện
         for (Map.Entry<Integer, Integer> e : soLuong.entrySet()) {
@@ -370,15 +415,7 @@ public class BanHangService {
         }
 
         // 6. Phiếu: tăng lượt dùng có điều kiện, phiếu cá nhân đánh dấu đã dùng
-        if (phieu != null) {
-            if (phieuRepo.tangLuotDung(phieu.getId()) == 0) {
-                throw new ApiException(HttpStatus.CONFLICT, "Phiếu " + phieu.getMaPhieu() + " vừa hết lượt sử dụng.", "PHIEU_KHONG_HOP_LE", null);
-            }
-            if (phieuCuaKhach != null) {
-                phieuCuaKhach.setNgaySuDung(luc);
-                phieuKhachRepo.save(phieuCuaKhach);
-            }
-        }
+        dungPhieu(kp, luc);
 
         // 7. Hóa đơn + chi tiết + lịch sử + thanh toán
         String maPt = chuyenKhoan == 0 ? PhuongThucThanhToan.TIEN_MAT
@@ -416,23 +453,239 @@ public class BanHangService {
         }
         ghiLichSu(hd, "Tạo đơn hàng", "Tạo hóa đơn tại quầy", nv.getHoTen(), luc);
         ghiLichSu(hd, "Đã hoàn thành", "Khách đã thanh toán, nhận hàng tại cửa hàng", nv.getHoTen(), luc);
-        if (tienMatThu > 0) {
-            ghiThanhToan(hd, tienMatThu, null, PhuongThucThanhToan.TIEN_MAT,
-                    "Tiền mặt tại quầy (khách đưa " + tien(tienMat) + (tienThua > 0 ? ", trả lại " + tien(tienThua) : "") + ")", luc);
-        }
-        if (chuyenKhoan > 0) {
-            ghiThanhToan(hd, chuyenKhoan, maGiaoDich, PhuongThucThanhToan.CHUYEN_KHOAN, "Chuyển khoản tại quầy", luc);
-        }
+        ghiThanhToanQuay(hd, t, luc);
+        return ketQua(hd, t, ca);
+    }
 
+    /* ===================== Thanh toán hóa đơn chờ (lưu ở CSDL) ===================== */
+
+    /** Bán tại quầy nhưng giao hàng cho khách: khách lẻ chỉ nhập MỘT địa chỉ nhận hàng (cô: khách lẻ có mỗi một địa chỉ). */
+    public record GiaoHangRequest(String hoTen, String sdt, String diaChi) {
+    }
+
+    public record ThanhToanChoRequest(String maPhieu, String ghiChu, Long tienMat, Long chuyenKhoan, String maGiaoDich,
+                                      Boolean xacNhanGiaMoi, Long soTienGiam, GiaoHangRequest giaoHang) {
+    }
+
+    /** Phí giao hàng giống web bán online: đơn từ 1.000.000 ₫ miễn phí, còn lại 30.000 ₫. */
+    public static long phiGiaoHang(long tongTienHang) {
+        return tongTienHang >= 1_000_000L ? 0L : 30_000L;
+    }
+
+    /**
+     * Thanh toán một hóa đơn chờ (HoaDonChoService): sản phẩm + tồn kho đã có sẵn trong CSDL nên chỉ cần
+     *  - kiểm tra giá từng dòng còn đúng giá hiện tại không (khác thì GIA_THAY_DOI; nhân viên xác nhận thì cập nhật giá mới);
+     *  - phiếu giảm giá, tiền khách trả như thanh toán thường;
+     *  - giao hàng (nếu chọn): phí ship, người nhận; KHÔNG cần bước "xác nhận" nữa vì khách đã trả tiền tại quầy -> "Chờ giao hàng".
+     * Không giao hàng thì hóa đơn "Đã hoàn thành" ngay (in hóa đơn luôn ở bước này).
+     */
+    @Transactional
+    public Map<String, Object> thanhToanHoaDonCho(Integer idHoaDon, ThanhToanChoRequest req) {
+        NguoiDung nd = XacThuc.nhanVien();
+        GiaoCa ca = giaoCaService.caDangMoBatBuoc(nd.id());
+        HoaDon hd = idHoaDon == null ? null : hoaDonRepo.findById(idHoaDon).orElse(null);
+        if (hd == null) throw ApiException.notFound("Không tìm thấy hóa đơn chờ.");
+        if (hd.getNhanVien() == null || !hd.getNhanVien().getId().equals(nd.id())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Đây là hóa đơn chờ của nhân viên khác.");
+        }
+        if (!HoaDonChoService.laHoaDonCho(hd)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Hóa đơn " + hd.getMaHoaDon() + " đã thanh toán hoặc đã hủy. Hãy tải lại trang.",
+                    "HOA_DON_CHO_DA_DONG", null);
+        }
+        if (req == null) throw ApiException.badRequest("Thiếu thông tin thanh toán.");
+        String ghiChu = req.ghiChu() == null ? null : req.ghiChu().trim();
+        if (ghiChu != null && ghiChu.length() > 500) throw ApiException.badRequest("Ghi chú tối đa 500 ký tự.");
+        if (ghiChu != null && ghiChu.isEmpty()) ghiChu = null;
+        LocalDateTime luc = bayGio();
+
+        // 1. Giá từng dòng
+        List<HoaDonChiTiet> dong = chiTietRepo.findByHoaDon_IdOrderByIdAsc(hd.getId());
+        if (dong.isEmpty()) throw ApiException.badRequest("Hóa đơn chưa có sản phẩm nào.");
+        Map<Long, Double> phanTram = giamGiaService.phanTramTheoBienThe(luc);
+        List<Map<String, Object>> giaDoi = new ArrayList<>();
+        for (HoaDonChiTiet ct : dong) {
+            SanPhamChiTiet c = ct.getSanPhamChiTiet();
+            if (!dangBan(c)) throw ApiException.conflict("Sản phẩm " + c.getMaSpct() + " đã ngừng bán. Hãy xóa khỏi hóa đơn.");
+            long gia = PhieuApDung.giaSauDot(c.getGiaBan() == null ? 0 : c.getGiaBan(), phanTram.getOrDefault(c.getId().longValue(), 0.0));
+            long cu = ct.getDonGia() == null ? 0 : ct.getDonGia().longValue();
+            if (gia != cu) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("idChiTiet", ct.getId());
+                m.put("idBienThe", c.getId());
+                m.put("ma", c.getMaSpct());
+                m.put("donGiaCu", cu);
+                m.put("donGiaMoi", gia);
+                giaDoi.add(m);
+            }
+        }
+        if (!giaDoi.isEmpty()) {
+            if (!Boolean.TRUE.equals(req.xacNhanGiaMoi())) {
+                throw new ApiException(HttpStatus.CONFLICT, "Giá của " + giaDoi.size() + " sản phẩm trong hóa đơn đã thay đổi. "
+                        + "Hãy báo khách giá mới và bấm \"Cập nhật giá\" trước khi thanh toán.", "GIA_THAY_DOI", Map.of("items", giaDoi));
+            }
+            for (HoaDonChiTiet ct : dong) {
+                for (Map<String, Object> m : giaDoi) {
+                    if (!ct.getId().equals(m.get("idChiTiet"))) continue;
+                    long moi = (Long) m.get("donGiaMoi");
+                    ct.setDonGia(BigDecimal.valueOf(moi));
+                    ct.setThanhTien(BigDecimal.valueOf(moi * ct.getSoLuong()));
+                    chiTietRepo.save(ct);
+                }
+            }
+        }
+        long tongTienHang = 0;
+        for (HoaDonChiTiet ct : dong) tongTienHang += ct.getThanhTien() == null ? 0 : ct.getThanhTien().longValue();
+
+        // 2. Khách + phiếu
+        KhachHang kh = hd.getKhachHang();
+        if (kh != null && !Integer.valueOf(1).equals(kh.getTrangThai())) throw ApiException.conflict("Khách hàng đang ngừng hoạt động.");
+        KetQuaPhieu kp = kiemTraPhieu(req.maPhieu(), kh, tongTienHang, luc, req.soTienGiam());
+
+        // 3. Giao hàng
+        GiaoHangRequest gh = req.giaoHang();
+        boolean giao = gh != null;
+        String hoTen = null;
+        String sdt = null;
+        String diaChi = null;
+        if (giao) {
+            com.footstyle.demo.exception.LoiForm loi = new com.footstyle.demo.exception.LoiForm();
+            hoTen = gh.hoTen() == null ? "" : gh.hoTen().trim().replaceAll("\\s+", " ");
+            sdt = gh.sdt() == null ? "" : gh.sdt().trim().replaceAll("[\\s.-]", "");
+            diaChi = gh.diaChi() == null ? "" : gh.diaChi().trim().replaceAll("\\s+", " ");
+            if (hoTen.isEmpty()) loi.them("hoTen", "Vui lòng nhập tên người nhận.");
+            else if (hoTen.length() > 255) loi.them("hoTen", "Tên người nhận tối đa 255 ký tự.");
+            if (sdt.isEmpty()) loi.them("sdt", "Vui lòng nhập số điện thoại người nhận.");
+            else if (!sdt.matches("0[35789]\\d{8}")) loi.them("sdt", "Số điện thoại gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.");
+            if (diaChi.isEmpty()) loi.them("diaChi", "Vui lòng nhập địa chỉ giao hàng.");
+            else if (diaChi.length() < 10) loi.them("diaChi", "Địa chỉ quá ngắn, hãy ghi rõ số nhà, đường, phường/xã, tỉnh/thành.");
+            else if (diaChi.length() > 500) loi.them("diaChi", "Địa chỉ tối đa 500 ký tự.");
+            loi.nemNeuCoLoi();
+        }
+        long phi = giao ? phiGiaoHang(tongTienHang) : 0;
+        long thanhTien = tongTienHang - kp.giam() + phi;
+
+        // 4. Tiền khách trả, phiếu
+        KetQuaTien t = kiemTraTien(req.tienMat(), req.chuyenKhoan(), req.maGiaoDich(), thanhTien);
+        dungPhieu(kp, luc);
+
+        // 5. Chốt hóa đơn
+        String maPt = t.chuyenKhoan() == 0 ? PhuongThucThanhToan.TIEN_MAT
+                : t.tienMatThu() == 0 ? PhuongThucThanhToan.CHUYEN_KHOAN : PhuongThucThanhToan.KET_HOP;
+        hd.setLoaiDon(giao ? HoaDon.GIAO_HANG : HoaDon.TAI_QUAY);
+        hd.setTrangThai(giao ? HoaDon.CHO_LAY_HANG : HoaDon.HOAN_THANH);
+        hd.setPhieuGiamGia(kp.phieu());
+        hd.setIdPhuongThucThanhToan(idPhuongThuc(maPt));
+        hd.setTongTien(BigDecimal.valueOf(tongTienHang));
+        hd.setSoTienGiam(BigDecimal.valueOf(kp.giam()));
+        hd.setPhiVanChuyen(BigDecimal.valueOf(phi));
+        hd.setThanhTien(BigDecimal.valueOf(thanhTien));
+        hd.setGhiChu(ghiChu);
+        hd.setHoTenNguoiNhan(hoTen);
+        hd.setSdtNguoiNhan(sdt);
+        hd.setDiaChiGiaoHang(diaChi);
+        hd.setNgayCapNhat(luc);
+        hd.setIdGiaoCa(ca.getId());
+        hd = hoaDonRepo.save(hd);
+        String nguoi = hd.getNhanVien().getHoTen();
+        if (giao) {
+            ghiLichSu(hd, "Đã xác nhận", "Khách đặt giao hàng và đã thanh toán tại quầy", nguoi, luc);
+            ghiLichSu(hd, "Chờ giao hàng", "Đóng gói, chờ giao cho đơn vị vận chuyển (phí giao hàng " + tien(phi) + ")", nguoi, luc);
+        } else {
+            ghiLichSu(hd, "Đã hoàn thành", "Khách đã thanh toán, nhận hàng tại cửa hàng", nguoi, luc);
+        }
+        ghiThanhToanQuay(hd, t, luc);
+        Map<String, Object> kq = ketQua(hd, t, ca);
+        kq.put("giaoHang", giao);
+        kq.put("phiVanChuyen", phi);
+        return kq;
+    }
+
+    /* ----- Phần dùng chung của 2 kiểu thanh toán ----- */
+
+    private record KetQuaPhieu(PhieuGiamGia phieu, PhieuGiamGiaKhachHang cuaKhach, long giam) {
+    }
+
+    private record KetQuaTien(long tienMat, long chuyenKhoan, long tienMatThu, long tienThua, String maGiaoDich) {
+    }
+
+    /** Phiếu còn dùng được cho khách + tổng tiền hàng không; soTienGiamGiaoDien khác mức giảm hiện tại thì báo PHIEU_THAY_DOI. */
+    private KetQuaPhieu kiemTraPhieu(String maPhieuGui, KhachHang kh, long tongTienHang, LocalDateTime luc, Long soTienGiamGiaoDien) {
+        String maPhieu = maPhieuGui == null ? "" : maPhieuGui.trim();
+        if (maPhieu.isEmpty()) return new KetQuaPhieu(null, null, 0);
+        PhieuGiamGia phieu = phieuRepo.findFirstByMaPhieuIgnoreCase(maPhieu).orElse(null);
+        PhieuGiamGiaKhachHang phieuCuaKhach = null;
+        if (phieu != null && kh != null) {
+            for (PhieuGiamGiaKhachHang x : phieuKhachRepo.findByIdKhachHang(kh.getId())) {
+                if (x.getIdPhieuGiamGia().equals(phieu.getId()) && x.getNgaySuDung() == null) phieuCuaKhach = x;
+            }
+        }
+        long daDung = kh == null || phieu == null ? 0
+                : hoaDonRepo.countByKhachHang_IdAndPhieuGiamGia_IdAndTrangThaiNot(kh.getId(), phieu.getId(), HoaDon.DA_HUY);
+        String lyDo = PhieuApDung.lyDoKhongDung(phieu, tongTienHang, luc, kh != null, phieuCuaKhach != null, daDung);
+        if (lyDo != null) throw new ApiException(HttpStatus.CONFLICT, "Không dùng được phiếu " + maPhieu + ": " + lyDo, "PHIEU_KHONG_HOP_LE", null);
+        long giam = PhieuApDung.soTienGiam(phieu, tongTienHang);
+        // Phiếu bị quản lý sửa mức giảm trong lúc hóa đơn đang chờ: không tự đổi số tiền khách phải trả mà báo lại để nhân viên xem
+        if (soTienGiamGiaoDien != null && soTienGiamGiaoDien != giam) {
+            Map<String, Object> ct = new LinkedHashMap<>();
+            ct.put("maPhieu", phieu.getMaPhieu());
+            ct.put("soTienGiamCu", soTienGiamGiaoDien);
+            ct.put("soTienGiamMoi", giam);
+            throw new ApiException(HttpStatus.CONFLICT, "Phiếu " + phieu.getMaPhieu() + " vừa được cập nhật: mức giảm đổi từ " + tien(soTienGiamGiaoDien)
+                    + " thành " + tien(giam) + ". Hãy kiểm tra lại số tiền khách phải trả rồi thanh toán.", "PHIEU_THAY_DOI", ct);
+        }
+        return new KetQuaPhieu(phieu, phieuCuaKhach, giam);
+    }
+
+    /** Tiền mặt + chuyển khoản phải đủ; chuyển khoản không quá số phải trả (tiền thừa chỉ trả bằng tiền mặt). */
+    private static KetQuaTien kiemTraTien(Long tienMatGui, Long chuyenKhoanGui, String maGiaoDichGui, long thanhTien) {
+        long tienMat = tienMatGui == null ? 0 : tienMatGui;
+        long chuyenKhoan = chuyenKhoanGui == null ? 0 : chuyenKhoanGui;
+        if (tienMat < 0 || chuyenKhoan < 0) throw ApiException.badRequest("Số tiền không được âm.");
+        if (tienMat > TIEN_TOI_DA || chuyenKhoan > TIEN_TOI_DA) throw ApiException.badRequest("Số tiền quá lớn.");
+        if (chuyenKhoan > thanhTien) {
+            throw ApiException.badRequest("Tiền chuyển khoản (" + tien(chuyenKhoan) + ") không được lớn hơn số tiền phải trả (" + tien(thanhTien) + ").");
+        }
+        if (tienMat + chuyenKhoan < thanhTien) {
+            throw ApiException.badRequest("Khách trả chưa đủ, còn thiếu " + tien(thanhTien - tienMat - chuyenKhoan) + ".");
+        }
+        String maGiaoDich = maGiaoDichGui == null ? null : maGiaoDichGui.trim();
+        if (maGiaoDich != null && maGiaoDich.length() > 100) throw ApiException.badRequest("Mã giao dịch tối đa 100 ký tự.");
+        if (maGiaoDich != null && maGiaoDich.isEmpty()) maGiaoDich = null;
+        long tienMatThu = thanhTien - chuyenKhoan; // phần tiền mặt thực giữ lại (đã trừ tiền thừa trả khách)
+        return new KetQuaTien(tienMat, chuyenKhoan, tienMatThu, tienMat - tienMatThu, maGiaoDich);
+    }
+
+    private void dungPhieu(KetQuaPhieu kp, LocalDateTime luc) {
+        if (kp.phieu() == null) return;
+        if (phieuRepo.tangLuotDung(kp.phieu().getId()) == 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "Phiếu " + kp.phieu().getMaPhieu() + " vừa hết lượt sử dụng.", "PHIEU_KHONG_HOP_LE", null);
+        }
+        if (kp.cuaKhach() != null) {
+            kp.cuaKhach().setNgaySuDung(luc);
+            phieuKhachRepo.save(kp.cuaKhach());
+        }
+    }
+
+    private void ghiThanhToanQuay(HoaDon hd, KetQuaTien t, LocalDateTime luc) {
+        if (t.tienMatThu() > 0) {
+            ghiThanhToan(hd, t.tienMatThu(), null, PhuongThucThanhToan.TIEN_MAT,
+                    "Tiền mặt tại quầy (khách đưa " + tien(t.tienMat()) + (t.tienThua() > 0 ? ", trả lại " + tien(t.tienThua()) : "") + ")", luc);
+        }
+        if (t.chuyenKhoan() > 0) {
+            ghiThanhToan(hd, t.chuyenKhoan(), t.maGiaoDich(), PhuongThucThanhToan.CHUYEN_KHOAN, "Chuyển khoản tại quầy", luc);
+        }
+    }
+
+    private static Map<String, Object> ketQua(HoaDon hd, KetQuaTien t, GiaoCa ca) {
         Map<String, Object> kq = new LinkedHashMap<>();
         kq.put("id", hd.getId());
         kq.put("maHoaDon", hd.getMaHoaDon());
-        kq.put("tongTien", tongTienHang);
-        kq.put("soTienGiam", giam);
-        kq.put("thanhTien", thanhTien);
-        kq.put("tienMat", tienMat);
-        kq.put("chuyenKhoan", chuyenKhoan);
-        kq.put("tienThua", tienThua);
+        kq.put("tongTien", hd.getTongTien() == null ? 0 : hd.getTongTien().longValue());
+        kq.put("soTienGiam", hd.getSoTienGiam() == null ? 0 : hd.getSoTienGiam().longValue());
+        kq.put("thanhTien", hd.getThanhTien() == null ? 0 : hd.getThanhTien().longValue());
+        kq.put("tienMat", t.tienMat());
+        kq.put("chuyenKhoan", t.chuyenKhoan());
+        kq.put("tienThua", t.tienThua());
         kq.put("maGiaoCa", ca.getMaGiaoCa());
         return kq;
     }

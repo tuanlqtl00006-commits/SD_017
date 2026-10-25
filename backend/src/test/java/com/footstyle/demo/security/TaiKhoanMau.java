@@ -1,16 +1,20 @@
 package com.footstyle.demo.security;
 
 import com.footstyle.demo.KhoGia;
+import com.footstyle.demo.entity.GiaoCa;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.NhanVien;
 import com.footstyle.demo.entity.VaiTro;
+import com.footstyle.demo.repository.GiaoCaRepository;
 import com.footstyle.demo.repository.KhachHangRepository;
 import com.footstyle.demo.repository.NhanVienRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /** Dữ liệu tài khoản mẫu + kho giả dùng chung cho các test đăng nhập / phân quyền. */
@@ -21,6 +25,8 @@ public class TaiKhoanMau {
     public final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     public final List<NhanVien> nhanViens = new ArrayList<>();
     public final List<KhachHang> khachs = new ArrayList<>();
+    /** Id nhân viên CHƯA vào ca (mặc định mọi người đều đang trong ca). */
+    public final Set<Integer> chuaVaoCa = new HashSet<>();
     public final TokenXacThuc token = new TokenXacThuc("chuoi-bi-mat-de-test-123456", Duration.ofHours(12), Clock.systemUTC());
 
     public final NhanVien quanLy;
@@ -87,7 +93,14 @@ public class TaiKhoanMau {
     }
 
     public XacThucInterceptor interceptor(boolean batDangNhap) {
-        return new XacThucInterceptor(token, nhanVienRepo(), khachHangRepo(), batDangNhap);
+        return new XacThucInterceptor(token, nhanVienRepo(), khachHangRepo(), giaoCaRepo(), batDangNhap);
+    }
+
+    public GiaoCaRepository giaoCaRepo() {
+        return KhoGia.tao(GiaoCaRepository.class, (ten, a) -> switch (ten) {
+            case "findFirstByNhanVienIdAndTrangThai" -> chuaVaoCa.contains(a[0]) ? Optional.empty() : Optional.of(new GiaoCa());
+            default -> KhoGia.KHONG_CO;
+        });
     }
 
     public String tokenCua(NhanVien n) {

@@ -1,9 +1,10 @@
 <script setup>
 // Nhận ca / tổng kết ca / giao ca của người đang đăng nhập.
-//  - Chưa nhận ca: nhập tiền đầu ca (gợi ý = tiền ca trước bàn giao; nhập khác thì bắt buộc ghi lý do), chọn ca trong lịch hôm nay.
+//  - Chưa nhận ca: dẫn sang trang Vào ca (/vao-ca) - đối soát tiền mặt + chuyển khoản ca trước ở đó.
 //  - Đang trong ca: xem số hóa đơn, doanh thu, tiền mặt / chuyển khoản thu được; đếm tiền mặt thực tế, để lại tiền cho ca sau, giao ca.
 //  - Giao xong: xem và in biên bản giao ca.
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import api from '../../services/api'
 import BaseModal from '../common/BaseModal.vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
@@ -15,12 +16,13 @@ import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
 import { formatMoney, formatNgayGio } from '../../utils/format'
 import { inBienBanGiaoCa, moTaChenhLech, thoiLuong, tinhChenhLech } from '../../utils/giaoCa'
-import { soHoaDonCho } from '../../utils/banHang'
 
 const emit = defineEmits(['close'])
 const toast = useToast()
 const auth = useAuth()
-const { trangThai, dangTrongCa, taiLai, nhanCa, ketCa } = useGiaoCa()
+const route = useRoute()
+const router = useRouter()
+const { trangThai, dangTrongCa, taiLai, ketCa } = useGiaoCa()
 
 const TIEN_TOI_DA = 1_000_000_000
 const dangGui = ref(false)
@@ -30,51 +32,21 @@ let henGio = null
 
 onMounted(async () => {
   await taiLai()
-  datMacDinhNhanCa()
   henGio = setInterval(() => (bayGio.value = new Date()), 30000)
 })
 onBeforeUnmount(() => clearInterval(henGio))
 
 /* ===================== Nhận ca ===================== */
-const nc = reactive({ tienDauCa: '', ghiChu: '', idLichLamViec: null })
-function datMacDinhNhanCa() {
-  if (nc.tienDauCa === '' && trangThai.goiYTienDauCa !== null) nc.tienDauCa = Number(trangThai.goiYTienDauCa)
+// Vào ca làm ở trang riêng /vao-ca (đối soát tiền mặt + chuyển khoản ca trước), modal chỉ dẫn sang đó.
+function sangTrangVaoCa() {
+  emit('close')
+  router.push({ path: '/vao-ca', query: { quayLai: route.fullPath } })
 }
-const khacTienBanGiao = computed(
-  () => trangThai.goiYTienDauCa !== null && nc.tienDauCa !== '' && Number(nc.tienDauCa) !== Number(trangThai.goiYTienDauCa),
-)
-const loiNhan = useLoiForm(() => {
-  if (dangTrongCa.value || ketQua.value) return {}
-  const e = {}
-  if (nc.tienDauCa === '' || nc.tienDauCa === null) e.tienDauCa = 'Vui lòng nhập tiền đầu ca.'
-  else if (Number(nc.tienDauCa) < 0) e.tienDauCa = 'Số tiền không được âm.'
-  else if (Number(nc.tienDauCa) > TIEN_TOI_DA) e.tienDauCa = 'Số tiền tối đa 1.000.000.000 ₫.'
-  const gc = nc.ghiChu.trim()
-  if (gc.length > 500) e.ghiChu = 'Ghi chú tối đa 500 ký tự.'
-  else if (!gc && khacTienBanGiao.value) {
-    e.ghiChu = `Tiền đầu ca khác tiền ca trước bàn giao (${formatMoney(trangThai.goiYTienDauCa)}). Vui lòng ghi lý do.`
-  }
-  return e
-})
 
-async function guiNhanCa() {
-  if (dangGui.value) return
-  if (!loiNhan.batDauGui()) {
-    loiNhan.focusLoiDau('#gc-nhan-form')
-    return
-  }
-  dangGui.value = true
-  try {
-    const gc = await nhanCa({ tienDauCa: Number(nc.tienDauCa), ghiChu: nc.ghiChu.trim(), idLichLamViec: nc.idLichLamViec })
-    toast.success(`Đã nhận ca ${gc.maGiaoCa}${gc.ngoaiLich ? ' (ngoài lịch)' : ` - ${gc.tenCa}`}.`)
-    emit('close')
-  } catch (e) {
-    if (loiNhan.datLoiMayChu(e)) loiNhan.focusLoiDau('#gc-nhan-form')
-    else toast.error(e.message || 'Không nhận ca được.')
-    if (e.code === 'DANG_TRONG_CA') taiLai()
-  } finally {
-    dangGui.value = false
-  }
+// Giao ca xong: nhân viên không còn trong ca nên về trang Vào ca (người ca sau đăng nhập vào ca tiếp)
+function dong() {
+  emit('close')
+  if (ketQua.value && !auth.laQuanLy.value) router.replace('/vao-ca')
 }
 
 /* ===================== Giao ca ===================== */
@@ -102,7 +74,20 @@ const tk = computed(() => trangThai.tongKet || {})
 const chenhLech = computed(() => tinhChenhLech(kc.tienMatThucTe, tk.value.tienMatHeThong))
 const moTaCl = computed(() => moTaChenhLech(chenhLech.value))
 const daLam = computed(() => (trangThai.dangMo ? thoiLuong(trangThai.dangMo.thoiGianNhanCa, bayGio.value) : ''))
-const hoaDonCho = computed(() => soHoaDonCho(auth.trangThai.nguoiDung?.id))
+// Hóa đơn chờ (lưu ở CSDL, đang giữ hàng trong kho): còn thì backend không cho giao ca
+const hoaDonCho = ref(0)
+watch(
+  dangTrongCa,
+  async (v) => {
+    if (!v) return
+    try {
+      hoaDonCho.value = ((await api.get('/ban-hang/hoa-don-cho')).data || []).length
+    } catch {
+      hoaDonCho.value = 0
+    }
+  },
+  { immediate: true },
+)
 
 const loiKet = useLoiForm(() => {
   if (!dangTrongCa.value || ketQua.value) return {}
@@ -157,12 +142,12 @@ function inBienBan() {
 const tieuDe = computed(() => {
   if (ketQua.value) return `Đã giao ca ${ketQua.value.maGiaoCa}`
   if (dangTrongCa.value) return `Ca đang làm: ${trangThai.dangMo.maGiaoCa}`
-  return 'Nhận ca'
+  return 'Chưa vào ca'
 })
 </script>
 
 <template>
-  <BaseModal :title="tieuDe" size="lg" :static-backdrop="!!ketQua || dangGui" @close="emit('close')">
+  <BaseModal :title="tieuDe" size="lg" :static-backdrop="!!ketQua || dangGui" @close="dong">
     <div v-if="!trangThai.daTai" class="ad-empty">Đang tải ca làm việc…</div>
 
     <!-- ===== Vừa giao ca xong ===== -->
@@ -178,57 +163,14 @@ const tieuDe = computed(() => {
       </dl>
     </div>
 
-    <!-- ===== Chưa nhận ca ===== -->
-    <form v-else-if="!dangTrongCa" id="gc-nhan-form" novalidate @submit.prevent="guiNhanCa">
-      <div class="gc-ban-giao" role="note">
-        <i class="bi bi-cash-stack" aria-hidden="true"></i>
-        <span v-if="trangThai.goiYTienDauCa !== null">
-          Ca trước do <b>{{ trangThai.nguoiBanGiao }}</b> bàn giao <b>{{ formatMoney(trangThai.goiYTienDauCa) }}</b>
-          lúc {{ formatNgayGio(trangThai.thoiGianBanGiao) }}. Hãy đếm lại tiền trong két.
-        </span>
-        <span v-else>Chưa có ca nào bàn giao trước đó. Nhập số tiền mặt đang có trong két.</span>
-      </div>
-
-      <fieldset class="mb-3">
-        <legend class="ad-label">Ca trong lịch hôm nay</legend>
-        <p v-if="!trangThai.lichHomNay.length" class="ad-hint mb-0">Hôm nay bạn không có lịch làm. Ca sẽ được ghi là <b>ngoài lịch</b>.</p>
-        <div v-else class="gc-lich">
-          <label class="gc-lich-muc">
-            <input v-model="nc.idLichLamViec" type="radio" :value="null" class="form-check-input" />
-            <span>Tự chọn theo giờ hiện tại</span>
-          </label>
-          <label v-for="l in trangThai.lichHomNay" :key="l.id" class="gc-lich-muc">
-            <input v-model="nc.idLichLamViec" type="radio" :value="l.id" class="form-check-input" />
-            <span><b>{{ l.tenCa }}</b> {{ l.gioBatDau }} - {{ l.gioKetThuc }}</span>
-          </label>
-        </div>
-      </fieldset>
-
-      <label class="ad-label" for="gc-tien-dau">Tiền đầu ca <span class="ad-required">*</span></label>
-      <MoneyInput
-        id="gc-tien-dau"
-        v-model="nc.tienDauCa"
-        aria-label="Tiền đầu ca"
-        placeholder="Số tiền mặt trong két khi nhận ca"
-        :invalid="!!loiNhan.loi.value.tienDauCa"
-        @update:model-value="loiNhan.sua('tienDauCa')"
-      />
-      <p v-if="loiNhan.loi.value.tienDauCa" class="ad-error">{{ loiNhan.loi.value.tienDauCa }}</p>
-
-      <label class="ad-label mt-3" for="gc-ghi-chu-nhan">Ghi chú <span v-if="khacTienBanGiao" class="ad-required">*</span></label>
-      <textarea
-        id="gc-ghi-chu-nhan"
-        v-model="nc.ghiChu"
-        class="form-control ad-control"
-        :class="{ 'is-invalid': loiNhan.loi.value.ghiChu }"
-        rows="2"
-        maxlength="500"
-        placeholder="Bắt buộc khi tiền đầu ca khác tiền ca trước bàn giao"
-        @input="loiNhan.sua('ghiChu')"
-        @blur="loiNhan.cham('ghiChu')"
-      ></textarea>
-      <p v-if="loiNhan.loi.value.ghiChu" class="ad-error">{{ loiNhan.loi.value.ghiChu }}</p>
-    </form>
+    <!-- ===== Chưa nhận ca: vào ca ở trang riêng ===== -->
+    <div v-else-if="!dangTrongCa" class="gc-ban-giao" role="note">
+      <i class="bi bi-door-open" aria-hidden="true"></i>
+      <span>
+        Bạn chưa vào ca. Vào ca ở trang <b>Vào ca làm việc</b>: đếm tiền mặt trong két, đối soát chuyển khoản của ca trước rồi bấm
+        "Bắt đầu ca làm việc".
+      </span>
+    </div>
 
     <!-- ===== Đang trong ca ===== -->
     <div v-else>
@@ -260,7 +202,7 @@ const tieuDe = computed(() => {
 
       <div v-if="hoaDonCho > 0" class="gc-canh-bao" role="alert">
         <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-        Còn {{ hoaDonCho }} hóa đơn chờ chưa thanh toán ở màn hình Bán hàng tại quầy. Hãy thanh toán hoặc xóa trước khi giao ca.
+        Còn {{ hoaDonCho }} hóa đơn chờ chưa thanh toán ở màn hình Bán hàng tại quầy. Hãy thanh toán hoặc hủy (trả hàng về kho) trước khi giao ca.
       </div>
 
       <form id="gc-ket-form" novalidate class="gc-ket" @submit.prevent="moXacNhan">
@@ -321,12 +263,12 @@ const tieuDe = computed(() => {
 
     <template #footer>
       <template v-if="ketQua">
-        <button type="button" class="ad-btn" @click="emit('close')">Đóng</button>
+        <button type="button" class="ad-btn" @click="dong">Đóng</button>
         <button type="button" class="ad-btn ad-btn-primary" @click="inBienBan"><i class="bi bi-printer" aria-hidden="true"></i> In biên bản giao ca</button>
       </template>
       <template v-else-if="trangThai.daTai && !dangTrongCa">
-        <button type="button" class="ad-btn" @click="emit('close')">Để sau</button>
-        <button type="submit" form="gc-nhan-form" class="ad-btn ad-btn-primary" :disabled="dangGui">Nhận ca</button>
+        <button type="button" class="ad-btn" @click="emit('close')">Đóng</button>
+        <button type="button" class="ad-btn ad-btn-primary" @click="sangTrangVaoCa"><i class="bi bi-door-open" aria-hidden="true"></i> Đi tới trang vào ca</button>
       </template>
       <template v-else-if="trangThai.daTai">
         <button type="button" class="ad-btn" @click="emit('close')">Đóng</button>

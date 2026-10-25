@@ -95,9 +95,9 @@ class CuaHangServiceTest {
         assertEquals("Khách Hàng Thử Nghiệm", traCuu.get("hoTenNguoiNhan"));
         assertNotNull(traCuu.get("chiTiet"));
 
-        // Kiểm tra tồn kho đã giảm 1
+        // Theo yêu cầu của cô: đặt online CHƯA trừ tồn kho (chỉ trừ khi nhân viên xác nhận đơn)
         SanPhamChiTiet btMoi = spctRepo.findById(idBt).orElseThrow();
-        assertEquals(tonCu - 1, btMoi.getSoLuongTon());
+        assertEquals(tonCu, btMoi.getSoLuongTon());
     }
 
     @Test

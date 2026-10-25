@@ -1,8 +1,9 @@
 <script setup>
-// Trang đăng nhập phong cách thương hiệu thể thao lớn (FootStyle Enterprise).
-// Hỗ trợ đăng nhập nhân viên/quản lý và khách hàng. Tích hợp thanh chọn tài khoản mẫu 1-click cho ban giám khảo/người chấm thi.
+// Trang đăng nhập QUẢN TRỊ: quản lý và nhân viên dùng chung một trang, vào trong thì phân quyền theo vai trò.
+// Khách hàng đăng nhập ở trang riêng của web bán hàng (/shop/dang-nhap) theo yêu cầu của cô.
+// Thanh chọn tài khoản mẫu 1-click chỉ có khi chạy `npm run dev`.
 // Tài khoản = email, số điện thoại hoặc mã nhân viên. Sai 5 lần liên tiếp bị khóa 5 phút (backend bảo vệ chống brute-force).
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../../services/api'
 import { duongDanQuayLaiAnToan } from '../../services/phien'
@@ -15,12 +16,22 @@ const route = useRoute()
 const auth = useAuth()
 
 const che = ref('dang-nhap') // 'dang-nhap' | 'quen'
-const vaiTroTab = ref('nhan-vien') // 'nhan-vien' | 'khach-hang'
-const f = reactive({ taiKhoan: '', matKhau: '', nho: true })
+// Máy bán tại quầy dùng chung nên mặc định KHÔNG ghi nhớ đăng nhập
+const f = reactive({ taiKhoan: '', matKhau: '', nho: false })
 const hienMatKhau = ref(false)
 const dangGui = ref(false)
 const loiChung = ref('')
 const laDev = import.meta.env.DEV
+// Bản build có import.meta.env.DEV = false nên mật khẩu mẫu bị loại khỏi mã gửi cho trình duyệt
+const MAT_KHAU_MAU = import.meta.env.DEV ? 'Footstyle@123' : null
+const oMatKhau = ref(null)
+const oEmail = ref(null)
+
+// Có lỗi theo ô: về ô lỗi đầu tiên; sai mật khẩu (lỗi chung, ô mật khẩu đã xóa): về ô mật khẩu để gõ lại
+function veOLoi() {
+  if (Object.keys(loi.value).length) focusLoiDau('#dn-form')
+  else nextTick(() => oMatKhau.value?.focus())
+}
 
 onMounted(() => {
   if (typeof document !== 'undefined') {
@@ -33,7 +44,7 @@ onUnmounted(() => {
   }
 })
 
-const { loi, cham, sua, batDauGui, datLoiMayChu, datLai } = useLoiForm(() => {
+const { loi, cham, sua, batDauGui, datLoiMayChu, focusLoiDau, datLai } = useLoiForm(() => {
   if (che.value !== 'dang-nhap') return {}
   const e = {}
   if (!f.taiKhoan.trim()) e.taiKhoan = 'Vui lòng nhập email, số điện thoại hoặc mã nhân viên.'
@@ -43,21 +54,38 @@ const { loi, cham, sua, batDauGui, datLoiMayChu, datLai } = useLoiForm(() => {
 
 const lyDoHetPhien = computed(() => (route.query.hetPhien ? String(route.query.hetPhien) : ''))
 
+/* ----- Hiệu ứng: rung thẻ khi sai, báo thành công ngắn trước khi chuyển trang ----- */
+const lac = ref(false)
+const thanhCong = ref(false)
+const coChuyenDong = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: no-preference)').matches
+function rungThe() {
+  lac.value = false
+  requestAnimationFrame(() => (lac.value = true))
+}
+
 async function dangNhap() {
   loiChung.value = ''
-  if (dangGui.value || !batDauGui()) return
+  if (dangGui.value) return
+  if (!batDauGui()) {
+    veOLoi()
+    return
+  }
   dangGui.value = true
   try {
-    if (vaiTroTab.value === 'khach-hang') {
-      await auth.dangNhapKhachHang({ taiKhoan: f.taiKhoan.trim(), matKhau: f.matKhau, nho: f.nho })
-    } else {
-      await auth.dangNhap({ taiKhoan: f.taiKhoan.trim(), matKhau: f.matKhau, nho: f.nho })
-    }
+    await auth.dangNhap({ taiKhoan: f.taiKhoan.trim(), matKhau: f.matKhau, nho: f.nho })
     const quayLai = duongDanQuayLaiAnToan(route.query.quayLai)
+    thanhCong.value = true
+    if (coChuyenDong()) await new Promise((r) => setTimeout(r, 450))
     await router.replace(quayLai || auth.trangChu())
   } catch (e) {
-    if (!datLoiMayChu(e)) loiChung.value = e.message || 'Đăng nhập không thành công.'
     f.matKhau = ''
+    if (!datLoiMayChu(e)) {
+      // Lỗi chung (sai tài khoản / mật khẩu): chỉ hiện ô báo phía trên, ô mật khẩu vừa xóa không báo "Vui lòng nhập" ngay
+      datLai()
+      loiChung.value = e.message || 'Đăng nhập không thành công.'
+    }
+    rungThe()
+    veOLoi()
   } finally {
     dangGui.value = false
   }
@@ -73,6 +101,7 @@ async function guiQuenMatKhau() {
   const e = email.value.trim()
   if (!e) loiEmail.value = 'Vui lòng nhập email tài khoản.'
   else if (!EMAIL.test(e)) loiEmail.value = 'Email chưa đúng định dạng, ví dụ: ten@gmail.com.'
+  if (loiEmail.value) nextTick(() => oEmail.value?.focus())
   if (loiEmail.value || dangGui.value) return
   dangGui.value = true
   try {
@@ -80,6 +109,7 @@ async function guiQuenMatKhau() {
     thongBaoQuen.value = res.data?.message || 'Đã gửi mật khẩu tạm đến email của bạn.'
   } catch (err) {
     loiEmail.value = err.loiTheoTruong?.email || err.message || 'Không gửi được yêu cầu.'
+    nextTick(() => oEmail.value?.focus())
   } finally {
     dangGui.value = false
   }
@@ -97,10 +127,10 @@ function veDangNhap() {
   loiChung.value = ''
 }
 
-function dienMau(tk, role = 'nhan-vien') {
-  vaiTroTab.value = role
+function dienMau(tk) {
+  if (!MAT_KHAU_MAU) return
   f.taiKhoan = tk
-  f.matKhau = role === 'khach-hang' ? '123456' : 'Footstyle@123'
+  f.matKhau = MAT_KHAU_MAU
   sua('taiKhoan')
   sua('matKhau')
 }
@@ -108,890 +138,911 @@ function dienMau(tk, role = 'nhan-vien') {
 
 <template>
   <div class="dn-trang">
-    <!-- CỘT TRÁI: Giới thiệu đề tài / Đồ án tốt nghiệp -->
-    <section class="dn-trai" aria-hidden="true">
-      <div class="dn-trai-nen">
-        <!-- Vòng hào quang gradient & lưới đồ họa thể thao -->
-        <div class="dn-aura dn-aura-1"></div>
-        <div class="dn-aura dn-aura-2"></div>
-        <div class="dn-luoi-nen"></div>
-      </div>
+    <!-- Nền: sân cầu lông mờ, quầng sáng, quả cầu bay (chỉ để trang trí) -->
+    <div class="dn-nen" aria-hidden="true">
+      <span class="dn-quang dn-quang-1"></span>
+      <span class="dn-quang dn-quang-2"></span>
+      <span class="dn-quang dn-quang-3"></span>
+      <svg class="dn-san" viewBox="-20 -20 650 1380" fill="none">
+        <g stroke="currentColor" stroke-width="4">
+          <rect x="0" y="0" width="610" height="1340" />
+          <line x1="46" y1="0" x2="46" y2="1340" />
+          <line x1="564" y1="0" x2="564" y2="1340" />
+          <line x1="0" y1="76" x2="610" y2="76" />
+          <line x1="0" y1="1264" x2="610" y2="1264" />
+          <line x1="0" y1="472" x2="610" y2="472" />
+          <line x1="0" y1="868" x2="610" y2="868" />
+          <line x1="305" y1="0" x2="305" y2="472" />
+          <line x1="305" y1="868" x2="305" y2="1340" />
+        </g>
+        <line x1="-20" y1="670" x2="630" y2="670" stroke="currentColor" stroke-width="8" />
+      </svg>
+      <svg v-for="n in 3" :key="n" class="dn-qua-cau" :class="`is-${n}`" viewBox="0 0 64 96">
+        <path d="M14 8 L50 8 L42 62 L22 62 Z" fill="rgba(255,255,255,0.9)" />
+        <path d="M20 8 L27 62 M32 8 L32 62 M44 8 L37 62 M16 26 H48 M18 44 H46" stroke="rgba(9,119,236,0.35)" stroke-width="2" />
+        <rect x="20" y="60" width="24" height="8" rx="2" fill="#38bdf8" />
+        <path d="M20 68 Q32 92 44 68 Z" fill="#f8fafc" />
+      </svg>
+    </div>
 
-      <div class="dn-trai-noi-dung">
-        <!-- Brand Header Top -->
-        <header class="dn-trai-dau">
-          <div class="dn-logo-hop">
-            <img src="/logo.png" alt="FootStyle" class="dn-logo" />
-          </div>
-          <span class="dn-trai-huy-hieu">
-            <i class="bi bi-mortarboard-fill me-1 text-primary"></i>
-            ĐỒ ÁN TỐT NGHIỆP CNTT · 2026
-          </span>
-        </header>
+    <header class="dn-dau dn-vao" style="--tre: 0ms">
+      <span class="dn-thuong-hieu"><i class="bi bi-trophy-fill" aria-hidden="true"></i> FootStyle Badminton</span>
+      <button type="button" class="dn-btn-shop" title="Đến cửa hàng trực tuyến FootStyle" @click="router.push('/shop')">
+        <i class="bi bi-shop" aria-hidden="true"></i> Cửa hàng online <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+      </button>
+    </header>
 
-        <!-- Slogan & Intro Nghiêm Túc -->
-        <div class="dn-trai-giua">
-          <div class="dn-tagline">HỆ THỐNG QUẢN LÝ BÁN HÀNG CỬA HÀNG THỂ THAO</div>
-          <h2 class="dn-khau-hieu">
-            Quản trị & Bán lẻ <br />
-            <span class="dn-chu-nhan">FootStyle Badminton</span>
-          </h2>
-          <p class="dn-mo-ta">
-            Phần mềm quản lý bán lẻ đa kênh toàn diện: Bán hàng tại quầy (POS), bán hàng trực tuyến (Online Storefront), quản lý thuộc tính sản phẩm thể thao chuyên sâu và tổng hợp báo cáo kinh doanh.
-          </p>
-
-          <!-- 3 Phân hệ nghiệp vụ chính của Đồ Án -->
-          <div class="dn-cards-grid">
-            <div class="dn-card-item">
-              <div class="dn-card-icon"><i class="bi bi-box-seam-fill"></i></div>
-              <div class="dn-card-text">
-                <strong>Phân hệ Sản phẩm & Biến thể</strong>
-                <span>Quản lý vợt cầu lông, giày, phụ kiện theo thuộc tính kỹ thuật chuyên sâu và mã QR.</span>
-              </div>
-            </div>
-
-            <div class="dn-card-item">
-              <div class="dn-card-icon"><i class="bi bi-shop"></i></div>
-              <div class="dn-card-text">
-                <strong>Phân hệ Bán hàng tại quầy (POS)</strong>
-                <span>Bán tại quầy nhiều giỏ chờ, quét mã vạch, tự động áp mã giảm giá và thanh toán VietQR.</span>
-              </div>
-            </div>
-
-            <div class="dn-card-item">
-              <div class="dn-card-icon"><i class="bi bi-globe-americas"></i></div>
-              <div class="dn-card-text">
-                <strong>Phân hệ Bán hàng Trực tuyến (Storefront)</strong>
-                <span>Website mua sắm trực tuyến, đồng bộ giỏ hàng, đặt hàng giao tận nơi và tra cứu đơn hàng.</span>
-              </div>
-            </div>
-          </div>
+    <main class="dn-giua">
+      <div class="dn-the" :class="{ 'is-lac': lac }" @animationend.self="lac = false">
+        <div class="dn-the-dau dn-vao" style="--tre: 40ms">
+          <img src="/logo.png" alt="FootStyle" class="dn-logo" />
         </div>
+        <Transition name="dn-che" mode="out-in">
+          <div v-if="che === 'dang-nhap'" key="dang-nhap">
+            <span class="dn-nhan-tren dn-vao" style="--tre: 60ms"><i class="bi bi-shield-lock" aria-hidden="true"></i> Trang quản trị</span>
+            <h1 class="dn-tieu-de dn-vao" style="--tre: 100ms">Chào mừng trở lại</h1>
+            <p class="dn-phu dn-vao" style="--tre: 140ms">Đăng nhập bằng tài khoản nhân viên. Hệ thống tự mở đúng chức năng theo vai trò của bạn.</p>
 
-        <!-- Footer Đồ Án / Metrics -->
-        <footer class="dn-trai-day">
-          <div class="dn-stats-row">
-            <div class="dn-stat">
-              <span class="dn-stat-so">03</span>
-              <span class="dn-stat-chu">Phân hệ nghiệp vụ</span>
+            <div v-if="lyDoHetPhien" class="dn-thong-bao is-warn" role="status">
+              <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> {{ lyDoHetPhien }}
             </div>
-            <div class="dn-stat-ngan"></div>
-            <div class="dn-stat">
-              <span class="dn-stat-so">100%</span>
-              <span class="dn-stat-chu">Quy trình chuẩn hóa</span>
-            </div>
-            <div class="dn-stat-ngan"></div>
-            <div class="dn-stat">
-              <span class="dn-stat-so">Full-Stack</span>
-              <span class="dn-stat-chu">Spring Boot & Vue.js</span>
-            </div>
-          </div>
-          <div class="dn-danh-gia">
-            <i class="bi bi-award-fill text-primary me-1"></i>
-            <span>Hội đồng Đánh giá Đồ án Tốt nghiệp Chuyên ngành Công nghệ Thông tin</span>
-          </div>
-        </footer>
-      </div>
-    </section>
-
-    <!-- CỘT PHẢI: Form Đăng Nhập Trang Nhã Chuẩn Doanh Nghiệp -->
-    <section class="dn-phai">
-      <div class="dn-the">
-        <!-- Header card -->
-        <div class="dn-the-dau">
-          <div class="dn-logo-nho-wrap">
-            <img src="/logo.png" alt="FootStyle" class="dn-logo-nho" />
-          </div>
-          <span class="dn-the-badge"><i class="bi bi-shield-check"></i> Xác thực bảo mật</span>
-          <button
-            type="button"
-            class="dn-btn-shop"
-            title="Đến gian hàng trực tuyến FootStyle Badminton"
-            @click="router.push('/shop')"
-          >
-            <i class="bi bi-shop"></i> Cửa hàng Online <i class="bi bi-arrow-right"></i>
-          </button>
-        </div>
-
-        <template v-if="che === 'dang-nhap'">
-          <div class="dn-tieu-de-khoi">
-            <h1 class="dn-tieu-de">Đăng nhập</h1>
-            <p class="dn-phu">Vui lòng đăng nhập tài khoản để truy cập hệ thống quản trị.</p>
-          </div>
-
-          <!-- Role Switcher Tabs -->
-          <div class="dn-tabs" role="tablist">
-            <button
-              type="button"
-              class="dn-tab"
-              :class="{ 'is-active': vaiTroTab === 'nhan-vien' }"
-              role="tab"
-              :aria-selected="vaiTroTab === 'nhan-vien'"
-              @click="vaiTroTab = 'nhan-vien'"
-            >
-              <i class="bi bi-person-badge-fill me-1"></i> Nhân viên & Quản lý
-            </button>
-            <button
-              type="button"
-              class="dn-tab"
-              :class="{ 'is-active': vaiTroTab === 'khach-hang' }"
-              role="tab"
-              :aria-selected="vaiTroTab === 'khach-hang'"
-              @click="vaiTroTab = 'khach-hang'"
-            >
-              <i class="bi bi-person-circle me-1"></i> Khách mua hàng
-            </button>
-          </div>
-
-          <!-- Alerts -->
-          <div v-if="lyDoHetPhien" class="dn-thong-bao is-warn" role="status">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ lyDoHetPhien }}
-          </div>
-          <div v-if="loiChung" class="dn-thong-bao is-error" role="alert">
-            <i class="bi bi-x-circle-fill me-2"></i> {{ loiChung }}
-          </div>
-
-          <!-- Main Login Form -->
-          <form id="dn-form" class="dn-form" novalidate @submit.prevent="dangNhap">
-            <!-- Account Input -->
-            <div class="dn-o-nhap">
-              <label class="ad-label dn-label" for="dn-tai-khoan">
-                {{ vaiTroTab === 'nhan-vien' ? 'Tài khoản nhân viên' : 'Tài khoản khách hàng' }}
-                <span class="ad-required">*</span>
-              </label>
-              <div class="dn-input-wrap">
-                <span class="dn-input-icon"><i class="bi bi-person"></i></span>
-                <input
-                  id="dn-tai-khoan"
-                  v-model="f.taiKhoan"
-                  type="text"
-                  class="form-control ad-control dn-input"
-                  :class="{ 'is-invalid': loi.taiKhoan }"
-                  autocomplete="username"
-                  :placeholder="vaiTroTab === 'nhan-vien' ? 'Mã NV, email hoặc SĐT (vd: NV01)' : 'Email hoặc số điện thoại đăng ký'"
-                  maxlength="255"
-                  autofocus
-                  @input="sua('taiKhoan')"
-                  @blur="cham('taiKhoan')"
-                />
+            <Transition name="dn-tb">
+              <div v-if="loiChung" class="dn-thong-bao is-error" role="alert">
+                <i class="bi bi-x-circle-fill" aria-hidden="true"></i> {{ loiChung }}
               </div>
-              <p v-if="loi.taiKhoan" class="ad-error dn-error">{{ loi.taiKhoan }}</p>
-            </div>
+            </Transition>
 
-            <!-- Password Input -->
-            <div class="dn-o-nhap mt-3">
-              <label class="ad-label dn-label" for="dn-mat-khau">
-                Mật khẩu <span class="ad-required">*</span>
+            <form id="dn-form" class="dn-form dn-vao" style="--tre: 200ms" novalidate @submit.prevent="dangNhap">
+              <div class="dn-o-nhap">
+                <label class="dn-label" for="dn-tai-khoan">Tài khoản <span class="dn-bat-buoc">*</span></label>
+                <div class="dn-input-wrap">
+                  <i class="bi bi-person dn-input-icon" aria-hidden="true"></i>
+                  <input
+                    id="dn-tai-khoan"
+                    v-model="f.taiKhoan"
+                    type="text"
+                    name="username"
+                    class="dn-input"
+                    :class="{ 'is-invalid': loi.taiKhoan }"
+                    autocomplete="username"
+                    autocapitalize="none"
+                    spellcheck="false"
+                    required
+                    :aria-invalid="!!loi.taiKhoan"
+                    :aria-describedby="loi.taiKhoan ? 'dn-tai-khoan-loi' : undefined"
+                    placeholder="Mã NV, email hoặc SĐT (vd: NV01)"
+                    maxlength="255"
+                    autofocus
+                    @input="sua('taiKhoan')"
+                    @blur="cham('taiKhoan')"
+                  />
+                </div>
+                <p v-if="loi.taiKhoan" id="dn-tai-khoan-loi" class="dn-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> {{ loi.taiKhoan }}</p>
+              </div>
+
+              <div class="dn-o-nhap">
+                <div class="dn-label-hang">
+                  <label class="dn-label" for="dn-mat-khau">Mật khẩu <span class="dn-bat-buoc">*</span></label>
+                  <button type="button" class="dn-lien-ket" @click="moQuen">Quên mật khẩu?</button>
+                </div>
+                <div class="dn-input-wrap">
+                  <i class="bi bi-lock dn-input-icon" aria-hidden="true"></i>
+                  <input
+                    id="dn-mat-khau"
+                    ref="oMatKhau"
+                    v-model="f.matKhau"
+                    :type="hienMatKhau ? 'text' : 'password'"
+                    name="password"
+                    class="dn-input"
+                    :class="{ 'is-invalid': loi.matKhau }"
+                    autocomplete="current-password"
+                    required
+                    :aria-invalid="!!loi.matKhau"
+                    :aria-describedby="loi.matKhau ? 'dn-mat-khau-loi' : undefined"
+                    placeholder="Nhập mật khẩu"
+                    maxlength="100"
+                    @input="sua('matKhau')"
+                    @blur="cham('matKhau')"
+                  />
+                  <button
+                    type="button"
+                    class="dn-mat"
+                    :aria-label="hienMatKhau ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
+                    :title="hienMatKhau ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
+                    @click="hienMatKhau = !hienMatKhau"
+                  >
+                    <i class="bi" :class="hienMatKhau ? 'bi-eye-slash' : 'bi-eye'" aria-hidden="true"></i>
+                  </button>
+                </div>
+                <p v-if="loi.matKhau" id="dn-mat-khau-loi" class="dn-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> {{ loi.matKhau }}</p>
+              </div>
+
+              <label class="dn-nho">
+                <input v-model="f.nho" type="checkbox" name="remember" />
+                <span>Ghi nhớ đăng nhập trên máy này</span>
               </label>
-              <div class="dn-input-wrap">
-                <span class="dn-input-icon"><i class="bi bi-lock"></i></span>
-                <input
-                  id="dn-mat-khau"
-                  v-model="f.matKhau"
-                  :type="hienMatKhau ? 'text' : 'password'"
-                  class="form-control ad-control dn-input"
-                  :class="{ 'is-invalid': loi.matKhau }"
-                  autocomplete="current-password"
-                  placeholder="Nhập mật khẩu của bạn"
-                  maxlength="100"
-                  @input="sua('matKhau')"
-                  @blur="cham('matKhau')"
-                />
-                <button
-                  type="button"
-                  class="dn-mat"
-                  :aria-label="hienMatKhau ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
-                  :title="hienMatKhau ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
-                  @click="hienMatKhau = !hienMatKhau"
-                >
-                  <i class="bi" :class="hienMatKhau ? 'bi-eye-slash' : 'bi-eye'" aria-hidden="true"></i>
+
+              <button type="submit" class="dn-nut" :class="{ 'is-xong': thanhCong }" :disabled="dangGui" aria-live="polite">
+                <template v-if="thanhCong">
+                  <i class="bi bi-check-circle-fill dn-nut-tick" aria-hidden="true"></i>
+                  <span>Đăng nhập thành công</span>
+                </template>
+                <template v-else-if="dangGui">
+                  <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                  <span>Đang đăng nhập…</span>
+                </template>
+                <template v-else>
+                  <span>Đăng nhập</span>
+                  <i class="bi bi-arrow-right dn-nut-mui" aria-hidden="true"></i>
+                </template>
+              </button>
+            </form>
+
+            <p class="dn-khach dn-vao" style="--tre: 260ms">
+              <i class="bi bi-bag-heart" aria-hidden="true"></i> Bạn là khách mua hàng?
+              <button type="button" class="dn-lien-ket" data-testid="dn-sang-khach" @click="router.push('/shop/dang-nhap')">Đăng nhập cửa hàng online</button>
+            </p>
+
+            <!-- Tài khoản kiểm thử 1-click (cho Hội đồng chấm) - chỉ khi chạy npm run dev -->
+            <div v-if="laDev" class="dn-mau dn-vao" style="--tre: 280ms" data-testid="dn-tai-khoan-mau">
+              <span class="dn-mau-tieu-de"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Tài khoản demo (bấm để điền)</span>
+              <div class="dn-mau-nut-group">
+                <button type="button" class="dn-mau-nut" @click="dienMau('NV01')">
+                  <span class="dn-mau-avt is-ql">QL</span><span><b>NV01</b><small>Quản lý</small></span>
+                </button>
+                <button type="button" class="dn-mau-nut" @click="dienMau('NV03')">
+                  <span class="dn-mau-avt">NV</span><span><b>NV03</b><small>Nhân viên</small></span>
+                </button>
+                <button type="button" class="dn-mau-nut" @click="dienMau('NV04')">
+                  <span class="dn-mau-avt">NV</span><span><b>NV04</b><small>Nhân viên</small></span>
                 </button>
               </div>
-              <p v-if="loi.matKhau" class="ad-error dn-error">{{ loi.matKhau }}</p>
             </div>
+          </div>
 
-            <!-- Options Row -->
-            <div class="dn-hang">
-              <label class="form-check dn-nho">
-                <input v-model="f.nho" type="checkbox" class="form-check-input" />
-                <span class="form-check-label">Ghi nhớ đăng nhập</span>
-              </label>
-              <button type="button" class="dn-lien-ket" @click="moQuen">Quên mật khẩu?</button>
-            </div>
-
-            <!-- Submit Button -->
-            <button type="submit" class="ad-btn ad-btn-primary dn-nut" :disabled="dangGui">
-              <span v-if="dangGui" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-              <span>Đăng nhập hệ thống</span>
-              <i v-if="!dangGui" class="bi bi-arrow-right ms-2" aria-hidden="true"></i>
+          <div v-else key="quen">
+            <button type="button" class="dn-lien-ket dn-quay-lai" @click="veDangNhap">
+              <i class="bi bi-arrow-left" aria-hidden="true"></i> Quay lại đăng nhập
             </button>
-          </form>
+            <span class="dn-nhan-tren"><i class="bi bi-key" aria-hidden="true"></i> Khôi phục tài khoản</span>
+            <h1 class="dn-tieu-de">Quên mật khẩu?</h1>
+            <p class="dn-phu">Nhập email của tài khoản, hệ thống sẽ gửi mật khẩu tạm qua hòm thư. Đăng nhập xong hãy đổi mật khẩu ngay.</p>
 
-          <!-- 1-Click Quick Demo Bar (Dành cho Hội đồng chấm thi) -->
-          <div class="dn-mau">
-            <div class="dn-mau-tieu-de">
-              <i class="bi bi-mortarboard me-1 text-primary"></i>
-              <span>Tài khoản kiểm thử đồ án (1-Click):</span>
-            </div>
-            <div class="dn-mau-nut-group">
-              <button type="button" class="dn-mau-nut" @click="dienMau('NV01', 'nhan-vien')">
-                <span class="dn-badge-role">Admin</span>
-                <b>NV01</b> · Quản lý
-              </button>
-              <!-- NV02 trong dữ liệu mẫu là Quản lý nên nút nhân viên thứ hai dùng NV04 -->
-              <button type="button" class="dn-mau-nut" @click="dienMau('NV04', 'nhan-vien')">
-                <span class="dn-badge-role is-nv">Thu ngân</span>
-                <b>NV04</b> · Nhân viên
-              </button>
-              <button type="button" class="dn-mau-nut" @click="dienMau('NV03', 'nhan-vien')">
-                <span class="dn-badge-role is-nv">Bán hàng</span>
-                <b>NV03</b> · Nhân viên
-              </button>
-            </div>
-          </div>
-        </template>
-
-        <!-- Form Quên Mật Khẩu -->
-        <template v-else>
-          <div class="dn-tieu-de-khoi">
-            <h1 class="dn-tieu-de">Khôi phục mật khẩu</h1>
-            <p class="dn-phu">Nhập email của tài khoản, hệ thống sẽ gửi mật khẩu tạm an toàn qua hòm thư.</p>
-          </div>
-
-          <div v-if="thongBaoQuen" class="dn-thong-bao is-ok" role="status">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ thongBaoQuen }}
-          </div>
-
-          <form novalidate @submit.prevent="guiQuenMatKhau">
-            <div class="dn-o-nhap">
-              <label class="ad-label dn-label" for="dn-email">Email đăng ký <span class="ad-required">*</span></label>
-              <div class="dn-input-wrap">
-                <span class="dn-input-icon"><i class="bi bi-envelope"></i></span>
-                <input
-                  id="dn-email"
-                  v-model="email"
-                  type="email"
-                  class="form-control ad-control dn-input"
-                  :class="{ 'is-invalid': loiEmail }"
-                  autocomplete="email"
-                  placeholder="vd: nhanvien@footstyle.vn"
-                  maxlength="255"
-                  @input="loiEmail = ''"
-                />
+            <Transition name="dn-tb">
+              <div v-if="thongBaoQuen" class="dn-thong-bao is-ok" role="status">
+                <i class="bi bi-check-circle-fill" aria-hidden="true"></i> {{ thongBaoQuen }}
               </div>
-              <p v-if="loiEmail" class="ad-error dn-error">{{ loiEmail }}</p>
-            </div>
+            </Transition>
 
-            <button type="submit" class="ad-btn ad-btn-primary dn-nut mt-3" :disabled="dangGui">
-              <span v-if="dangGui" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-              Gửi mật khẩu tạm
-            </button>
-          </form>
-
-          <button type="button" class="dn-lien-ket dn-quay-lai" @click="veDangNhap">
-            <i class="bi bi-arrow-left me-1"></i> Quay lại đăng nhập
-          </button>
-        </template>
-
-        <!-- Compliance & Security Footer -->
-        <div class="dn-the-chan">
-          <div class="dn-ban-quyen">Đồ Án Tốt Nghiệp: Hệ Thống Bán Hàng Thể Thao FootStyle © 2026</div>
-        </div>
+            <form class="dn-form" novalidate @submit.prevent="guiQuenMatKhau">
+              <div class="dn-o-nhap">
+                <label class="dn-label" for="dn-email">Email đăng ký <span class="dn-bat-buoc">*</span></label>
+                <div class="dn-input-wrap">
+                  <i class="bi bi-envelope dn-input-icon" aria-hidden="true"></i>
+                  <input
+                    id="dn-email"
+                    ref="oEmail"
+                    v-model="email"
+                    type="email"
+                    name="email"
+                    class="dn-input"
+                    :class="{ 'is-invalid': loiEmail }"
+                    autocomplete="email"
+                    required
+                    :aria-invalid="!!loiEmail"
+                    :aria-describedby="loiEmail ? 'dn-email-loi' : undefined"
+                    placeholder="vd: nhanvien@gmail.com"
+                    maxlength="255"
+                    @input="loiEmail = ''"
+                  />
+                </div>
+                <p v-if="loiEmail" id="dn-email-loi" class="dn-error"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> {{ loiEmail }}</p>
+              </div>
+              <button type="submit" class="dn-nut" :disabled="dangGui">
+                <span v-if="dangGui" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>Gửi mật khẩu tạm</span>
+              </button>
+            </form>
+          </div>
+        </Transition>
       </div>
-    </section>
+
+      <ul class="dn-tinh-nang dn-vao" style="--tre: 320ms" aria-label="Tính năng chính">
+        <li><i class="bi bi-upc-scan" aria-hidden="true"></i> Bán tại quầy</li>
+        <li><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Giao ca</li>
+        <li><i class="bi bi-truck" aria-hidden="true"></i> Đơn online</li>
+        <li><i class="bi bi-graph-up-arrow" aria-hidden="true"></i> Thống kê</li>
+      </ul>
+    </main>
+
+    <footer class="dn-chan">
+      <span class="dn-bao-mat"><i class="bi bi-shield-check" aria-hidden="true"></i> Kết nối được mã hóa · Khóa 5 phút khi sai 5 lần</span>
+      <span>© 2026 FootStyle Badminton</span>
+    </footer>
   </div>
 </template>
 
 <style scoped>
+/* Một khối đăng nhập ở giữa trên nền sân cầu lông xanh (không chia đôi màn hình) */
 .dn-trang {
-  display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  width: 100vw;
-  height: 100vh;
-  min-height: 100vh;
-  max-height: 100vh;
-  overflow: hidden;
-  background: #f8fafc;
-  font-family: inherit;
-}
-
-/* =========================================================
-   CỘT TRÁI: GIỚI THIỆU ĐỀ TÀI / ĐỒ ÁN TỐT NGHIỆP
-   ========================================================= */
-.dn-trai {
+  --xanh: #0977ec;
+  --xanh-dam: #0657b8;
+  --xanh-nhat: #eaf3fe;
+  --chu: #0f1b2d;
+  --chu-phu: #5b6b80;
+  --vien: #d9e1ec;
+  --de: cubic-bezier(0.2, 0.8, 0.2, 1);
   position: relative;
-  overflow: hidden;
   display: flex;
-  background: #18242f;
-  color: #fff;
-  padding: 2rem 3.25rem;
-  height: 100vh;
-  max-height: 100vh;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 1.25rem clamp(1rem, 3vw, 2.5rem);
+  background: linear-gradient(155deg, #061634 0%, #0a3274 45%, #0b5fd0 80%, #1c8cf0 100%);
+  color: var(--chu);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+/* Trang này tự đặt cỡ / màu chữ cho tiêu đề (không theo h1, h2 chung của style.css) */
+.dn-trang :is(h1, h2) {
+  margin: 0;
+  letter-spacing: -0.02em;
+  font-weight: 800;
 }
 
-.dn-trai-nen {
+/* ----- Nền trang trí ----- */
+.dn-nen {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
-.dn-aura {
+.dn-quang {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.35;
 }
-.dn-aura-1 {
-  width: 500px;
-  height: 500px;
-  top: -100px;
-  left: -100px;
-  background: radial-gradient(circle, #0977ec 0%, rgba(9, 119, 236, 0) 70%);
-  opacity: 0.32;
+.dn-quang-1 {
+  width: 620px;
+  height: 620px;
+  top: -240px;
+  right: -180px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.42), transparent 65%);
 }
-.dn-aura-2 {
-  width: 520px;
-  height: 520px;
-  bottom: -120px;
-  right: -80px;
-  background: radial-gradient(circle, #0977ec 0%, rgba(9, 119, 236, 0) 70%);
-  opacity: 0.2;
+.dn-quang-2 {
+  width: 560px;
+  height: 560px;
+  bottom: -260px;
+  left: -200px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.38), transparent 65%);
 }
-.dn-luoi-nen {
+.dn-quang-3 {
+  width: 420px;
+  height: 420px;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent 70%);
+}
+.dn-san {
   position: absolute;
-  inset: 0;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
+  left: 50%;
+  top: 50%;
+  width: min(720px, 90vw);
+  color: rgba(255, 255, 255, 0.06);
+  transform: translate(-50%, -50%) rotate(-62deg);
+}
+.dn-qua-cau {
+  position: absolute;
+  width: 44px;
+  opacity: 0.85;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.3));
+}
+.dn-qua-cau.is-1 {
+  top: 16%;
+  left: 12%;
+  transform: rotate(-28deg);
+  animation: dn-bay 9s ease-in-out infinite;
+}
+.dn-qua-cau.is-2 {
+  bottom: 14%;
+  right: 13%;
+  width: 56px;
+  transform: rotate(32deg);
+  animation: dn-bay 11s ease-in-out 1.5s infinite;
+}
+.dn-qua-cau.is-3 {
+  top: 22%;
+  right: 22%;
+  width: 30px;
+  opacity: 0.55;
+  transform: rotate(12deg);
+  animation: dn-bay 10s ease-in-out 3s infinite;
 }
 
-.dn-trai-noi-dung {
+/* ----- Thanh trên, khối giữa, chân trang ----- */
+.dn-dau {
   position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  width: 100%;
-  max-width: 580px;
-  height: 100%;
-}
-
-/* Header */
-.dn-trai-dau {
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
-.dn-logo-hop {
-  background: #ffffff;
-  padding: 0.4rem 0.85rem;
-  border-radius: 10px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+.dn-thuong-hieu {
   display: inline-flex;
-}
-.dn-logo {
-  height: 34px;
-  width: auto;
-  object-fit: contain;
-}
-.dn-trai-huy-hieu {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: rgba(9, 119, 236, 0.15);
-  border: 1px solid rgba(9, 119, 236, 0.35);
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: #38bdf8;
-  backdrop-filter: blur(8px);
-}
-
-/* Mid Section */
-.dn-trai-giua {
-  margin: 0.85rem 0;
-}
-.dn-tagline {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  color: #38bdf8;
-  margin-bottom: 0.35rem;
-  text-transform: uppercase;
-}
-.dn-khau-hieu {
-  font-size: 1.95rem;
-  font-weight: 800;
-  line-height: 1.2;
-  margin: 0 0 0.65rem;
-  color: #ffffff;
-  letter-spacing: -0.4px;
-}
-.dn-chu-nhan {
-  color: #38bdf8;
-}
-.dn-mo-ta {
-  font-size: 0.86rem;
-  line-height: 1.48;
-  color: #cbd5e1;
-  margin: 0 0 0.9rem;
-  max-width: 520px;
-}
-
-/* Cards Grid */
-.dn-cards-grid {
-  display: grid;
-  gap: 0.6rem;
-}
-.dn-card-item {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  padding: 0.6rem 0.85rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  backdrop-filter: blur(12px);
-  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-}
-.dn-card-item:hover {
-  transform: translateX(4px);
-  background: rgba(9, 119, 236, 0.12);
-  border-color: #0977ec;
-}
-.dn-card-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  display: inline-grid;
-  place-items: center;
-  font-size: 1.05rem;
-  flex-shrink: 0;
-  background: rgba(9, 119, 236, 0.18);
-  color: #38bdf8;
-  border: 1px solid rgba(9, 119, 236, 0.3);
-}
-.dn-card-text {
-  display: flex;
-  flex-direction: column;
-}
-.dn-card-text strong {
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: #f8fafc;
-  margin-bottom: 0.1rem;
-}
-.dn-card-text span {
-  font-size: 0.76rem;
-  color: #94a3b8;
-  line-height: 1.3;
-}
-
-/* Bottom Stats */
-.dn-trai-day {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 0.9rem;
-}
-.dn-stats-row {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  margin-bottom: 0.6rem;
-}
-.dn-stat {
-  display: flex;
-  flex-direction: column;
-}
-.dn-stat-so {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: -0.5px;
-}
-.dn-stat-chu {
-  font-size: 0.72rem;
-  color: #94a3b8;
-}
-.dn-stat-ngan {
-  width: 1px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.12);
-}
-.dn-danh-gia {
-  display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.76rem;
-  color: #cbd5e1;
+  color: #e0ecff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
 }
-
-/* =========================================================
-   CỘT PHẢI: FORM ĐĂNG NHẬP SANG TRỌNG
-   ========================================================= */
-.dn-phai {
+.dn-thuong-hieu .bi {
+  color: #fde047;
+}
+.dn-btn-shop {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.dn-btn-shop:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+.dn-giua {
+  position: relative;
+  z-index: 1;
+  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1.25rem 2rem;
-  height: 100vh;
-  max-height: 100vh;
-  overflow-y: auto;
-  background: radial-gradient(circle at 80% 20%, rgba(9, 119, 236, 0.04) 0%, #f8fafc 70%);
+  gap: 1rem;
+  padding: 1rem 0;
 }
 .dn-the {
   width: 100%;
-  max-width: 460px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  padding: 1.35rem 1.85rem;
-  box-shadow: 0 16px 36px -12px rgba(15, 23, 42, 0.07), 0 0 0 1px rgba(9, 119, 236, 0.05);
+  max-width: 490px;
+  padding: 1.6rem 2rem 1.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 30px 70px rgba(2, 10, 30, 0.45), 0 2px 0 rgba(255, 255, 255, 0.5) inset;
 }
-
 .dn-the-dau {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
+  justify-content: center;
+  margin-bottom: 0.9rem;
 }
-.dn-logo-nho-wrap {
-  display: none;
-}
-.dn-logo-nho {
-  height: 32px;
+.dn-logo {
+  height: 54px;
   width: auto;
+  object-fit: contain;
 }
-.dn-the-badge {
+.dn-the .dn-tieu-de,
+.dn-the .dn-phu {
+  text-align: center;
+}
+.dn-the .dn-nhan-tren {
+  display: flex;
+  width: fit-content;
+  margin-inline: auto;
+}
+.dn-tinh-nang {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dn-tinh-nang li {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  background: #eff6ff;
-  color: #0977ec;
-  padding: 0.28rem 0.65rem;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 999px;
-  font-size: 0.74rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #dbeafe;
+  font-size: 0.82rem;
   font-weight: 600;
-  border: 1px solid #dbeafe;
+  backdrop-filter: blur(6px);
 }
-.dn-btn-shop {
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #0977ec;
-  border-radius: 999px;
-  padding: 0.28rem 0.75rem;
-  font-size: 0.76rem;
-  font-weight: 600;
+.dn-tinh-nang .bi {
+  color: #7dd3fc;
+}
+.dn-the.is-lac {
+  animation: dn-lac 0.42s ease;
+}
+.dn-nhan-tren {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.dn-btn-shop:hover {
-  background: #0977ec;
-  color: #ffffff;
-  border-color: #0977ec;
-}
-
-.dn-tieu-de-khoi {
-  margin-bottom: 0.95rem;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--xanh-nhat);
+  color: var(--xanh-dam);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 0.7rem;
 }
 .dn-tieu-de {
-  font-size: 1.55rem;
-  font-weight: 800;
-  color: #18242f;
-  letter-spacing: -0.4px;
-  margin: 0 0 0.2rem;
+  font-size: clamp(1.7rem, 2.2vw, 2rem);
+  line-height: 1.15;
+  color: var(--chu);
 }
 .dn-phu {
-  font-size: 0.84rem;
-  color: #64748b;
-  margin: 0;
-  line-height: 1.4;
+  margin: 0.45rem 0 1.25rem;
+  color: var(--chu-phu);
+  font-size: 0.93rem;
+  line-height: 1.55;
 }
-
-/* Role Tabs */
-.dn-tabs {
-  display: flex;
-  background: #f1f5f9;
-  padding: 0.25rem;
-  border-radius: 10px;
-  margin-bottom: 1rem;
-  gap: 0.25rem;
-}
-.dn-tab {
-  flex: 1;
-  border: 0;
-  background: transparent;
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.42rem 0.6rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.dn-tab.is-active {
-  background: #ffffff;
-  color: #0977ec;
-  box-shadow: 0 2px 8px rgba(9, 119, 236, 0.15);
-  border: 1px solid #bfdbfe;
-  font-weight: 700;
-}
-
-/* Alert Boxes */
 .dn-thong-bao {
-  border-radius: 10px;
-  padding: 0.6rem 0.8rem;
-  margin-bottom: 0.9rem;
-  font-size: 0.82rem;
   display: flex;
-  align-items: center;
-  line-height: 1.35;
+  gap: 0.55rem;
+  align-items: flex-start;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 .dn-thong-bao.is-error {
   background: #fef2f2;
+  color: #991b1b;
   border: 1px solid #fecaca;
-  color: #b91c1c;
 }
 .dn-thong-bao.is-warn {
   background: #fffbeb;
-  border: 1px solid #fef3c7;
-  color: #b45309;
+  color: #92400e;
+  border: 1px solid #fde68a;
 }
 .dn-thong-bao.is-ok {
   background: #f0fdf4;
+  color: #166534;
   border: 1px solid #bbf7d0;
-  color: #15803d;
 }
-
-/* Form Controls */
 .dn-form {
   display: flex;
   flex-direction: column;
+  gap: 0.85rem;
 }
 .dn-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #18242f;
-  margin-bottom: 0.3rem;
   display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #24344a;
+}
+.dn-bat-buoc {
+  color: #dc2626;
+}
+.dn-label-hang {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
 }
 .dn-input-wrap {
   position: relative;
-  display: flex;
-  align-items: center;
 }
 .dn-input-icon {
   position: absolute;
-  left: 0.85rem;
-  color: #94a3b8;
-  font-size: 1rem;
+  left: 0.95rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8a99ad;
+  font-size: 1.05rem;
   pointer-events: none;
-  z-index: 2;
+  transition: color 0.15s ease;
 }
 .dn-input {
-  height: 42px;
-  padding-left: 2.4rem !important;
-  padding-right: 0.85rem;
-  border-radius: 9px;
-  font-size: 0.86rem;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #18242f;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+  height: 48px;
+  padding: 0 2.9rem 0 2.75rem;
+  border: 1.5px solid var(--vien);
+  border-radius: 14px;
+  background: #f8fafc;
+  color: var(--chu);
+  font-size: 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.dn-input::placeholder {
+  color: #9aa8ba;
+}
+.dn-input:hover {
+  border-color: #b9c6d8;
 }
 .dn-input:focus {
-  border-color: #0977ec;
-  box-shadow: 0 0 0 3px rgba(9, 119, 236, 0.16);
+  outline: none;
+  background: #fff;
+  border-color: var(--xanh);
+  box-shadow: 0 0 0 4px rgba(9, 119, 236, 0.14);
+}
+.dn-input-wrap:focus-within .dn-input-icon {
+  color: var(--xanh);
+}
+.dn-input.is-invalid {
+  border-color: #dc2626;
+  background: #fffafa;
+}
+.dn-input.is-invalid:focus {
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
 }
 .dn-mat {
   position: absolute;
-  right: 0.65rem;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
   border: 0;
+  border-radius: 10px;
   background: transparent;
   color: #64748b;
-  font-size: 1.05rem;
-  padding: 0.3rem;
   cursor: pointer;
-  border-radius: 6px;
-  display: inline-grid;
-  place-items: center;
 }
 .dn-mat:hover {
-  color: #18242f;
+  background: #eef3f9;
+  color: var(--chu);
 }
 .dn-error {
-  margin-top: 0.25rem;
-  font-size: 0.78rem;
+  display: flex;
+  gap: 0.35rem;
+  margin: 0.4rem 0 0;
+  font-size: 0.84rem;
   color: #dc2626;
-}
-
-/* Options */
-.dn-hang {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0.75rem 0 0.95rem;
-}
-.dn-nho {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.8rem;
-  color: #475569;
-  cursor: pointer;
-  margin: 0;
-}
-.dn-nho .form-check-input {
-  margin: 0;
-  cursor: pointer;
-  width: 1rem;
-  height: 1rem;
 }
 .dn-lien-ket {
   border: 0;
   background: none;
-  color: #0977ec;
-  font-size: 0.8rem;
-  font-weight: 600;
   padding: 0;
+  color: var(--xanh);
+  font-weight: 600;
+  font-size: 0.88rem;
   cursor: pointer;
-  transition: color 0.15s ease;
 }
 .dn-lien-ket:hover {
+  color: var(--xanh-dam);
   text-decoration: underline;
-  color: #075fc0;
 }
-
-/* Submit Button */
-.dn-nut {
-  width: 100%;
-  height: 42px;
-  border-radius: 9px;
+.dn-lien-ket:focus-visible,
+.dn-btn-shop:focus-visible,
+.dn-mau-nut:focus-visible,
+.dn-mat:focus-visible {
+  outline: 3px solid rgba(9, 119, 236, 0.35);
+  outline-offset: 2px;
+}
+.dn-nho {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.2px;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+}
+.dn-nho input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--xanh);
+}
+.dn-nut {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0977ec 0%, #075fc0 100%);
+  gap: 0.55rem;
+  height: 50px;
+  margin-top: 0.2rem;
   border: 0;
-  box-shadow: 0 6px 18px rgba(9, 119, 236, 0.28);
-  transition: all 0.2s ease;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1a8cff 0%, var(--xanh) 45%, var(--xanh-dam) 100%);
   color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 10px 24px rgba(9, 119, 236, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 .dn-nut:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(9, 119, 236, 0.36);
-  background: linear-gradient(135deg, #0f83f7 0%, #0654ab 100%);
+  box-shadow: 0 14px 30px rgba(9, 119, 236, 0.34);
+  filter: brightness(1.04);
 }
 .dn-nut:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(0);
 }
-
-/* Quick Demo Bar */
+.dn-nut:focus-visible {
+  outline: 3px solid rgba(9, 119, 236, 0.4);
+  outline-offset: 3px;
+}
+.dn-nut:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+.dn-nut .dn-nut-mui {
+  transition: transform 0.2s var(--de);
+}
+.dn-nut:hover .dn-nut-mui {
+  transform: translateX(4px);
+}
+.dn-nut.is-xong {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: 0 10px 24px rgba(22, 163, 74, 0.3);
+}
+.dn-nut-tick {
+  animation: dn-bat 0.35s var(--de);
+}
+.dn-chia {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.1rem 0 0.7rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.dn-chia::before,
+.dn-chia::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5ebf3;
+}
+.dn-khach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 1rem 0 0;
+  color: var(--chu-phu);
+  font-size: 0.9rem;
+}
 .dn-mau {
   margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px dashed #cbd5e1;
+  padding: 0.75rem;
+  border: 1px dashed #c9d6e8;
+  border-radius: 14px;
+  background: #f8fbff;
 }
 .dn-mau-tieu-de {
   display: flex;
   align-items: center;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  margin-bottom: 0.5rem;
-}
-.dn-mau-nut-group {
-  display: flex;
-  flex-wrap: wrap;
   gap: 0.4rem;
-}
-.dn-mau-nut {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #18242f;
-  border-radius: 8px;
-  padding: 0.32rem 0.65rem;
-  font-size: 0.76rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.dn-mau-nut:hover {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #0977ec;
-  transform: translateY(-1px);
-}
-.dn-badge-role {
-  background: #e7f1fd;
-  color: #0977ec;
-  font-size: 0.68rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  padding: 0.12rem 0.38rem;
-  border-radius: 5px;
-}
-.dn-badge-role.is-nv {
-  background: #e2e8f0;
   color: #475569;
 }
-
-/* Quên mật khẩu quay lại */
+.dn-mau-tieu-de .bi {
+  color: #f59e0b;
+}
+.dn-mau-nut-group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.dn-mau-nut {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.55rem;
+  border: 1px solid var(--vien);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.dn-mau-nut:hover {
+  border-color: var(--xanh);
+  box-shadow: 0 6px 16px rgba(9, 119, 236, 0.12);
+  transform: translateY(-1px);
+}
+.dn-mau-nut b {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--chu);
+}
+.dn-mau-nut small {
+  display: block;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  color: var(--chu-phu);
+}
+.dn-mau-avt {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--xanh-nhat);
+  color: var(--xanh-dam);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.dn-mau-avt.is-ql {
+  background: #fef3c7;
+  color: #b45309;
+}
 .dn-quay-lai {
   display: inline-flex;
   align-items: center;
-  margin-top: 1rem;
-  font-size: 0.84rem;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+}
+.dn-chan {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  color: rgba(219, 234, 254, 0.7);
+  font-size: 0.8rem;
+}
+.dn-bao-mat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #86efac;
+  font-weight: 600;
 }
 
-/* Footer card */
-.dn-the-chan {
-  margin-top: 1.15rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #f1f5f9;
-  text-align: center;
+/* ================= CHUYỂN ĐỘNG ================= */
+.dn-vao {
+  animation: dn-len 0.6s var(--de) both;
+  animation-delay: var(--tre, 0ms);
 }
-.dn-ban-quyen {
-  font-size: 0.72rem;
-  color: #94a3b8;
+.dn-che-enter-active,
+.dn-che-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s var(--de);
+}
+.dn-che-enter-from {
+  opacity: 0;
+  transform: translateX(14px);
+}
+.dn-che-leave-to {
+  opacity: 0;
+  transform: translateX(-14px);
+}
+.dn-tb-enter-active,
+.dn-tb-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.dn-tb-enter-from,
+.dn-tb-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+@keyframes dn-len {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes dn-lac {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-8px);
+  }
+  40%,
+  80% {
+    transform: translateX(8px);
+  }
+}
+@keyframes dn-bat {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+/* Quả cầu bay lơ lửng (giữ góc nghiêng riêng của từng quả qua translate) */
+@keyframes dn-bay {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 10px -18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dn-vao,
+  .dn-qua-cau,
+  .dn-the.is-lac,
+  .dn-nut-tick {
+    animation: none !important;
+  }
+  .dn-che-enter-active,
+  .dn-che-leave-active,
+  .dn-tb-enter-active,
+  .dn-tb-leave-active {
+    transition: none;
+  }
 }
 
-/* =========================================================
-   RESPONSIVE DESIGN (TABLET & MOBILE)
-   ========================================================= */
-@media (max-width: 1080px) {
+/* ================= MÀN HÌNH NHỎ ================= */
+@media (max-width: 640px) {
   .dn-trang {
-    grid-template-columns: 1fr;
-    overflow-y: auto;
-  }
-  .dn-trai {
-    display: none;
-  }
-  .dn-phai {
-    height: auto;
-    min-height: 100vh;
-    padding: 2rem 1rem;
-  }
-  .dn-logo-nho-wrap {
-    display: block;
+    padding: 0.9rem;
   }
   .dn-the {
-    max-width: 440px;
-    padding: 1.75rem 1.5rem;
+    padding: 1.5rem 1.25rem 1.25rem;
+    border-radius: 20px;
+  }
+  .dn-logo {
+    height: 52px;
+  }
+  .dn-thuong-hieu {
+    font-size: 0.85rem;
+  }
+  .dn-btn-shop {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  .dn-qua-cau,
+  .dn-tinh-nang {
+    display: none;
+  }
+  .dn-chan {
+    justify-content: center;
+    text-align: center;
+  }
+}
+/* Màn hình thấp (laptop 768px, trình duyệt phóng to): thu gọn để ít phải kéo */
+@media (max-height: 820px) {
+  .dn-the .dn-nhan-tren {
+    display: none;
+  }
+  .dn-the {
+    padding-top: 1.2rem;
+  }
+  .dn-the-dau {
+    margin-bottom: 0.5rem;
+  }
+  .dn-logo {
+    height: 44px;
+  }
+  .dn-phu {
+    margin-bottom: 0.9rem;
+  }
+  .dn-giua {
+    padding: 0.5rem 0;
+  }
+}
+@media (max-height: 980px) and (min-width: 641px) {
+  .dn-tinh-nang {
+    display: none;
+  }
+}
+@media (max-width: 420px) {
+  .dn-mau-nut-group {
+    grid-template-columns: 1fr;
   }
 }
 </style>

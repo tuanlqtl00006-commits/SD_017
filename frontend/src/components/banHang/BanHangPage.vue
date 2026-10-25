@@ -1,85 +1,219 @@
 <script setup>
 // Bán hàng tại quầy (giai đoạn 3).
-//  - Tối đa 5 hóa đơn chờ cùng lúc (tab), lưu trên trình duyệt theo từng nhân viên: tải lại trang không mất giỏ hàng.
-//  - Thêm sản phẩm: tìm theo tên / mã, máy quét mã hoặc camera. Không thêm quá tồn kho.
-//  - Khách lẻ hoặc khách hàng (tìm / thêm nhanh); phiếu giảm giá tự chọn phiếu giảm nhiều nhất (đổi được).
-//  - Thanh toán tiền mặt / chuyển khoản (mã QR VietQR) / kết hợp. Bắt buộc đã nhận ca.
-//  - Backend tính lại toàn bộ giá, phiếu, tồn kho khi thanh toán (xem BanHangService).
+//  - Hóa đơn chờ LƯU Ở CSDL (cô: thêm sản phẩm là trừ tồn kho + tạo hóa đơn chi tiết ngay; bỏ / hủy thì trả lại kho).
+//    Mỗi tab là một hóa đơn trạng thái "chờ" của nhân viên; tải lại trang hay đổi máy vẫn còn.
+//  - Chọn sản phẩm ở bảng có lọc + phân trang (mới nhất trước), máy quét mã hoặc camera. Không thêm quá tồn kho.
+//  - Giá đổi sau khi đã thêm (đợt giảm giá bắt đầu / kết thúc): dòng đó báo "giá đã đổi", thêm tiếp cùng sản phẩm thì tách dòng mới;
+//    bấm "Cập nhật giá" sau khi báo khách mới thanh toán được.
+//  - Khách lẻ hoặc khách hàng; phiếu giảm giá TỰ CHỌN phiếu giảm nhiều nhất (cả phiếu cá nhân của khách), đổi được.
+//  - Giao hàng: khách lẻ nhập MỘT địa chỉ nhận; tính phí giao như web; thanh toán xong đơn sang "Chờ giao hàng" (không cần xác nhận lại).
+//  - Thanh toán tiền mặt / chuyển khoản (mã QR VietQR) / kết hợp, in hóa đơn ngay ở bước này. Bắt buộc đã vào ca.
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import QRCode from 'qrcode'
 import api from '../../services/api'
 import ChonKhach from './ChonKhach.vue'
 import TimSanPham from './TimSanPham.vue'
+import QuetMaModal from './QuetMaModal.vue'
 import BaseModal from '../common/BaseModal.vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import MoneyInput from '../common/MoneyInput.vue'
 import GiaoCaModal from '../giaoCa/GiaoCaModal.vue'
-import { useAuth } from '../../composables/useAuth'
 import { useGiaoCa } from '../../composables/useGiaoCa'
 import { useToast } from '../../composables/useToast'
 import { NGAN_HANG, PHUONG_THUC, daCauHinhNganHang } from '../../constants/thanhToan'
 import { formatMoney } from '../../utils/format'
 import { formatPhanTram } from '../../utils/giamGia'
 import { taoHtmlHoaDon } from '../../utils/hoaDonIn'
-import {
-  SO_HOA_DON_CHO_TOI_DA, capNhatGia, chuoiVietQR, docHoaDonCho, doiSoLuong, ghiHoaDonCho, goiYTienKhachDua, taoHoaDonMoi,
-  themVaoGio, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang, xoaKhoiGio,
-} from '../../utils/banHang'
+import { SO_LUONG_TOI_DA, chuoiVietQR, goiYTienKhachDua, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
 
+const SO_HOA_DON_CHO_TOI_DA = 10
 const router = useRouter()
 const toast = useToast()
-const auth = useAuth()
 const giaoCa = useGiaoCa()
-const idNv = computed(() => auth.trangThai.nguoiDung?.id ?? null)
 
-/* ===================== Hóa đơn chờ ===================== */
-const kho = reactive(docHoaDonCho(idNv.value))
-if (!kho.ds.length) kho.ds.push(taoHoaDonMoi([]))
-if (!kho.ds.some((h) => h.id === kho.dangChon)) kho.dangChon = kho.ds[0].id
-watch(kho, (v) => ghiHoaDonCho(idNv.value, v), { deep: true })
-
-const hd = computed(() => kho.ds.find((h) => h.id === kho.dangChon) ?? kho.ds[0])
-function themHoaDon() {
-  if (kho.ds.length >= SO_HOA_DON_CHO_TOI_DA) {
-    toast.error(`Tối đa ${SO_HOA_DON_CHO_TOI_DA} hóa đơn chờ. Hãy thanh toán hoặc xóa bớt.`)
-    return
+/* ===================== Hóa đơn chờ (CSDL) ===================== */
+const dsCho = ref([]) // [{ id, maHoaDon, khach, items, tongTienHang, soLuong, coGiaDoi }]
+const dangChon = ref(null)
+const daTaiCho = ref(false)
+const dangLam = ref(false) // đang gọi API thêm / sửa / xóa
+// Phần nhập liệu thanh toán của từng hóa đơn chờ (chỉ ở màn hình, không ảnh hưởng tồn kho)
+const phu = reactive({})
+function phuMoi() {
+  return {
+    maPhieu: '',
+    tuDongPhieu: true, // true: tự chọn phiếu giảm nhiều nhất; false: nhân viên đã tự chọn / bỏ phiếu
+    ghiChu: '',
+    phuongThuc: 'TIEN_MAT',
+    tienMat: '',
+    chuyenKhoan: '',
+    maGiaoDich: '',
+    giaoHang: false,
+    nguoiNhan: { hoTen: '', sdt: '', diaChi: '' },
   }
-  const moi = taoHoaDonMoi(kho.ds)
-  kho.ds.push(moi)
-  kho.dangChon = moi.id
+}
+const RONG = Object.freeze({ id: null, maHoaDon: '', khach: null, items: [], tongTienHang: 0, soLuong: 0, coGiaDoi: false })
+const PHU_RONG = reactive(phuMoi()) // khi chưa có hóa đơn chờ nào
+const hdServer = computed(() => dsCho.value.find((h) => h.id === dangChon.value) ?? dsCho.value[0] ?? RONG)
+const hd = computed(() => {
+  const h = hdServer.value
+  return { ...h, ten: h.maHoaDon || 'Hóa đơn mới', gio: h.items, p: (h.id && phu[h.id]) || PHU_RONG }
+})
+
+function thayHoaDon(moi) {
+  if (!phu[moi.id]) phu[moi.id] = phuMoi()
+  const i = dsCho.value.findIndex((h) => h.id === moi.id)
+  if (i >= 0) dsCho.value.splice(i, 1, moi)
+  else dsCho.value.push(moi)
+  if (moi.thongBao) toast.success(moi.thongBao, 'Giá đã thay đổi')
+}
+
+async function taiHoaDonCho() {
+  try {
+    dsCho.value = (await api.get('/ban-hang/hoa-don-cho')).data || []
+    for (const h of dsCho.value) if (!phu[h.id]) phu[h.id] = phuMoi()
+    if (!dsCho.value.some((h) => h.id === dangChon.value)) dangChon.value = dsCho.value[0]?.id ?? null
+  } catch (e) {
+    toast.error(e.message || 'Không tải được hóa đơn chờ.')
+  } finally {
+    daTaiCho.value = true
+  }
+}
+
+/** Lỗi khi thao tác hóa đơn chờ: hóa đơn đã đóng ở cửa sổ khác thì tải lại danh sách. */
+function baoLoiCho(e, macDinh) {
+  toast.error(e.message || macDinh)
+  if (e.code === 'HOA_DON_CHO_DA_DONG' || e.status === 404) taiHoaDonCho()
+  if (e.code === 'HET_HANG') timSp.value?.taiLai()
+}
+
+async function themHoaDon() {
+  if (dsCho.value.length >= SO_HOA_DON_CHO_TOI_DA) {
+    toast.error(`Tối đa ${SO_HOA_DON_CHO_TOI_DA} hóa đơn chờ. Hãy thanh toán hoặc hủy bớt.`)
+    return null
+  }
+  if (!giaoCa.dangTrongCa.value) {
+    toast.error('Bạn chưa vào ca.')
+    moCa.value = true
+    return null
+  }
+  try {
+    const moi = (await api.post('/ban-hang/hoa-don-cho')).data
+    thayHoaDon(moi)
+    dangChon.value = moi.id
+    return moi
+  } catch (e) {
+    baoLoiCho(e, 'Không tạo được hóa đơn chờ.')
+    return null
+  }
 }
 const xoaHd = ref(null)
 function hoiXoaHoaDon(h) {
-  if (h.gio.length) xoaHd.value = h
+  if (h.items.length) xoaHd.value = h
   else xoaHoaDon(h)
 }
-function xoaHoaDon(h) {
-  const i = kho.ds.findIndex((x) => x.id === h.id)
-  kho.ds.splice(i, 1)
-  if (!kho.ds.length) kho.ds.push(taoHoaDonMoi([]))
-  if (kho.dangChon === h.id) kho.dangChon = kho.ds[Math.max(0, i - 1)].id
+async function xoaHoaDon(h) {
   xoaHd.value = null
+  try {
+    await api.delete(`/ban-hang/hoa-don-cho/${h.id}`)
+    if (h.items.length) toast.success(`Đã hủy ${h.maHoaDon}, trả ${h.soLuong} sản phẩm về kho.`)
+    timSp.value?.taiLai()
+  } catch (e) {
+    if (e.code !== 'HOA_DON_CHO_DA_DONG' && e.status !== 404) {
+      baoLoiCho(e, 'Không hủy được hóa đơn chờ.')
+      return
+    }
+  }
+  const i = dsCho.value.findIndex((x) => x.id === h.id)
+  if (i >= 0) dsCho.value.splice(i, 1)
+  delete phu[h.id]
+  if (dangChon.value === h.id) dangChon.value = dsCho.value[Math.max(0, i - 1)]?.id ?? null
 }
 
 /* ===================== Giỏ hàng ===================== */
-const timSp = ref(null)
-function themSanPham(sp, loiQuet) {
+const timSp = ref(null) // bảng chọn sản phẩm (chỉ có khi hộp thoại đang mở)
+const moChonSp = ref(false)
+
+/* ----- Quét mã: máy quét cầm tay gõ mã + Enter vào ô, hoặc camera ----- */
+const maQuet = ref('')
+const oMa = ref(null)
+const moCamera = ref(false)
+async function quetMa(giaTri) {
+  const m = String(giaTri ?? maQuet.value).trim()
+  if (!m) return
+  try {
+    const sp = (await api.get(`/ban-hang/san-pham/ma/${encodeURIComponent(m)}`)).data
+    await themSanPham(sp, null, 1)
+    maQuet.value = ''
+  } catch (e) {
+    toast.error(e.message || `Không tìm thấy sản phẩm có mã ${m}.`)
+  }
+  oMa.value?.focus()
+}
+function onMaCamera(giaTri) {
+  moCamera.value = false
+  quetMa(giaTri)
+}
+async function themSanPham(sp, loiQuet, soLuong = 1) {
   if (!sp) {
     toast.error(loiQuet)
     return
   }
-  const kq = themVaoGio(hd.value.gio, sp)
-  if (kq.loi) toast.error(kq.loi)
-  else hd.value.gio = kq.gio
+  if (dangLam.value) return
+  dangLam.value = true
+  try {
+    let id = hdServer.value.id
+    if (!id) id = (await themHoaDon())?.id
+    if (!id) return
+    thayHoaDon((await api.post(`/ban-hang/hoa-don-cho/${id}/san-pham`, { idBienThe: sp.id, soLuong })).data)
+    timSp.value?.taiLai()
+  } catch (e) {
+    baoLoiCho(e, 'Không thêm được sản phẩm.')
+  } finally {
+    dangLam.value = false
+  }
 }
-function doiSl(d, sl) {
-  const kq = doiSoLuong(hd.value.gio, d.idBienThe, sl)
-  hd.value.gio = kq.gio
-  if (kq.loi) toast.error(kq.loi)
+async function doiSl(d, giaTri) {
+  const sl = Math.floor(Number(giaTri))
+  const toiDa = Math.min(SO_LUONG_TOI_DA, d.soLuong + Number(d.tonKho || 0))
+  if (!Number.isFinite(sl) || sl < 1) {
+    toast.error('Số lượng tối thiểu là 1. Muốn bỏ sản phẩm thì bấm nút xóa.')
+    return
+  }
+  if (sl > toiDa) {
+    toast.error(`${d.ten} chỉ còn ${d.tonKho} sản phẩm trong kho (tối đa ${toiDa} cho dòng này).`)
+    return
+  }
+  if (sl === d.soLuong || dangLam.value) return
+  dangLam.value = true
+  try {
+    thayHoaDon((await api.put(`/ban-hang/hoa-don-cho/${hdServer.value.id}/chi-tiet/${d.id}`, { soLuong: sl })).data)
+    timSp.value?.taiLai()
+  } catch (e) {
+    baoLoiCho(e, 'Không đổi được số lượng.')
+  } finally {
+    dangLam.value = false
+  }
 }
-function xoaDong(d) {
-  hd.value.gio = xoaKhoiGio(hd.value.gio, d.idBienThe)
+async function xoaDong(d) {
+  if (dangLam.value) return
+  dangLam.value = true
+  try {
+    thayHoaDon((await api.delete(`/ban-hang/hoa-don-cho/${hdServer.value.id}/chi-tiet/${d.id}`)).data)
+    timSp.value?.taiLai()
+  } catch (e) {
+    baoLoiCho(e, 'Không bỏ được sản phẩm.')
+  } finally {
+    dangLam.value = false
+  }
+}
+async function capNhatGiaMoi() {
+  try {
+    thayHoaDon((await api.post(`/ban-hang/hoa-don-cho/${hdServer.value.id}/cap-nhat-gia`)).data)
+    toast.success('Đã cập nhật giá mới cho hóa đơn.')
+  } catch (e) {
+    baoLoiCho(e, 'Không cập nhật được giá.')
+  }
 }
 const tienHang = computed(() => tongTienHang(hd.value.gio))
 const giamDot = computed(() => tienGiamDot(hd.value.gio))
@@ -92,13 +226,14 @@ async function taiPhieu() {
   const h = hd.value
   if (!h.gio.length) {
     phieus.value = []
-    if (h.tuDongPhieu) h.maPhieu = ''
+    if (h.p.tuDongPhieu) h.p.maPhieu = ''
     return
   }
   dangTaiPhieu.value = true
   try {
     phieus.value = (await api.get('/ban-hang/phieu-giam-gia', { params: { idKhachHang: h.khach?.id, tongTien: tienHang.value } })).data
-    if (h.tuDongPhieu) h.maPhieu = phieus.value.find((p) => p.apDungDuoc)?.ma ?? ''
+    // Tự áp phiếu giảm nhiều nhất (kể cả phiếu cá nhân của khách) cho tới khi nhân viên tự chọn
+    if (h.p.tuDongPhieu) h.p.maPhieu = phieus.value.find((p) => p.apDungDuoc)?.ma ?? ''
   } catch (e) {
     phieus.value = []
     toast.error(e.message || 'Không tải được phiếu giảm giá.')
@@ -114,16 +249,16 @@ watch(
   },
   { immediate: true },
 )
-const phieuChon = computed(() => phieus.value.find((p) => p.ma === hd.value.maPhieu) ?? null)
+const phieuChon = computed(() => phieus.value.find((p) => p.ma === hd.value.p.maPhieu) ?? null)
 const giamPhieu = computed(() => (phieuChon.value?.apDungDuoc ? Number(phieuChon.value.soTienGiam) : 0))
 const loiPhieu = computed(() => {
-  if (!hd.value.maPhieu || dangTaiPhieu.value) return ''
-  if (!phieuChon.value) return `Phiếu ${hd.value.maPhieu} không còn dùng được cho đơn này.`
+  if (!hd.value.p.maPhieu || dangTaiPhieu.value) return ''
+  if (!phieuChon.value) return `Phiếu ${hd.value.p.maPhieu} không còn dùng được cho đơn này.`
   return phieuChon.value.apDungDuoc ? '' : phieuChon.value.lyDo
 })
 function chonPhieu(ma) {
-  hd.value.maPhieu = ma
-  hd.value.tuDongPhieu = false
+  hd.value.p.maPhieu = ma
+  hd.value.p.tuDongPhieu = false
 }
 function moTaPhieu(p) {
   const giam = p.loaiGiam === 'PHAN_TRAM' ? `Giảm ${formatPhanTram(p.giaTri)}${p.giamToiDa ? `, tối đa ${formatMoney(p.giamToiDa)}` : ''}` : `Giảm ${formatMoney(p.giaTri)}`
@@ -131,33 +266,84 @@ function moTaPhieu(p) {
 }
 
 /* ===================== Khách ===================== */
-function chonKhach(k) {
-  hd.value.khach = k
-  if (!hd.value.tuDongPhieu && phieuChon.value?.caNhan) {
-    hd.value.maPhieu = ''
-    hd.value.tuDongPhieu = true
+async function chonKhach(k) {
+  let id = hdServer.value.id
+  if (!id) id = (await themHoaDon())?.id
+  if (!id) return
+  try {
+    thayHoaDon((await api.put(`/ban-hang/hoa-don-cho/${id}/khach-hang`, { idKhachHang: k?.id ?? null })).data)
+  } catch (e) {
+    baoLoiCho(e, 'Không đổi được khách hàng.')
+    return
   }
+  const p = phu[id]
+  if (!p.tuDongPhieu && phieuChon.value?.caNhan) {
+    p.maPhieu = ''
+    p.tuDongPhieu = true
+  }
+  if (p.giaoHang) await dienNguoiNhan()
+}
+
+/* ===================== Giao hàng ===================== */
+const phiShip = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(tienHang.value) : 0))
+const loiGiao = computed(() => {
+  if (!hd.value.p.giaoHang) return {}
+  const n = hd.value.p.nguoiNhan
+  const e = {}
+  const sdt = (n.sdt || '').replace(/[\s.-]/g, '')
+  if (!n.hoTen.trim()) e.hoTen = 'Vui lòng nhập tên người nhận.'
+  if (!sdt) e.sdt = 'Vui lòng nhập số điện thoại người nhận.'
+  else if (!/^0[35789]\d{8}$/.test(sdt)) e.sdt = 'Số điện thoại gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.'
+  if (!n.diaChi.trim()) e.diaChi = 'Vui lòng nhập địa chỉ giao hàng.'
+  else if (n.diaChi.trim().length < 10) e.diaChi = 'Địa chỉ quá ngắn, hãy ghi rõ số nhà, đường, phường/xã, tỉnh/thành.'
+  return e
+})
+const daChamGiao = ref(false)
+/** Điền sẵn người nhận theo khách đã chọn (địa chỉ mặc định); khách lẻ thì để trống cho nhân viên nhập một địa chỉ. */
+async function dienNguoiNhan() {
+  const h = hd.value
+  const n = h.p.nguoiNhan
+  if (!h.khach) return
+  n.hoTen = n.hoTen || h.khach.hoTen || ''
+  n.sdt = n.sdt || h.khach.sdt || ''
+  if (n.diaChi) return
+  try {
+    const ds = (await api.get(`/dia-chi/khach-hang/${h.khach.id}`)).data || []
+    const dc = ds.find((d) => d.laDiaChiMacDinh) || ds[0]
+    if (dc) {
+      n.diaChi = [dc.diaChiCuThe, dc.phuongXa, dc.quanHuyen, dc.tinhThanhPho].filter(Boolean).join(', ')
+      if (dc.tenNguoiNhan) n.hoTen = dc.tenNguoiNhan
+      if (dc.sdtNguoiNhan) n.sdt = dc.sdtNguoiNhan
+    }
+  } catch {
+    // không lấy được địa chỉ thì nhân viên tự nhập
+  }
+}
+function batGiaoHang(bat) {
+  hd.value.p.giaoHang = bat
+  daChamGiao.value = false
+  if (bat) dienNguoiNhan()
 }
 
 /* ===================== Thanh toán ===================== */
 const tt = computed(() =>
   tinhThanhToan({
-    tongTien: tienHang.value,
+    tongTien: tienHang.value + phiShip.value,
     giam: giamPhieu.value,
-    phuongThuc: hd.value.phuongThuc,
-    tienMat: hd.value.tienMat,
-    chuyenKhoan: hd.value.chuyenKhoan,
+    phuongThuc: hd.value.p.phuongThuc,
+    tienMat: hd.value.p.tienMat,
+    chuyenKhoan: hd.value.p.chuyenKhoan,
   }),
 )
-const goiY = computed(() => goiYTienKhachDua(tt.value.phaiTra - (hd.value.phuongThuc === 'KET_HOP' ? tt.value.chuyenKhoan : 0)))
+const goiY = computed(() => goiYTienKhachDua(tt.value.phaiTra - (hd.value.p.phuongThuc === 'KET_HOP' ? tt.value.chuyenKhoan : 0)))
 const coQr = daCauHinhNganHang()
 const qrUrl = ref('')
-const noiDungCk = computed(() => `FOOTSTYLE ${hd.value.id.slice(-6).toUpperCase()}`)
+const noiDungCk = computed(() => `FOOTSTYLE ${hd.value.maHoaDon || ''}`.trim())
 watch(
-  () => [tt.value.chuyenKhoan, noiDungCk.value, hd.value.phuongThuc],
+  () => [tt.value.chuyenKhoan, noiDungCk.value, hd.value.p.phuongThuc],
   async ([ck]) => {
     qrUrl.value = ''
-    if (!coQr || !ck || hd.value.phuongThuc === 'TIEN_MAT') return
+    if (!coQr || !ck || hd.value.p.phuongThuc === 'TIEN_MAT') return
     try {
       qrUrl.value = await QRCode.toDataURL(chuoiVietQR({ bin: NGAN_HANG.bin, soTaiKhoan: NGAN_HANG.soTaiKhoan, soTien: ck, noiDung: noiDungCk.value }), { width: 220, margin: 1 })
     } catch {
@@ -167,14 +353,16 @@ watch(
   { immediate: true },
 )
 function chonPhuongThuc(ma) {
-  hd.value.phuongThuc = ma
-  if (ma === 'CHUYEN_KHOAN') hd.value.tienMat = ''
+  hd.value.p.phuongThuc = ma
+  if (ma === 'CHUYEN_KHOAN') hd.value.p.tienMat = ''
 }
 
 const lyDoKhongThanhToan = computed(() => {
-  if (!giaoCa.dangTrongCa.value) return 'Bạn chưa nhận ca.'
+  if (!giaoCa.dangTrongCa.value) return 'Bạn chưa vào ca.'
   if (!hd.value.gio.length) return 'Hóa đơn chưa có sản phẩm.'
+  if (hd.value.coGiaDoi) return 'Có sản phẩm đã đổi giá. Báo khách rồi bấm "Cập nhật giá".'
   if (loiPhieu.value) return loiPhieu.value
+  if (Object.keys(loiGiao.value).length) return 'Nhập đủ thông tin người nhận để giao hàng.'
   if (tt.value.loi === 'Nhập tiền khách đưa.') return ''
   return tt.value.loi
 })
@@ -183,6 +371,7 @@ const dangGui = ref(false)
 const xong = ref(null)
 
 function moXacNhan() {
+  if (hd.value.p.giaoHang) daChamGiao.value = true
   if (lyDoKhongThanhToan.value) {
     toast.error(lyDoKhongThanhToan.value)
     if (!giaoCa.dangTrongCa.value) moCa.value = true
@@ -195,43 +384,50 @@ async function thanhToan() {
   if (dangGui.value) return
   dangGui.value = true
   const h = hd.value
+  const p = h.p
   const tienMatGui =
-    h.phuongThuc === 'CHUYEN_KHOAN'
+    p.phuongThuc === 'CHUYEN_KHOAN'
       ? 0
-      : h.tienMat !== '' && h.tienMat !== null && h.tienMat !== undefined
+      : p.tienMat !== '' && p.tienMat !== null && p.tienMat !== undefined
         ? tt.value.tienMat
-        : Math.max(0, tt.value.phaiTra - (h.phuongThuc === 'KET_HOP' ? tt.value.chuyenKhoan : 0))
+        : Math.max(0, tt.value.phaiTra - (p.phuongThuc === 'KET_HOP' ? tt.value.chuyenKhoan : 0))
   try {
-    const res = await api.post('/ban-hang/thanh-toan', {
-      idKhachHang: h.khach?.id ?? null,
-      maPhieu: h.maPhieu || null,
-      ghiChu: h.ghiChu?.trim() || null,
-      items: h.gio.map((d) => ({ idBienThe: d.idBienThe, soLuong: d.soLuong, donGia: d.donGia })),
+    const res = await api.post(`/ban-hang/hoa-don-cho/${h.id}/thanh-toan`, {
+      maPhieu: p.maPhieu || null,
+      soTienGiam: p.maPhieu ? giamPhieu.value : null,
+      ghiChu: p.ghiChu?.trim() || null,
       tienMat: tienMatGui,
       chuyenKhoan: tt.value.chuyenKhoan,
-      maGiaoDich: h.phuongThuc === 'TIEN_MAT' ? null : h.maGiaoDich?.trim() || null,
+      maGiaoDich: p.phuongThuc === 'TIEN_MAT' ? null : p.maGiaoDich?.trim() || null,
+      giaoHang: p.giaoHang ? { hoTen: p.nguoiNhan.hoTen.trim(), sdt: p.nguoiNhan.sdt.trim(), diaChi: p.nguoiNhan.diaChi.trim() } : null,
     })
     xacNhan.value = false
     xong.value = res.data
-    xoaHoaDon(h)
+    const i = dsCho.value.findIndex((x) => x.id === h.id)
+    if (i >= 0) dsCho.value.splice(i, 1)
+    delete phu[h.id]
+    dangChon.value = dsCho.value[Math.max(0, i - 1)]?.id ?? null
     giaoCa.taiLai()
     timSp.value?.taiLai()
   } catch (e) {
     xacNhan.value = false
     if (e.code === 'GIA_THAY_DOI') {
-      h.gio = capNhatGia(h.gio, e.chiTiet?.items)
-      toast.error(`${e.message} Giá trong hóa đơn đã được cập nhật.`)
+      toast.error(e.message)
+      await taiHoaDonCho()
     } else if (e.code === 'CHUA_NHAN_CA') {
       toast.error(e.message)
       await giaoCa.taiLai()
       moCa.value = true
     } else if (e.code === 'PHIEU_KHONG_HOP_LE') {
       toast.error(e.message)
-      h.tuDongPhieu = true
+      p.tuDongPhieu = true
       taiPhieu()
+    } else if (e.code === 'PHIEU_THAY_DOI') {
+      // Giữ phiếu đang chọn, tải lại để màn hình hiện mức giảm mới; nhân viên báo khách số tiền mới rồi bấm thanh toán lại
+      toast.error(e.message)
+      await taiPhieu()
     } else {
-      toast.error(e.message || 'Thanh toán không thành công.')
-      if (e.code === 'HET_HANG') timSp.value?.taiLai()
+      baoLoiCho(e, 'Thanh toán không thành công.')
     }
   } finally {
     dangGui.value = false
@@ -258,59 +454,80 @@ async function inHoaDon() {
 
 /* ----- Ca làm việc ----- */
 const moCa = ref(false)
-onMounted(() => {
-  if (!giaoCa.trangThai.daTai) giaoCa.taiLai()
+onMounted(async () => {
   window.addEventListener('keydown', phimTat)
+  if (!giaoCa.trangThai.daTai) await giaoCa.taiLai()
+  await taiHoaDonCho()
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', phimTat))
 function phimTat(e) {
   if (e.key === 'F2') {
     e.preventDefault()
-    timSp.value?.focusTim()
+    if (moChonSp.value) timSp.value?.focusTim()
+    else moChonSp.value = true
   } else if (e.key === 'F9') {
     e.preventDefault()
     moXacNhan()
   }
 }
-const soLuongTab = (h) => tongSoLuong(h.gio)
+const soLuongTab = (h) => tongSoLuong(h.items)
 </script>
 
 <template>
   <div class="ad-page bh">
     <div v-if="giaoCa.trangThai.daTai && !giaoCa.dangTrongCa.value" class="bh-chua-ca" role="alert">
       <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
-      <span>Bạn chưa nhận ca. Vẫn chuẩn bị được hóa đơn nhưng phải <b>nhận ca</b> trước khi thanh toán.</span>
-      <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="moCa = true">Nhận ca</button>
-    </div>
-
-    <!-- Tab hóa đơn chờ -->
-    <div class="bh-tabs" role="tablist" aria-label="Hóa đơn chờ">
-      <div v-for="h in kho.ds" :key="h.id" class="bh-tab" :class="{ active: h.id === kho.dangChon }">
-        <button type="button" role="tab" :aria-selected="h.id === kho.dangChon" class="bh-tab-ten" @click="kho.dangChon = h.id">
-          <i class="bi bi-receipt" aria-hidden="true"></i> {{ h.ten }}
-          <span v-if="soLuongTab(h)" class="bh-tab-so">{{ soLuongTab(h) }}</span>
-        </button>
-        <button type="button" class="bh-tab-xoa" :aria-label="`Xóa ${h.ten}`" title="Xóa hóa đơn chờ" @click="hoiXoaHoaDon(h)"><i class="bi bi-x" aria-hidden="true"></i></button>
-      </div>
-      <button type="button" class="bh-tab-them" :disabled="kho.ds.length >= SO_HOA_DON_CHO_TOI_DA" @click="themHoaDon">
-        <i class="bi bi-plus-lg" aria-hidden="true"></i> Hóa đơn mới
-      </button>
-      <span class="bh-phim">F2: tìm sản phẩm · F9: thanh toán</span>
+      <span>Bạn chưa vào ca. Hãy <b>vào ca</b> (nhập tiền đầu ca) trước khi bán hàng.</span>
+      <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="moCa = true">Vào ca</button>
     </div>
 
     <div class="bh-luoi">
-      <!-- Trái: sản phẩm + giỏ -->
+      <!-- Trái: hóa đơn chờ + giỏ hàng -->
       <div class="bh-trai">
-        <TimSanPham ref="timSp" @chon="themSanPham" />
+        <!-- Hóa đơn chờ -->
+        <section class="ad-card bh-khoi-cho">
+          <div class="bh-cho-dau">
+            <button type="button" class="ad-btn ad-btn-sm" :disabled="dsCho.length >= SO_HOA_DON_CHO_TOI_DA" @click="themHoaDon">
+              <i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm hóa đơn chờ
+            </button>
+            <span class="bh-phim">F2: chọn sản phẩm · F9: thanh toán</span>
+            <span class="ad-count">{{ dsCho.length }}/{{ SO_HOA_DON_CHO_TOI_DA }} hóa đơn</span>
+          </div>
+          <div class="bh-tabs" role="tablist" aria-label="Hóa đơn chờ">
+            <p v-if="daTaiCho && !dsCho.length" class="ad-hint m-0">Chưa có hóa đơn chờ. Chọn sản phẩm là tự tạo hóa đơn mới.</p>
+            <div v-for="h in dsCho" :key="h.id" class="bh-tab" :class="{ active: h.id === dangChon }">
+              <button type="button" role="tab" :aria-selected="h.id === dangChon" class="bh-tab-ten" @click="dangChon = h.id">
+                <i class="bi bi-receipt" aria-hidden="true"></i> {{ h.maHoaDon }}
+                <span v-if="soLuongTab(h)" class="bh-tab-so">{{ soLuongTab(h) }}</span>
+              </button>
+              <button type="button" class="bh-tab-xoa" :aria-label="`Hủy ${h.maHoaDon}`" title="Hủy hóa đơn chờ" @click="hoiXoaHoaDon(h)"><i class="bi bi-x" aria-hidden="true"></i></button>
+            </div>
+          </div>
+        </section>
 
         <section class="ad-card">
-          <header class="ad-list-head">
+          <header class="ad-list-head bh-gio-dau">
             <div class="ad-card-head">
               <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-cart3"></i></span>
-              <h2 class="ad-card-title">Giỏ hàng · {{ hd.ten }}</h2>
+              <h2 class="ad-card-title">Giỏ hàng</h2>
+              <span class="ad-pill ad-pill-blue">{{ tongSoLuong(hd.gio) }} sản phẩm</span>
             </div>
-            <span class="ad-count">{{ tongSoLuong(hd.gio) }} sản phẩm</span>
+            <div class="bh-gio-cong-cu">
+              <form class="ad-affix bh-o-ma" @submit.prevent="quetMa()">
+                <i class="bi bi-upc-scan" aria-hidden="true"></i>
+                <input ref="oMa" v-model="maQuet" type="text" class="form-control ad-control" placeholder="Nhập / quét mã + Enter" aria-label="Quét mã sản phẩm" autocomplete="off" />
+              </form>
+              <button type="button" class="ad-btn" title="Quét bằng camera" @click="moCamera = true"><i class="bi bi-camera" aria-hidden="true"></i></button>
+              <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-chon-sp" @click="moChonSp = true">
+                <i class="bi bi-plus-circle" aria-hidden="true"></i> Chọn sản phẩm
+              </button>
+            </div>
           </header>
+          <div v-if="hd.coGiaDoi" class="bh-canh-gia" role="alert">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            <span>Giá của sản phẩm trong hóa đơn đã thay đổi so với lúc thêm. Báo khách giá mới rồi cập nhật trước khi thanh toán.</span>
+            <button type="button" class="ad-btn ad-btn-sm ad-btn-primary" data-testid="bh-cap-nhat-gia" @click="capNhatGiaMoi">Cập nhật giá</button>
+          </div>
           <div class="ad-table-wrap">
             <div class="ad-table-scroll">
               <table class="ad-table bh-gio">
@@ -330,11 +547,11 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
                       <div class="ad-empty">
                         <i class="bi bi-cart" aria-hidden="true"></i>
                         <strong>Chưa có sản phẩm</strong>
-                        <span>Chọn sản phẩm ở trên hoặc quét mã để thêm vào hóa đơn.</span>
+                        <span>Bấm "Chọn sản phẩm" hoặc quét mã để thêm vào hóa đơn.</span>
                       </div>
                     </td>
                   </tr>
-                  <tr v-for="(d, i) in hd.gio" :key="d.idBienThe">
+                  <tr v-for="(d, i) in hd.gio" :key="d.id">
                     <td class="ad-col-stt">{{ i + 1 }}</td>
                     <td>
                       <div class="bh-dong-sp">
@@ -347,15 +564,16 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
                     </td>
                     <td class="text-end ad-nowrap">
                       <div>{{ formatMoney(d.donGia) }}</div>
-                      <small v-if="d.donGia < d.giaGoc" class="text-muted"><s>{{ formatMoney(d.giaGoc) }}</s> -{{ formatPhanTram(d.phanTramGiam) }}</small>
+                      <small v-if="d.donGia < d.giaGoc" class="text-muted"><s>{{ formatMoney(d.giaGoc) }}</s></small>
+                      <small v-if="d.giaDoi" class="bh-gia-doi d-block"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Giá mới {{ formatMoney(d.giaHienTai) }}</small>
                     </td>
                     <td class="text-center">
                       <div class="bh-sl">
                         <button type="button" :aria-label="`Giảm số lượng ${d.ten}`" :disabled="d.soLuong <= 1" @click="doiSl(d, d.soLuong - 1)"><i class="bi bi-dash"></i></button>
-                        <input :value="d.soLuong" type="number" min="1" :max="d.tonKho" :aria-label="`Số lượng ${d.ten}`" @change="doiSl(d, $event.target.value)" />
-                        <button type="button" :aria-label="`Tăng số lượng ${d.ten}`" :disabled="d.soLuong >= d.tonKho" @click="doiSl(d, d.soLuong + 1)"><i class="bi bi-plus"></i></button>
+                        <input :value="d.soLuong" type="number" min="1" :max="d.soLuong + d.tonKho" :disabled="dangLam" :aria-label="`Số lượng ${d.ten}`" @change="doiSl(d, $event.target.value)" />
+                        <button type="button" :aria-label="`Tăng số lượng ${d.ten}`" :disabled="dangLam || d.tonKho <= 0" @click="doiSl(d, d.soLuong + 1)"><i class="bi bi-plus"></i></button>
                       </div>
-                      <small class="text-muted">Còn {{ d.tonKho }}</small>
+                      <small class="text-muted">Kho còn {{ d.tonKho }}</small>
                     </td>
                     <td class="text-end fw-semibold ad-nowrap">{{ formatMoney(d.donGia * d.soLuong) }}</td>
                     <td class="ad-col-actions">
@@ -377,76 +595,82 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
         </section>
 
         <section class="ad-card bh-khoi">
-          <h3 class="bh-tieu-de"><i class="bi bi-ticket-perforated" aria-hidden="true"></i> Phiếu giảm giá</h3>
-          <p v-if="!hd.gio.length" class="ad-hint m-0">Thêm sản phẩm để xem phiếu dùng được.</p>
-          <p v-else-if="dangTaiPhieu && !phieus.length" class="ad-hint m-0">Đang tải phiếu…</p>
-          <div v-else class="bh-phieu-ds" role="radiogroup" aria-label="Chọn phiếu giảm giá">
-            <label class="bh-phieu" :class="{ active: !hd.maPhieu }">
-              <input type="radio" class="form-check-input" :checked="!hd.maPhieu" @change="chonPhieu('')" />
-              <span>Không dùng phiếu</span>
-            </label>
-            <label v-for="p in phieus" :key="p.id" class="bh-phieu" :class="{ active: hd.maPhieu === p.ma, 'is-khong': !p.apDungDuoc }">
-              <input type="radio" class="form-check-input" :checked="hd.maPhieu === p.ma" :disabled="!p.apDungDuoc" @change="chonPhieu(p.ma)" />
-              <span class="flex-grow-1">
-                <span class="d-flex justify-content-between gap-2">
-                  <b>{{ p.ma }}</b>
-                  <b v-if="p.apDungDuoc" class="text-success">-{{ formatMoney(p.soTienGiam) }}</b>
-                </span>
-                <small class="d-block">{{ p.ten }}<span v-if="p.caNhan" class="ad-pill ad-pill-purple ms-1">Cá nhân</span></small>
-                <small class="d-block text-muted">{{ moTaPhieu(p) }}</small>
-                <small v-if="!p.apDungDuoc" class="d-block text-danger">{{ p.lyDo }}</small>
-              </span>
+          <div class="bh-tieu-de-hang">
+            <h3 class="bh-tieu-de m-0"><i class="bi bi-receipt-cutoff" aria-hidden="true"></i> Thông tin đơn hàng</h3>
+            <label class="bh-cong-tac" title="Giao hàng cho khách">
+              <span>Giao hàng</span>
+              <input type="checkbox" role="switch" class="bh-cong-tac-o" :checked="hd.p.giaoHang" data-testid="bh-giao-hang" @change="batGiaoHang($event.target.checked)" />
+              <span class="bh-cong-tac-ray" aria-hidden="true"><span class="bh-cong-tac-nut"></span></span>
             </label>
           </div>
-          <p v-if="loiPhieu" class="ad-error mb-0">{{ loiPhieu }}</p>
-        </section>
 
-        <section class="ad-card bh-khoi">
-          <h3 class="bh-tieu-de"><i class="bi bi-cash-stack" aria-hidden="true"></i> Thanh toán</h3>
-          <dl class="bh-tong">
+          <!-- Phiếu giảm giá: tự áp phiếu giảm nhiều nhất, đổi được ở ô chọn -->
+          <div v-if="phieuChon && giamPhieu && hd.p.tuDongPhieu" class="bh-phieu-tot" role="status">
+            <i class="bi bi-stars" aria-hidden="true"></i>
+            <span>Đang áp dụng phiếu tốt nhất <b>{{ phieuChon.ma }}</b></span>
+            <b class="ms-auto text-success">-{{ formatMoney(giamPhieu) }}</b>
+          </div>
+          <label class="ad-label" for="bh-phieu">Phiếu giảm giá</label>
+          <select
+            id="bh-phieu"
+            class="form-select ad-control"
+            :value="hd.p.maPhieu"
+            :disabled="!hd.gio.length || (dangTaiPhieu && !phieus.length)"
+            @change="chonPhieu($event.target.value)"
+          >
+            <option value="">{{ !hd.gio.length ? 'Thêm sản phẩm để xem phiếu' : 'Không dùng phiếu' }}</option>
+            <option v-for="p in phieus" :key="p.id" :value="p.ma" :disabled="!p.apDungDuoc">
+              {{ p.ma }} · {{ p.apDungDuoc ? `giảm ${formatMoney(p.soTienGiam)}` : p.lyDo }}{{ p.caNhan ? ' (cá nhân)' : '' }}
+            </option>
+          </select>
+          <p v-if="phieuChon" class="ad-hint mb-0">{{ phieuChon.ten }} · {{ moTaPhieu(phieuChon) }}</p>
+          <p v-if="loiPhieu" class="ad-error mb-0">{{ loiPhieu }}</p>
+
+          <dl class="bh-tong mt-2">
             <div><dt>Tiền hàng</dt><dd>{{ formatMoney(tienHang) }}</dd></div>
             <div v-if="giamDot > 0" class="text-muted"><dt>Đã giảm theo đợt</dt><dd>{{ formatMoney(giamDot) }}</dd></div>
             <div><dt>Phiếu giảm giá{{ phieuChon && giamPhieu ? ` (${phieuChon.ma})` : '' }}</dt><dd>-{{ formatMoney(giamPhieu) }}</dd></div>
+            <div v-if="hd.p.giaoHang"><dt>Phí giao hàng</dt><dd>{{ phiShip ? formatMoney(phiShip) : 'Miễn phí' }}</dd></div>
             <div class="bh-phai-tra"><dt>Khách phải trả</dt><dd>{{ formatMoney(tt.phaiTra) }}</dd></div>
           </dl>
 
           <div class="ad-segment bh-pt" role="radiogroup" aria-label="Phương thức thanh toán">
-            <button v-for="p in PHUONG_THUC" :key="p.ma" type="button" class="ad-segment-item" :class="{ active: hd.phuongThuc === p.ma }" role="radio" :aria-checked="hd.phuongThuc === p.ma" @click="chonPhuongThuc(p.ma)">
+            <button v-for="p in PHUONG_THUC" :key="p.ma" type="button" class="ad-segment-item" :class="{ active: hd.p.phuongThuc === p.ma }" role="radio" :aria-checked="hd.p.phuongThuc === p.ma" @click="chonPhuongThuc(p.ma)">
               <i class="bi" :class="p.icon" aria-hidden="true"></i> {{ p.ten }}
             </button>
           </div>
 
-          <div v-if="hd.phuongThuc === 'KET_HOP'" class="mt-2">
+          <div v-if="hd.p.phuongThuc === 'KET_HOP'" class="mt-2">
             <label class="ad-label" for="bh-ck">Chuyển khoản</label>
-            <MoneyInput id="bh-ck" v-model="hd.chuyenKhoan" aria-label="Số tiền chuyển khoản" placeholder="Số tiền khách chuyển khoản" />
+            <MoneyInput id="bh-ck" v-model="hd.p.chuyenKhoan" aria-label="Số tiền chuyển khoản" placeholder="Số tiền khách chuyển khoản" />
           </div>
-          <div v-if="hd.phuongThuc !== 'CHUYEN_KHOAN'" class="mt-2">
+          <div v-if="hd.p.phuongThuc !== 'CHUYEN_KHOAN'" class="mt-2">
             <div class="d-flex align-items-center justify-content-between mb-1">
               <label class="ad-label m-0" for="bh-tien-mat">Tiền khách đưa (tiền mặt)</label>
               <button
-                v-if="hd.tienMat"
+                v-if="hd.p.tienMat"
                 type="button"
                 class="btn btn-link btn-sm p-0 text-decoration-none small text-primary"
-                @click="hd.tienMat = ''"
+                @click="hd.p.tienMat = ''"
               >
                 Đúng số tiền
               </button>
             </div>
-            <MoneyInput id="bh-tien-mat" v-model="hd.tienMat" aria-label="Tiền khách đưa" :placeholder="`Mặc định: ${formatMoney(tt.phaiTra)}`" />
+            <MoneyInput id="bh-tien-mat" v-model="hd.p.tienMat" aria-label="Tiền khách đưa" :placeholder="`Mặc định: ${formatMoney(tt.phaiTra)}`" />
             <div class="bh-goi-y">
               <button
                 v-for="g in goiY"
                 :key="g"
                 type="button"
                 class="bh-chip"
-                :class="{ active: (!hd.tienMat && g === tt.phaiTra) || hd.tienMat === g }"
-                @click="hd.tienMat = (g === tt.phaiTra && hd.tienMat === g ? '' : g)"
+                :class="{ active: (!hd.p.tienMat && g === tt.phaiTra) || hd.p.tienMat === g }"
+                @click="hd.p.tienMat = (g === tt.phaiTra && hd.p.tienMat === g ? '' : g)"
               >
                 {{ g === tt.phaiTra ? 'Đúng số tiền' : formatMoney(g) }}
               </button>
             </div>
           </div>
-          <div v-if="hd.phuongThuc !== 'TIEN_MAT' && tt.chuyenKhoan > 0" class="bh-qr">
+          <div v-if="hd.p.phuongThuc !== 'TIEN_MAT' && tt.chuyenKhoan > 0" class="bh-qr">
             <img v-if="qrUrl" :src="qrUrl" :alt="`Mã QR chuyển khoản ${formatMoney(tt.chuyenKhoan)}`" width="150" height="150" />
             <div>
               <template v-if="coQr">
@@ -457,20 +681,49 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
               </template>
               <div v-else class="small text-muted">Chưa cấu hình tài khoản nhận tiền nên không hiện mã QR (xem frontend/src/constants/thanhToan.js).</div>
               <label class="ad-label mt-2" for="bh-ma-gd">Mã giao dịch</label>
-              <input id="bh-ma-gd" v-model="hd.maGiaoDich" type="text" class="form-control ad-control" maxlength="100" placeholder="Mã giao dịch ngân hàng (nếu có)" />
+              <input id="bh-ma-gd" v-model="hd.p.maGiaoDich" type="text" class="form-control ad-control" maxlength="100" placeholder="Mã giao dịch ngân hàng (nếu có)" />
             </div>
           </div>
 
           <dl class="bh-tong mt-2">
-            <div v-if="tt.conThieu > 0 && hd.tienMat" class="text-danger fw-semibold"><dt>Còn thiếu</dt><dd>{{ formatMoney(tt.conThieu) }}</dd></div>
+            <div v-if="tt.conThieu > 0 && hd.p.tienMat" class="text-danger fw-semibold"><dt>Còn thiếu</dt><dd>{{ formatMoney(tt.conThieu) }}</dd></div>
             <div v-if="tt.tienThua > 0" class="bh-thua"><dt>Tiền thừa trả khách</dt><dd>{{ formatMoney(tt.tienThua) }}</dd></div>
           </dl>
-          <label class="ad-label" for="bh-ghi-chu">Ghi chú</label>
-          <input id="bh-ghi-chu" v-model="hd.ghiChu" type="text" class="form-control ad-control" maxlength="500" placeholder="Ghi chú cho hóa đơn (không bắt buộc)" />
+          <div v-if="hd.p.giaoHang" class="bh-giao">
+            <p class="bh-giao-bat m-0"><i class="bi bi-truck" aria-hidden="true"></i> <b>Giao hàng</b> <small class="text-muted">(phí {{ formatMoney(30000) }}, đơn từ {{ formatMoney(1000000) }} miễn phí)</small></p>
+            <div class="bh-giao-form">
+              <div class="row g-2">
+                <div class="col-sm-6">
+                  <label class="ad-label" for="bh-nn-ten">Người nhận <span class="ad-required">*</span></label>
+                  <input id="bh-nn-ten" v-model="hd.p.nguoiNhan.hoTen" type="text" class="form-control ad-control" :class="{ 'is-invalid': daChamGiao && loiGiao.hoTen }" maxlength="255" placeholder="Họ tên người nhận" />
+                  <p v-if="daChamGiao && loiGiao.hoTen" class="ad-error">{{ loiGiao.hoTen }}</p>
+                </div>
+                <div class="col-sm-6">
+                  <label class="ad-label" for="bh-nn-sdt">Số điện thoại <span class="ad-required">*</span></label>
+                  <input id="bh-nn-sdt" v-model="hd.p.nguoiNhan.sdt" type="tel" inputmode="numeric" class="form-control ad-control" :class="{ 'is-invalid': daChamGiao && loiGiao.sdt }" maxlength="15" placeholder="vd: 0901234567" />
+                  <p v-if="daChamGiao && loiGiao.sdt" class="ad-error">{{ loiGiao.sdt }}</p>
+                </div>
+                <div class="col-12">
+                  <label class="ad-label" for="bh-nn-dc">Địa chỉ nhận hàng <span class="ad-required">*</span></label>
+                  <textarea id="bh-nn-dc" v-model="hd.p.nguoiNhan.diaChi" rows="2" class="form-control ad-control" :class="{ 'is-invalid': daChamGiao && loiGiao.diaChi }" maxlength="500" placeholder="Số nhà, đường, phường/xã, tỉnh/thành phố"></textarea>
+                  <p v-if="daChamGiao && loiGiao.diaChi" class="ad-error">{{ loiGiao.diaChi }}</p>
+                </div>
+              </div>
+              <p class="ad-hint mb-0">Khách trả tiền tại quầy; thanh toán xong đơn chuyển thẳng sang <b>Chờ giao hàng</b>.</p>
+            </div>
+          </div>
 
-          <button type="button" class="ad-btn ad-btn-primary bh-nut-tt" :disabled="dangGui" :title="lyDoKhongThanhToan" @click="moXacNhan">
-            <i class="bi bi-check2-circle" aria-hidden="true"></i> Thanh toán {{ formatMoney(tt.phaiTra) }}
-          </button>
+          <label class="ad-label" for="bh-ghi-chu">Ghi chú</label>
+          <input id="bh-ghi-chu" v-model="hd.p.ghiChu" type="text" class="form-control ad-control" maxlength="500" placeholder="Ghi chú cho hóa đơn (không bắt buộc)" />
+
+          <div class="bh-nut-hang">
+            <button type="button" class="ad-btn bh-nut-huy" :disabled="!hdServer.id" @click="hdServer.id && hoiXoaHoaDon(hdServer)">
+              <i class="bi bi-x-circle" aria-hidden="true"></i> Hủy hóa đơn
+            </button>
+            <button type="button" class="ad-btn ad-btn-primary bh-nut-tt" :disabled="dangGui" :title="lyDoKhongThanhToan" @click="moXacNhan">
+              <i class="bi bi-check2-circle" aria-hidden="true"></i> Thanh toán {{ formatMoney(tt.phaiTra) }}
+            </button>
+          </div>
           <p v-if="lyDoKhongThanhToan && hd.gio.length" class="ad-hint text-center mb-0 mt-1">{{ lyDoKhongThanhToan }}</p>
         </section>
       </aside>
@@ -495,11 +748,15 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
             <span class="bh-xn-nhan"><i class="bi bi-person me-1 text-primary"></i>Khách hàng:</span>
             <span class="bh-xn-gia-tri">{{ hd.khach?.hoTen ? `${hd.khach.hoTen} (${hd.khach.sdt || '—'})` : 'Khách lẻ (Khách vãng lai)' }}</span>
           </div>
+          <div v-if="hd.p.giaoHang" class="bh-xn-dong">
+            <span class="bh-xn-nhan"><i class="bi bi-truck me-1 text-primary"></i>Giao tới:</span>
+            <span class="bh-xn-gia-tri">{{ hd.p.nguoiNhan.hoTen }} · {{ hd.p.nguoiNhan.sdt }}<br />{{ hd.p.nguoiNhan.diaChi }}</span>
+          </div>
           <div class="bh-xn-dong">
             <span class="bh-xn-nhan"><i class="bi bi-credit-card me-1 text-primary"></i>Phương thức:</span>
             <span class="bh-xn-gia-tri fw-medium">
-              <span class="ad-pill" :class="hd.phuongThuc === 'CHUYEN_KHOAN' ? 'ad-pill-blue' : hd.phuongThuc === 'KET_HOP' ? 'ad-pill-purple' : 'ad-pill-green'">
-                {{ hd.phuongThuc === 'CHUYEN_KHOAN' ? 'Chuyển khoản' : hd.phuongThuc === 'KET_HOP' ? 'Kết hợp' : 'Tiền mặt' }}
+              <span class="ad-pill" :class="hd.p.phuongThuc === 'CHUYEN_KHOAN' ? 'ad-pill-blue' : hd.p.phuongThuc === 'KET_HOP' ? 'ad-pill-purple' : 'ad-pill-green'">
+                {{ hd.p.phuongThuc === 'CHUYEN_KHOAN' ? 'Chuyển khoản' : hd.p.phuongThuc === 'KET_HOP' ? 'Kết hợp' : 'Tiền mặt' }}
               </span>
             </span>
           </div>
@@ -507,7 +764,7 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
             <span class="bh-xn-nhan">Tiền chuyển khoản:</span>
             <span class="bh-xn-gia-tri fw-semibold text-primary">{{ formatMoney(tt.chuyenKhoan) }}</span>
           </div>
-          <div v-if="tt.tienMat > 0 && hd.phuongThuc !== 'CHUYEN_KHOAN'" class="bh-xn-dong">
+          <div v-if="tt.tienMat > 0 && hd.p.phuongThuc !== 'CHUYEN_KHOAN'" class="bh-xn-dong">
             <span class="bh-xn-nhan">Tiền khách đưa:</span>
             <span class="bh-xn-gia-tri fw-semibold text-dark">{{ formatMoney(tt.tienMat) }}</span>
           </div>
@@ -533,7 +790,7 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
     <ConfirmDialog
       v-if="xoaHd"
       title="Xóa hóa đơn chờ"
-      :message="`${xoaHd.ten} đang có ${tongSoLuong(xoaHd.gio)} sản phẩm. Xóa hóa đơn chờ này?`"
+      :message="`${xoaHd.maHoaDon} đang có ${xoaHd.soLuong} sản phẩm. Hủy hóa đơn chờ này? Sản phẩm sẽ được trả lại kho.`"
       confirm-text="Xóa"
       variant="danger"
       @confirm="xoaHoaDon(xoaHd)"
@@ -544,7 +801,9 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
         <i class="bi bi-check-circle-fill text-success fs-1" aria-hidden="true"></i>
         <div class="bh-xong-tien text-primary fw-bold fs-3 mt-1">{{ formatMoney(xong.thanhTien) }}</div>
         <div v-if="xong.tienThua > 0" class="bh-thua mt-1">Trả lại khách: <b>{{ formatMoney(xong.tienThua) }}</b></div>
-        <div class="text-muted small mt-2">Thanh toán hoàn tất thành công.</div>
+        <div class="text-muted small mt-2">
+          {{ xong.giaoHang ? 'Đã thanh toán. Đơn chuyển sang "Chờ giao hàng" - in hóa đơn kèm theo hàng.' : 'Thanh toán hoàn tất thành công.' }}
+        </div>
       </div>
       <template #footer>
         <button type="button" class="ad-btn" @click="router.push(`/hoa-don/${xong.id}`)">Xem hóa đơn</button>
@@ -552,10 +811,54 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
       </template>
     </BaseModal>
     <GiaoCaModal v-if="moCa" @close="moCa = false" />
+
+    <!-- Chọn sản phẩm: hộp thoại có lọc + bảng + phân trang (giống bố cục các nhóm demo) -->
+    <BaseModal v-if="moChonSp" title="Chọn sản phẩm" size="xl" @close="moChonSp = false">
+      <TimSanPham ref="timSp" trong-hop @chon="themSanPham" />
+      <template #footer>
+        <span class="me-auto small text-muted">Đang thêm vào <b>{{ hd.maHoaDon || 'hóa đơn mới' }}</b> · {{ tongSoLuong(hd.gio) }} sản phẩm trong giỏ</span>
+        <button type="button" class="ad-btn" data-testid="bh-dong-chon-sp" @click="moChonSp = false">Đóng</button>
+      </template>
+    </BaseModal>
+    <QuetMaModal v-if="moCamera" @close="moCamera = false" @ma="onMaCamera" />
   </div>
 </template>
 
+
 <style scoped>
+.bh-canh-gia {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 1rem 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.9rem;
+}
+.bh-canh-gia span {
+  flex: 1;
+}
+.bh-gia-doi {
+  color: #c2410c;
+  font-weight: 600;
+}
+.bh-giao {
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  margin: 0.75rem 0;
+}
+.bh-giao-bat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.bh-giao-form {
+  margin-top: 0.6rem;
+}
 .bh-chua-ca {
   display: flex;
   align-items: center;
@@ -574,7 +877,129 @@ const soLuongTab = (h) => tongSoLuong(h.gio)
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  margin-bottom: 1rem;
+}
+/* Khối hóa đơn chờ (trên giỏ hàng) */
+.bh-khoi-cho {
+  padding: 0.85rem 1rem;
+}
+.bh-cho-dau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+.bh-cho-dau .bh-phim {
+  margin-left: auto;
+}
+/* Đầu giỏ hàng: ô quét mã + camera + Chọn sản phẩm */
+.bh-gio-dau {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.bh-gio-dau .ad-card-head {
+  gap: 0.6rem;
+}
+.bh-gio-cong-cu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.bh-o-ma {
+  width: 220px;
+}
+/* Tiêu đề Thông tin đơn hàng + công tắc Giao hàng */
+.bh-tieu-de-hang {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.bh-cong-tac {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+/* Công tắc gạt (ô checkbox thật ẩn đi, vẫn bấm / Tab / Space được) */
+.bh-cong-tac {
+  position: relative;
+}
+.bh-cong-tac-o {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.bh-cong-tac-ray {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background-color 0.2s ease;
+}
+.bh-cong-tac-nut {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.3);
+  transition: transform 0.2s ease;
+}
+.bh-cong-tac-o:checked + .bh-cong-tac-ray {
+  background: var(--fs-primary, #0977ec);
+}
+.bh-cong-tac-o:checked + .bh-cong-tac-ray .bh-cong-tac-nut {
+  transform: translateX(18px);
+}
+.bh-cong-tac-o:focus-visible + .bh-cong-tac-ray {
+  outline: 3px solid rgba(9, 119, 236, 0.35);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bh-cong-tac-ray,
+  .bh-cong-tac-nut {
+    transition: none;
+  }
+}
+.bh-phieu-tot {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 0.86rem;
+}
+.bh-nut-hang {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.bh-nut-hang .bh-nut-tt {
+  margin-top: 0;
+}
+.bh-nut-huy {
+  justify-content: center;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.bh-nut-huy:hover:not(:disabled) {
+  background: #fef2f2;
 }
 .bh-tab {
   display: flex;

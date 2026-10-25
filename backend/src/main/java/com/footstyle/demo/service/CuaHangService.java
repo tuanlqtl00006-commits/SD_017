@@ -293,11 +293,7 @@ public class CuaHangService {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Sản phẩm \"" + ten + "\" chỉ còn " + slTon + " sản phẩm, không đủ đáp ứng.", null, null, null);
             }
 
-            // Trừ tồn kho có điều kiện
-            int tru = spctRepo.truTonKho(spct.getId(), item.soLuong());
-            if (tru <= 0) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Sản phẩm đã có người khác vừa đặt mua hết hàng. Vui lòng tải lại giỏ hàng.", null, null, null);
-            }
+            // Theo yêu cầu của cô: CHƯA trừ tồn kho lúc khách đặt; trừ khi nhân viên chuyển đơn Chờ xác nhận -> Đã xác nhận (HoaDonService)
 
             long giaGoc = spct.getGiaBan() == null ? 0 : spct.getGiaBan();
             double pt = giamMap.getOrDefault(spct.getId().longValue(), 0.0);
