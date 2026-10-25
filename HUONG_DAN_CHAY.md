@@ -1,6 +1,14 @@
-# Chạy project FootStyle (Thống kê, Quản lý hóa đơn, sản phẩm, phiếu giảm giá, đợt giảm giá, khách hàng, nhân viên)
+# Chạy project FootStyle (GĐ3: đăng nhập / phân quyền, bán tại quầy, giao ca, bán hàng online, chat, thống kê + các trang quản lý GĐ2)
 
-1. SQL Server — **(16/10/2026) gộp còn đúng 2 file** trong thư mục `database/`, chạy lần lượt trong SSMS (mở file → Execute / F5):
+> **Cập nhật 25/10/2026 (GĐ3):** thư mục `database/` hiện có 4 file, chạy trong SSMS (mở file → Execute / F5):
+> 1. `database/SD_17.sql` — tạo database `shop_cau_long_footstyle` và toàn bộ bảng theo ERD (đã gồm bảng GĐ3: `ca_lam_viec`, `lich_lam_viec`, `giao_ca`, `hoi_thoai`, `thanh_vien_hoi_thoai`, `tin_nhan`). Chỉ chạy **một lần** cho CSDL mới.
+> 2. `database/SD_17_du_lieu_va_nang_cap.sql` — dữ liệu mẫu + nâng cấp (chạy **sau** file 1; chạy lại nhiều lần không lỗi). Gồm tài khoản nhân viên, sản phẩm, phiếu / đợt giảm giá, hóa đơn mẫu, 3 ca làm việc 07:00 - 12:00 / 12:00 - 17:00 / 17:00 - 22:00.
+> 3. `database/SD_17_giai_doan_3.sql` — chỉ dùng cho **CSDL tạo từ bản cũ** (chưa có bảng GĐ3): thêm bảng / cột GĐ3, ca mặc định và lịch làm mẫu, không xóa dữ liệu cũ.
+> 4. `database/SD_17_footstyle_full.sql` — bản gộp đầy đủ (cấu trúc + dữ liệu demo) để dựng nhanh trên máy mới **thay cho** file 1 + 2.
+>
+> Khởi động lại backend cũng tự bổ sung bảng / cột còn thiếu. **Không sửa cấu trúc SQL** (giữ đúng ERD). Phần chữ bên dưới mục này là ghi chép của GĐ2, tên file SQL ở đó là bản cũ.
+
+1. SQL Server — *(ghi chép GĐ2, 16/10/2026; tên file nay đã đổi như khung trên)* gộp còn đúng 2 file trong thư mục `database/`, chạy lần lượt trong SSMS (mở file → Execute / F5):
    - `database/SD_17_1_cau_truc.sql` — **chỉ CẤU TRÚC**: tạo database `shop_cau_long_footstyle`, toàn bộ 29 bảng, khóa chính, khóa ngoại, UNIQUE, chỉ mục chống trùng (email / SĐT / căn cước nhân viên, email / SĐT khách hàng, biến thể không trùng màu - trọng lượng - chu vi). **Không có dữ liệu.**
      Gồm PHẦN 1 – 4 tạo bảng (theo thứ tự khóa ngoại), PHẦN 5 thêm cột còn thiếu cho CSDL tạo từ bản cũ (`can_cuoc_cong_dan`, `anh_dai_dien`, `nhom_ap_dung`, `id_mau_sac`...), PHẦN 6 chỉ mục.
    - `database/SD_17_2_du_lieu.sql` — **chỉ DỮ LIỆU** (không tạo / sửa bảng): PHẦN 0 sửa dữ liệu cũ (rút gọn mã `HD000001` → `HD01`, chép số căn cước cột cũ), PHẦN 1 vai trò + 10 nhân viên + 6 khách hàng (+ địa chỉ), PHẦN 2 sản phẩm (9 bảng thuộc tính, mục "Không áp dụng", 6 sản phẩm, 14 biến thể), PHẦN 3 11 phiếu giảm giá + 8 đợt giảm giá, PHẦN 4 sửa dữ liệu mẫu cũ (giày → vợt, đơn tại quầy còn phí vận chuyển), PHẦN 5 phương thức thanh toán + hóa đơn mẫu HD01 – HD18 và **HD19 "Giao hàng thất bại"**, PHẦN 6 thêm **25 hóa đơn Chờ xác nhận + 20 hóa đơn Đang giao hàng** (ngẫu nhiên từ dữ liệu đang có, chỉ thêm 1 lần; đặt `@them_lai = 1` nếu muốn thêm lô nữa, cuối file có khối lệnh đang comment để xóa lô này). Cuối file in bảng đếm số dòng các bảng chính.
@@ -72,7 +80,9 @@
    Cả hai script đều **kiểm tra Node.js, Java và SQL Server trước khi chạy** và nói rõ thiếu / quá cũ cái nào, cần làm gì (chi tiết ở mục "Phiên bản được hỗ trợ").
    Kiểm thử giao diện: `cd frontend && npm test` (vitest, không cần backend). Kiểm thử backend: `cd backend && ./mvnw test`
    (cần SQL Server đang chạy cho test `BackendApplicationTests.contextLoads`, các test còn lại không cần CSDL; muốn bỏ qua test đó: `./mvnw test -Dtest='!BackendApplicationTests'`).
-   **Kết quả lần kiểm cuối (16/10/2026):** giao diện **759 test / 36 file đạt** và `npm run build` thành công; backend **449 test đạt** (38 nhóm test, đã loại `BackendApplicationTests` vì nó khởi động cả ứng dụng và cần SQL Server; khi bạn chạy `./mvnw test` thật thì test đó cũng được chạy). Lưu ý: môi trường làm bài không tải được thư viện từ Maven Central nên phần Java được biên dịch và chạy test bằng bộ giả lập Spring + JUnit; bạn hãy chạy `./mvnw test` một lần trên máy có Internet để chắc chắn.
+   **Kết quả lần kiểm cuối (25/10/2026, GĐ3):** giao diện **857 test / 49 file đạt**, `npm run build` thành công; backend **619 test**, đạt hết trừ 2 test của `CuaHangServiceTest`
+   (loại test chạy thẳng vào CSDL thật: báo lỗi khi biến thể đầu tiên trong CSDL hết hàng, nhập thêm tồn kho là đạt).
+   *Kết quả GĐ2 (16/10/2026):* giao diện **759 test / 36 file đạt** và `npm run build` thành công; backend **449 test đạt** (38 nhóm test, đã loại `BackendApplicationTests` vì nó khởi động cả ứng dụng và cần SQL Server; khi bạn chạy `./mvnw test` thật thì test đó cũng được chạy). Lưu ý: môi trường làm bài không tải được thư viện từ Maven Central nên phần Java được biên dịch và chạy test bằng bộ giả lập Spring + JUnit; bạn hãy chạy `./mvnw test` một lần trên máy có Internet để chắc chắn.
    **Địa chỉ Tỉnh/Thành phố → Phường/Xã** (thêm khách hàng, địa chỉ khách hàng, địa chỉ nhân viên) lấy từ API đơn vị hành chính **sau sáp nhập 07/2025**
    `https://provinces.open-api.vn/api/v2` (không còn cấp Quận/Huyện) nên máy chạy giao diện cần có Internet. Địa chỉ cũ đã lưu (có Quận/Huyện) vẫn hiển thị bình thường,
    khi sửa thì giao diện nhắc chọn lại theo danh sách mới.
@@ -109,6 +119,7 @@ Khi chạy bằng `chay-du-an.bat` (Windows) hoặc `./chay-du-an.sh` (macOS / L
 - `Vite requires Node.js version 20.19+ or 22.12+`: cài Node mới hơn (nên 24 LTS; có thể dùng `nvm use` trong thư mục `frontend` nhờ `frontend/.nvmrc`). Còn các dòng `npm warn EBADENGINE` (vd gói `@asamuzakjp/css-color` đòi Node 22.22.2 trở lên, đây là gói của bộ kiểm thử) chỉ là **cảnh báo**, không chặn `npm install` / `npm run dev`; hết khi dùng Node 24 LTS.
 
 ## Các trang trên giao diện (http://localhost:5173)
+*(GĐ3: phải đăng nhập, menu hiện theo vai trò của tài khoản; xem mục "Giai đoạn 3" bên dưới. Đoạn sau là ghi chép GĐ2.)*
 Giao diện quản trị chạy với vai trò **Quản lý** (thấy toàn bộ menu). Theo nhận xét của cô, header đã **bỏ ô phóng to 75%, ô chọn vai trò "Quản lý / Nhân viên" và nút sáng/tối chưa dùng**; header chỉ còn tiêu đề trang + Ca làm việc, Thông báo, Tài khoản; nội dung luôn hiển thị ở mức 75%. Menu theo vai trò (Nhân viên chỉ thấy Bán hàng tại quầy, Quản lý hóa đơn, Quản lý khách hàng) vẫn nằm trong code `MainLayout.vue` (`menuAll`, đổi hằng `role` nếu cần xem thử).
 
 | Đường dẫn | Trang |
@@ -134,6 +145,52 @@ Giao diện quản trị chạy với vai trò **Quản lý** (thấy toàn bộ
   **Giá bán** có định dạng tiền (1.500.000 ₫); giá trống / 0 / dưới 1.000 ₫ hoặc số lượng sai thì báo "Có N biến thể chưa hợp lệ…" và viền đỏ đúng ô. Danh mục không phải vợt: chỉ chọn màu (mỗi màu 1 biến thể), trọng lượng / chu vi tự gán "Không áp dụng".
 - **Phiếu giảm giá:** các ô tiền (Giá trị giảm theo số tiền, Giảm tối đa, Đơn tối thiểu) có định dạng 1.500.000 ₫. Phiếu **cá nhân**: số lượng tự bằng số khách đã chọn; danh sách khách hiện email (khách chưa có email có nhãn "Chưa có email"); dòng báo "Khi lưu, hệ thống gửi mail tặng phiếu cho N khách"; khung trạng thái Gmail (chưa cấu hình / đăng nhập lỗi + lý do / sẵn sàng); sau khi lưu tự báo **đã gửi** hay **gửi lỗi + lý do** (3 loại mail Mới / Cập nhật / Hủy như mục Gửi mail ở trên). Sửa phiếu đã bắt đầu thì form báo trước là sẽ không gửi mail.
 - **Đợt giảm giá (làm lại phần chọn):** một ô tìm kiếm (lọc ngay khi gõ), tích sản phẩm = chọn hết biến thể, bấm "+" rồi bấm nhãn biến thể (Màu · Trọng lượng · Chu vi) để chọn / bỏ từng biến thể. Thẻ **"Tổng kết đợt giảm giá"** (mức giảm, số sản phẩm, số biến thể, ngày bắt đầu, ngày kết thúc + số ngày, tổng giá trước / sau giảm). Bảng **"Sản phẩm & biến thể đã chọn áp dụng"**: mỗi dòng một biến thể (Ảnh, Sản phẩm, Biến thể, Giá bán, Giá sau giảm, Xóa), lọc theo màu sắc / trọng lượng / chu vi, nút "Gỡ N biến thể đang lọc". Giá sau giảm dùng chung một công thức làm tròn tới đồng (`tinhGiaSauGiam`) cho danh sách sản phẩm, biến thể và trang soạn đợt.
+
+## Giai đoạn 3 (cập nhật 25/10/2026)
+
+### Tài khoản demo (mật khẩu `Footstyle@123`)
+| Tài khoản | Vai trò | Ghi chú |
+|---|---|---|
+| `NV01`, `NV02` | Quản lý | Thấy mọi menu, không bắt buộc vào ca (vẫn cần vào ca nếu tự bán tại quầy) |
+| `NV03` - `NV10` | Nhân viên | Đăng nhập xong **bắt buộc vào ca** mới dùng được chức năng khác |
+
+Đăng nhập bằng mã nhân viên, email hoặc số điện thoại. Khi chạy `npm run dev`, trang đăng nhập có 3 nút điền nhanh NV01 / NV03 / NV04.
+Khách hàng đăng nhập ở trang riêng của web bán hàng: http://localhost:5173/shop/dang-nhap.
+
+### Luồng chính để demo
+1. **Đăng nhập** (`/dang-nhap`): một trang chung cho quản lý và nhân viên, vào trong tự phân quyền (nhân viên không thấy Thống kê, Sản phẩm, Giảm giá, Nhân viên, Xếp lịch).
+   Sai mật khẩu 5 lần liên tiếp bị khóa 5 phút. Phiên đăng nhập hết hạn sau 12 giờ (`app.auth.thoi-han-gio`).
+2. **Vào ca** (`/vao-ca`, bắt buộc với nhân viên): đếm tiền mặt trong két và đối soát chuyển khoản của ca trước (nút "Dùng số tiền này"); số khác ca trước thì phải ghi lý do.
+   Chưa vào ca thì mọi trang chuyển về `/vao-ca` và backend trả 409 `CHUA_NHAN_CA` cho mọi API (trừ đăng nhập, giao ca, xem lịch của mình).
+   **Kết ca / giao ca** ở nút "Ca làm việc" trên header: hệ thống tổng kết tiền mặt / chuyển khoản, lệch thì bắt buộc ghi lý do; còn hóa đơn chờ thì không kết ca được. Kết ca xong in được biên bản giao ca.
+3. **Lịch làm việc** (menu "Ca làm việc"): quản lý xếp lịch theo ngày / tuần / tháng, nhập - xuất Excel; ca phải nằm trong giờ mở cửa **07:00 - 22:00**. Nhân viên xem "Lịch làm của tôi" và "Lịch sử giao ca".
+4. **Bán tại quầy** (`/ban-hang`):
+   - Hóa đơn chờ **lưu trong CSDL** (tối đa 10 / nhân viên), thêm sản phẩm là **trừ tồn kho ngay**, bỏ sản phẩm / hủy hóa đơn thì trả lại kho.
+   - Nút **"Chọn sản phẩm"** mở hộp thoại: lọc danh mục, thương hiệu, màu, trọng lượng, chu vi, khoảng giá; mới nhất trước; phân trang; hết hàng tự ẩn; nhập số lượng lớn hơn tồn kho báo ngay. Có ô quét mã / camera.
+   - Tự áp **phiếu giảm giá tốt nhất** cho khách (kể cả phiếu cá nhân), đổi được ở ô chọn phiếu.
+   - **Case khó:** giá đổi sau khi đã thêm (đợt giảm giá bắt đầu / kết thúc) → cùng sản phẩm thêm tiếp thành dòng mới, phải bấm "Cập nhật giá" mới thanh toán được; phiếu bị sửa mức giảm khi hóa đơn đang chờ → báo `PHIEU_THAY_DOI`, không tự đổi số tiền.
+   - Công tắc **Giao hàng**: khách lẻ nhập một địa chỉ; phí 30.000 ₫, đơn từ 1.000.000 ₫ miễn phí; thanh toán xong đơn sang thẳng "Chờ giao hàng" (không cần xác nhận lại). Không giao hàng thì "Đã hoàn thành" ngay và in hóa đơn luôn.
+   - Thanh toán tiền mặt / chuyển khoản (mã VietQR) / kết hợp.
+5. **Đơn online** (`/hoa-don/{id}`): tồn kho chỉ trừ khi chuyển **Chờ xác nhận → Đã xác nhận**.
+   - **Case khó:** nút "Chỉnh sửa đơn" (chỉ **một lần**, khi còn Chờ xác nhận; khách không tự sửa): đổi người nhận / địa chỉ, thêm - sửa - bỏ sản phẩm → tính lại phiếu + phí ship; khách đã chuyển khoản trước thì ghi **hoàn phí** (số tiền âm) hoặc **phụ phí** (thu khi giao). Hủy đơn đã trả trước → ghi hoàn phí.
+   - Nút "Xác nhận đã nhận chuyển khoản" cho đơn khách chọn chuyển khoản.
+6. **Thống kê** (`/thong-ke`, chỉ quản lý): mọi khối theo bộ lọc ở trên (Hôm nay / 7 / 30 / 90 ngày / Tất cả / Tự chọn); **doanh thu thực tế** (đơn Đã hoàn thành) và **doanh thu dự kiến** (mọi đơn chưa hủy), cả hai **không tính phí ship**; nút **Xuất Excel** (mỗi bảng một sheet).
+   Nút **So sánh** (`/thong-ke/so-sanh`): theo tháng / quý / năm, so với kỳ trước và cùng kỳ năm trước, biểu đồ tăng trưởng, xuất Excel, **gửi email báo cáo kèm biểu đồ**; ngày 1 hằng tháng 8:00 tự gửi báo cáo tháng trước cho quản lý (đổi giờ bằng `app.thong-ke.cron-bao-cao`; cần cấu hình Gmail như phần "Gửi mail" ở trên).
+7. **Trò chuyện:** "Hỗ trợ khách hàng" (khách chat từ nút "Tư vấn trực tuyến" trên `/shop` hoặc trang `/ho-tro`, trợ lý ảo trả lời trước, khách bấm gặp nhân viên) và "Chat nội bộ" giữa nhân viên; số tin chưa đọc hiện trên menu và chuông. Nút **Trợ lý AI** trên header trả lời nhanh về doanh thu, đơn chờ, tồn kho từ dữ liệu thật.
+8. **Bán hàng online** (`/shop`): trang chủ, danh mục có bộ lọc + mega menu, chi tiết sản phẩm, giỏ hàng, thanh toán (COD / chuyển khoản VietQR), tra cứu đơn, gợi ý AI từ ảnh (`/shop/goi-y-ai`).
+9. **Thuộc tính sản phẩm:** giá trị phải đúng chuẩn (màu chỉ gồm chữ; trọng lượng dạng `4U (80-84g)` đúng khoảng gram của U; chu vi `G1` - `G6`); form báo lỗi ngay, backend cũng chặn.
+
+**Không làm phần app (ứng dụng di động)** ở GĐ3: dự án chỉ gồm web quản trị, web bán hàng online và backend.
+
+### API mới của GĐ3 (tóm tắt)
+| Phương thức | Đường dẫn | Chức năng |
+|---|---|---|
+| POST | /api/auth/dang-nhap, /api/auth/khach-hang/dang-nhap | Đăng nhập nhân viên / khách hàng, trả token |
+| GET / POST | /api/giao-ca/hien-tai, /api/giao-ca/nhan-ca, /api/giao-ca/ket-ca | Ca đang mở + đối soát ca trước, vào ca (`tienDauCa`, `chuyenKhoanCaTruoc`, `ghiChu`), kết ca |
+| GET / POST / PUT / DELETE | /api/ban-hang/hoa-don-cho[/{id}[/san-pham, /chi-tiet/{idCt}, /khach-hang, /cap-nhat-gia, /thanh-toan]] | Hóa đơn chờ tại quầy lưu CSDL (trừ / trả kho ngay), thanh toán kèm `giaoHang` |
+| GET | /api/ban-hang/san-pham/loc | Bảng chọn sản phẩm: lọc + khoảng giá + phân trang, chỉ hàng còn tồn |
+| PUT / POST | /api/hoa-don/{id}/sua-don, /api/hoa-don/{id}/xac-nhan-thanh-toan | Sửa đơn online một lần (hoàn phí / phụ phí), xác nhận đã nhận chuyển khoản |
+| GET / POST | /api/thong-ke/so-sanh?kieu=THANG\|QUY\|NAM&ky=, /api/thong-ke/so-sanh/gui-email | Số liệu so sánh, gửi email báo cáo kèm biểu đồ |
 
 ## Sửa theo lời cô review giai đoạn 2 (15/10/2026)
 
