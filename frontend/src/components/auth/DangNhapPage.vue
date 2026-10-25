@@ -338,9 +338,10 @@ function dienMau(tk, role = 'nhan-vien') {
                 <span class="dn-badge-role">Admin</span>
                 <b>NV01</b> · Quản lý
               </button>
-              <button type="button" class="dn-mau-nut" @click="dienMau('NV02', 'nhan-vien')">
+              <!-- NV02 trong dữ liệu mẫu là Quản lý nên nút nhân viên thứ hai dùng NV04 -->
+              <button type="button" class="dn-mau-nut" @click="dienMau('NV04', 'nhan-vien')">
                 <span class="dn-badge-role is-nv">Thu ngân</span>
-                <b>NV02</b> · Nhân viên
+                <b>NV04</b> · Nhân viên
               </button>
               <button type="button" class="dn-mau-nut" @click="dienMau('NV03', 'nhan-vien')">
                 <span class="dn-badge-role is-nv">Bán hàng</span>
