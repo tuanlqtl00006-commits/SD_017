@@ -127,7 +127,8 @@ public class TroLyAoService {
     /* ===================== Tra cứu đơn ===================== */
 
     static final Pattern MA_DON = Pattern.compile("\\bhd\\s*-?\\s*(\\d{1,9})\\b");
-    static final Pattern SDT = Pattern.compile("\\b(0[35789]\\d{8})\\b");
+    /** Cùng quy tắc với QuyTacDuLieu.SDT: 10 chữ số, bắt đầu bằng 0. */
+    static final Pattern SDT = Pattern.compile("\\b(0\\d{9})\\b");
 
     TraLoi traCuuDon(String t, NguCanh nc) {
         Matcher m = MA_DON.matcher(t);

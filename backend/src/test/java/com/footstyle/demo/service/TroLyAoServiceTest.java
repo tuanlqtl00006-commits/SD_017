@@ -229,6 +229,9 @@ class TroLyAoServiceTest {
         assertFalse(sai.contains("Đang giao"), sai);
         // SĐT gõ trong câu được ưu tiên
         assertTrue(troLy.traLoi("đơn HD12 sdt 0901000001", new TroLyAoService.NguCanh("X", "0987654321")).noiDung().contains("Trạng thái"));
+        // SĐT theo quy tắc chung (10 số, bắt đầu bằng 0) - kể cả số máy bàn 02x - vẫn nhận ra khi gõ trong câu
+        hoaDons.get(0).setSdtNguoiNhan("0243123456");
+        assertTrue(troLy.traLoi("đơn HD12 sdt 0243123456", new TroLyAoService.NguCanh("X", "0987654321")).noiDung().contains("Trạng thái"));
         assertTrue(hoi("Đơn HD99").contains("không tìm thấy đơn HD99"));
         assertTrue(hoi("mình muốn kiểm tra đơn hàng").contains("gửi giúp mình mã đơn"));
     }

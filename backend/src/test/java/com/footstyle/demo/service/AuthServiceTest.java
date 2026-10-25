@@ -98,6 +98,43 @@ class AuthServiceTest {
     }
 
     @Test
+    void khoaTam_tinhTheoTaiKhoanThat_maEmailSdtDungChungBoDem() {
+        // NV03 đăng nhập được bằng mã, email, SĐT: sai xen kẽ 3 cách vẫn chỉ được 5 lần, không thành 15
+        String[] cachGo = {"NV03", "bao.lq@footstyle.vn", "0912000003", "nv03"};
+        for (int i = 0; i < 4; i++) {
+            String tk = cachGo[i];
+            assertEquals(HttpStatus.UNAUTHORIZED, loi(() -> service.dangNhapNhanVien(new DangNhapRequest(tk, "sai"))).getStatus(), tk);
+        }
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, loi(() -> service.dangNhapNhanVien(new DangNhapRequest("0912000003", "sai"))).getStatus());
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS,
+                loi(() -> service.dangNhapNhanVien(new DangNhapRequest("bao.lq@footstyle.vn", TaiKhoanMau.MAT_KHAU))).getStatus());
+    }
+
+    @Test
+    void khongNhanChuoiBamLamMatKhau() {
+        String bam = mau.nhanVien.getMatKhau();
+        assertTrue(AuthService.laMaBamBCrypt(bam));
+        ApiException e = loi(() -> service.dangNhapNhanVien(new DangNhapRequest("NV03", bam)));
+        assertEquals(HttpStatus.UNAUTHORIZED, e.getStatus(), "lộ chuỗi băm trong CSDL cũng không đăng nhập được");
+        mau.khach.setMatKhau(mau.encoder.encode(TaiKhoanMau.MAT_KHAU));
+        String bamKhach = mau.khach.getMatKhau();
+        assertEquals(HttpStatus.UNAUTHORIZED, loi(() -> service.dangNhapKhachHang(new DangNhapRequest("0901000005", bamKhach))).getStatus());
+    }
+
+    @Test
+    void matKhauCuChuaBam_vanDangNhapDuoc_vaDuocBamLaiNgay() {
+        mau.nhanVien.setMatKhau(TaiKhoanMau.MAT_KHAU); // dữ liệu mẫu bản cũ lưu dạng thường
+        assertFalse(AuthService.laMaBamBCrypt(mau.nhanVien.getMatKhau()));
+        Map<String, Object> kq = service.dangNhapNhanVien(new DangNhapRequest("NV03", TaiKhoanMau.MAT_KHAU));
+        assertTrue(AuthService.laMaBamBCrypt(mau.nhanVien.getMatKhau()), "đăng nhập đúng thì băm lại");
+        assertTrue(mau.encoder.matches(TaiKhoanMau.MAT_KHAU, mau.nhanVien.getMatKhau()));
+        // token cấp ra khớp với mật khẩu đã băm lại
+        assertEquals(0, mau.interceptor(true).xacThuc("GET", "/api/hoa-don", "Bearer " + kq.get("token")).status());
+        assertEquals("NV03", nd(service.dangNhapNhanVien(new DangNhapRequest("NV03", TaiKhoanMau.MAT_KHAU))).get("ma"));
+        assertEquals(HttpStatus.UNAUTHORIZED, loi(() -> service.dangNhapNhanVien(new DangNhapRequest("NV03", "Footstyle@12"))).getStatus());
+    }
+
+    @Test
     void taiKhoanNgungHoatDong_chiBaoSauKhiDungMatKhau() {
         assertEquals(HttpStatus.UNAUTHORIZED, loi(() -> service.dangNhapNhanVien(new DangNhapRequest("NV10", "sai"))).getStatus());
         ApiException e = loi(() -> service.dangNhapNhanVien(new DangNhapRequest("NV10", TaiKhoanMau.MAT_KHAU)));
@@ -169,6 +206,19 @@ class AuthServiceTest {
         assertEquals(1, thuDaGui.size());
         assertEquals(HttpStatus.BAD_REQUEST, loi(() -> service.quenMatKhau("khong-phai-email")).getStatus());
         assertNull(XacThuc.hienTai().orElse(null));
+    }
+
+    @Test
+    void quenMatKhau_bamLienTuc_chiCapLai1Lan_trongThoiGianCho() {
+        Map<String, Object> lan1 = service.quenMatKhau("bao.lq@footstyle.vn");
+        String sauLan1 = mau.nhanVien.getMatKhau();
+        Map<String, Object> lan2 = service.quenMatKhau("bao.lq@footstyle.vn");
+        assertEquals(sauLan1, mau.nhanVien.getMatKhau(), "người khác bấm liên tục không đổi được mật khẩu nữa");
+        assertEquals(1, thuDaGui.size());
+        assertEquals(lan1.get("message"), lan2.get("message"), "vẫn cùng một câu báo");
+        // tài khoản khác không bị ảnh hưởng
+        service.quenMatKhau("long.nh@footstyle.vn");
+        assertEquals(2, thuDaGui.size());
     }
 
     @Test

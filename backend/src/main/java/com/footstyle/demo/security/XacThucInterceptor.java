@@ -118,14 +118,17 @@ public class XacThucInterceptor implements HandlerInterceptor {
         return null;
     }
 
-    /** Nạp lại người dùng của token; null nếu không còn hợp lệ (bị xóa, ngừng hoạt động, đổi mật khẩu). */
+    /**
+     * Nạp lại người dùng của token; null nếu không còn hợp lệ (bị xóa, ngừng hoạt động, đổi mật khẩu).
+     * Tài khoản chưa có mật khẩu không đăng nhập được nên cũng không có token hợp lệ (vân tay "-" ai cũng đoán được).
+     */
     NguoiDung napNguoiDung(TokenXacThuc.ThongTin tt) {
         if (NguoiDung.LOAI_NHAN_VIEN.equals(tt.loai())) {
             Optional<NhanVien> nv = nhanVienRepo.findById(tt.id());
             if (nv.isEmpty()) return null;
             NhanVien n = nv.get();
             if (!Integer.valueOf(NhanVien.HOAT_DONG).equals(n.getTrangThai())) return null;
-            if (!TokenXacThuc.vanTay(n.getMatKhau()).equals(tt.vanTay())) return null;
+            if (chuaCoMatKhau(n.getMatKhau()) || !TokenXacThuc.vanTay(n.getMatKhau()).equals(tt.vanTay())) return null;
             return tuNhanVien(n);
         }
         if (NguoiDung.LOAI_KHACH_HANG.equals(tt.loai())) {
@@ -133,10 +136,14 @@ public class XacThucInterceptor implements HandlerInterceptor {
             if (kh.isEmpty()) return null;
             KhachHang k = kh.get();
             if (!Integer.valueOf(1).equals(k.getTrangThai())) return null;
-            if (!TokenXacThuc.vanTay(k.getMatKhau()).equals(tt.vanTay())) return null;
+            if (chuaCoMatKhau(k.getMatKhau()) || !TokenXacThuc.vanTay(k.getMatKhau()).equals(tt.vanTay())) return null;
             return tuKhachHang(k);
         }
         return null;
+    }
+
+    private static boolean chuaCoMatKhau(String matKhau) {
+        return matKhau == null || matKhau.isBlank();
     }
 
     public static NguoiDung tuNhanVien(NhanVien n) {

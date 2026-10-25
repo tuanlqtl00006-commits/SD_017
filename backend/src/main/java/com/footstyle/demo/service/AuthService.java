@@ -13,11 +13,17 @@ import com.footstyle.demo.security.NguoiDung;
 import com.footstyle.demo.security.TokenXacThuc;
 import com.footstyle.demo.security.XacThuc;
 import com.footstyle.demo.security.XacThucInterceptor;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -38,6 +44,9 @@ public class AuthService {
     static final String LOI_SAI = "Tài khoản hoặc mật khẩu không đúng.";
     /** Mã băm giả: tài khoản không tồn tại vẫn so BCrypt một lần để thời gian trả lời như nhau (không dò được tài khoản). */
     private static final String MA_BAM_GIA = "$2a$10$rngBEegtifzMhc1qfTrIvOGQXep69zUZBdSq5YFNVsPKZraiunq7m";
+    private static final Pattern MA_BAM_BCRYPT = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
+    /** Khoảng cách tối thiểu giữa 2 lần cấp lại mật khẩu tạm cho cùng một tài khoản. */
+    static final Duration CHO_CAP_LAI = Duration.ofMinutes(5);
 
     private final NhanVienRepository nhanVienRepo;
     private final KhachHangRepository khachHangRepo;
@@ -45,25 +54,34 @@ public class AuthService {
     private final TokenXacThuc token;
     private final GioiHanDangNhap gioiHan;
     private final MailService mailService;
+    /** id nhân viên -> lần cuối được cấp mật khẩu tạm (trong bộ nhớ, giống GioiHanDangNhap). */
+    private final Map<Integer, Instant> lanCapLai = new ConcurrentHashMap<>();
 
     /* ===================== Nhân viên ===================== */
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, Object> dangNhapNhanVien(DangNhapRequest req) {
         String taiKhoan = kiemTraNhap(req);
         String matKhau = req.matKhau();
-        chanNeuDangKhoa(taiKhoan);
-
         Optional<NhanVien> timThay = timNhanVien(taiKhoan);
+        // Đếm sai theo TÀI KHOẢN THẬT: mã NV, email, SĐT của cùng một người dùng chung bộ đếm (không thành 3 x 5 lần thử)
+        String khoaDem = timThay.map(nv -> "nv#" + nv.getId()).orElse("nv:" + taiKhoan);
+        chanNeuDangKhoa(khoaDem);
+
         if (timThay.isEmpty()) dungMatKhau(matKhau, MA_BAM_GIA);
         if (timThay.isEmpty() || !dungMatKhau(matKhau, timThay.get().getMatKhau())) {
-            throw saiMatKhau(taiKhoan);
+            throw saiMatKhau(khoaDem);
         }
         NhanVien nv = timThay.get();
         if (!Integer.valueOf(NhanVien.HOAT_DONG).equals(nv.getTrangThai())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Tài khoản đã ngừng hoạt động. Vui lòng liên hệ quản lý cửa hàng.", "TAI_KHOAN_NGUNG", null);
         }
-        gioiHan.ghiDung(taiKhoan);
+        gioiHan.ghiDung(khoaDem);
+        if (!laMaBamBCrypt(nv.getMatKhau())) {
+            // Mật khẩu dữ liệu mẫu / bản cũ còn lưu dạng thường: băm lại ngay khi đăng nhập đúng
+            nv.setMatKhau(encoder.encode(matKhau));
+            nhanVienRepo.save(nv);
+        }
         return ketQuaDangNhap(token.tao(NguoiDung.LOAI_NHAN_VIEN, nv.getId(), nv.getMatKhau()), XacThucInterceptor.tuNhanVien(nv));
     }
 
@@ -76,21 +94,27 @@ public class AuthService {
 
     /* ===================== Khách hàng (trang bán online) ===================== */
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, Object> dangNhapKhachHang(DangNhapRequest req) {
         String taiKhoan = kiemTraNhap(req);
-        chanNeuDangKhoa("kh:" + taiKhoan);
         Optional<KhachHang> timThay = taiKhoan.contains("@")
                 ? khachHangRepo.findFirstByEmailIgnoreCase(taiKhoan)
                 : khachHangRepo.findFirstBySdt(taiKhoan);
+        String khoaDem = timThay.map(kh -> "kh#" + kh.getId()).orElse("kh:" + taiKhoan);
+        chanNeuDangKhoa(khoaDem);
+        if (timThay.isEmpty()) dungMatKhau(req.matKhau(), MA_BAM_GIA);
         if (timThay.isEmpty() || !dungMatKhau(req.matKhau(), timThay.get().getMatKhau())) {
-            throw saiMatKhau("kh:" + taiKhoan);
+            throw saiMatKhau(khoaDem);
         }
         KhachHang kh = timThay.get();
         if (!Integer.valueOf(1).equals(kh.getTrangThai())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Tài khoản đã ngừng hoạt động. Vui lòng liên hệ cửa hàng.", "TAI_KHOAN_NGUNG", null);
         }
-        gioiHan.ghiDung("kh:" + taiKhoan);
+        gioiHan.ghiDung(khoaDem);
+        if (!laMaBamBCrypt(kh.getMatKhau())) {
+            kh.setMatKhau(encoder.encode(req.matKhau()));
+            khachHangRepo.save(kh);
+        }
         return ketQuaDangNhap(token.tao(NguoiDung.LOAI_KHACH_HANG, kh.getId(), kh.getMatKhau()), XacThucInterceptor.tuKhachHang(kh));
     }
 
@@ -132,6 +156,7 @@ public class AuthService {
         loi.nemNeuCoLoi();
         nhanVienRepo.findFirstByEmailIgnoreCase(e)
                 .filter(nv -> Integer.valueOf(NhanVien.HOAT_DONG).equals(nv.getTrangThai()))
+                .filter(nv -> duocCapLai(nv.getId()))
                 .ifPresent(nv -> {
                     String tam = MatKhauTam.tao();
                     nv.setMatKhau(encoder.encode(tam));
@@ -142,6 +167,18 @@ public class AuthService {
         kq.put("message", "Nếu email đúng là tài khoản đang hoạt động, mật khẩu tạm đã được gửi tới email đó. Hãy kiểm tra hộp thư (cả mục Spam).");
         kq.put("daCauHinhMail", mailService.duocCauHinh());
         return kq;
+    }
+
+    /**
+     * Quên mật khẩu đổi mật khẩu NGAY nên ai biết email cũng bấm được: mỗi tài khoản chỉ cấp lại 1 lần / CHO_CAP_LAI,
+     * tránh bị người khác bấm liên tục làm nhân viên không đăng nhập được (vẫn trả cùng một câu báo).
+     */
+    private synchronized boolean duocCapLai(Integer idNhanVien) {
+        Instant bayGio = Instant.now();
+        Instant lanTruoc = lanCapLai.get(idNhanVien);
+        if (lanTruoc != null && Duration.between(lanTruoc, bayGio).compareTo(CHO_CAP_LAI) < 0) return false;
+        lanCapLai.put(idNhanVien, bayGio);
+        return true;
     }
 
     /* ===================== Hàm phụ ===================== */
@@ -181,12 +218,21 @@ public class AuthService {
 
     private boolean dungMatKhau(String nhap, String daBam) {
         if (nhap == null || daBam == null || daBam.isBlank()) return false;
-        if (nhap.equals(daBam)) return true; // Hỗ trợ mật khẩu dữ liệu mẫu / phiên bản trước (chưa băm BCrypt)
+        // Mật khẩu dữ liệu mẫu / phiên bản trước (chưa băm BCrypt) thì so trực tiếp. Đã băm thì CHỈ so bằng BCrypt:
+        // không được nhận chính chuỗi băm làm mật khẩu (ai lấy được chuỗi băm trong CSDL sẽ đăng nhập được).
+        if (!laMaBamBCrypt(daBam)) {
+            return MessageDigest.isEqual(nhap.getBytes(StandardCharsets.UTF_8), daBam.getBytes(StandardCharsets.UTF_8));
+        }
         try {
             return encoder.matches(nhap, daBam);
         } catch (RuntimeException e) {
             return false;
         }
+    }
+
+    /** Chuỗi băm BCrypt: $2a$ / $2b$ / $2y$ + 2 chữ số độ khó + $ + 53 ký tự. */
+    static boolean laMaBamBCrypt(String s) {
+        return s != null && MA_BAM_BCRYPT.matcher(s).matches();
     }
 
     private Map<String, Object> ketQuaDangNhap(String t, NguoiDung nd) {

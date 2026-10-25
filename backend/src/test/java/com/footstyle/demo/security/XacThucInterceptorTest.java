@@ -53,6 +53,17 @@ class XacThucInterceptorTest {
     }
 
     @Test
+    void taiKhoanChuaCoMatKhau_tokenTuTao_401() {
+        // Vân tay của tài khoản chưa có mật khẩu luôn là "-": biết chuỗi bí mật (mặc định nằm trong application.properties)
+        // là tự ký được token, nên tài khoản như vậy không bao giờ được coi là đã đăng nhập
+        mau.khach.setMatKhau(null);
+        String gia = mau.token.tao(NguoiDung.LOAI_KHACH_HANG, mau.khach.getId(), null);
+        assertEquals(401, it.xacThuc("GET", "/api/auth/toi", bearer(gia)).status());
+        mau.nhanVien.setMatKhau("  ");
+        assertEquals(401, it.xacThuc("GET", "/api/hoa-don", bearer(mau.token.tao(NguoiDung.LOAI_NHAN_VIEN, 3, "  "))).status());
+    }
+
+    @Test
     void nhanVienHopLe_vaoDuocHoaDon_khongVaoDuocNhanVien() {
         String t = mau.tokenCua(mau.nhanVien);
         XacThucInterceptor.KetQua ok = it.xacThuc("GET", "/api/hoa-don", bearer(t));

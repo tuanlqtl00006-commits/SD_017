@@ -10,7 +10,7 @@ import {
 import { duongDanQuayLaiAnToan, layPhien, layToken, luuPhien, xoaPhien } from '../src/services/phien'
 import { daCauHinhNganHang } from '../src/constants/thanhToan'
 import { _datLaiAuth, useAuth } from '../src/composables/useAuth'
-import { kiemTraTruyCap } from '../src/router'
+import router, { kiemTraTruyCap } from '../src/router'
 
 const SP = { id: 1, ma: 'SP01-DEN-4U-G5', tenSanPham: 'Yonex Astrox 99 Pro', phanLoai: 'Đen · 4U · G5', giaGoc: 4290000, phanTramGiam: 10, donGia: 3861000, tonKho: 3 }
 
@@ -159,5 +159,30 @@ describe('Kiểm tra truy cập trang', () => {
     dangNhapLa(QL)
     expect(await kiemTraTruyCap(trang('/thong-ke', { roles: ['quan-ly'] }))).toBe(true)
     expect(useAuth().trangChu()).toBe('/thong-ke')
+  })
+
+  it('khách hàng đăng nhập ở trang bán online không vào được trang quản trị (kể cả trang của nhân viên)', async () => {
+    dangNhapLa({ id: 7, ma: 'KH07', hoTen: 'Phạm Minh Châu', vaiTro: 'KHACH_HANG' })
+    expect(useAuth().vaiTro.value).toBe('khach-hang')
+    expect(await kiemTraTruyCap(trang('/ban-hang', { roles: ['nhan-vien', 'quan-ly'] }))).toBe('/shop')
+    expect(await kiemTraTruyCap(trang('/chat-noi-bo', { roles: ['nhan-vien', 'quan-ly'] }))).toBe('/shop')
+    expect(await kiemTraTruyCap(trang('/shop', { congKhai: true }, 'shop-home'))).toBe(true)
+  })
+})
+
+describe('Trang ca làm việc / trò chuyện có trong router với đúng quyền', () => {
+  const quyen = (path) => router.resolve(path).meta
+  it('nhân viên: lịch của mình, lịch sử giao ca, hỗ trợ khách, chat nội bộ; chỉ quản lý xếp lịch', () => {
+    for (const p of ['/lich-cua-toi', '/giao-ca', '/ho-tro-truc-tuyen', '/chat-noi-bo']) {
+      expect(router.resolve(p).name, p).not.toBeUndefined()
+      expect(quyen(p).roles, p).toEqual(['nhan-vien', 'quan-ly'])
+    }
+    expect(quyen('/lich-lam-viec').roles).toEqual(['quan-ly'])
+  })
+
+  it('trang chat của khách (/ho-tro) công khai, không bị chuyển về /hoa-don', () => {
+    const r = router.resolve('/ho-tro')
+    expect(r.name).toBe('ho-tro-khach')
+    expect(r.meta.congKhai).toBe(true)
   })
 })

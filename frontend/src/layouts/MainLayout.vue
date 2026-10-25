@@ -3,12 +3,15 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ToastHost from '../components/common/ToastHost.vue'
 import DoiMatKhauModal from '../components/auth/DoiMatKhauModal.vue'
+import GiaoCaNut from '../components/giaoCa/GiaoCaNut.vue'
 import { THUOC_TINH_LIST } from '../constants/thuocTinh'
 import { useAuth } from '../composables/useAuth'
+import { useChatChuaDoc } from '../composables/useChatChuaDoc'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
+const chuaDoc = useChatChuaDoc()
 
 // Breadcrumb trên header lấy từ meta của route (xem router/index.js)
 const pageTitle = computed(() => route.meta.title || '')
@@ -46,7 +49,29 @@ const menuAll = [
   },
   { key: 'khach-hang', label: 'Quản lý khách hàng', icon: 'bi-people', to: '/khach-hang', roles: NV },
   { key: 'nhan-vien', label: 'Quản lý nhân viên', icon: 'bi-person', to: '/nhan-vien', roles: QL },
+  {
+    // Nhận ca / giao ca bấm nút "Ca làm việc" trên header; ở đây là lịch và lịch sử
+    key: 'ca-lam', label: 'Ca làm việc', icon: 'bi-calendar-week', roles: NV,
+    children: [
+      { label: 'Lịch làm của tôi', icon: 'bi-calendar-check', to: '/lich-cua-toi' },
+      { label: 'Xếp lịch làm việc', icon: 'bi-calendar3', to: '/lich-lam-viec', roles: QL },
+      { label: 'Lịch sử giao ca', icon: 'bi-arrow-left-right', to: '/giao-ca' },
+    ],
+  },
+  {
+    // badge: khóa trong useChatChuaDoc().dem (hoTro = cuộc chat khách cần xử lý, noiBo = tin nội bộ chưa đọc)
+    key: 'tro-chuyen', label: 'Trò chuyện', icon: 'bi-chat-dots', roles: NV,
+    children: [
+      { label: 'Hỗ trợ khách hàng', icon: 'bi-headset', to: '/ho-tro-truc-tuyen', badge: 'hoTro' },
+      { label: 'Chat nội bộ', icon: 'bi-people-fill', to: '/chat-noi-bo', badge: 'noiBo' },
+    ],
+  },
 ]
+
+// Số trên menu (tối đa "99+"); mục cha cộng số của các mục con để thấy ngay khi nhóm đang đóng
+const soBadge = (khoa) => (khoa ? chuaDoc.dem[khoa] || 0 : 0)
+const nhanBadge = (n) => (n > 99 ? '99+' : String(n))
+const tongBadge = (item) => (item.children || []).reduce((s, c) => s + soBadge(c.badge), 0)
 
 // Vai trò lấy từ tài khoản đang đăng nhập; menu con cũng có thể giới hạn vai trò riêng
 const role = computed(() => auth.vaiTro.value)
@@ -65,9 +90,11 @@ function dongKhiBamNgoai(e) {
 }
 onMounted(() => {
   document.addEventListener('mousedown', dongKhiBamNgoai)
+  chuaDoc.batDau()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', dongKhiBamNgoai)
+  chuaDoc.dung()
 })
 function dangXuat() {
   moTaiKhoan.value = false
@@ -86,7 +113,7 @@ const ZOOM = 0.75
 }
 
 // Nhóm có menu con mặc định đóng cho gọn; bấm vào nhóm để mở/đóng.
-const open = reactive({ 'san-pham': false, 'thuoc-tinh': false, 'giam-gia': false })
+const open = reactive({ 'san-pham': false, 'thuoc-tinh': false, 'giam-gia': false, 'ca-lam': false, 'tro-chuyen': false })
 for (const g of menuAll) {
   if (g.children?.some((c) => isActive(c.to, c.exact))) open[g.key] = true
 }
@@ -113,12 +140,16 @@ const toggle = (key) => { open[key] = !open[key] }
                 @click="toggle(item.key)"
               >
                 <span><i class="bi icon" :class="item.icon" aria-hidden="true"></i>{{ item.label }}</span>
-                <i class="bi bi-chevron-down chevron" :class="{ up: open[item.key] }" aria-hidden="true"></i>
+                <span class="d-flex align-items-center gap-2">
+                  <span v-if="!open[item.key] && tongBadge(item)" class="ad-menu-badge" :aria-label="`${tongBadge(item)} mục chưa xem`">{{ nhanBadge(tongBadge(item)) }}</span>
+                  <i class="bi bi-chevron-down chevron" :class="{ up: open[item.key] }" aria-hidden="true"></i>
+                </span>
               </button>
               <ul v-if="open[item.key] && item.children.length" class="nav flex-column mt-1 ad-sub">
                 <li v-for="c in item.children" :key="c.label" class="nav-item">
                   <RouterLink v-if="c.to" :to="c.to" class="nav-link side-link ad-link ad-sublink" :class="{ active: isActive(c.to, c.exact) }">
                     <i class="bi icon" :class="c.icon" aria-hidden="true"></i>{{ c.label }}
+                    <span v-if="soBadge(c.badge)" class="ad-menu-badge" :aria-label="`${soBadge(c.badge)} mục chưa xem`">{{ nhanBadge(soBadge(c.badge)) }}</span>
                   </RouterLink>
                   <a v-else href="#" class="nav-link side-link ad-link ad-sublink" @click.prevent>
                     <i class="bi icon" :class="c.icon" aria-hidden="true"></i>{{ c.label }}
@@ -151,6 +182,8 @@ const toggle = (key) => { open[key] = !open[key] }
             <h1 class="ad-page-title">{{ pageTitle }}</h1>
           </template>
         </div>
+
+        <GiaoCaNut v-if="auth.daDangNhap.value && !auth.laKhachHang.value" />
 
         <div ref="taiKhoanRef" class="position-relative ms-1">
           <button type="button" class="ad-tk-nut" :aria-expanded="moTaiKhoan" aria-haspopup="menu" @click="moTaiKhoan = !moTaiKhoan">

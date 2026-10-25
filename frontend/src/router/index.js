@@ -149,6 +149,38 @@ const routes = [
         component: () => import('../components/banHang/BanHangPage.vue'),
         meta: { title: 'Bán hàng tại quầy', roles: NV },
       },
+      // ===== Ca làm việc / giao ca (nhận ca, giao ca ở nút "Ca làm việc" trên header) =====
+      {
+        path: 'giao-ca',
+        name: 'giao-ca',
+        component: () => import('../components/giaoCa/GiaoCaLichSuPage.vue'),
+        meta: { parent: 'Ca làm việc', title: 'Lịch sử giao ca', roles: NV },
+      },
+      {
+        path: 'lich-cua-toi',
+        name: 'lich-cua-toi',
+        component: () => import('../components/lichLamViec/LichCuaToiPage.vue'),
+        meta: { parent: 'Ca làm việc', title: 'Lịch làm của tôi', roles: NV },
+      },
+      {
+        path: 'lich-lam-viec',
+        name: 'lich-lam-viec',
+        component: () => import('../components/lichLamViec/LichLamViecPage.vue'),
+        meta: { parent: 'Ca làm việc', title: 'Xếp lịch làm việc', roles: QL },
+      },
+      // ===== Trò chuyện: hỗ trợ khách (trợ lý ảo chuyển sang) + chat nội bộ nhân viên =====
+      {
+        path: 'ho-tro-truc-tuyen',
+        name: 'ho-tro-truc-tuyen',
+        component: () => import('../components/chat/HoTroTrucTuyenPage.vue'),
+        meta: { parent: 'Trò chuyện', title: 'Hỗ trợ khách hàng', roles: NV },
+      },
+      {
+        path: 'chat-noi-bo',
+        name: 'chat-noi-bo',
+        component: () => import('../components/chat/ChatNoiBoPage.vue'),
+        meta: { parent: 'Trò chuyện', title: 'Chat nội bộ', roles: NV },
+      },
     ],
   },
   // Bán hàng online cho khách (Giao diện chuẩn nhóm)
@@ -259,6 +291,13 @@ const routes = [
     name: 'dang-nhap',
     component: () => import('../components/auth/DangNhapPage.vue'),
     meta: { congKhai: true, title: 'Đăng nhập hệ thống' },
+  },
+  // Chat của khách mở riêng một trang (trợ lý ảo trả lời trước, cần thì gặp nhân viên); trang shop cũng có nút chat nổi
+  {
+    path: '/ho-tro',
+    name: 'ho-tro-khach',
+    component: () => import('../components/chat/HoTroKhachPage.vue'),
+    meta: { congKhai: true, title: 'Hỗ trợ trực tuyến - FootStyle' },
   },
   { path: '/:pathMatch(.*)*', redirect: '/hoa-don' },
 ]
