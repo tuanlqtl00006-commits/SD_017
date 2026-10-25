@@ -13,11 +13,30 @@ const NV = ['nhan-vien', 'quan-ly']
 
 // meta.title / meta.parent: hiển thị trên header (kiểu "Quản lý giảm giá / Phiếu giảm giá").
 const routes = [
+  // Link riêng vào trang quản trị: /admin (nếu đã đăng nhập thì vào trang chủ nghiệp vụ, chưa thì vào /dang-nhap)
+  {
+    path: '/admin',
+    name: 'admin',
+    redirect: () => {
+      const auth = useAuth()
+      return auth.daDangNhap.value ? auth.trangChu() : '/dang-nhap'
+    },
+  },
+  {
+    path: '/admin/dang-nhap',
+    redirect: '/dang-nhap',
+  },
   {
     path: '/',
     component: MainLayout,
-    redirect: '/hoa-don',
     children: [
+      // Mở link gốc trang web (/) chuyển thẳng sang Cửa hàng online (/shop) riêng biệt, không vào trang đăng nhập
+      {
+        path: '',
+        name: 'trang-chu-goc',
+        redirect: '/shop',
+        meta: { congKhai: true },
+      },
       {
         path: 'thong-ke',
         name: 'thong-ke',
@@ -331,7 +350,13 @@ const routes = [
     component: () => import('../components/chat/HoTroKhachPage.vue'),
     meta: { congKhai: true, title: 'Hỗ trợ trực tuyến - FootStyle' },
   },
-  { path: '/:pathMatch(.*)*', redirect: '/hoa-don' },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: () => {
+      const auth = useAuth()
+      return auth.daDangNhap.value ? auth.trangChu() : '/shop'
+    },
+  },
 ]
 
 const router = createRouter({

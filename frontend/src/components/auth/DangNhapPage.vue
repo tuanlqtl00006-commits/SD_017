@@ -732,9 +732,31 @@ function dienMau(tk) {
   user-select: none;
 }
 .dn-nho input {
+  appearance: none;
+  -webkit-appearance: none;
   width: 18px;
   height: 18px;
-  accent-color: var(--xanh);
+  border-radius: 4px;
+  border: 1.5px solid #cbd5e1;
+  background-color: #ffffff;
+  color-scheme: light;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  transition: all 0.15s ease-in-out;
+}
+.dn-nho input:hover {
+  border-color: var(--xanh);
+}
+.dn-nho input:checked {
+  background-color: var(--xanh);
+  border-color: var(--xanh);
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3e%3c/svg%3e");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 12px 12px;
 }
 .dn-nut {
   display: inline-flex;

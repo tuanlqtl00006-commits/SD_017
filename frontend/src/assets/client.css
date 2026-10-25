@@ -4,6 +4,7 @@
    ========================================================================== */
 
 :root {
+  color-scheme: light;
   --vnb-orange: #1d4ed8;
   --vnb-orange-hover: #1e40af;
   --vnb-orange-light: #eff6ff;
@@ -183,12 +184,14 @@
   position: relative;
   background-color: #1d4ed8;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
+  overflow: visible;
 }
 
 /* Wrapper bao nav + mega menu để position: relative */
 .vnb-nav-wrapper {
   position: relative;
   z-index: 1000;
+  overflow: visible;
 }
 
 .vnb-nav-list {
@@ -197,9 +200,8 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  overflow-x: auto;
+  overflow: visible;
   white-space: nowrap;
-  scrollbar-width: none;
 }
 
 .vnb-nav-list::-webkit-scrollbar {
@@ -210,22 +212,86 @@
   position: relative;
 }
 
+.vnb-nav-item.dropdown {
+  position: relative;
+}
+
 .vnb-nav-link {
   display: inline-block;
   color: #ffffff;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 700;
   text-transform: uppercase;
-  padding: 11px 14px;
+  padding: 12px 18px;
   text-decoration: none;
-  letter-spacing: 0.3px;
-  transition: background-color 0.15s;
+  letter-spacing: 0.4px;
+  transition: all 0.15s ease;
+  position: relative;
 }
 
-.vnb-nav-link:hover,
-.vnb-nav-link.router-link-exact-active {
-  background-color: rgba(0, 0, 0, 0.15);
+.vnb-nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.15);
   color: #ffffff;
+}
+
+.vnb-nav-link.router-link-exact-active::after,
+.vnb-nav-link:not([href="/shop"]):not([href="/shop/"]).router-link-active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  height: 3px;
+  background-color: #ffffff;
+  border-radius: 2px 2px 0 0;
+}
+
+/* DROPDOWN MENU HƯỚNG DẪN CHUẨN MẪU SHOPVNB */
+.vnb-guide-menu {
+  position: absolute !important;
+  display: none !important;
+  top: 100% !important;
+  left: 0 !important;
+  min-width: 250px;
+  background-color: #ffffff;
+  border-radius: 2px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16) !important;
+  border: 1px solid #e5e7eb !important;
+  overflow: hidden;
+  z-index: 1050;
+  padding: 0;
+  margin: 0;
+}
+
+/* Hiển thị khi có class show HOẶC khi hover chuột */
+.vnb-guide-menu.show,
+.vnb-nav-item.dropdown:hover .vnb-guide-menu {
+  display: block !important;
+}
+
+.vnb-guide-menu-li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.vnb-guide-link {
+  display: block;
+  padding: 11px 18px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #1f2937;
+  text-decoration: none;
+  border-bottom: 1px solid #f1f5f9;
+  background-color: #ffffff;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.vnb-guide-link:hover {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  padding-left: 22px;
 }
 
 /* MEGA MENU FULL-WIDTH DROPDOWN */
@@ -318,7 +384,7 @@
 }
 
 .vnb-mega-more {
-  color: #ea580c;
+  color: #2563eb;
   font-size: 0.795rem;
   font-weight: 600;
   text-decoration: none;
@@ -328,7 +394,7 @@
 
 .vnb-mega-more:hover {
   text-decoration: underline;
-  color: #c2410c;
+  color: #1d4ed8;
 }
 
 /* 4 SERVICE BOXES */
@@ -813,13 +879,41 @@
 }
 
 .vnb-filter-item input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
   flex-shrink: 0;
-  width: 15px;
-  height: 15px;
-  border-radius: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
   border: 1.5px solid #cbd5e1;
+  background-color: #ffffff;
+  color-scheme: light;
   cursor: pointer;
-  accent-color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  transition: all 0.15s ease-in-out;
+  position: relative;
+}
+
+.vnb-filter-item input[type="checkbox"]:hover {
+  border-color: #1d4ed8;
+  background-color: #ffffff;
+}
+
+.vnb-filter-item input[type="checkbox"]:checked {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3e%3c/svg%3e");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 11px 11px;
+}
+
+.vnb-filter-item input[type="checkbox"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.2);
 }
 
 .vnb-filter-item input[type="checkbox"]:checked + span {
@@ -856,13 +950,13 @@
   border-left: 1px solid #e5e7eb;
   padding: 6px 12px;
   cursor: pointer;
-  color: #ea580c;
+  color: #1d4ed8;
   font-size: 0.9rem;
   transition: background 0.15s;
 }
 
 .vnb-filter-search-btn:hover {
-  background: #fff7ed;
+  background: #eff6ff;
 }
 
 /* === Legacy classes (backward compat) === */

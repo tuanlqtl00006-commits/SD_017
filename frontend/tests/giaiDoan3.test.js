@@ -249,4 +249,15 @@ describe('Trang ca làm việc / trò chuyện có trong router với đúng quy
     expect(r.name).toBe('ho-tro-khach')
     expect(r.meta.congKhai).toBe(true)
   })
+
+  it('đường dẫn gốc (/) tách riêng chuyển thẳng tới Cửa hàng online (/shop), không bị đưa vào trang đăng nhập', () => {
+    const r = router.resolve('/')
+    expect(r.name).toBe('trang-chu-goc')
+    expect(r.meta.congKhai).toBe(true)
+  })
+
+  it('quản trị có link riêng /admin', () => {
+    const r = router.resolve('/admin')
+    expect(r.name).toBe('admin')
+  })
 })
