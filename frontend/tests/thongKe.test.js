@@ -12,8 +12,8 @@ vi.mock('../src/services/api', () => ({ default: api }))
 import ThongKe from '../src/components/ThongKe.vue'
 import { addDaysIso } from '../src/utils/format'
 import {
-  congNgay, donGanNhat, gomCot, kyTruoc, lamTronTran, locTheoKhoang, nhanTienGon, phanTramThayDoi,
-  soNgay, theoLoaiDon, tinhKhoang, tongHop, xepHang,
+  congNgay, donGanNhat, gomCot, kyTruoc, lamTronTran, locChiTietHoanThanh, locTheoKhoang, nhanTienGon, phanTramThayDoi,
+  soNgay, theoDanhMuc, theoLoaiDon, theoThuongHieu, tinhKhoang, tongHop, tongHopUuDai, tongKetMocThoiGian, topSanPhamBanChay, xepHang,
 } from '../src/utils/thongKe'
 
 const hd = (id, ngay, tien, tt = 6, extra = {}) => ({
@@ -276,6 +276,61 @@ describe('Trang Thống kê', () => {
     const w = mount(ThongKe, { attachTo: document.body })
     await flushPromises()
     expect(w.text()).toContain('Tổng quan cửa hàng')
+    w.unmount()
+  })
+
+  it('validate ngày tự chọn + đối soát dòng tiền + lọc tìm kiếm SP và tồn kho từ /thong-ke/tong-quan', async () => {
+    const dsHd = [
+      hd(10, ngay(1), 500000, 6, { maHoaDon: 'HD10', tenKhachHang: 'Trần Bình' }),
+      hd(11, ngay(1), 800000, 3, { maHoaDon: 'HD11', tenKhachHang: 'Lê Hoa', loaiDon: 'Trực tuyến' }),
+      hd(12, ngay(1), 400000, 0, { maHoaDon: 'HD12', tenKhachHang: 'Vũ Nam' }),
+    ]
+    const tongQuanDb = {
+      chiTietHoaDon: [
+        { idHoaDon: 10, maHoaDon: 'HD10', ngayTao: `${ngay(1)}T10:00:00`, trangThaiHoaDon: 6, idSanPham: 1, maSanPham: 'SP1', tenSanPham: 'Bóng Futsal Nike', tenThuongHieu: 'Nike', tenDanhMuc: 'Futsal', idBienThe: 1, maBienThe: 'BT1', soLuong: 1, thanhTien: 500000, soLuongTon: 0 },
+        { idHoaDon: 10, maHoaDon: 'HD10', ngayTao: `${ngay(1)}T10:00:00`, trangThaiHoaDon: 6, idSanPham: 2, maSanPham: 'SP2', tenSanPham: 'Bóng Adidas Pro', tenThuongHieu: 'Adidas', tenDanhMuc: 'Sân cỏ', idBienThe: 2, maBienThe: 'BT2', soLuong: 2, thanhTien: 900000, soLuongTon: 4 },
+      ],
+      uuDaiHoaDon: [
+        { idHoaDon: 10, maHoaDon: 'HD10', ngayTao: `${ngay(1)}T10:00:00`, trangThai: 6, soTienGiam: 900000, phiVanChuyen: 25000 },
+      ],
+      tonKhoCanhBao: [
+        { idBienThe: 1, maBienThe: 'BT1', idSanPham: 1, tenSanPham: 'Bóng Futsal Nike', soLuongTon: 0, giaBan: 500000, giaSauGiam: 500000, phanTramGiam: 0 },
+        { idBienThe: 2, maBienThe: 'BT2', idSanPham: 2, tenSanPham: 'Bóng Adidas Pro', soLuongTon: 4, giaBan: 450000, giaSauGiam: 405000, phanTramGiam: 10 },
+      ],
+      heThong: {
+        tongSanPhamHoatDong: 8, tongBienTheHoatDong: 24, tongTonKho: 320, soBienTheSapHet: 2, soBienTheHetHang: 1,
+        tongKhachHangHoatDong: 15, tongNhanVienHoatDong: 4, soDotDangDienRa: 1, soDotSapDienRa: 1, soPhieuDangHoatDong: 2,
+        dotDangChay: [{ id: 9, maDot: 'DGG09', tenDot: 'Siêu Sale Tháng 10', phanTramGiamDot: 15, trangThaiText: 'Đang diễn ra' }],
+        phieuDangChay: [],
+      },
+    }
+    api.get.mockImplementation((url) => {
+      if (url === '/thong-ke/tong-quan') return Promise.resolve({ data: tongQuanDb })
+      if (url === '/thong-ke') return Promise.resolve({ data: {} })
+      return Promise.resolve({ data: { content: dsHd } })
+    })
+
+    const w = mount(ThongKe, { attachTo: document.body })
+    await flushPromises()
+
+    expect(w.get('[data-test="tk-thuc-thu"]').text()).toContain('25.000')
+    expect(w.get('[data-test="tk-doi-soat"]').text()).toContain('800.000')
+    expect(w.get('[data-test="tk-doi-soat"]').text()).toContain('400.000')
+    expect(w.get('[data-test="tk-he-thong"]').text()).toContain('8 sản phẩm · 24 biến thể')
+
+    await w.get('[data-test="tk-tim-sp"]').setValue('futsal')
+    expect(w.findAll('[data-test="tk-top-sp"] tbody tr')).toHaveLength(1)
+    expect(w.get('[data-test="tk-top-sp"] tbody').text()).toContain('Bóng Futsal Nike')
+
+    await w.get('[data-test="tk-loc-het-hang"]').trigger('click')
+    expect(w.findAll('[data-test="tk-ton-kho"] tbody tr')).toHaveLength(1)
+
+    await w.findAll('button').find((b) => b.text() === 'Tự chọn').trigger('click')
+    await w.get('#tk-tu').setValue(ngay(1))
+    await w.get('#tk-den').setValue(ngay(5))
+    expect(w.find('[data-test="tk-canh-bao-ngay"]').exists()).toBe(true)
+    await w.get('[data-test="tk-chuan-hoa-ngay"]').trigger('click')
+    expect(w.find('[data-test="tk-canh-bao-ngay"]').exists()).toBe(false)
     w.unmount()
   })
 })
