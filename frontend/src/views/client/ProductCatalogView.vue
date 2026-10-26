@@ -476,6 +476,8 @@ function selectCategory(catKey) {
 function syncFromUrl() {
   if (route.query.danhMuc) {
     currentCategory.value = String(route.query.danhMuc)
+  } else if (route.query.khuyenMai === '1' || route.query.sale === '1') {
+    currentCategory.value = 'all'
   } else {
     currentCategory.value = 'vot-cau-long'
   }
@@ -555,6 +557,11 @@ const filteredBranches = computed(() => {
 
 const filteredProducts = computed(() => {
   let list = enrichedProducts.value
+
+  // 0. Lọc Khuyến mãi (SALE OFF)
+  if (route.query.khuyenMai === '1' || route.query.sale === '1') {
+    list = list.filter((p) => p.hasDiscount)
+  }
 
   // 1. Lọc theo Danh mục (nếu không chọn 'all')
   if (currentCategory.value && currentCategory.value !== 'all') {

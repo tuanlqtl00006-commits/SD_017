@@ -2,14 +2,21 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../stores/cart'
+import { useAuth } from '../composables/useAuth'
+import { formatMoney } from '../utils/format'
 import NutChatKhach from '../components/chat/NutChatKhach.vue'
 import '../assets/client.css'
 
 const router = useRouter()
 const cartStore = useCartStore()
+const auth = useAuth()
 
 const searchQuery = ref('')
 const showProductDropdown = ref(false)
+const showGuideDropdown = ref(false)
+const showLookupDropdown = ref(false)
+const showAccountDropdown = ref(false)
+const showCartDropdown = ref(false)
 
 // Dữ liệu bảng Mega Menu đầy đủ theo mẫu hình ảnh người dùng cung cấp
 const megaMenuData = [
@@ -177,13 +184,13 @@ function handleSearch() {
 
         <!-- Hotline -->
         <a href="tel:0977508430" class="vnb-hotline text-decoration-none flex-shrink-0 d-none d-lg-flex" title="Bấm để gọi hotline hỗ trợ">
-          <i class="bi bi-headset text-danger" style="font-size:1.2rem;"></i>
-          <span>HOTLINE: <strong class="vnb-hotline-num">0977508430</strong></span>
+          <i class="bi bi-headset text-primary" style="font-size:1.2rem;"></i>
+          <span>HOTLINE: <strong class="vnb-hotline-num text-primary">0977508430</strong></span>
         </a>
 
         <!-- Hệ thống cửa hàng -->
         <RouterLink to="/shop/lien-he" class="vnb-store-loc flex-shrink-0 d-none d-md-flex text-decoration-none" title="Xem danh sách chi nhánh FootStyle">
-          <i class="bi bi-geo-alt-fill text-danger" style="font-size:1.1rem;"></i>
+          <i class="bi bi-geo-alt-fill text-primary" style="font-size:1.1rem;"></i>
           <span>HỆ THỐNG CỬA HÀNG</span>
         </RouterLink>
 
@@ -204,33 +211,222 @@ function handleSearch() {
 
         <!-- 3 Nút tròn: Tra cứu, Tài khoản, Giỏ hàng -->
         <div class="d-flex align-items-center gap-3 flex-shrink-0">
-          <!-- Tra cứu đơn hàng -->
-          <RouterLink to="/shop/tra-cuu" class="vnb-header-action" title="Tra cứu tiến độ đơn hàng">
-            <div class="vnb-action-icon-circle">
-              <i class="bi bi-binoculars-fill"></i>
-            </div>
-            <span>TRA CỨU</span>
-          </RouterLink>
+          <!-- Tra cứu đơn hàng & bảo hành: Hover hiện popover -->
+          <div
+            class="vnb-lookup-dropdown-wrap"
+            @mouseenter="showLookupDropdown = true"
+            @mouseleave="showLookupDropdown = false"
+          >
+            <RouterLink to="/shop/tra-cuu" class="vnb-header-action" title="Tra cứu đơn hàng & bảo hành">
+              <div class="vnb-action-icon-circle">
+                <i class="bi bi-binoculars-fill"></i>
+              </div>
+              <span>TRA CỨU</span>
+            </RouterLink>
 
-          <!-- Tài khoản cá nhân -->
-          <RouterLink to="/shop/tai-khoan" class="vnb-header-action" title="Hồ sơ tài khoản & sổ địa chỉ">
-            <div class="vnb-action-icon-circle">
-              <i class="bi bi-person-fill"></i>
+            <!-- Popup menu khi di chuột -->
+            <div
+              class="vnb-lookup-popover"
+              :class="{ show: showLookupDropdown }"
+              @mouseenter="showLookupDropdown = true"
+              @mouseleave="showLookupDropdown = false"
+            >
+              <div class="vnb-lookup-arrow"></div>
+              <ul class="vnb-lookup-menu">
+                <li>
+                  <RouterLink
+                    to="/shop/tra-cuu"
+                    class="vnb-lookup-item"
+                    @click="showLookupDropdown = false"
+                  >
+                    Kiểm tra đơn hàng
+                  </RouterLink>
+                </li>
+                <li>
+                  <RouterLink
+                    :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }"
+                    class="vnb-lookup-item"
+                    @click="showLookupDropdown = false"
+                  >
+                    Kiểm tra bảo hành
+                  </RouterLink>
+                </li>
+              </ul>
             </div>
-            <span>TÀI KHOẢN</span>
-          </RouterLink>
+          </div>
 
-          <!-- Giỏ hàng -->
-          <RouterLink to="/shop/gio-hang" class="vnb-header-action" title="Xem giỏ hàng">
-            <div class="vnb-action-icon-circle">
-              <i class="bi bi-cart3"></i>
-              <span v-if="cartStore.totalCount > 0" class="vnb-cart-badge">
-                {{ cartStore.totalCount }}
-              </span>
-              <span v-else class="vnb-cart-badge">0</span>
+          <!-- Tài khoản cá nhân: Hover hiện popover Đăng nhập / Đăng ký -->
+          <div
+            class="vnb-lookup-dropdown-wrap"
+            @mouseenter="showAccountDropdown = true"
+            @mouseleave="showAccountDropdown = false"
+          >
+            <RouterLink
+              :to="auth.daDangNhap.value ? '/shop/tai-khoan' : '/shop/dang-nhap'"
+              class="vnb-header-action"
+              title="Tài khoản cá nhân"
+            >
+              <div class="vnb-action-icon-circle">
+                <i class="bi bi-person-fill"></i>
+              </div>
+              <span>TÀI KHOẢN</span>
+            </RouterLink>
+
+            <!-- Popup menu khi di chuột -->
+            <div
+              class="vnb-lookup-popover"
+              :class="{ show: showAccountDropdown }"
+              @mouseenter="showAccountDropdown = true"
+              @mouseleave="showAccountDropdown = false"
+            >
+              <div class="vnb-lookup-arrow"></div>
+              <ul class="vnb-lookup-menu">
+                <template v-if="!auth.daDangNhap.value">
+                  <li>
+                    <RouterLink
+                      to="/shop/dang-nhap"
+                      class="vnb-lookup-item d-flex align-items-center gap-2"
+                      @click="showAccountDropdown = false"
+                    >
+                      <i class="bi bi-box-arrow-in-right fs-5 text-secondary"></i>
+                      <span>Đăng nhập</span>
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <RouterLink
+                      :to="{ path: '/shop/dang-nhap', query: { tab: 'dang-ky' } }"
+                      class="vnb-lookup-item d-flex align-items-center gap-2"
+                      @click="showAccountDropdown = false"
+                    >
+                      <i class="bi bi-person-plus fs-5 text-secondary"></i>
+                      <span>Đăng ký</span>
+                    </RouterLink>
+                  </li>
+                </template>
+                <template v-else>
+                  <li>
+                    <RouterLink
+                      to="/shop/tai-khoan"
+                      class="vnb-lookup-item d-flex align-items-center gap-2"
+                      @click="showAccountDropdown = false"
+                    >
+                      <i class="bi bi-person-circle fs-5 text-primary"></i>
+                      <span>{{ auth.trangThai.nguoiDung?.hoTen || 'Tài khoản của tôi' }}</span>
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <RouterLink
+                      :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }"
+                      class="vnb-lookup-item d-flex align-items-center gap-2"
+                      @click="showAccountDropdown = false"
+                    >
+                      <i class="bi bi-bag-check fs-5 text-success"></i>
+                      <span>Đơn hàng của tôi</span>
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <a
+                      href="#"
+                      class="vnb-lookup-item d-flex align-items-center gap-2 text-danger"
+                      @click.prevent="auth.dangXuat(); showAccountDropdown = false"
+                    >
+                      <i class="bi bi-box-arrow-right fs-5"></i>
+                      <span>Đăng xuất</span>
+                    </a>
+                  </li>
+                </template>
+              </ul>
             </div>
-            <span>GIỎ HÀNG</span>
-          </RouterLink>
+          </div>
+
+          <!-- Giỏ hàng: Hover hiện popover xem nhanh giỏ hàng -->
+          <div
+            class="vnb-lookup-dropdown-wrap"
+            @mouseenter="showCartDropdown = true"
+            @mouseleave="showCartDropdown = false"
+          >
+            <RouterLink to="/shop/gio-hang" class="vnb-header-action" title="Xem giỏ hàng">
+              <div class="vnb-action-icon-circle">
+                <i class="bi bi-cart3"></i>
+                <span v-if="cartStore.totalCount > 0" class="vnb-cart-badge">
+                  {{ cartStore.totalCount }}
+                </span>
+                <span v-else class="vnb-cart-badge">0</span>
+              </div>
+              <span>GIỎ HÀNG</span>
+            </RouterLink>
+
+            <!-- Popup giỏ hàng khi di chuột -->
+            <div
+              class="vnb-cart-popover"
+              :class="{ show: showCartDropdown }"
+              @mouseenter="showCartDropdown = true"
+              @mouseleave="showCartDropdown = false"
+            >
+              <div class="vnb-cart-arrow"></div>
+
+              <!-- Trường hợp giỏ hàng trống (chuẩn hình ảnh người dùng cung cấp) -->
+              <div v-if="cartStore.totalCount === 0" class="text-center py-4 px-3">
+                <svg width="86" height="86" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="mb-3 text-dark d-inline-block">
+                  <!-- Hộp kiện nhô ra từ miệng túi -->
+                  <rect x="27" y="24" width="22" height="24" rx="2" transform="rotate(-8 27 24)" fill="#fff" stroke="#111827" stroke-width="3"/>
+                  <rect x="40" y="20" width="22" height="26" rx="2" fill="#fff" stroke="#111827" stroke-width="3"/>
+                  <rect x="52" y="26" width="20" height="22" rx="2" transform="rotate(12 52 26)" fill="#fff" stroke="#111827" stroke-width="3"/>
+                  <!-- Thân túi mua sắm -->
+                  <path d="M22 45 L18 88 L82 88 L78 45 Z" fill="#fff" stroke="#111827" stroke-width="3.2"/>
+                  <!-- Quai túi chữ U -->
+                  <path d="M37 53 C37 70, 63 70, 63 53" fill="none" stroke="#111827" stroke-width="3.2"/>
+                  <!-- Lỗ xỏ quai -->
+                  <circle cx="37" cy="53" r="3" fill="#fff" stroke="#111827" stroke-width="2.6"/>
+                  <circle cx="63" cy="53" r="3" fill="#fff" stroke="#111827" stroke-width="2.6"/>
+                </svg>
+                <p class="mb-0 text-dark" style="font-size: 0.92rem; font-weight: 500;">
+                  Không có sản phẩm nào trong giỏ hàng của bạn
+                </p>
+              </div>
+
+              <!-- Trường hợp có sản phẩm trong giỏ -->
+              <div v-else class="p-3">
+                <div class="small fw-bold text-dark mb-2 border-bottom pb-2 d-flex justify-content-between align-items-center">
+                  <span>Sản phẩm vừa thêm ({{ cartStore.totalCount }})</span>
+                  <RouterLink to="/shop/gio-hang" class="text-primary text-decoration-none small" @click="showCartDropdown = false">
+                    Xem tất cả
+                  </RouterLink>
+                </div>
+                <div class="vnb-cart-items-preview" style="max-height: 220px; overflow-y: auto;">
+                  <div
+                    v-for="(item, idx) in cartStore.items.slice(0, 4)"
+                    :key="idx"
+                    class="d-flex align-items-center gap-2 py-2 border-bottom"
+                  >
+                    <img
+                      :src="item.anh || '/logo.png'"
+                      class="rounded border bg-light"
+                      style="width: 44px; height: 44px; object-fit: contain;"
+                    />
+                    <div class="flex-grow-1 overflow-hidden" style="font-size: 0.82rem;">
+                      <div class="text-truncate fw-semibold text-dark">{{ item.sanPhamTen }}</div>
+                      <div class="text-muted small">
+                        SL: {{ item.soLuong }} × <span class="text-danger fw-bold">{{ formatMoney(item.giaBan) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center pt-3 pb-3">
+                  <span class="text-muted small">Tổng tiền tạm tính:</span>
+                  <span class="fw-bold text-danger fs-6">{{ formatMoney(cartStore.subTotal) }}</span>
+                </div>
+                <RouterLink
+                  to="/shop/gio-hang"
+                  class="btn btn-primary w-100 py-2 fw-bold rounded-2 text-uppercase"
+                  style="font-size: 0.84rem;"
+                  @click="showCartDropdown = false"
+                >
+                  Xem Giỏ Hàng
+                </RouterLink>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -245,12 +441,7 @@ function handleSearch() {
               <RouterLink to="/shop" class="vnb-nav-link">TRANG CHỦ</RouterLink>
             </li>
 
-            <!-- 2. GIỚI THIỆU -->
-            <li class="vnb-nav-item">
-              <RouterLink to="/shop/gioi-thieu" class="vnb-nav-link">GIỚI THIỆU</RouterLink>
-            </li>
-
-            <!-- 3. SẢN PHẨM (MEGA MENU) -->
+            <!-- 2. SẢN PHẨM (MEGA MENU) -->
             <li
               class="vnb-nav-item vnb-mega-trigger"
               @mouseenter="showProductDropdown = true"
@@ -261,24 +452,77 @@ function handleSearch() {
               </RouterLink>
             </li>
 
-            <!-- 4. ĐƠN HÀNG -->
+            <!-- 3. SALE OFF -->
             <li class="vnb-nav-item">
-              <RouterLink :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }" class="vnb-nav-link">
-                ĐƠN HÀNG
+              <RouterLink :to="{ path: '/shop/san-pham', query: { khuyenMai: '1' } }" class="vnb-nav-link">
+                SALE OFF
               </RouterLink>
             </li>
 
-            <!-- 5. TRA CỨU -->
+            <!-- 4. TIN TỨC -->
             <li class="vnb-nav-item">
-              <RouterLink to="/shop/tra-cuu" class="vnb-nav-link">TRA CỨU</RouterLink>
+              <RouterLink to="/shop/tin-tuc" class="vnb-nav-link">TIN TỨC</RouterLink>
             </li>
 
-            <!-- 6. GỢI Ý -->
+            <!-- 5. TUYỂN DỤNG -->
             <li class="vnb-nav-item">
-              <RouterLink to="/shop/goi-y-ai" class="vnb-nav-link">GỢI Ý</RouterLink>
+              <RouterLink to="/shop/tuyen-dung" class="vnb-nav-link">TUYỂN DỤNG</RouterLink>
             </li>
 
-            <!-- 7. LIÊN HỆ -->
+            <!-- 6. CHÍNH SÁCH NHƯỢNG QUYỀN -->
+            <li class="vnb-nav-item">
+              <RouterLink to="/shop/nhuong-quyen" class="vnb-nav-link">CHÍNH SÁCH NHƯỢNG QUYỀN</RouterLink>
+            </li>
+
+            <!-- 7. HƯỚNG DẪN (DROPDOWN) -->
+            <li
+              class="vnb-nav-item dropdown"
+              @mouseenter="showGuideDropdown = true"
+              @mouseleave="showGuideDropdown = false"
+            >
+              <RouterLink to="/shop/huong-dan" class="vnb-nav-link d-flex align-items-center gap-1">
+                HƯỚNG DẪN <i class="bi" :class="showGuideDropdown ? 'bi-chevron-up' : 'bi-chevron-down'" style="font-size: 0.7rem;"></i>
+              </RouterLink>
+              <ul class="vnb-guide-menu" :class="{ show: showGuideDropdown }">
+                <li class="vnb-guide-menu-li">
+                  <RouterLink to="/shop/huong-dan" class="vnb-guide-link fw-bold" @click="showGuideDropdown = false">
+                    Trung tâm hướng dẫn
+                  </RouterLink>
+                </li>
+                <li class="vnb-guide-menu-li">
+                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'thanh-toan' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
+                    Hướng dẫn thanh toán
+                  </RouterLink>
+                </li>
+                <li class="vnb-guide-menu-li">
+                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
+                    Hướng dẫn mua hàng
+                  </RouterLink>
+                </li>
+                <li class="vnb-guide-menu-li">
+                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'chon-vot' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
+                    Hướng dẫn chọn vợt cầu lông
+                  </RouterLink>
+                </li>
+                <li class="vnb-guide-menu-li">
+                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'size-giay' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
+                    Bảng quy đổi size giày
+                  </RouterLink>
+                </li>
+                <li class="vnb-guide-menu-li">
+                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
+                    Chính sách bảo hành & đổi trả
+                  </RouterLink>
+                </li>
+              </ul>
+            </li>
+
+            <!-- 8. GIỚI THIỆU -->
+            <li class="vnb-nav-item">
+              <RouterLink to="/shop/gioi-thieu" class="vnb-nav-link">GIỚI THIỆU</RouterLink>
+            </li>
+
+            <!-- 9. LIÊN HỆ -->
             <li class="vnb-nav-item">
               <RouterLink to="/shop/lien-he" class="vnb-nav-link">LIÊN HỆ</RouterLink>
             </li>

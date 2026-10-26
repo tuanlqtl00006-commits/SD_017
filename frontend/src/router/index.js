@@ -373,6 +373,17 @@ const router = createRouter({
 export async function kiemTraTruyCap(to) {
   const auth = useAuth()
   await auth.khoiTao()
+
+  // Khách hàng chưa đăng nhập không được vào xem trang tài khoản cá nhân
+  if (to.path === '/shop/tai-khoan' && !auth.daDangNhap.value) {
+    return { path: '/shop/dang-nhap', query: { quayLai: to.fullPath } }
+  }
+
+  // Khách đã đăng nhập mà mở lại trang đăng nhập shop thì chuyển về trang tài khoản
+  if (to.name === 'shop-dang-nhap' && auth.daDangNhap.value) {
+    return duongDanQuayLaiAnToan(to.query.quayLai) || '/shop/tai-khoan'
+  }
+
   if (to.meta?.congKhai || to.matched?.some((record) => record.meta?.congKhai) || to.path?.startsWith('/shop')) {
     if (to.name === 'dang-nhap' && auth.daDangNhap.value) {
       return duongDanQuayLaiAnToan(to.query.quayLai) || auth.trangChu()

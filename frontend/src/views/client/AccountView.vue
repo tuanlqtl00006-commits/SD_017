@@ -1,51 +1,59 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuth } from '../../composables/useAuth'
 import { formatMoney, formatNgayGio } from '../../utils/format'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuth()
 
 const activeTab = ref('orders') // 'profile' | 'addresses' | 'orders'
 
-// 1. Hồ sơ cá nhân
+// 1. Hồ sơ cá nhân (lấy từ tài khoản thực tế đang đăng nhập)
 const profile = ref({
-  hoTen: 'Nguyễn Văn An',
-  sdt: '0987654321',
-  email: 'an.nguyen@gmail.com',
+  hoTen: '',
+  sdt: '',
+  email: '',
   gioiTinh: 1, // 1: Nam, 0: Nữ
-  ngaySinh: '2000-05-15',
+  ngaySinh: '',
 })
 const profileErrors = ref({})
 const profileSaved = ref(false)
 
 // 2. Sổ địa chỉ
-const addresses = ref([
-  {
-    id: 1,
-    tenNguoiNhan: 'Nguyễn Văn An',
-    sdtNguoiNhan: '0987654321',
-    diaChiCuThe: 'Số 123 Đường Cầu Diễn',
-    phuongXa: 'Phường Minh Khai',
-    tinhThanhPho: 'Hà Nội',
-    laDiaChiMacDinh: true,
-  },
-  {
-    id: 2,
-    tenNguoiNhan: 'Nguyễn Văn An (Công ty)',
-    sdtNguoiNhan: '0987654321',
-    diaChiCuThe: 'Tòa nhà FPT, Phố Duy Tân',
-    phuongXa: 'Phường Dịch Vọng Hậu',
-    tinhThanhPho: 'Hà Nội',
-    laDiaChiMacDinh: false,
-  },
-])
+const addresses = ref([])
 
 // 3. Đơn hàng
 const orders = ref([])
 const orderFilterStatus = ref('ALL') // 'ALL', 'CHO_XAC_NHAN', 'DANG_GIAO', 'HOAN_THANH', 'DA_HUY'
 
-onMounted(() => {
+onMounted(async () => {
+  await auth.khoiTao()
+  // Nếu chưa đăng nhập: chuyển hướng ngay sang trang đăng nhập khách hàng
+  if (!auth.daDangNhap.value) {
+    router.replace({ path: '/shop/dang-nhap', query: { quayLai: route.fullPath } })
+    return
+  }
+
+  const u = auth.trangThai.nguoiDung
+  if (u) {
+    profile.value.hoTen = u.hoTen || u.ten || 'Khách hàng'
+    profile.value.sdt = u.sdt || ''
+    profile.value.email = u.email || ''
+    addresses.value = [
+      {
+        id: 1,
+        tenNguoiNhan: u.hoTen || u.ten || 'Khách hàng',
+        sdtNguoiNhan: u.sdt || '',
+        diaChiCuThe: u.diaChi || 'Chưa cập nhật địa chỉ giao hàng',
+        phuongXa: '',
+        tinhThanhPho: '',
+        laDiaChiMacDinh: true,
+      },
+    ]
+  }
+
   if (route.query.tab) {
     activeTab.value = String(route.query.tab)
   }
@@ -55,34 +63,7 @@ onMounted(() => {
 function loadOrders() {
   try {
     const raw = localStorage.getItem('footstyle_orders')
-    const local = raw ? JSON.parse(raw) : []
-    // Thêm một vài đơn mẫu nếu trống để khách dễ nhìn thấy giao diện
-    if (local.length === 0) {
-      orders.value = [
-        {
-          maHoaDon: 'HD08',
-          ngayTao: new Date(Date.now() - 86400000).toISOString(),
-          trangThai: 0,
-          trangThaiText: 'Chờ xác nhận',
-          tongThanhToan: 1750000,
-          items: [
-            { sanPhamTen: 'Vợt Cầu Lông Yonex Astrox 88D Play', mauSac: 'Đen/Đỏ', trongLuong: '4U', soLuong: 1, giaBan: 1750000 },
-          ],
-        },
-        {
-          maHoaDon: 'HD05',
-          ngayTao: new Date(Date.now() - 86400000 * 3).toISOString(),
-          trangThai: 2,
-          trangThaiText: 'Đang giao hàng',
-          tongThanhToan: 2450000,
-          items: [
-            { sanPhamTen: 'Vợt Cầu Lông Lining Axforce 80', mauSac: 'Đen Trắng', trongLuong: '3U', soLuong: 1, giaBan: 2450000 },
-          ],
-        },
-      ]
-    } else {
-      orders.value = local
-    }
+    orders.value = raw ? JSON.parse(raw) : []
   } catch (e) {
     orders.value = []
   }

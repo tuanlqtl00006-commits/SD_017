@@ -179,6 +179,166 @@
   box-shadow: 0 2px 4px rgba(220, 38, 38, 0.4);
 }
 
+/* POPOVER TRA CỨU KHI DI CHUỘT (CHUẨN TONE XANH DƯƠNG FOOTSTYLE) */
+.vnb-lookup-dropdown-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.vnb-lookup-dropdown-wrap:hover .vnb-header-action,
+.vnb-lookup-dropdown-wrap:hover .vnb-header-action span {
+  color: #1d4ed8;
+}
+
+.vnb-lookup-dropdown-wrap:hover .vnb-action-icon-circle {
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+  background-color: #eff6ff;
+  transform: translateY(-2px);
+}
+
+.vnb-lookup-popover {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  min-width: 175px;
+  padding: 8px 0;
+  z-index: 1200;
+  display: none;
+  animation: vnbLookupPop 0.15s ease-out;
+}
+
+/* Cầu nối vô hình giúp không bị mất hover khi di chuyển chuột từ nút xuống popup */
+.vnb-lookup-popover::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
+
+@keyframes vnbLookupPop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.vnb-lookup-dropdown-wrap:hover .vnb-lookup-popover,
+.vnb-lookup-popover.show {
+  display: block;
+}
+
+/* Mũi tên tam giác màu xanh dương chỉ lên nút Tra Cứu */
+.vnb-lookup-arrow {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 9px solid #1d4ed8;
+}
+
+.vnb-lookup-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.vnb-lookup-item {
+  display: block;
+  padding: 9px 18px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #212529;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.vnb-lookup-item:hover {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  padding-left: 22px;
+}
+
+/* POPOVER GIỎ HÀNG KHI DI CHUỘT (CHUẨN HÌNH ẢNH MẪU) */
+.vnb-cart-popover {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: -15px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  width: 340px;
+  z-index: 1200;
+  display: none;
+  animation: vnbCartPop 0.15s ease-out;
+}
+
+/* Cầu nối vô hình giúp không bị mất hover khi rê chuột từ nút giỏ hàng xuống popup */
+.vnb-cart-popover::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
+
+@keyframes vnbCartPop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vnb-lookup-dropdown-wrap:hover .vnb-cart-popover,
+.vnb-cart-popover.show {
+  display: block;
+}
+
+/* Mũi tên tam giác màu xanh dương chỉ lên nút Giỏ Hàng */
+.vnb-cart-arrow {
+  position: absolute;
+  top: -9px;
+  right: 38px;
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 9px solid #1d4ed8;
+}
+
+.vnb-cart-items-preview::-webkit-scrollbar {
+  width: 4px;
+}
+
+.vnb-cart-items-preview::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
 /* BLUE NAVIGATION BAR & MEGA MENU */
 .vnb-nav-bar {
   position: relative;
@@ -219,14 +379,22 @@
 .vnb-nav-link {
   display: inline-block;
   color: #ffffff;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
   text-transform: uppercase;
-  padding: 12px 18px;
+  padding: 12px 13px;
   text-decoration: none;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.3px;
   transition: all 0.15s ease;
   position: relative;
+}
+
+@media (max-width: 1280px) {
+  .vnb-nav-link {
+    padding: 12px 8px;
+    font-size: 0.76rem;
+    letter-spacing: 0.1px;
+  }
 }
 
 .vnb-nav-link:hover {
@@ -239,8 +407,8 @@
   content: "";
   position: absolute;
   bottom: 0;
-  left: 14px;
-  right: 14px;
+  left: 10px;
+  right: 10px;
   height: 3px;
   background-color: #ffffff;
   border-radius: 2px 2px 0 0;
@@ -753,7 +921,7 @@
 /* FLOATING BACK TO TOP BUTTON */
 .vnb-back-to-top {
   position: fixed;
-  bottom: 24px;
+  bottom: 80px;
   right: 24px;
   width: 40px;
   height: 40px;

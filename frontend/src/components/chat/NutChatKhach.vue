@@ -23,10 +23,13 @@ const mo = ref(false)
       :aria-expanded="mo"
       aria-controls="nck-khung"
       @click="mo = !mo"
+      title="Tư vấn trực tuyến FootStyle"
     >
-      <i class="bi" :class="mo ? 'bi-x-lg' : 'bi-chat-dots-fill'" aria-hidden="true"></i>
+      <div class="nck-icon-wrap">
+        <i class="bi" :class="mo ? 'bi-x-lg' : 'bi-chat-dots-fill'" aria-hidden="true"></i>
+        <span v-if="!mo" class="nck-cham" aria-hidden="true"></span>
+      </div>
       <span class="nck-chu">{{ mo ? 'Đóng' : 'Tư vấn trực tuyến' }}</span>
-      <span v-if="!mo" class="nck-cham" aria-hidden="true"></span>
     </button>
   </div>
 </template>
@@ -34,8 +37,8 @@ const mo = ref(false)
 <style scoped>
 .nck {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  right: 20px;
+  bottom: 20px;
   z-index: 1050;
   display: flex;
   flex-direction: column;
@@ -43,32 +46,70 @@ const mo = ref(false)
   gap: 12px;
 }
 .nck-nut {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  height: 48px;
+  width: 48px;
+  padding: 0;
+  justify-content: center;
   border: 2px solid #fff;
   border-radius: 999px;
-  padding: 10px 20px;
   background: var(--vnb-orange, #1d4ed8);
   color: #fff;
   font-weight: 700;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.25);
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  font-size: 0.88rem;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
+  cursor: pointer;
+  outline: none;
+  overflow: hidden;
+  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.2s ease,
+              transform 0.2s ease;
+  white-space: nowrap;
 }
-.nck-nut:hover,
-.nck-nut.is-mo {
-  background: var(--vnb-orange-hover, #1e40af);
-  transform: translateY(-2px);
+.nck-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
 }
-.nck-nut .bi {
-  font-size: 1.15rem;
+.nck-icon-wrap .bi {
+  font-size: 1.25rem;
 }
 .nck-cham {
+  position: absolute;
+  top: 7px;
+  right: 7px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
   background: #22c55e;
   box-shadow: 0 0 0 2px #fff;
+}
+.nck-chu {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.25s ease, opacity 0.2s ease, margin-right 0.25s ease;
+  margin-right: 0;
+}
+/* Khi hover hoặc khi mở khung chat: mở rộng thành pill có chữ */
+.nck-nut:hover,
+.nck-nut.is-mo {
+  width: auto;
+  padding-right: 18px;
+  background: var(--vnb-orange-hover, #1e40af);
+  transform: translateY(-2px);
+}
+.nck-nut:hover .nck-chu,
+.nck-nut.is-mo .nck-chu {
+  max-width: 160px;
+  opacity: 1;
+  margin-left: 2px;
 }
 .nck-khung {
   width: 380px;
@@ -88,9 +129,6 @@ const mo = ref(false)
   }
   .nck-khung {
     width: calc(100vw - 24px);
-  }
-  .nck-chu {
-    display: none;
   }
 }
 </style>
