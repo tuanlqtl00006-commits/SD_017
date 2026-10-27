@@ -1,5 +1,6 @@
 package com.footstyle.demo.service;
 
+import com.footstyle.demo.dto.DangKyKhachHangRequest;
 import com.footstyle.demo.dto.KhachHangRequest;
 import com.footstyle.demo.entity.DiaChiKhachHang;
 import com.footstyle.demo.entity.KhachHang;
@@ -13,6 +14,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -106,6 +108,52 @@ public class KhachHangService {
             kh.getDiaChiList().add(dc);
         }
         return repository.save(kh);
+    }
+
+    /**
+     * Khách tự đăng ký ở cửa hàng online (không cần đăng nhập): chỉ nhận họ tên, SĐT, email (không bắt buộc), mật khẩu.
+     * Trạng thái luôn là hoạt động; mật khẩu lưu dạng băm để đăng nhập ngay bằng SĐT / email.
+     */
+    @Transactional
+    public KhachHang dangKy(DangKyKhachHangRequest req) {
+        LoiForm loi = new LoiForm();
+        String hoTen = QuyTacDuLieu.chuanHoaHoTen(req == null ? null : req.hoTen());
+        if (hoTen.isEmpty()) loi.them("hoTen", "Vui lòng nhập họ và tên.");
+        else if (hoTen.length() < 2 || hoTen.length() > 100) loi.them("hoTen", "Họ tên từ 2 đến 100 ký tự.");
+        else if (!QuyTacDuLieu.HO_TEN.matcher(hoTen).matches()) loi.them("hoTen", QuyTacDuLieu.LOI_HO_TEN_KY_TU);
+
+        String sdt = QuyTacDuLieu.cat(req == null ? null : req.sdt());
+        if (sdt.isEmpty()) loi.them("sdt", "Vui lòng nhập số điện thoại.");
+        else if (!QuyTacDuLieu.SDT.matcher(sdt).matches()) loi.them("sdt", QuyTacDuLieu.LOI_SDT);
+        else if (repository.existsBySdtAndIdNot(sdt, -1)) loi.trung("sdt", "Số điện thoại đã được đăng ký.");
+
+        String email = QuyTacDuLieu.cat(req == null ? null : req.email()).toLowerCase(Locale.ROOT);
+        if (!email.isEmpty()) {
+            if (email.length() > 255 || !QuyTacDuLieu.EMAIL.matcher(email).matches()) loi.them("email", QuyTacDuLieu.LOI_EMAIL);
+            else if (repository.existsByEmailIgnoreCaseAndIdNot(email, -1)) loi.trung("email", "Email đã được đăng ký.");
+        }
+
+        String matKhau = req == null || req.matKhau() == null ? "" : req.matKhau();
+        if (matKhau.isEmpty()) loi.them("matKhau", "Vui lòng nhập mật khẩu.");
+        else if (matKhau.length() < 6 || matKhau.length() > 50) loi.them("matKhau", "Mật khẩu từ 6 đến 50 ký tự.");
+        else if (matKhau.chars().anyMatch(Character::isWhitespace)) loi.them("matKhau", "Mật khẩu không được chứa khoảng trắng.");
+        if (!loi.co("matKhau") && !matKhau.equals(req.xacNhanMatKhau())) loi.them("xacNhanMatKhau", "Mật khẩu xác nhận không trùng khớp.");
+        loi.nemNeuCoLoi();
+
+        KhachHang kh = new KhachHang();
+        kh.setMaKhachHang(taoMaMoi());
+        kh.setHoTen(hoTen);
+        kh.setSdt(sdt);
+        kh.setEmail(email.isEmpty() ? null : email);
+        kh.setGioiTinh(1);
+        kh.setTrangThai(1);
+        kh.setMatKhau(passwordEncoder.encode(matKhau));
+        try {
+            return repository.save(kh);
+        } catch (DataIntegrityViolationException e) {
+            // Hai người đăng ký cùng lúc một SĐT / email: chỉ mục duy nhất của SQL chặn lại
+            throw new ApiException(HttpStatus.CONFLICT, "Số điện thoại hoặc email đã được đăng ký.");
+        }
     }
 
     /** Sửa khách hàng: dùng đúng bộ luật như khi thêm (họ tên, SĐT, email bắt buộc; trùng thì không tính chính khách này). */

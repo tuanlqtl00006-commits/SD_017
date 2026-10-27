@@ -25,7 +25,7 @@ import { NGAN_HANG, PHUONG_THUC, daCauHinhNganHang } from '../../constants/thanh
 import { formatMoney } from '../../utils/format'
 import { formatPhanTram } from '../../utils/giamGia'
 import { taoHtmlHoaDon } from '../../utils/hoaDonIn'
-import { SO_LUONG_TOI_DA, chuoiVietQR, goiYTienKhachDua, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
+import { SO_LUONG_TOI_DA, chuoiVietQR, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
 
 const SO_HOA_DON_CHO_TOI_DA = 10
 const router = useRouter()
@@ -260,6 +260,19 @@ function chonPhieu(ma) {
   hd.value.p.maPhieu = ma
   hd.value.p.tuDongPhieu = false
 }
+// Danh sách phiếu dạng thẻ (mở / đóng; bấm ra ngoài thì đóng)
+const moPhieu = ref(false)
+const khungPhieu = ref(null)
+const soPhieuDung = computed(() => phieus.value.filter((p) => p.apDungDuoc).length)
+function chonPhieuMo(ma) {
+  chonPhieu(ma)
+  moPhieu.value = false
+}
+function dongPhieuKhiBamNgoai(e) {
+  if (moPhieu.value && khungPhieu.value && !khungPhieu.value.contains(e.target)) moPhieu.value = false
+}
+onMounted(() => document.addEventListener('mousedown', dongPhieuKhiBamNgoai))
+onBeforeUnmount(() => document.removeEventListener('mousedown', dongPhieuKhiBamNgoai))
 function moTaPhieu(p) {
   const giam = p.loaiGiam === 'PHAN_TRAM' ? `Giảm ${formatPhanTram(p.giaTri)}${p.giamToiDa ? `, tối đa ${formatMoney(p.giamToiDa)}` : ''}` : `Giảm ${formatMoney(p.giaTri)}`
   return `${giam}${p.donToiThieu ? ` · đơn từ ${formatMoney(p.donToiThieu)}` : ''}`
@@ -335,7 +348,6 @@ const tt = computed(() =>
     chuyenKhoan: hd.value.p.chuyenKhoan,
   }),
 )
-const goiY = computed(() => goiYTienKhachDua(tt.value.phaiTra - (hd.value.p.phuongThuc === 'KET_HOP' ? tt.value.chuyenKhoan : 0)))
 const coQr = daCauHinhNganHang()
 const qrUrl = ref('')
 const noiDungCk = computed(() => `FOOTSTYLE ${hd.value.maHoaDon || ''}`.trim())
@@ -515,7 +527,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
             <div class="bh-gio-cong-cu">
               <form class="ad-affix bh-o-ma" @submit.prevent="quetMa()">
                 <i class="bi bi-upc-scan" aria-hidden="true"></i>
-                <input ref="oMa" v-model="maQuet" type="text" class="form-control ad-control" placeholder="Nhập / quét mã + Enter" aria-label="Quét mã sản phẩm" autocomplete="off" />
+                <input ref="oMa" v-model="maQuet" type="text" class="form-control ad-control" placeholder="Quét / nhập mã sản phẩm" aria-label="Quét mã sản phẩm" autocomplete="off" />
               </form>
               <button type="button" class="ad-btn" title="Quét bằng camera" @click="moCamera = true"><i class="bi bi-camera" aria-hidden="true"></i></button>
               <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-chon-sp" @click="moChonSp = true">
@@ -534,16 +546,18 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                 <thead>
                   <tr>
                     <th class="ad-col-stt">STT</th>
+                    <th class="text-center bh-cot-anh">Ảnh</th>
                     <th>Sản phẩm</th>
-                    <th class="text-end">Đơn giá</th>
+                    <th>Phân loại</th>
+                    <th>Đơn giá</th>
                     <th class="text-center">Số lượng</th>
-                    <th class="text-end">Thành tiền</th>
-                    <th class="ad-col-actions"></th>
+                    <th>Thành tiền</th>
+                    <th class="text-center bh-cot-thao-tac">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!hd.gio.length">
-                    <td colspan="6">
+                    <td colspan="8">
                       <div class="ad-empty">
                         <i class="bi bi-cart" aria-hidden="true"></i>
                         <strong>Chưa có sản phẩm</strong>
@@ -553,30 +567,31 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                   </tr>
                   <tr v-for="(d, i) in hd.gio" :key="d.id">
                     <td class="ad-col-stt">{{ i + 1 }}</td>
-                    <td>
-                      <div class="bh-dong-sp">
-                        <span class="bh-dong-anh"><img v-if="d.anh" :src="d.anh" alt="" /><i v-else class="bi bi-image" aria-hidden="true"></i></span>
-                        <span>
-                          <span class="fw-semibold d-block">{{ d.ten }}</span>
-                          <small class="text-muted">{{ d.phanLoai }} · <span class="ad-code">{{ d.ma }}</span></small>
-                        </span>
-                      </div>
+                    <td class="text-center">
+                      <span class="bh-dong-anh"><img v-if="d.anh" :src="d.anh" :alt="d.ten" /><i v-else class="bi bi-image" aria-hidden="true"></i></span>
                     </td>
-                    <td class="text-end ad-nowrap">
-                      <div>{{ formatMoney(d.donGia) }}</div>
+                    <td class="bh-cot-ten">
+                      <span class="fw-semibold d-block">{{ d.ten }}</span>
+                      <small class="ad-code">{{ d.ma }}</small>
+                    </td>
+                    <td class="text-muted">{{ d.phanLoai || '—' }}</td>
+                    <td class="ad-nowrap">
+                      <div class="fw-medium">{{ formatMoney(d.donGia) }}</div>
                       <small v-if="d.donGia < d.giaGoc" class="text-muted"><s>{{ formatMoney(d.giaGoc) }}</s></small>
                       <small v-if="d.giaDoi" class="bh-gia-doi d-block"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Giá mới {{ formatMoney(d.giaHienTai) }}</small>
                     </td>
                     <td class="text-center">
-                      <div class="bh-sl">
-                        <button type="button" :aria-label="`Giảm số lượng ${d.ten}`" :disabled="d.soLuong <= 1" @click="doiSl(d, d.soLuong - 1)"><i class="bi bi-dash"></i></button>
-                        <input :value="d.soLuong" type="number" min="1" :max="d.soLuong + d.tonKho" :disabled="dangLam" :aria-label="`Số lượng ${d.ten}`" @change="doiSl(d, $event.target.value)" />
-                        <button type="button" :aria-label="`Tăng số lượng ${d.ten}`" :disabled="dangLam || d.tonKho <= 0" @click="doiSl(d, d.soLuong + 1)"><i class="bi bi-plus"></i></button>
+                      <div class="bh-cot-sl">
+                        <div class="bh-sl">
+                          <button type="button" :aria-label="`Giảm số lượng ${d.ten}`" :disabled="d.soLuong <= 1" @click="doiSl(d, d.soLuong - 1)"><i class="bi bi-dash"></i></button>
+                          <input :value="d.soLuong" type="number" min="1" :max="d.soLuong + d.tonKho" :disabled="dangLam" :aria-label="`Số lượng ${d.ten}`" @change="doiSl(d, $event.target.value)" />
+                          <button type="button" :aria-label="`Tăng số lượng ${d.ten}`" :disabled="dangLam || d.tonKho <= 0" @click="doiSl(d, d.soLuong + 1)"><i class="bi bi-plus"></i></button>
+                        </div>
+                        <small class="text-muted">Kho còn {{ d.tonKho }}</small>
                       </div>
-                      <small class="text-muted">Kho còn {{ d.tonKho }}</small>
                     </td>
-                    <td class="text-end fw-semibold ad-nowrap">{{ formatMoney(d.donGia * d.soLuong) }}</td>
-                    <td class="ad-col-actions">
+                    <td class="fw-semibold ad-nowrap bh-thanh-tien">{{ formatMoney(d.donGia * d.soLuong) }}</td>
+                    <td class="text-center">
                       <button type="button" class="ad-icon-btn is-danger" :aria-label="`Bỏ ${d.ten} khỏi hóa đơn`" title="Bỏ khỏi hóa đơn" @click="xoaDong(d)"><i class="bi bi-trash" aria-hidden="true"></i></button>
                     </td>
                   </tr>
@@ -604,26 +619,68 @@ const soLuongTab = (h) => tongSoLuong(h.items)
             </label>
           </div>
 
-          <!-- Phiếu giảm giá: tự áp phiếu giảm nhiều nhất, đổi được ở ô chọn -->
-          <div v-if="phieuChon && giamPhieu && hd.p.tuDongPhieu" class="bh-phieu-tot" role="status">
-            <i class="bi bi-stars" aria-hidden="true"></i>
-            <span>Đang áp dụng phiếu tốt nhất <b>{{ phieuChon.ma }}</b></span>
-            <b class="ms-auto text-success">-{{ formatMoney(giamPhieu) }}</b>
+          <!-- Phiếu giảm giá dạng thẻ: tự áp phiếu giảm nhiều nhất, bấm để đổi -->
+          <span id="bh-phieu-nhan" class="ad-label">Phiếu giảm giá</span>
+          <div ref="khungPhieu" class="bh-phieu-khung">
+            <button
+              id="bh-phieu"
+              type="button"
+              class="bh-phieu-the"
+              :class="{ 'is-co': phieuChon && giamPhieu, 'is-mo': moPhieu }"
+              :disabled="!hd.gio.length || (dangTaiPhieu && !phieus.length)"
+              aria-haspopup="listbox"
+              :aria-expanded="moPhieu"
+              aria-labelledby="bh-phieu-nhan"
+              @click="moPhieu = !moPhieu"
+            >
+              <span class="bh-phieu-icon" aria-hidden="true"><i class="bi bi-ticket-perforated-fill"></i></span>
+              <span class="bh-phieu-noi-dung">
+                <template v-if="phieuChon && giamPhieu">
+                  <b>{{ phieuChon.ma }}</b>
+                  <small>{{ hd.p.tuDongPhieu ? 'Tự áp phiếu tốt nhất · ' : '' }}{{ phieuChon.ten }}</small>
+                </template>
+                <template v-else>
+                  <b class="fw-semibold">{{ !hd.gio.length ? 'Thêm sản phẩm để xem phiếu' : 'Không dùng phiếu' }}</b>
+                  <small v-if="hd.gio.length">{{ soPhieuDung }} phiếu dùng được cho đơn này</small>
+                </template>
+              </span>
+              <b v-if="phieuChon && giamPhieu" class="bh-phieu-giam">-{{ formatMoney(giamPhieu) }}</b>
+              <i class="bi bi-chevron-down bh-phieu-mui" aria-hidden="true"></i>
+            </button>
+
+            <ul v-if="moPhieu" class="bh-phieu-ds" role="listbox" aria-labelledby="bh-phieu-nhan" @keydown.esc="moPhieu = false">
+              <li>
+                <button type="button" role="option" class="bh-phieu-muc" :class="{ 'is-chon': !hd.p.maPhieu }" :aria-selected="!hd.p.maPhieu" @click="chonPhieuMo('')">
+                  <span class="bh-phieu-muc-chinh"><b>Không dùng phiếu</b></span>
+                  <i v-if="!hd.p.maPhieu" class="bi bi-check-lg bh-phieu-tick" aria-hidden="true"></i>
+                </button>
+              </li>
+              <li v-for="(p, i) in phieus" :key="p.id">
+                <button
+                  type="button"
+                  role="option"
+                  class="bh-phieu-muc"
+                  :class="{ 'is-chon': hd.p.maPhieu === p.ma, 'is-khoa': !p.apDungDuoc }"
+                  :aria-selected="hd.p.maPhieu === p.ma"
+                  :aria-disabled="!p.apDungDuoc"
+                  :disabled="!p.apDungDuoc"
+                  @click="chonPhieuMo(p.ma)"
+                >
+                  <span class="bh-phieu-muc-chinh">
+                    <span class="d-flex align-items-center gap-2 flex-wrap">
+                      <b>{{ p.ma }}</b>
+                      <span v-if="p.apDungDuoc && i === 0" class="bh-nhan is-tot">Tốt nhất</span>
+                      <span v-if="p.caNhan" class="bh-nhan is-ca-nhan">Cá nhân</span>
+                    </span>
+                    <small class="d-block">{{ p.ten }} · {{ moTaPhieu(p) }}</small>
+                    <small v-if="!p.apDungDuoc" class="d-block bh-phieu-ly-do"><i class="bi bi-info-circle" aria-hidden="true"></i> {{ p.lyDo }}</small>
+                  </span>
+                  <b v-if="p.apDungDuoc" class="bh-phieu-giam">-{{ formatMoney(p.soTienGiam) }}</b>
+                  <i v-if="hd.p.maPhieu === p.ma" class="bi bi-check-lg bh-phieu-tick" aria-hidden="true"></i>
+                </button>
+              </li>
+            </ul>
           </div>
-          <label class="ad-label" for="bh-phieu">Phiếu giảm giá</label>
-          <select
-            id="bh-phieu"
-            class="form-select ad-control"
-            :value="hd.p.maPhieu"
-            :disabled="!hd.gio.length || (dangTaiPhieu && !phieus.length)"
-            @change="chonPhieu($event.target.value)"
-          >
-            <option value="">{{ !hd.gio.length ? 'Thêm sản phẩm để xem phiếu' : 'Không dùng phiếu' }}</option>
-            <option v-for="p in phieus" :key="p.id" :value="p.ma" :disabled="!p.apDungDuoc">
-              {{ p.ma }} · {{ p.apDungDuoc ? `giảm ${formatMoney(p.soTienGiam)}` : p.lyDo }}{{ p.caNhan ? ' (cá nhân)' : '' }}
-            </option>
-          </select>
-          <p v-if="phieuChon" class="ad-hint mb-0">{{ phieuChon.ten }} · {{ moTaPhieu(phieuChon) }}</p>
           <p v-if="loiPhieu" class="ad-error mb-0">{{ loiPhieu }}</p>
 
           <dl class="bh-tong mt-2">
@@ -657,18 +714,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               </button>
             </div>
             <MoneyInput id="bh-tien-mat" v-model="hd.p.tienMat" aria-label="Tiền khách đưa" :placeholder="`Mặc định: ${formatMoney(tt.phaiTra)}`" />
-            <div class="bh-goi-y">
-              <button
-                v-for="g in goiY"
-                :key="g"
-                type="button"
-                class="bh-chip"
-                :class="{ active: (!hd.p.tienMat && g === tt.phaiTra) || hd.p.tienMat === g }"
-                @click="hd.p.tienMat = (g === tt.phaiTra && hd.p.tienMat === g ? '' : g)"
-              >
-                {{ g === tt.phaiTra ? 'Đúng số tiền' : formatMoney(g) }}
-              </button>
-            </div>
           </div>
           <div v-if="hd.p.phuongThuc !== 'TIEN_MAT' && tt.chuyenKhoan > 0" class="bh-qr">
             <img v-if="qrUrl" :src="qrUrl" :alt="`Mã QR chuyển khoản ${formatMoney(tt.chuyenKhoan)}`" width="150" height="150" />
@@ -700,7 +745,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                 </div>
                 <div class="col-sm-6">
                   <label class="ad-label" for="bh-nn-sdt">Số điện thoại <span class="ad-required">*</span></label>
-                  <input id="bh-nn-sdt" v-model="hd.p.nguoiNhan.sdt" type="tel" inputmode="numeric" class="form-control ad-control" :class="{ 'is-invalid': daChamGiao && loiGiao.sdt }" maxlength="15" placeholder="vd: 0901234567" />
+                  <input id="bh-nn-sdt" v-model="hd.p.nguoiNhan.sdt" type="tel" inputmode="numeric" class="form-control ad-control" :class="{ 'is-invalid': daChamGiao && loiGiao.sdt }" maxlength="15" placeholder="Số điện thoại người nhận" />
                   <p v-if="daChamGiao && loiGiao.sdt" class="ad-error">{{ loiGiao.sdt }}</p>
                 </div>
                 <div class="col-12">
@@ -907,7 +952,30 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   gap: 0.5rem;
 }
 .bh-o-ma {
-  width: 220px;
+  width: 250px;
+}
+/* Bảng giỏ hàng: cột ảnh / thao tác hẹp và căn giữa, số lượng + tồn kho xếp trên dưới */
+.bh-gio th,
+.bh-gio td {
+  vertical-align: middle;
+}
+.bh-cot-anh {
+  width: 72px;
+}
+.bh-cot-thao-tac {
+  width: 90px;
+}
+.bh-cot-ten {
+  min-width: 180px;
+}
+.bh-thanh-tien {
+  color: var(--fs-primary-dark, #075fc0);
+}
+.bh-cot-sl {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
 }
 /* Tiêu đề Thông tin đơn hàng + công tắc Giao hàng */
 .bh-tieu-de-hang {
@@ -972,26 +1040,165 @@ const soLuongTab = (h) => tongSoLuong(h.items)
     transition: none;
   }
 }
-.bh-phieu-tot {
+/* ----- Phiếu giảm giá dạng thẻ ----- */
+.bh-phieu-khung {
+  position: relative;
+}
+.bh-phieu-the {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.6rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid #bbf7d0;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1.5px dashed #c9d6e8;
+  border-radius: 12px;
+  background: #f8fbff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bh-phieu-the:hover:not(:disabled),
+.bh-phieu-the.is-mo {
+  border-color: var(--fs-primary, #0977ec);
+  box-shadow: 0 4px 14px rgba(9, 119, 236, 0.1);
+}
+.bh-phieu-the.is-co {
+  border-style: solid;
+  border-color: #86efac;
+  background: linear-gradient(90deg, #f0fdf4, #ffffff);
+}
+.bh-phieu-the:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.bh-phieu-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
-  background: #f0fdf4;
-  color: #166534;
-  font-size: 0.86rem;
+  background: var(--fs-primary-soft, #e7f1fd);
+  color: var(--fs-primary, #0977ec);
+  font-size: 1.05rem;
+}
+.bh-phieu-the.is-co .bh-phieu-icon {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.bh-phieu-noi-dung {
+  flex: 1;
+  min-width: 0;
+}
+.bh-phieu-noi-dung b,
+.bh-phieu-noi-dung small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bh-phieu-noi-dung small {
+  color: var(--fs-muted, #64748b);
+  font-size: 0.78rem;
+}
+.bh-phieu-giam {
+  flex: none;
+  color: #16a34a;
+  font-size: 0.95rem;
+}
+.bh-phieu-mui {
+  flex: none;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+.bh-phieu-the.is-mo .bh-phieu-mui {
+  transform: rotate(180deg);
+}
+.bh-phieu-ds {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(15, 27, 45, 0.16);
+}
+.bh-phieu-muc {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.bh-phieu-muc:hover:not(:disabled) {
+  background: #f1f6fd;
+}
+.bh-phieu-muc.is-chon {
+  background: var(--fs-primary-soft, #e7f1fd);
+}
+.bh-phieu-muc.is-khoa {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.bh-phieu-muc-chinh {
+  flex: 1;
+  min-width: 0;
+}
+.bh-phieu-muc-chinh small {
+  color: var(--fs-muted, #64748b);
+  font-size: 0.78rem;
+}
+.bh-phieu-ly-do {
+  color: #b45309 !important;
+}
+.bh-phieu-tick {
+  flex: none;
+  color: var(--fs-primary, #0977ec);
+  font-size: 1.05rem;
+}
+.bh-nhan {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.bh-nhan.is-tot {
+  background: #dcfce7;
+  color: #15803d;
+}
+.bh-nhan.is-ca-nhan {
+  background: #f3e8ff;
+  color: #7e22ce;
 }
 .bh-nut-hang {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr);
   gap: 0.5rem;
   margin-top: 1rem;
 }
+.bh-nut-hang .ad-btn {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-inline: 0.6rem;
+}
 .bh-nut-hang .bh-nut-tt {
   margin-top: 0;
+  font-size: 0.98rem;
 }
 .bh-nut-huy {
   justify-content: center;
@@ -1033,14 +1240,16 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   font-size: 0.72rem;
   padding: 0 0.35rem;
 }
+/* Nút x hủy hóa đơn chờ: màu xanh thương hiệu (giống logo) */
 .bh-tab-xoa {
   border: 0;
   background: transparent;
   padding: 0.45rem 0.55rem;
-  color: var(--fs-muted, #7b8794);
+  color: var(--fs-primary, #0977ec);
 }
 .bh-tab-xoa:hover {
-  color: #c62828;
+  color: var(--fs-primary-dark, #075fc0);
+  background: var(--fs-primary-soft, #e7f1fd);
 }
 .bh-tab-them {
   border: 1px dashed #c9d3df;
@@ -1060,7 +1269,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 }
 .bh-luoi {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 400px;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
   gap: 1rem;
   align-items: start;
 }
@@ -1074,6 +1283,14 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   gap: 1rem;
   position: sticky;
   top: 1rem;
+  /* Không để chữ dài (tên phiếu, số tiền) đẩy cột rộng ra ngoài màn hình */
+  min-width: 0;
+}
+.bh-phai > .ad-card,
+.bh-phieu-khung,
+.bh-phieu-the {
+  min-width: 0;
+  max-width: 100%;
 }
 .bh-khoi {
   padding: 1rem;
@@ -1092,8 +1309,9 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   align-items: center;
 }
 .bh-dong-anh {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
+  margin: 0 auto;
   border-radius: 8px;
   background: var(--fs-surface, #f7f9fc);
   display: flex;
@@ -1197,31 +1415,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 }
 .bh-pt .ad-segment-item.active {
   background: #fff;
-}
-.bh-goi-y {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.4rem;
-}
-.bh-chip {
-  border: 1px solid var(--fs-line, #e6eaf0);
-  background: #fff;
-  border-radius: 999px;
-  padding: 0.2rem 0.6rem;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.bh-chip:hover {
-  border-color: var(--fs-primary, #0977ec);
-  color: var(--fs-primary, #0977ec);
-}
-.bh-chip.active {
-  background: var(--fs-primary, #0977ec);
-  border-color: var(--fs-primary, #0977ec);
-  color: #fff;
-  font-weight: 600;
 }
 .bh-qr {
   display: flex;

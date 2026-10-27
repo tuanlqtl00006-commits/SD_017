@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.footstyle.demo.KhoGia;
+import com.footstyle.demo.dto.DangKyKhachHangRequest;
 import com.footstyle.demo.dto.KhachHangRequest;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.exception.ApiException;
@@ -379,6 +380,36 @@ class KhachHangServiceTest {
         String mk = service.them(r).getMatKhau();
         assertNotNull(mk);
         assertTrue(mk.startsWith("$2"), "mật khẩu tạm vẫn được băm BCrypt, không lưu chữ thường");
+    }
+
+    // ---------- khách tự đăng ký ở cửa hàng online ----------
+    @Test
+    void khachTuDangKy_luuMatKhauBamVaHoatDong_emailTrongThiDeNull() {
+        KhachHang k = service.dangKy(new DangKyKhachHangRequest("  Lê  Quốc Tuấn ", "0379992712", "", "abc123", "abc123"));
+        assertEquals("Lê Quốc Tuấn", k.getHoTen());
+        assertEquals(1, k.getTrangThai());
+        assertNull(k.getEmail(), "email để trống thì lưu NULL, không đụng chỉ mục duy nhất của email");
+        assertTrue(new BCryptPasswordEncoder().matches("abc123", k.getMatKhau()), "đăng nhập được bằng đúng mật khẩu vừa đặt");
+        assertNotNull(k.getMaKhachHang());
+    }
+
+    @Test
+    void khachTuDangKy_baoLoiTheoTungO() {
+        mau();
+        Map<String, String> o = theoO(loi(() -> service.dangKy(new DangKyKhachHangRequest("", "0912345678", "khong-hop-le", "12345", "12345"))));
+        assertTrue(o.containsKey("hoTen"));
+        assertTrue(o.containsKey("email"));
+        assertEquals("Mật khẩu từ 6 đến 50 ký tự.", o.get("matKhau"));
+        Map<String, String> o2 = theoO(loi(() -> service.dangKy(new DangKyKhachHangRequest("Trần An", "0379992712", null, "abc123", "abc124"))));
+        assertEquals("Mật khẩu xác nhận không trùng khớp.", o2.get("xacNhanMatKhau"));
+    }
+
+    @Test
+    void khachTuDangKy_trungSdtHoacEmail_baoLoi() {
+        KhachHang k = mau();
+        Map<String, String> o = theoO(loi(() -> service.dangKy(new DangKyKhachHangRequest("Trần An", k.getSdt(), k.getEmail().toUpperCase(), "abc123", "abc123"))));
+        assertEquals("Số điện thoại đã được đăng ký.", o.get("sdt"));
+        assertEquals("Email đã được đăng ký.", o.get("email"));
     }
 
     // ---------- xóa khách hàng ----------

@@ -27,6 +27,7 @@ public final class PhanQuyen {
     private static final List<String[]> CONG_KHAI_THEO_PHUONG_THUC = List.of(
             new String[] {"POST", "/api/auth/dang-nhap"},
             new String[] {"POST", "/api/auth/khach-hang/dang-nhap"},
+            new String[] {"POST", "/api/auth/khach-hang/dang-ky"},
             new String[] {"POST", "/api/auth/quen-mat-khau"},
             new String[] {"GET", "/api/auth/cau-hinh"},
             // Công cụ kiểm tra cấu hình Gmail mở trực tiếp trên trình duyệt (HUONG_DAN_CHAY.md); chỉ gửi tới email của chính cửa hàng

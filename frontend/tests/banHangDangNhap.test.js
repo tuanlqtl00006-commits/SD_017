@@ -135,12 +135,27 @@ describe('Trang đăng nhập', () => {
     expect(replace).toHaveBeenCalledWith('/shop')
   })
 
-  it('tài khoản mẫu 1-click chỉ có khi chạy dev, bấm thì điền sẵn tài khoản', async () => {
-    expect(import.meta.env.DEV).toBe(true)
+  it('đăng ký khách gọi API đăng ký công khai (không cần đăng nhập), không gọi API quản lý khách hàng', async () => {
+    api.post.mockResolvedValue({ data: { maKhachHang: 'KH30', hoTen: 'Lê Quốc Tuấn', sdt: '0379992712' } })
+    const w = ganVao(KhachDangNhapView)
+    const tab = w.findAll('button').find((b) => b.text().includes('Đăng ký'))
+    await tab.trigger('click')
+    const o = w.findAll('form').at(-1).findAll('input')
+    await o[0].setValue('Lê Quốc Tuấn')
+    await o[1].setValue('0379992712')
+    await o[3].setValue('abc123')
+    await o[4].setValue('abc123')
+    await w.findAll('form').at(-1).trigger('submit')
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledWith('/auth/khach-hang/dang-ky', { hoTen: 'Lê Quốc Tuấn', sdt: '0379992712', email: undefined, matKhau: 'abc123', xacNhanMatKhau: 'abc123' })
+    expect(api.post).not.toHaveBeenCalledWith('/khach-hang', expect.anything())
+  })
+
+  it('trang đăng nhập không hiện khối tài khoản demo, ô tài khoản / mật khẩu để trống', () => {
     const w = ganVao(DangNhapPage)
-    await w.find('[data-testid=dn-tai-khoan-mau] button').trigger('click')
-    expect(w.find('#dn-tai-khoan').element.value).toBe('NV01')
-    expect(w.find('#dn-mat-khau').element.value).not.toBe('')
+    expect(w.text()).not.toContain('Tài khoản demo')
+    expect(w.find('#dn-tai-khoan').element.value).toBe('')
+    expect(w.find('#dn-mat-khau').element.value).toBe('')
   })
 })
 
@@ -339,6 +354,31 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
     expect(may.thanhToan.giaoHang).toEqual({ hoTen: 'Trần Văn Hùng', sdt: '0901000002', diaChi: 'Số 1 Trần Phú, Hà Đông, Hà Nội' })
     expect(body().text()).toContain('Chờ giao hàng')
+  })
+
+  it('ô phiếu dạng thẻ: tự áp phiếu tốt nhất, phiếu chưa đủ điều kiện bị khóa kèm lý do, bỏ phiếu được', async () => {
+    const PHIEUS = [
+      { id: 1, ma: 'GIAM50K', ten: 'Giảm 50k', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 },
+      { id: 2, ma: 'VIP10', ten: 'Khách VIP', loaiGiam: 'PHAN_TRAM', giaTri: 10, donToiThieu: 5000000, apDungDuoc: false, lyDo: 'Đơn tối thiểu 5.000.000 ₫ (còn thiếu 1.139.000 ₫).', soTienGiam: 0 },
+    ]
+    const { w } = await moBanHang({ phieus: () => PHIEUS })
+    await nutThem().trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    const the = w.find('#bh-phieu')
+    expect(the.text()).toContain('GIAM50K')
+    expect(the.text()).toContain('Tự áp phiếu tốt nhất')
+    expect(the.text()).toContain('-50.000')
+    await the.trigger('click')
+    const muc = w.findAll('.bh-phieu-muc')
+    expect(muc).toHaveLength(3)
+    expect(muc[1].text()).toContain('Tốt nhất')
+    expect(muc[2].attributes('disabled')).toBeDefined()
+    expect(muc[2].text()).toContain('còn thiếu 1.139.000')
+    await muc[0].trigger('click')
+    expect(w.find('.bh-phieu-ds').exists()).toBe(false)
+    expect(w.find('#bh-phieu').text()).toContain('Không dùng phiếu')
+    expect(w.find('.bh-nut-tt').text()).toContain('3.861.000')
   })
 
   it('phiếu bị sửa mức giảm lúc đang chờ: gửi mức giảm đang hiện, máy chủ báo thì tải lại phiếu và hiện số tiền mới', async () => {

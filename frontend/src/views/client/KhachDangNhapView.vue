@@ -56,12 +56,12 @@ async function dangKy() {
   }
   dangGuiDk.value = true
   try {
-    await api.post('/khach-hang', {
+    await api.post('/auth/khach-hang/dang-ky', {
       hoTen: fDk.hoTen.trim(),
       sdt: fDk.sdt.trim(),
       email: fDk.email.trim() || undefined,
       matKhau: fDk.matKhau,
-      trangThai: 1,
+      xacNhanMatKhau: fDk.xacNhanMatKhau,
     })
     dangKyThanhCong.value = true
     f.taiKhoan = fDk.sdt.trim()

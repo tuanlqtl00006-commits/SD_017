@@ -1,12 +1,15 @@
 package com.footstyle.demo.controller;
 
+import com.footstyle.demo.dto.DangKyKhachHangRequest;
 import com.footstyle.demo.dto.DangNhapRequest;
 import com.footstyle.demo.dto.DoiMatKhauRequest;
+import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.security.NguoiDung;
 import com.footstyle.demo.security.XacThuc;
 import com.footstyle.demo.security.XacThucInterceptor;
 import com.footstyle.demo.service.AuthService;
+import com.footstyle.demo.service.KhachHangService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Đăng nhập / tài khoản. Xem AuthService và security/PhanQuyen. */
@@ -25,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService service;
+    private final KhachHangService khachHangService;
     private final XacThucInterceptor interceptor;
 
     /** Công khai: giao diện hỏi có bật đăng nhập không (app.auth.bat). */
@@ -41,6 +46,14 @@ public class AuthController {
     @PostMapping("/khach-hang/dang-nhap")
     public Map<String, Object> dangNhapKhachHang(@RequestBody(required = false) DangNhapRequest req) {
         return service.dangNhapKhachHang(req);
+    }
+
+    /** Công khai: khách tự đăng ký tài khoản ở cửa hàng online, xong đăng nhập bằng SĐT / email vừa đăng ký. */
+    @PostMapping("/khach-hang/dang-ky")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Object> dangKyKhachHang(@RequestBody(required = false) DangKyKhachHangRequest req) {
+        KhachHang kh = khachHangService.dangKy(req);
+        return Map.of("maKhachHang", kh.getMaKhachHang(), "hoTen", kh.getHoTen(), "sdt", kh.getSdt());
     }
 
     /** Người đang đăng nhập. */

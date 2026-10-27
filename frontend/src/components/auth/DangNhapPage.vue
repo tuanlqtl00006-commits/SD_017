@@ -21,9 +21,6 @@ const f = reactive({ taiKhoan: '', matKhau: '', nho: false })
 const hienMatKhau = ref(false)
 const dangGui = ref(false)
 const loiChung = ref('')
-const laDev = import.meta.env.DEV
-// Bản build có import.meta.env.DEV = false nên mật khẩu mẫu bị loại khỏi mã gửi cho trình duyệt
-const MAT_KHAU_MAU = import.meta.env.DEV ? 'Footstyle@123' : null
 const oMatKhau = ref(null)
 const oEmail = ref(null)
 
@@ -126,14 +123,6 @@ function veDangNhap() {
   datLai()
   loiChung.value = ''
 }
-
-function dienMau(tk) {
-  if (!MAT_KHAU_MAU) return
-  f.taiKhoan = tk
-  f.matKhau = MAT_KHAU_MAU
-  sua('taiKhoan')
-  sua('matKhau')
-}
 </script>
 
 <template>
@@ -181,7 +170,6 @@ function dienMau(tk) {
           <div v-if="che === 'dang-nhap'" key="dang-nhap">
             <span class="dn-nhan-tren dn-vao" style="--tre: 60ms"><i class="bi bi-shield-lock" aria-hidden="true"></i> Trang quản trị</span>
             <h1 class="dn-tieu-de dn-vao" style="--tre: 100ms">Chào mừng trở lại</h1>
-            <p class="dn-phu dn-vao" style="--tre: 140ms">Đăng nhập bằng tài khoản nhân viên. Hệ thống tự mở đúng chức năng theo vai trò của bạn.</p>
 
             <div v-if="lyDoHetPhien" class="dn-thong-bao is-warn" role="status">
               <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> {{ lyDoHetPhien }}
@@ -210,7 +198,7 @@ function dienMau(tk) {
                     required
                     :aria-invalid="!!loi.taiKhoan"
                     :aria-describedby="loi.taiKhoan ? 'dn-tai-khoan-loi' : undefined"
-                    placeholder="Mã NV, email hoặc SĐT (vd: NV01)"
+                    placeholder="Mã NV, email hoặc SĐT"
                     maxlength="255"
                     autofocus
                     @input="sua('taiKhoan')"
@@ -282,22 +270,6 @@ function dienMau(tk) {
               <i class="bi bi-bag-heart" aria-hidden="true"></i> Bạn là khách mua hàng?
               <button type="button" class="dn-lien-ket" data-testid="dn-sang-khach" @click="router.push('/shop/dang-nhap')">Đăng nhập cửa hàng online</button>
             </p>
-
-            <!-- Tài khoản kiểm thử 1-click (cho Hội đồng chấm) - chỉ khi chạy npm run dev -->
-            <div v-if="laDev" class="dn-mau dn-vao" style="--tre: 280ms" data-testid="dn-tai-khoan-mau">
-              <span class="dn-mau-tieu-de"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Tài khoản demo (bấm để điền)</span>
-              <div class="dn-mau-nut-group">
-                <button type="button" class="dn-mau-nut" @click="dienMau('NV01')">
-                  <span class="dn-mau-avt is-ql">QL</span><span><b>NV01</b><small>Quản lý</small></span>
-                </button>
-                <button type="button" class="dn-mau-nut" @click="dienMau('NV03')">
-                  <span class="dn-mau-avt">NV</span><span><b>NV03</b><small>Nhân viên</small></span>
-                </button>
-                <button type="button" class="dn-mau-nut" @click="dienMau('NV04')">
-                  <span class="dn-mau-avt">NV</span><span><b>NV04</b><small>Nhân viên</small></span>
-                </button>
-              </div>
-            </div>
           </div>
 
           <div v-else key="quen">
@@ -717,7 +689,6 @@ function dienMau(tk) {
 }
 .dn-lien-ket:focus-visible,
 .dn-btn-shop:focus-visible,
-.dn-mau-nut:focus-visible,
 .dn-mat:focus-visible {
   outline: 3px solid rgba(9, 119, 236, 0.35);
   outline-offset: 2px;
@@ -830,74 +801,6 @@ function dienMau(tk) {
   margin: 1rem 0 0;
   color: var(--chu-phu);
   font-size: 0.9rem;
-}
-.dn-mau {
-  margin-top: 1rem;
-  padding: 0.75rem;
-  border: 1px dashed #c9d6e8;
-  border-radius: 14px;
-  background: #f8fbff;
-}
-.dn-mau-tieu-de {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.65rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #475569;
-}
-.dn-mau-tieu-de .bi {
-  color: #f59e0b;
-}
-.dn-mau-nut-group {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-.dn-mau-nut {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.55rem;
-  border: 1px solid var(--vien);
-  border-radius: 12px;
-  background: #fff;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-}
-.dn-mau-nut:hover {
-  border-color: var(--xanh);
-  box-shadow: 0 6px 16px rgba(9, 119, 236, 0.12);
-  transform: translateY(-1px);
-}
-.dn-mau-nut b {
-  display: block;
-  font-size: 0.85rem;
-  color: var(--chu);
-}
-.dn-mau-nut small {
-  display: block;
-  font-size: 0.72rem;
-  white-space: nowrap;
-  color: var(--chu-phu);
-}
-.dn-mau-avt {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: var(--xanh-nhat);
-  color: var(--xanh-dam);
-  font-size: 0.68rem;
-  font-weight: 800;
-}
-.dn-mau-avt.is-ql {
-  background: #fef3c7;
-  color: #b45309;
 }
 .dn-quay-lai {
   display: inline-flex;
@@ -1060,11 +963,6 @@ function dienMau(tk) {
 @media (max-height: 980px) and (min-width: 641px) {
   .dn-tinh-nang {
     display: none;
-  }
-}
-@media (max-width: 420px) {
-  .dn-mau-nut-group {
-    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -15,6 +15,8 @@ class PhanQuyenTest {
     void duongDanCongKhai() {
         assertTrue(PhanQuyen.congKhai("POST", "/api/auth/dang-nhap"));
         assertTrue(PhanQuyen.congKhai("POST", "/api/auth/khach-hang/dang-nhap"));
+        assertTrue(PhanQuyen.congKhai("POST", "/api/auth/khach-hang/dang-ky"), "khách chưa có tài khoản phải đăng ký được");
+        assertFalse(PhanQuyen.congKhai("POST", "/api/khach-hang"), "API quản lý khách hàng vẫn phải đăng nhập");
         assertTrue(PhanQuyen.congKhai("POST", "/api/auth/quen-mat-khau"));
         assertTrue(PhanQuyen.congKhai("GET", "/api/auth/cau-hinh"));
         assertTrue(PhanQuyen.congKhai("GET", "/api/uploads/anh.png"));
