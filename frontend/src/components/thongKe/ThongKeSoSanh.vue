@@ -359,14 +359,6 @@ async function guiEmail() {
   flex-direction: column;
   gap: 1.15rem;
 }
-.ss-page :deep(*),
-.ss-page input,
-.ss-page select,
-.ss-page option,
-.ss-page button,
-.ss-page svg text {
-  font-family: inherit !important;
-}
 .ss-filter-card {
   border-radius: 18px;
   border: 1px solid #e5ecf4;

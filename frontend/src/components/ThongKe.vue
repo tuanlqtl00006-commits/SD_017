@@ -992,21 +992,11 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 </template>
 
 <style scoped>
-/* Bố cục trang thống kê thoáng đãng, đồng bộ phông chữ 100% */
+/* Bố cục trang thống kê thoáng đãng, đồng bộ hoàn toàn với admin.css */
 .tk-page {
   display: flex;
   flex-direction: column;
   gap: 1.15rem;
-}
-
-.tk-page :deep(*),
-.tk-page :deep(input),
-.tk-page :deep(select),
-.tk-page :deep(option),
-.tk-page :deep(button),
-.tk-page :deep(textarea),
-.tk-page svg text {
-  font-family: inherit !important;
 }
 
 /* ---------- Khung Bộ lọc thống kê ---------- */
@@ -1014,7 +1004,7 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   padding: 1.35rem 1.5rem;
   border-radius: 18px;
   border: 1px solid #e5ecf4;
-  background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+  background: #ffffff;
   box-shadow: 0 8px 26px rgba(15, 23, 42, 0.045);
 }
 
@@ -1026,30 +1016,6 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   gap: 1rem;
   padding-bottom: 1.1rem;
   border-bottom: 1px solid #eef2f7;
-}
-
-.tk-head-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #e7f1fd 0%, #d4e7fc 100%);
-  color: #0977ec;
-  display: grid;
-  place-items: center;
-  font-size: 1.15rem;
-  flex: none;
-}
-
-.tk-filter-title {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--fs-text, #18242f);
-}
-
-.tk-filter-sub {
-  font-size: 0.78rem;
-  color: #64748b;
-  margin-top: 0.12rem !important;
 }
 
 .tk-filter-actions {
@@ -1074,9 +1040,9 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   border: 1px solid transparent;
   background: transparent;
   color: #475569;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  padding: 0.34rem 0.78rem;
+  padding: 0.36rem 0.82rem;
   border-radius: 999px;
   transition: all 0.16s ease;
 }
@@ -1094,50 +1060,21 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 }
 
 .tk-btn-excel {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid #a7f3d0;
+  border-color: #a7f3d0;
   background: #ecfdf5;
   color: #047857;
-  font-size: 0.82rem;
-  font-weight: 700;
-  padding: 0.44rem 0.95rem;
-  border-radius: 10px;
-  transition: all 0.16s ease;
 }
 
 .tk-btn-excel:hover:not(:disabled) {
   background: #d1fae5;
   border-color: #6ee7b7;
-  transform: translateY(-1px);
-}
-
-.tk-btn-compare {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid #0977ec;
-  background: linear-gradient(135deg, #0977ec 0%, #075fc0 100%);
-  color: #ffffff;
-  font-size: 0.82rem;
-  font-weight: 700;
-  padding: 0.44rem 1rem;
-  border-radius: 10px;
-  text-decoration: none;
-  box-shadow: 0 4px 12px rgba(9, 119, 236, 0.22);
-  transition: all 0.16s ease;
-}
-
-.tk-btn-compare:hover {
-  background: linear-gradient(135deg, #075fc0 0%, #054a99 100%);
-  color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(9, 119, 236, 0.3);
+  color: #065f46;
 }
 
 .tk-filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr)) minmax(260px, 1.45fr);
-  gap: 0.95rem;
+  gap: 1rem;
   align-items: end;
   padding-top: 1.1rem;
 }
@@ -1155,98 +1092,6 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   .tk-filter-grid {
     grid-template-columns: 1fr;
   }
-}
-
-.tk-label {
-  display: flex;
-  align-items: center;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--fs-text, #18242f);
-  margin-bottom: 0.4rem;
-}
-
-.tk-label i {
-  color: #0977ec;
-  font-size: 0.85rem;
-}
-
-.tk-input,
-.tk-page :deep(.tk-input),
-.tk-page :deep(.di-input) {
-  height: 42px !important;
-  font-family: inherit !important;
-  font-size: 0.875rem !important;
-  font-weight: 400 !important;
-  line-height: 1.4 !important;
-  letter-spacing: inherit !important;
-  color: var(--fs-text, #18242f) !important;
-  background-color: #f8fafc !important;
-  border: 1px solid #dbe3ee !important;
-  border-radius: 10px !important;
-  box-shadow: none !important;
-  transition: all 0.15s ease;
-}
-
-.tk-input::placeholder,
-.tk-page :deep(.tk-input::placeholder),
-.tk-page :deep(.di-input::placeholder) {
-  font-family: inherit !important;
-  font-size: 0.875rem !important;
-  font-weight: 400 !important;
-  color: #7b8794 !important;
-}
-
-.tk-input:hover,
-:deep(.tk-input:hover) {
-  border-color: #cbd5e1 !important;
-  background-color: #ffffff !important;
-}
-
-.tk-input:focus,
-:deep(.tk-input:focus) {
-  background-color: #ffffff !important;
-  border-color: #0977ec !important;
-  box-shadow: 0 0 0 3px rgba(9, 119, 236, 0.13) !important;
-}
-
-.tk-search-wrap {
-  position: relative;
-}
-
-.tk-search-ico {
-  position: absolute;
-  left: 0.8rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #94a3b8;
-  font-size: 0.85rem;
-  pointer-events: none;
-}
-
-.tk-input-search {
-  padding-left: 2.2rem !important;
-}
-
-.tk-btn-reset {
-  height: 41px;
-  padding: 0 1rem;
-  border-radius: 999px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #334155;
-  font-size: 0.83rem;
-  font-weight: 600;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  transition: all 0.15s ease;
-}
-
-.tk-btn-reset:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-  color: #0f172a;
 }
 
 .tk-status-line {
