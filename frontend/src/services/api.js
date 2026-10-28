@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { baoChuaVaoCa, baoHetPhien, layToken } from './phien';
+import { baoChuaVaoCa, baoHetPhien, baoVaiTro, layToken } from './phien';
 
 const api = axios.create({
     baseURL: '/api', // Dùng proxy trong vite.config.js để chuyển hướng sang http://localhost:8081/api
@@ -27,8 +27,12 @@ const MA_HET_PHIEN = ['CHUA_DANG_NHAP', 'HET_PHIEN', 'TOKEN_KHONG_HOP_LE'];
 //  - error.loiTheoTruong: lỗi theo TỪNG Ô của form (gắn xuống dưới đúng ô nhập), null nếu backend không trả.
 //  - error.code / error.chiTiet: mã lỗi nghiệp vụ và dữ liệu kèm theo (vd FILE_KHONG_HOP_LE + danh sách dòng sai khi nhập Excel).
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        baoVaiTro(response.headers?.['x-vai-tro']);
+        return response;
+    },
     (error) => {
+        baoVaiTro(error.response?.headers?.['x-vai-tro']); // bị chặn 403 / 409 vì vừa bị đổi quyền cũng phải cập nhật
         const data = error.response?.data;
         if (data?.message) {
             error.message = data.message;

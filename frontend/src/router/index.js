@@ -409,6 +409,27 @@ export async function kiemTraTruyCap(to) {
   return true
 }
 
+/**
+ * Case khó "chuyển quyền nhân viên": quản lý đổi vai trò của người đang làm việc (vd đang bán tại quầy).
+ * Backend đã áp quyền mới ngay (đọc vai trò từ CSDL ở mỗi request); ở đây đổi menu theo vai trò mới, báo cho người dùng
+ * và rời trang không còn quyền vào (thành nhân viên mà chưa vào ca thì về trang Vào ca). Hóa đơn chờ vẫn giữ nguyên.
+ */
+export async function apDungVaiTroMoi(vaiTroMoi, trangHienTai, chuyenTrang) {
+  const auth = useAuth()
+  auth.capNhatVaiTro(vaiTroMoi)
+  const toast = useToast()
+  if (vaiTroMoi === 'QUAN_LY') toast.success('Tài khoản của bạn vừa được chuyển sang quyền Quản lý.', 'Quyền đã thay đổi')
+  else toast.error('Tài khoản của bạn vừa được chuyển sang quyền Nhân viên. Các chức năng của quản lý đã bị ẩn.', 'Quyền đã thay đổi')
+  const roles = trangHienTai?.meta?.roles
+  if (roles && !roles.includes(auth.vaiTro.value)) {
+    await chuyenTrang(auth.trangChu())
+    return
+  }
+  if (!trangHienTai) return
+  const ketQua = await kiemTraTruyCap(trangHienTai)
+  if (ketQua !== true) await chuyenTrang(ketQua)
+}
+
 router.beforeEach(kiemTraTruyCap)
 
 export default router

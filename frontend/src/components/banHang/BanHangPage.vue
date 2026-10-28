@@ -380,7 +380,6 @@ const lyDoKhongThanhToan = computed(() => {
 })
 const xacNhan = ref(false)
 const dangGui = ref(false)
-const xong = ref(null)
 
 function moXacNhan() {
   if (hd.value.p.giaoHang) daChamGiao.value = true
@@ -390,6 +389,19 @@ function moXacNhan() {
     return
   }
   xacNhan.value = true
+}
+
+/* ----- In hóa đơn vừa bán (dùng mẫu in của trang Hóa đơn) ----- */
+// Cửa sổ in phải mở ngay lúc người dùng bấm "Thanh toán" (trước khi chờ máy chủ) thì trình duyệt mới không chặn; có lỗi thì đóng lại.
+function moCuaSoIn() {
+  return window.open('', '_blank', 'width=820,height=900')
+}
+
+async function inVaoCuaSo(id, w) {
+  const ct = (await api.get(`/hoa-don/${id}`)).data
+  const qr = await QRCode.toDataURL(String(ct.hoaDon.maHoaDon), { width: 240, margin: 1 })
+  w.document.write(taoHtmlHoaDon({ hd: ct.hoaDon, khach: ct.khachHang, giao: ct.giaoHang, sanPham: ct.sanPham, daThanhToan: ct.daThanhToan, qrUrl: qr, goc: location.origin }))
+  w.document.close()
 }
 
 async function thanhToan() {
@@ -403,6 +415,7 @@ async function thanhToan() {
       : p.tienMat !== '' && p.tienMat !== null && p.tienMat !== undefined
         ? tt.value.tienMat
         : Math.max(0, tt.value.phaiTra - (p.phuongThuc === 'KET_HOP' ? tt.value.chuyenKhoan : 0))
+  const cuaSoIn = moCuaSoIn()
   try {
     const res = await api.post(`/ban-hang/hoa-don-cho/${h.id}/thanh-toan`, {
       maPhieu: p.maPhieu || null,
@@ -414,14 +427,24 @@ async function thanhToan() {
       giaoHang: p.giaoHang ? { hoTen: p.nguoiNhan.hoTen.trim(), sdt: p.nguoiNhan.sdt.trim(), diaChi: p.nguoiNhan.diaChi.trim() } : null,
     })
     xacNhan.value = false
-    xong.value = res.data
     const i = dsCho.value.findIndex((x) => x.id === h.id)
     if (i >= 0) dsCho.value.splice(i, 1)
     delete phu[h.id]
     dangChon.value = dsCho.value[Math.max(0, i - 1)]?.id ?? null
     giaoCa.taiLai()
     timSp.value?.taiLai()
+    // Thanh toán xong: tự in hóa đơn và chuyển thẳng sang trang chi tiết, không hỏi lại
+    if (cuaSoIn) {
+      inVaoCuaSo(res.data.id, cuaSoIn).catch(() => {
+        cuaSoIn.close()
+        toast.error('Không in được hóa đơn. Vào trang chi tiết để in lại.')
+      })
+    } else {
+      toast.error('Trình duyệt đã chặn cửa sổ in. Vào trang chi tiết để in lại.')
+    }
+    router.push(`/hoa-don/${res.data.id}`)
   } catch (e) {
+    cuaSoIn?.close()
     xacNhan.value = false
     if (e.code === 'GIA_THAY_DOI') {
       toast.error(e.message)
@@ -443,24 +466,6 @@ async function thanhToan() {
     }
   } finally {
     dangGui.value = false
-  }
-}
-
-/* ----- In hóa đơn vừa bán (dùng mẫu in của trang Hóa đơn) ----- */
-async function inHoaDon() {
-  const w = window.open('', '_blank', 'width=820,height=900')
-  if (!w) {
-    toast.error('Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại.')
-    return
-  }
-  try {
-    const ct = (await api.get(`/hoa-don/${xong.value.id}`)).data
-    const qr = await QRCode.toDataURL(String(ct.hoaDon.maHoaDon), { width: 240, margin: 1 })
-    w.document.write(taoHtmlHoaDon({ hd: ct.hoaDon, khach: ct.khachHang, giao: ct.giaoHang, sanPham: ct.sanPham, daThanhToan: ct.daThanhToan, qrUrl: qr, goc: location.origin }))
-    w.document.close()
-  } catch (e) {
-    w.close()
-    toast.error(e.message || 'Không in được hóa đơn.')
   }
 }
 
@@ -841,20 +846,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
       @confirm="xoaHoaDon(xoaHd)"
       @cancel="xoaHd = null"
     />
-    <BaseModal v-if="xong" :title="`Đã thanh toán ${xong.maHoaDon}`" size="sm" @close="xong = null">
-      <div class="bh-xong py-2">
-        <i class="bi bi-check-circle-fill text-success fs-1" aria-hidden="true"></i>
-        <div class="bh-xong-tien text-primary fw-bold fs-3 mt-1">{{ formatMoney(xong.thanhTien) }}</div>
-        <div v-if="xong.tienThua > 0" class="bh-thua mt-1">Trả lại khách: <b>{{ formatMoney(xong.tienThua) }}</b></div>
-        <div class="text-muted small mt-2">
-          {{ xong.giaoHang ? 'Đã thanh toán. Đơn chuyển sang "Chờ giao hàng" - in hóa đơn kèm theo hàng.' : 'Thanh toán hoàn tất thành công.' }}
-        </div>
-      </div>
-      <template #footer>
-        <button type="button" class="ad-btn" @click="router.push(`/hoa-don/${xong.id}`)">Xem hóa đơn</button>
-        <button type="button" class="ad-btn ad-btn-primary" @click="inHoaDon"><i class="bi bi-printer" aria-hidden="true"></i> In hóa đơn</button>
-      </template>
-    </BaseModal>
     <GiaoCaModal v-if="moCa" @close="moCa = false" />
 
     <!-- Chọn sản phẩm: hộp thoại có lọc + bảng + phân trang (giống bố cục các nhóm demo) -->
@@ -1431,19 +1422,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   padding: 0.8rem;
   font-size: 1.05rem;
   margin-top: 1rem;
-}
-.bh-xong {
-  text-align: center;
-  display: grid;
-  gap: 0.35rem;
-}
-.bh-xong > i {
-  font-size: 2.6rem;
-  color: #17a34a;
-}
-.bh-xong-tien {
-  font-size: 1.6rem;
-  font-weight: 700;
 }
 /* Modal xác nhận thanh toán */
 .bh-xn-modal {

@@ -26,6 +26,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class XacThucInterceptor implements HandlerInterceptor {
 
+    /** Header trả về vai trò hiện tại của nhân viên đang gọi API (QUAN_LY | NHAN_VIEN). */
+    public static final String TIEU_DE_VAI_TRO = "X-Vai-Tro";
+
     /** Kết quả xác thực một request: status 0 = cho qua (nguoiDung có thể null với đường dẫn công khai). */
     public record KetQua(int status, String code, String message, NguoiDung nguoiDung) {
         static KetQua choQua(NguoiDung nd) {
@@ -58,6 +61,11 @@ public class XacThucInterceptor implements HandlerInterceptor {
         String ctx = request.getContextPath();
         if (ctx != null && !ctx.isEmpty() && path.startsWith(ctx)) path = path.substring(ctx.length());
         KetQua kq = xacThuc(request.getMethod(), path, request.getHeader("Authorization"));
+        // Case khó "chuyển quyền nhân viên": vai trò đọc lại từ CSDL ở MỖI request nên quyền mới có hiệu lực ngay;
+        // gửi kèm vai trò hiện tại để giao diện đang mở (vd màn bán hàng) biết mà đổi menu / chuyển trang, kể cả khi bị chặn 403 / 409
+        if (kq.nguoiDung() != null && kq.nguoiDung().laNhanVien() && kq.nguoiDung().vaiTro() != null) {
+            response.setHeader(TIEU_DE_VAI_TRO, kq.nguoiDung().vaiTro());
+        }
         if (kq.status() != 0) {
             response.setStatus(kq.status());
             response.setContentType("application/json");

@@ -2,12 +2,15 @@ package com.footstyle.demo.security;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 class XacThucInterceptorTest {
 
@@ -138,6 +141,55 @@ class XacThucInterceptorTest {
         assertEquals(0, kq.status());
         assertEquals("NV01", kq.nguoiDung().ma());
         assertEquals(NguoiDung.QUAN_LY, kq.nguoiDung().vaiTro());
+    }
+
+    // ---------- Case khó bán tại quầy: chuyển quyền nhân viên khi đang làm việc ----------
+
+    private MockHttpServletResponse goi(String method, String path, String token) throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest(method, path);
+        if (token != null) req.addHeader("Authorization", bearer(token));
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        it.preHandle(req, res, null);
+        it.afterCompletion(req, res, null, null);
+        return res;
+    }
+
+    @Test
+    void moiPhanHoiCuaNhanVien_kemVaiTroHienTai() throws Exception {
+        assertEquals("NHAN_VIEN", goi("GET", "/api/hoa-don", mau.tokenCua(mau.nhanVien)).getHeader(XacThucInterceptor.TIEU_DE_VAI_TRO));
+        assertEquals("QUAN_LY", goi("GET", "/api/nhan-vien", mau.tokenCua(mau.quanLy)).getHeader(XacThucInterceptor.TIEU_DE_VAI_TRO));
+        String tokenKhach = mau.token.tao(NguoiDung.LOAI_KHACH_HANG, mau.khach.getId(), mau.khach.getMatKhau());
+        assertNull(goi("GET", "/api/auth/toi", tokenKhach).getHeader(XacThucInterceptor.TIEU_DE_VAI_TRO), "khách hàng không cần");
+        assertNull(goi("GET", "/api/hoa-don", null).getHeader(XacThucInterceptor.TIEU_DE_VAI_TRO));
+    }
+
+    @Test
+    void nhanVienDangLamViec_duocChuyenLenQuanLy_quyenMoiCoHieuLucNgay_khongPhaiDangNhapLai() throws Exception {
+        String t = mau.tokenCua(mau.nhanVien);
+        assertEquals(403, goi("GET", "/api/nhan-vien", t).getStatus());
+        mau.nhanVien.setVaiTro(mau.quanLy.getVaiTro()); // quản lý đổi vai trò trong lúc NV03 đang bán hàng
+        MockHttpServletResponse res = goi("GET", "/api/nhan-vien", t);
+        assertEquals(200, res.getStatus(), "cùng token cũ nhưng đã có quyền quản lý");
+        assertEquals("QUAN_LY", res.getHeader(XacThucInterceptor.TIEU_DE_VAI_TRO));
+    }
+
+    @Test
+    void quanLyBiChuyenXuongNhanVien_biChan403_vanBaoVaiTroMoiDeGiaoDienCapNhat() throws Exception {
+        String t = mau.tokenCua(mau.quanLy);
+        mau.quanLy.setVaiTro(mau.nhanVien.getVaiTro());
+        MockHttpServletResponse res = goi("GET", "/api/thong-ke/tong-quan", t);
+        assertEquals(403, res.getStatus());
+        assertEquals("NHAN_VIEN", res.getHeader(XacThucInterceptor.TIEU_DE_VAI_TRO));
+        assertTrue(res.getContentAsString().contains("KHONG_DU_QUYEN"));
+    }
+
+    @Test
+    void nhanVienBiKhoaTaiKhoanKhiDangBan_401_phaiDangNhapLai() throws Exception {
+        String t = mau.tokenCua(mau.nhanVien);
+        mau.nhanVien.setTrangThai(0);
+        MockHttpServletResponse res = goi("POST", "/api/ban-hang/hoa-don-cho", t);
+        assertEquals(401, res.getStatus());
+        assertTrue(res.getContentAsString().contains("HET_PHIEN"));
     }
 
     @Test

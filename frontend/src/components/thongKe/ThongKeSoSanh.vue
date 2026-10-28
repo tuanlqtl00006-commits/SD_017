@@ -196,46 +196,68 @@ async function guiEmail() {
 
 <template>
   <div class="ss-page">
+    <!-- Khung chọn kỳ so sánh: cùng kiểu dáng với khung "Bộ lọc thống kê" ở trang Thống kê -->
     <section class="ad-card ss-filter-card">
-      <div class="d-flex flex-wrap align-items-center gap-3">
-        <div class="ad-card-head mb-0 me-auto">
-          <span class="ad-icon-box"><i class="bi bi-bar-chart-line" aria-hidden="true"></i></span>
+      <div class="ss-filter-head">
+        <div class="ad-card-head mb-0">
+          <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-bar-chart-line"></i></span>
           <div>
             <h2 class="ad-card-title">So sánh doanh thu</h2>
             <p class="ad-card-sub">
               <RouterLink to="/thong-ke" class="fw-semibold text-decoration-none"><i class="bi bi-arrow-left" aria-hidden="true"></i> Quay lại Thống kê</RouterLink>
-              <template v-if="d"> · <strong>{{ d.ky.nhan }}</strong> ({{ formatDate(d.ky.tuNgay) }} – {{ formatDate(d.ky.denNgay) }})</template>
+              · So sánh với kỳ liền trước và cùng kỳ năm trước
             </p>
           </div>
         </div>
-        <div class="btn-group" role="group" aria-label="Kiểu so sánh">
-          <button v-for="o in KIEU" :key="o.v" type="button" class="btn btn-sm" :class="kieu === o.v ? 'btn-primary' : 'btn-outline-primary'" :aria-pressed="kieu === o.v" @click="kieu = o.v">{{ o.t }}</button>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-          <input v-if="kieu === 'THANG'" v-model="thang" type="month" class="form-control form-control-sm ss-o" :max="homNay.slice(0, 7)" aria-label="Chọn tháng" data-test="ss-thang" />
-          <template v-else-if="kieu === 'QUY'">
-            <select v-model.number="quy" class="form-select form-select-sm ss-o-nho" aria-label="Chọn quý">
-              <option v-for="q in 4" :key="q" :value="q">Quý {{ q }}</option>
-            </select>
-            <select v-model.number="namQuy" class="form-select form-select-sm ss-o-nho" aria-label="Năm của quý">
+
+        <div class="ss-filter-actions">
+          <div class="ss-pill-bar" role="group" aria-label="Kiểu so sánh">
+            <button
+              v-for="o in KIEU"
+              :key="o.v"
+              type="button"
+              class="ss-pill-btn"
+              :class="{ 'is-active': kieu === o.v }"
+              :aria-pressed="kieu === o.v"
+              @click="kieu = o.v"
+            >
+              {{ o.t }}
+            </button>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <input v-if="kieu === 'THANG'" v-model="thang" type="month" class="form-control ss-o" :max="thangHienTai" aria-label="Chọn tháng" data-test="ss-thang" />
+            <template v-else-if="kieu === 'QUY'">
+              <select v-model.number="quy" class="form-select ss-o-nho" aria-label="Chọn quý">
+                <option v-for="q in 4" :key="q" :value="q">Quý {{ q }}</option>
+              </select>
+              <select v-model.number="namQuy" class="form-select ss-o-nho" aria-label="Năm của quý">
+                <option v-for="y in dsNam" :key="y" :value="y">{{ y }}</option>
+              </select>
+            </template>
+            <select v-else v-model.number="nam" class="form-select ss-o-nho" aria-label="Chọn năm">
               <option v-for="y in dsNam" :key="y" :value="y">{{ y }}</option>
             </select>
-          </template>
-          <select v-else v-model.number="nam" class="form-select form-select-sm ss-o-nho" aria-label="Chọn năm">
-            <option v-for="y in dsNam" :key="y" :value="y">{{ y }}</option>
-          </select>
-        </div>
-        <div class="d-flex gap-2">
-          <button type="button" class="ad-btn ad-btn-sm" :disabled="!d" data-test="ss-excel" @click="xuatExcel"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Xuất Excel</button>
-          <button type="button" class="ad-btn ad-btn-sm ad-btn-primary" :disabled="!d" data-test="ss-email" @click="batEmail"><i class="bi bi-envelope" aria-hidden="true"></i> Gửi email</button>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <button type="button" class="ad-btn ss-btn-excel" :disabled="!d" data-test="ss-excel" @click="xuatExcel">
+              <i class="bi bi-file-earmark-excel-fill" aria-hidden="true"></i> Xuất Excel
+            </button>
+            <button type="button" class="ad-btn ad-btn-primary" :disabled="!d" data-test="ss-email" @click="batEmail">
+              <i class="bi bi-envelope-fill" aria-hidden="true"></i> Gửi email
+            </button>
+          </div>
         </div>
       </div>
 
-      <div v-if="d" class="ss-ky-bar mt-3">
-        <span class="ss-ky-chip is-main"><i class="bi bi-calendar-check me-1"></i>Kỳ đang xem: <strong>{{ d.ky.nhan }}</strong> ({{ formatDate(d.ky.tuNgay) }} – {{ formatDate(d.ky.denNgay) }})</span>
-        <span class="ss-ky-chip"><i class="bi bi-arrow-left-right me-1"></i>Kỳ liền trước: <strong>{{ d.kyTruoc.ky.nhan }}</strong></span>
-        <span v-if="d.cungKyNamTruoc" class="ss-ky-chip"><i class="bi bi-clock-history me-1"></i>Cùng kỳ năm trước: <strong>{{ d.cungKyNamTruoc.ky.nhan }}</strong></span>
-        <span v-if="d.hienTai?.tongGiamGia !== undefined" class="ss-ky-chip"><i class="bi bi-ticket-perforated me-1"></i>Tổng giảm giá / KM: <strong>{{ formatMoney(d.hienTai.tongGiamGia || 0) }}</strong></span>
+      <!-- Dòng trạng thái: kỳ đang so sánh + các kỳ dùng để so -->
+      <div v-if="d" class="ss-status-line">
+        <span class="ss-status-dot" aria-hidden="true"></span>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span>Đang so sánh <strong>{{ d.ky.nhan }}</strong> ({{ formatDate(d.ky.tuNgay) }} – {{ formatDate(d.ky.denNgay) }})</span>
+          <span class="ss-active-chip"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>Kỳ liền trước: <strong>{{ d.kyTruoc.ky.nhan }}</strong></span>
+          <span v-if="d.cungKyNamTruoc" class="ss-active-chip"><i class="bi bi-clock-history" aria-hidden="true"></i>Cùng kỳ năm trước: <strong>{{ d.cungKyNamTruoc.ky.nhan }}</strong></span>
+          <span v-if="d.hienTai?.tongGiamGia !== undefined" class="ss-active-chip"><i class="bi bi-ticket-perforated" aria-hidden="true"></i>Tổng giảm giá / KM: <strong>{{ formatMoney(d.hienTai.tongGiamGia || 0) }}</strong></span>
+        </div>
       </div>
 
       <div v-if="canhBaoKy" class="alert alert-warning d-flex align-items-center gap-2 py-2 px-3 mt-3 mb-0 small" role="status" data-test="ss-canh-bao-ky">
@@ -359,30 +381,114 @@ async function guiEmail() {
   flex-direction: column;
   gap: 1.15rem;
 }
+/* ---------- Khung chọn kỳ (giống khung Bộ lọc thống kê ở ThongKe.vue) ---------- */
 .ss-filter-card {
+  padding: 1.35rem 1.5rem;
   border-radius: 18px;
   border: 1px solid #e5ecf4;
+  background: #ffffff;
+  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.045);
 }
-.ss-ky-bar {
+.ss-filter-head {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid #eef2f7;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid #eef2f7;
 }
-.ss-ky-chip {
+.ss-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+.ss-pill-bar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  background: #f4f7fb;
+  padding: 0.28rem;
+  border-radius: 999px;
+  border: 1px solid #e6ecf5;
+}
+.ss-pill-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.36rem 0.82rem;
+  border-radius: 999px;
+  transition: all 0.16s ease;
+}
+.ss-pill-btn:hover {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.75);
+}
+.ss-pill-btn.is-active {
+  background: #0977ec;
+  border-color: #0977ec;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(9, 119, 236, 0.28);
+}
+.ss-btn-excel {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+.ss-btn-excel:hover:not(:disabled) {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+.ss-o,
+.ss-o-nho {
+  height: 38px;
+  font-family: inherit !important;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
+  color: var(--fs-text, #18242f) !important;
+  border-radius: 10px;
+}
+.ss-o {
+  width: 170px;
+}
+.ss-o-nho {
+  width: 120px;
+}
+.ss-status-line {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.6rem 0.9rem;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 11px;
+  font-size: 0.83rem;
+  color: #475569;
+}
+.ss-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #0977ec;
+  box-shadow: 0 0 0 4px rgba(9, 119, 236, 0.16);
+  flex: none;
+}
+.ss-active-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0.3rem 0.75rem;
+  gap: 0.3rem; /* chip là flex nên khoảng trắng sau dấu ":" bị nuốt mất; dùng gap để tách chữ và số */
+  padding: 0.18rem 0.62rem;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-.ss-ky-chip.is-main {
   background: #e7f1fd;
   color: #075fc0;
+  font-size: 0.76rem;
+  font-weight: 600;
 }
 .ss-kpi-card {
   position: relative;
@@ -413,21 +519,6 @@ async function guiEmail() {
   display: grid;
   place-items: center;
   font-size: 1rem;
-}
-.ss-o,
-.ss-o-nho {
-  height: 38px;
-  font-family: inherit !important;
-  font-size: 0.875rem !important;
-  font-weight: 400 !important;
-  color: var(--fs-text, #18242f) !important;
-  border-radius: 10px;
-}
-.ss-o {
-  width: 170px;
-}
-.ss-o-nho {
-  width: 120px;
 }
 .ss-tot {
   color: #15803d;

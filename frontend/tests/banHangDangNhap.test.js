@@ -189,6 +189,18 @@ function mayChuGia({ dangMo = CA, phieus = () => [], tonKho = 5 } = {}) {
     }
     if (url === '/ban-hang/hoa-don-cho') return { data: may.ds.map(dto) }
     if (url === '/ban-hang/phieu-giam-gia') return { data: phieus() }
+    // Trang chi tiết hóa đơn vừa thanh toán (chuyển tới ngay sau khi trả tiền) và cửa sổ tự in đều đọc lại qua GET này
+    if (url === '/hoa-don/9') {
+      return {
+        data: {
+          hoaDon: { id: 9, maHoaDon: 'HD100' },
+          khachHang: { maKhachHang: null, khachLe: true, ten: 'Khách vãng lai', sdt: null, email: null },
+          giaoHang: { hoTenNguoiNhan: null, sdtNguoiNhan: null, diaChi: null },
+          sanPham: [],
+          daThanhToan: 3861000,
+        },
+      }
+    }
     return { data: [] }
   })
   api.post.mockImplementation(async (url, body) => {
@@ -257,7 +269,15 @@ async function moBanHang(tuyChon) {
 const nutThem = () => body().find('.bh-nut-them')
 const nutXacNhan = () => body().findAll('.modal button').find((b) => b.text() === 'Thanh toán')
 
+function cuaSoInGia() {
+  const cuaSo = { document: { write: vi.fn(), close: vi.fn() }, close: vi.fn() }
+  const open = vi.spyOn(window, 'open').mockReturnValue(cuaSo)
+  return { cuaSo, open }
+}
+
 describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it('thêm sản phẩm: tự tạo hóa đơn chờ trên máy chủ, trừ kho ngay; thanh toán gửi đúng hóa đơn', async () => {
     const { w, may } = await moBanHang()
     expect(body().findAll('.bh-dong-chon')).toHaveLength(1)
@@ -273,13 +293,33 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.text()).toContain('Tiền thừa trả khách')
     expect(w.text()).toContain('139.000')
 
+    const { cuaSo } = cuaSoInGia()
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
     await nutXacNhan().trigger('click')
     await flushPromises()
     expect(may.thanhToan).toEqual(expect.objectContaining({ maPhieu: null, tienMat: 4000000, chuyenKhoan: 0, giaoHang: null }))
-    expect(body().text()).toContain('Đã thanh toán HD100')
-    expect(body().text()).toContain('Trả lại khách')
+    // Thanh toán xong: không hỏi lại, tự in hóa đơn và chuyển thẳng sang trang chi tiết
+    expect(body().text()).not.toContain('Đã thanh toán HD100')
+    expect(push).toHaveBeenCalledWith('/hoa-don/9')
+    await new Promise((r) => setTimeout(r, 50)) // tạo mã QR để in thật sự chạy bất đồng bộ qua nhiều tick, 1 lần flushPromises chưa đủ
+    expect(cuaSo.document.write).toHaveBeenCalledTimes(1)
+    expect(cuaSo.document.write.mock.calls[0][0]).toContain('HD100')
+    expect(cuaSo.document.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('trình duyệt chặn cửa sổ bật lên: vẫn thanh toán và chuyển trang được, chỉ báo lỗi không in được', async () => {
+    const { w, may } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    await w.find('.bh-nut-tt').trigger('click')
+    await flushPromises()
+    await nutXacNhan().trigger('click')
+    await flushPromises()
+    expect(may.thanhToan).toBeTruthy()
+    expect(push).toHaveBeenCalledWith('/hoa-don/9')
+    vi.restoreAllMocks()
   })
 
   it('nhập số lượng lớn hơn tồn kho trong bảng chọn: báo ngay, không gửi', async () => {
@@ -316,6 +356,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
   })
 
   it('giá đổi sau khi thêm: máy chủ báo khi thanh toán, hiện giá mới và chỉ thanh toán được sau "Cập nhật giá"', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null)
     const { w, may } = await moBanHang()
     await nutThem(w).trigger('click')
     await flushPromises()
@@ -348,12 +389,16 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await w.find('#bh-nn-ten').setValue('Trần Văn Hùng')
     await w.find('#bh-nn-sdt').setValue('0901000002')
     await w.find('#bh-nn-dc').setValue('Số 1 Trần Phú, Hà Đông, Hà Nội')
+    const { cuaSo } = cuaSoInGia()
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
     await nutXacNhan().trigger('click')
     await flushPromises()
     expect(may.thanhToan.giaoHang).toEqual({ hoTen: 'Trần Văn Hùng', sdt: '0901000002', diaChi: 'Số 1 Trần Phú, Hà Đông, Hà Nội' })
-    expect(body().text()).toContain('Chờ giao hàng')
+    // Thanh toán xong đơn giao hàng cũng tự in và chuyển sang trang chi tiết luôn, không hỏi lại
+    expect(push).toHaveBeenCalledWith('/hoa-don/9')
+    await new Promise((r) => setTimeout(r, 50)) // tạo mã QR để in chạy bất đồng bộ qua nhiều tick
+    expect(cuaSo.document.write).toHaveBeenCalledTimes(1)
   })
 
   it('ô phiếu dạng thẻ: tự áp phiếu tốt nhất, phiếu chưa đủ điều kiện bị khóa kèm lý do, bỏ phiếu được', async () => {
@@ -382,6 +427,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
   })
 
   it('phiếu bị sửa mức giảm lúc đang chờ: gửi mức giảm đang hiện, máy chủ báo thì tải lại phiếu và hiện số tiền mới', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null)
     let giam = 50000
     const { w, may } = await moBanHang({ phieus: () => [{ ma: 'GIAM50K', loaiGiam: 'SO_TIEN', giaTri: giam, apDungDuoc: true, soTienGiam: giam }] })
     await nutThem(w).trigger('click')

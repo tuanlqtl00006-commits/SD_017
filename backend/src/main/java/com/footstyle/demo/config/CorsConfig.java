@@ -1,5 +1,6 @@
 package com.footstyle.demo.config;
 
+import com.footstyle.demo.security.XacThucInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -17,6 +18,7 @@ public class CorsConfig {
                         .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
+                        .exposedHeaders(XacThucInterceptor.TIEU_DE_VAI_TRO) // giao diện đọc được vai trò mới khi bị chuyển quyền
                         .allowCredentials(true);
             }
         };

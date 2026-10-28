@@ -149,7 +149,7 @@ class ThongKeSoSanhServiceTest {
         assertTrue(String.valueOf(thuDaGui.get("tieuDe")).contains("Tháng 10/2026"));
         String html = String.valueOf(thuDaGui.get("html"));
         assertTrue(html.contains("Doanh thu thực tế") && html.contains("cid:bieu-do-xu-huong"));
-        assertTrue(html.contains("Nhận xét & Phân tích tổng hợp"));
+        assertTrue(html.contains("Nhận xét &amp; Phân tích tổng hợp"), "thư HTML ghi dấu & thành &amp;");
         List<String> phanTich = (List<String>) service.soSanh("THANG", "2026-10").get("phanTich");
         assertTrue(phanTich != null && !phanTich.isEmpty());
         Map<String, byte[]> anh = (Map<String, byte[]>) thuDaGui.get("anh");

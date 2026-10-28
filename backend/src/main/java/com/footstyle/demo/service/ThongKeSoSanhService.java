@@ -295,14 +295,14 @@ public class ThongKeSoSanhService {
         int huy = ((Number) a.get("soHuy")).intValue();
         long spBan = ((Number) a.get("soSanPhamBan")).longValue();
 
-        ds.add(String.format("Kết quả %s: Ghi nhận %d đơn hàng (hoàn thành %d đơn, hủy %d đơn); doanh thu thực tế đạt %s, doanh thu dự kiến đạt %s, tổng chiết khấu/giảm giá khuyến mãi %s, bán ra %d sản phẩm.",
+        ds.add(String.format(Locale.ROOT, "Kết quả %s: Ghi nhận %d đơn hàng (hoàn thành %d đơn, hủy %d đơn); doanh thu thực tế đạt %s, doanh thu dự kiến đạt %s, tổng chiết khấu/giảm giá khuyến mãi %s, bán ra %d sản phẩm.",
                 nhanKy, soDon, hoanThanh, huy, so(dtNay, true), so(dtDuKien, true), so(giamGia, true), spBan));
 
         long dtTruoc = ((Number) kt.get("doanhThuThucTe")).longValue();
         Double tangKt = tangTruong(dtNay, dtTruoc);
         long chenhKt = dtNay - dtTruoc;
-        String moTaKt = chenhKt == 0 ? "giữ nguyên (0 đ)" : String.format("%s (%s%s)", chenhKt > 0 ? "tăng" : "giảm", chenhKt > 0 ? "+" : "", so(chenhKt, true));
-        ds.add(String.format("So với kỳ liền trước (%s đạt %s): Doanh thu thực tế %s, biến động %s.",
+        String moTaKt = chenhKt == 0 ? "giữ nguyên (0 đ)" : String.format(Locale.ROOT, "%s (%s%s)", chenhKt > 0 ? "tăng" : "giảm", chenhKt > 0 ? "+" : "", so(chenhKt, true));
+        ds.add(String.format(Locale.ROOT, "So với kỳ liền trước (%s đạt %s): Doanh thu thực tế %s, biến động %s.",
                 nhanKt, so(dtTruoc, true), moTaKt, phanTram(tangKt)));
 
         if (ck != null) {
@@ -310,8 +310,8 @@ public class ThongKeSoSanhService {
             long dtCk = ((Number) ck.get("doanhThuThucTe")).longValue();
             Double tangCk = tangTruong(dtNay, dtCk);
             long chenhCk = dtNay - dtCk;
-            String moTaCk = chenhCk == 0 ? "giữ nguyên (0 đ)" : String.format("%s (%s%s)", chenhCk > 0 ? "tăng" : "giảm", chenhCk > 0 ? "+" : "", so(chenhCk, true));
-            ds.add(String.format("So với cùng kỳ năm trước (%s đạt %s): Doanh thu thực tế %s, biến động %s.",
+            String moTaCk = chenhCk == 0 ? "giữ nguyên (0 đ)" : String.format(Locale.ROOT, "%s (%s%s)", chenhCk > 0 ? "tăng" : "giảm", chenhCk > 0 ? "+" : "", so(chenhCk, true));
+            ds.add(String.format(Locale.ROOT, "So với cùng kỳ năm trước (%s đạt %s): Doanh thu thực tế %s, biến động %s.",
                     nhanCk, so(dtCk, true), moTaCk, phanTram(tangCk)));
         }
 
@@ -329,7 +329,7 @@ public class ThongKeSoSanhService {
             long tb = soKyCoDt > 0 ? Math.round((double) tongNam / soKyCoDt) : 0;
             String donVi = kieu == Kieu.THANG ? "các tháng trong năm" : kieu == Kieu.QUY ? "các quý trong năm" : "các năm";
             if (maxKy != null && ((Number) maxKy.get("doanhThu")).longValue() > 0) {
-                ds.add(String.format("So sánh với %s: Tổng doanh thu chuỗi đạt %s (trung bình %s/kỳ có phát sinh); kỳ cao nhất là %s (%s).",
+                ds.add(String.format(Locale.ROOT, "So sánh với %s: Tổng doanh thu chuỗi đạt %s (trung bình %s/kỳ có phát sinh); kỳ cao nhất là %s (%s).",
                         donVi, so(tongNam, true), so(tb, true), maxKy.get("nhan"), so(((Number) maxKy.get("doanhThu")).longValue(), true)));
             }
         }
@@ -337,7 +337,7 @@ public class ThongKeSoSanhService {
         List<Map<String, Object>> sps = (List<Map<String, Object>>) d.get("sanPham");
         if (sps != null && !sps.isEmpty()) {
             Map<String, Object> top1 = sps.get(0);
-            ds.add(String.format("Sản phẩm chủ lực: %s (%s) dẫn đầu với %s sản phẩm bán ra, mang về %s (so với kỳ trước: %s).",
+            ds.add(String.format(Locale.ROOT, "Sản phẩm chủ lực: %s (%s) dẫn đầu với %s sản phẩm bán ra, mang về %s (so với kỳ trước: %s).",
                     top1.get("tenSanPham"), top1.get("maSanPham"), top1.get("soLuong"),
                     so(((Number) top1.get("doanhThu")).longValue(), true), phanTram((Double) top1.get("tangTruong"))));
         }

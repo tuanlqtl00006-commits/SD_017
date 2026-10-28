@@ -5,12 +5,16 @@ import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.entity.HoaDonChiTiet;
 import com.footstyle.demo.entity.LichSuHoaDon;
 import com.footstyle.demo.entity.LichSuThanhToan;
+import com.footstyle.demo.entity.PhieuGiamGia;
+import com.footstyle.demo.entity.PhieuGiamGiaKhachHang;
 import com.footstyle.demo.entity.SanPhamChiTiet;
 import com.footstyle.demo.repository.HinhAnhSanPhamRepository;
 import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.LichSuHoaDonRepository;
 import com.footstyle.demo.repository.LichSuThanhToanRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaKhachHangRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -29,6 +33,10 @@ final class HoaDonKhoGia {
     final List<LichSuThanhToan> thanhToan = new ArrayList<>();
     final List<LichSuHoaDon> lichSu = new ArrayList<>();
     final List<SanPhamChiTiet> daLuuBienThe = new ArrayList<>();
+    /** Phiếu cá nhân đã tặng cho khách (bảng phieu_giam_gia_khach_hang). */
+    final List<PhieuGiamGiaKhachHang> phieuKhach = new ArrayList<>();
+    /** Số đơn KHÁC (ngoài hd) chưa hủy của cùng khách đang dùng cùng phiếu. */
+    long donKhacDungPhieu = 0;
     final HoaDonService service;
 
     HoaDonKhoGia() {
@@ -47,6 +55,9 @@ final class HoaDonKhoGia {
             case "save" -> a[0];
             case "findAll" -> new PageImpl<>(List.of(hd));
             case "count" -> 0L;
+            case "countByKhachHang_IdAndPhieuGiamGia_IdAndTrangThaiNot" -> donKhacDungPhieu
+                    + (hd.getKhachHang() != null && hd.getKhachHang().getId().equals(a[0]) && hd.getPhieuGiamGia() != null
+                    && hd.getPhieuGiamGia().getId().equals(a[1]) && !a[2].equals(hd.getTrangThai()) ? 1 : 0);
             default -> KhoGia.KHONG_CO;
         });
         HoaDonChiTietRepository ctRepo = KhoGia.tao(HoaDonChiTietRepository.class, (ten, a) ->
@@ -76,7 +87,20 @@ final class HoaDonKhoGia {
             }
             return KhoGia.KHONG_CO;
         });
-        service = new HoaDonService(hdRepo, ctRepo, lsRepo, ttRepo, anhRepo, spctRepo);
+        // Giống câu UPDATE có điều kiện: chỉ giảm khi lượt đã dùng > 0
+        PhieuGiamGiaRepository phieuRepo = KhoGia.tao(PhieuGiamGiaRepository.class, (ten, a) -> {
+            if (!"giamLuotDung".equals(ten)) return KhoGia.KHONG_CO;
+            PhieuGiamGia p = hd.getPhieuGiamGia();
+            if (p == null || !p.getId().equals(a[0]) || p.getSoLuongDaDung() == null || p.getSoLuongDaDung() <= 0) return 0;
+            p.setSoLuongDaDung(p.getSoLuongDaDung() - 1);
+            return 1;
+        });
+        PhieuGiamGiaKhachHangRepository phieuKhachRepo = KhoGia.tao(PhieuGiamGiaKhachHangRepository.class, (ten, a) -> switch (ten) {
+            case "findByIdKhachHang" -> phieuKhach.stream().filter(x -> x.getIdKhachHang().equals(a[0])).toList();
+            case "save" -> a[0];
+            default -> KhoGia.KHONG_CO;
+        });
+        service = new HoaDonService(hdRepo, ctRepo, lsRepo, ttRepo, anhRepo, spctRepo, phieuRepo, phieuKhachRepo);
     }
 
     SanPhamChiTiet bienThe(int id, int ton) {

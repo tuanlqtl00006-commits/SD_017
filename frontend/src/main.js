@@ -3,8 +3,8 @@ import { createPinia } from 'pinia'
 import './style.css'
 import './assets/admin.css'
 import App from './App.vue'
-import router from './router'
-import { datXuLyChuaVaoCa, datXuLyHetPhien } from './services/phien'
+import router, { apDungVaiTroMoi } from './router'
+import { datXuLyChuaVaoCa, datXuLyDoiVaiTro, datXuLyHetPhien } from './services/phien'
 import { useAuth } from './composables/useAuth'
 import { datLaiGiaoCa } from './composables/useGiaoCa'
 
@@ -27,6 +27,9 @@ datXuLyChuaVaoCa(() => {
   datLaiGiaoCa()
   router.replace({ path: '/vao-ca', query: { quayLai: hienTai.fullPath } })
 })
+
+// Quản lý đổi vai trò của người đang làm việc (case khó "chuyển quyền nhân viên"): xem apDungVaiTroMoi
+datXuLyDoiVaiTro((vaiTroMoi) => apDungVaiTroMoi(vaiTroMoi, router.currentRoute.value, (den) => router.replace(den)))
 
 const app = createApp(App)
 app.use(createPinia())

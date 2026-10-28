@@ -84,3 +84,15 @@ export function datXuLyChuaVaoCa(fn) {
 export function baoChuaVaoCa() {
   if (xuLyChuaVaoCa) xuLyChuaVaoCa()
 }
+
+// Case khó "chuyển quyền nhân viên": mỗi phản hồi API của nhân viên có header X-Vai-Tro (vai trò đọc lại từ CSDL).
+// Khác vai trò đang lưu (quản lý vừa đổi quyền trong lúc người này đang làm việc) thì main.js cập nhật menu / chuyển trang.
+let xuLyDoiVaiTro = null
+export function datXuLyDoiVaiTro(fn) {
+  xuLyDoiVaiTro = fn
+}
+export function baoVaiTro(vaiTro) {
+  const cu = layPhien()?.nguoiDung?.vaiTro
+  if (!vaiTro || !cu || cu === 'KHACH_HANG' || cu === vaiTro) return
+  if (xuLyDoiVaiTro) xuLyDoiVaiTro(vaiTro, cu)
+}

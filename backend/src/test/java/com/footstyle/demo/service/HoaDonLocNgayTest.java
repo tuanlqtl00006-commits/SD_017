@@ -11,6 +11,8 @@ import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.LichSuHoaDonRepository;
 import com.footstyle.demo.repository.LichSuThanhToanRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaKhachHangRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
@@ -67,7 +69,9 @@ class HoaDonLocNgayTest {
         });
         HoaDonService service = new HoaDonService(kho, khongDung(HoaDonChiTietRepository.class),
                 khongDung(LichSuHoaDonRepository.class), khongDung(LichSuThanhToanRepository.class),
-                khongDung(HinhAnhSanPhamRepository.class), khongDung(SanPhamChiTietRepository.class));
+                khongDung(HinhAnhSanPhamRepository.class), khongDung(SanPhamChiTietRepository.class),
+                khongDung(PhieuGiamGiaRepository.class),
+                khongDung(PhieuGiamGiaKhachHangRepository.class));
         service.demTheoTrangThai(null, tu, den, null);
         assertFalse(spec.isEmpty());
 

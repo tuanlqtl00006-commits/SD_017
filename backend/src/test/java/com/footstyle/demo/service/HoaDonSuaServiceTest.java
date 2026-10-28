@@ -17,6 +17,8 @@ import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.LichSuHoaDonRepository;
 import com.footstyle.demo.repository.LichSuThanhToanRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaKhachHangRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import com.footstyle.demo.security.XacThuc;
 import java.math.BigDecimal;
@@ -100,7 +102,9 @@ class HoaDonSuaServiceTest {
         SanPhamChiTietRepository spctRepo = KhoGia.tao(SanPhamChiTietRepository.class, (t, a) ->
                 "findById".equals(t) ? bienThes.stream().filter(c -> c.getId().equals(a[0])).findFirst() : KhoGia.KHONG_CO);
         HoaDonService hoaDonService = new HoaDonService(hdRepo, ctRepo, lsRepo, ttRepo,
-                KhoGia.tao(HinhAnhSanPhamRepository.class, (t, a) -> "findByTrangThaiOrderByLaAnhChinhDescIdAsc".equals(t) ? List.of() : KhoGia.KHONG_CO), spctRepo);
+                KhoGia.tao(HinhAnhSanPhamRepository.class, (t, a) -> "findByTrangThaiOrderByLaAnhChinhDescIdAsc".equals(t) ? List.of() : KhoGia.KHONG_CO), spctRepo,
+                KhoGia.khongDung(PhieuGiamGiaRepository.class),
+                KhoGia.khongDung(PhieuGiamGiaKhachHangRepository.class));
         GiamGiaApDungService giam = new GiamGiaApDungService(null) {
             @Override
             public Map<Long, Double> phanTramTheoBienThe(LocalDateTime thoiDiem) {

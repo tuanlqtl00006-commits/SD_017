@@ -72,6 +72,16 @@ function ghiPhien(kq, nho = layPhien()?.nho ?? true) {
   trangThai.daKhoiTao = true
 }
 
+/** Quản lý vừa đổi vai trò của tài khoản đang đăng nhập (biết qua header X-Vai-Tro): giữ phiên, đổi vai trò, tải lại ca theo vai trò mới. */
+function capNhatVaiTro(vaiTroMoi) {
+  if (!trangThai.nguoiDung || trangThai.nguoiDung.vaiTro === vaiTroMoi) return
+  const nguoiDung = { ...trangThai.nguoiDung, vaiTro: vaiTroMoi, tenVaiTro: vaiTroMoi === 'QUAN_LY' ? 'Quản lý' : 'Nhân viên' }
+  const phien = layPhien()
+  if (phien) luuPhien({ ...phien, nguoiDung })
+  trangThai.nguoiDung = nguoiDung
+  datLaiGiaoCa()
+}
+
 /** Đăng xuất (token chỉ lưu ở trình duyệt nên xóa là xong). */
 function dangXuat() {
   xoaPhien()
@@ -104,6 +114,7 @@ export function useAuth() {
     dangNhap,
     dangNhapKhachHang,
     ghiPhien,
+    capNhatVaiTro,
     dangXuat,
     trangChu,
   }

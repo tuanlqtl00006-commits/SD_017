@@ -254,7 +254,6 @@ const kpi = computed(() => {
       value: formatMoney(a.doanhThu),
       icon: 'bi-cash-coin',
       tone: 'blue',
-      congThuc: 'Tiền hàng sau giảm giá (Đơn hoàn thành)',
       note: 'Đơn đã hoàn thành, không gồm phí ship',
       so: soSanh(a.doanhThu, b.doanhThu),
     },
@@ -263,7 +262,6 @@ const kpi = computed(() => {
       value: formatMoney(a.doanhThuDuKien),
       icon: 'bi-graph-up-arrow',
       tone: 'sky',
-      congThuc: 'Doanh thu thực tế + Đơn đang xử lý / giao',
       note: a.doanhThuDuKien > a.doanhThu ? `Còn ${formatMoney(a.doanhThuDuKien - a.doanhThu)} từ đơn đang xử lý / giao` : 'Mọi đơn chưa hủy',
       so: soSanh(a.doanhThuDuKien, b.doanhThuDuKien),
     },
@@ -272,7 +270,6 @@ const kpi = computed(() => {
       value: `${a.hoanThanh}/${a.tongDon}`,
       icon: 'bi-check2-circle',
       tone: 'green',
-      congThuc: 'Đơn hoàn thành / Tổng đơn hợp lệ',
       note: a.hoanThanh ? `${pct(a.tyLeHoanThanh)} tổng đơn · TB ${formatMoney(a.trungBinh)}/đơn` : 'Chưa có đơn hoàn thành',
       so: soSanh(a.hoanThanh, b.hoanThanh),
     },
@@ -281,7 +278,6 @@ const kpi = computed(() => {
       value: a.huy,
       icon: 'bi-x-circle',
       tone: 'rose',
-      congThuc: 'Đơn trạng thái Đã hủy trong kỳ',
       note: a.tongDon ? `${pct(a.tyLeHuy)} tổng đơn` : 'Chưa có đơn',
       so: soSanh(a.huy, b.huy, true),
     },
@@ -703,9 +699,6 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
               </div>
               <div class="tk-kpi-value">{{ loading ? '…' : k.value }}</div>
               <div class="tk-kpi-note">{{ k.note }}</div>
-              <div class="tk-kpi-formula">
-                <i class="bi bi-info-circle me-1" aria-hidden="true"></i>{{ k.congThuc }}
-              </div>
               <div v-if="!loading && k.so" class="tk-so small mt-2" :class="k.so.huong && `tk-${k.so.huong}`">
                 <span class="tk-so-badge" :class="k.so.huong && `is-${k.so.huong}`">{{ k.so.text }}</span>
                 <span v-if="k.so.huong" class="text-muted fw-normal ms-1">so với kỳ trước</span>
@@ -1403,23 +1396,6 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   color: #475569;
   font-weight: 500;
   margin-top: 0.25rem;
-}
-
-.tk-kpi-formula {
-  display: inline-flex;
-  align-items: center;
-  margin-top: 0.35rem;
-  padding: 0.16rem 0.55rem;
-  border-radius: 6px;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  color: #475569;
-  font-size: 0.72rem;
-  font-weight: 500;
-}
-
-.tk-kpi-formula i {
-  color: #0977ec;
 }
 
 .tk-so {

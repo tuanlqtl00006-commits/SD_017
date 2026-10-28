@@ -9,6 +9,7 @@ import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.LichSuHoaDon;
 import com.footstyle.demo.entity.LichSuThanhToan;
 import com.footstyle.demo.entity.PhieuGiamGia;
+import com.footstyle.demo.entity.PhieuGiamGiaKhachHang;
 import com.footstyle.demo.entity.SanPham;
 import com.footstyle.demo.entity.SanPhamChiTiet;
 import com.footstyle.demo.exception.ApiException;
@@ -17,6 +18,8 @@ import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.LichSuHoaDonRepository;
 import com.footstyle.demo.repository.LichSuThanhToanRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaKhachHangRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
@@ -47,6 +50,8 @@ public class HoaDonService {
     private final LichSuThanhToanRepository lichSuThanhToanRepository;
     private final HinhAnhSanPhamRepository hinhAnhRepository;
     private final SanPhamChiTietRepository sanPhamChiTietRepository;
+    private final PhieuGiamGiaRepository phieuGiamGiaRepository;
+    private final PhieuGiamGiaKhachHangRepository phieuGiamGiaKhachHangRepository;
 
     /* ===================== Danh sách ===================== */
 
@@ -367,6 +372,8 @@ public class HoaDonService {
         if (moi == HoaDon.DA_HUY && !chuaTruKho) {
             hoanTonKho(hd); // cả khi hủy sau giao hàng thất bại: hàng đã về cửa hàng
         }
+        // Gọi trước khi đổi trạng thái: lúc này hóa đơn vẫn còn được đếm là "chưa hủy" (xem hoanLuotPhieu)
+        String hoanPhieu = moi == HoaDon.DA_HUY ? hoanLuotPhieu(hd) : "";
         hd.setTrangThai(moi);
         hd.setNgayCapNhat(now);
         if (moi == HoaDon.DA_GIAO) {
@@ -419,7 +426,7 @@ public class HoaDonService {
         ls.setHoaDon(hd);
         ls.setHanhDong(HoaDonLuongTrangThai.ten(moi));
         ls.setThoiGian(now);
-        ls.setMoTa((ghiChu.isEmpty() ? HoaDonLuongTrangThai.moTaMacDinh(hienTai, moi) : ghiChu) + hoanPhi);
+        ls.setMoTa((ghiChu.isEmpty() ? HoaDonLuongTrangThai.moTaMacDinh(hienTai, moi) : ghiChu) + hoanPhi + hoanPhieu);
         String nguoi = req.nguoiThaoTac() == null ? "" : req.nguoiThaoTac().trim();
         ls.setNguoiThaoTac(nguoi.isEmpty() ? "Quản lý" : nguoi);
         lichSuHoaDonRepository.save(ls);
@@ -479,6 +486,34 @@ public class HoaDonService {
             spct.setNgayCapNhat(LocalDateTime.now());
             sanPhamChiTietRepository.save(spct);
         }
+    }
+
+    /**
+     * Hủy hóa đơn có dùng phiếu (lượt đã trừ lúc thanh toán tại quầy / lúc khách đặt online): trả lại một lượt cho phiếu, không để âm.
+     * Phiếu cá nhân thì xóa ngày sử dụng để khách dùng lại được, trừ khi khách còn đơn khác chưa hủy đang dùng phiếu này.
+     * Đã hủy là trạng thái cuối nên mỗi hóa đơn chỉ hoàn một lần. Phải gọi TRƯỚC khi đổi trạng thái (hóa đơn này còn được đếm là chưa hủy).
+     * Trả về đoạn ghi thêm vào lịch sử hóa đơn ("" nếu không hoàn gì).
+     */
+    private String hoanLuotPhieu(HoaDon hd) {
+        PhieuGiamGia phieu = hd.getPhieuGiamGia();
+        if (phieu == null || phieu.getId() == null) {
+            return "";
+        }
+        boolean daHoan = phieuGiamGiaRepository.giamLuotDung(phieu.getId()) > 0;
+        KhachHang kh = hd.getKhachHang();
+        if (kh != null && kh.getId() != null && Integer.valueOf(PhieuGiamGia.DOI_TUONG_KHACH_CU_THE).equals(phieu.getDoiTuongApDung())) {
+            long donKhacDangDung = hoaDonRepository.countByKhachHang_IdAndPhieuGiamGia_IdAndTrangThaiNot(kh.getId(), phieu.getId(), HoaDon.DA_HUY) - 1;
+            if (donKhacDangDung <= 0) {
+                for (PhieuGiamGiaKhachHang x : phieuGiamGiaKhachHangRepository.findByIdKhachHang(kh.getId())) {
+                    if (phieu.getId().equals(x.getIdPhieuGiamGia()) && x.getNgaySuDung() != null) {
+                        x.setNgaySuDung(null);
+                        phieuGiamGiaKhachHangRepository.save(x);
+                        daHoan = true;
+                    }
+                }
+            }
+        }
+        return daHoan ? " - Trả lại lượt phiếu " + phieu.getMaPhieu() : "";
     }
 
     private static String thoatLike(String s) {

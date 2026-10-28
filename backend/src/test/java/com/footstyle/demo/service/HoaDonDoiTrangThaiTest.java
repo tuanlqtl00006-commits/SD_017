@@ -17,6 +17,8 @@ import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.LichSuHoaDonRepository;
 import com.footstyle.demo.repository.LichSuThanhToanRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaKhachHangRepository;
+import com.footstyle.demo.repository.PhieuGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -81,7 +83,9 @@ class HoaDonDoiTrangThaiTest {
             }
             return KhoGia.KHONG_CO;
         });
-        service = new HoaDonService(hdRepo, ctRepo, lsRepo, ttRepo, anhRepo, spctRepo);
+        service = new HoaDonService(hdRepo, ctRepo, lsRepo, ttRepo, anhRepo, spctRepo,
+                KhoGia.khongDung(PhieuGiamGiaRepository.class),
+                KhoGia.khongDung(PhieuGiamGiaKhachHangRepository.class));
     }
 
     private SanPhamChiTiet bienThe(int id, int ton) {
