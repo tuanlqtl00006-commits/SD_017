@@ -20,10 +20,11 @@ const tonKhoCanhBao = ref([])
 const loading = ref(true)
 const homNay = ref(todayIso())
 
-// Bộ lọc thống kê đồng bộ giữa thanh công cụ trên và nội dung hiển thị bên dưới
-const khoang = ref(30) // 1 | 7 | 30 | 90 | 0 (tất cả) | -1 (tự chọn / lịch tháng-năm)
+// Bộ lọc thống kê đồng bộ giữa thanh công cụ trên và nội dung hiển thị bên dưới (mặc định: Tháng này từ ngày 01 tới hôm nay)
+const dauThangNay = (iso) => `${String(iso).slice(0, 7)}-01`
+const khoang = ref(-1) // 1 | 7 | 30 | 90 | 0 (tất cả) | -1 (tự chọn / lịch tháng-năm)
 const mocChon = ref('thangNay') // 'tatCa' | 'homNay' | '7ngay' | 'thangNay' | 'thangTruoc' | 'namNay' | 'tuChon'
-const tuChon = ref(congNgay(todayIso(), -29))
+const tuChon = ref(dauThangNay(todayIso()))
 const denChon = ref(todayIso())
 const donViChon = ref('') // '' (tự động) | 'ngày' | 'tuần' | 'tháng'
 const thuongHieuChon = ref('')
@@ -137,9 +138,9 @@ function capNhatDenNgay(val) {
 }
 
 function datLaiBoLoc() {
-  khoang.value = 30
+  khoang.value = -1
   mocChon.value = 'thangNay'
-  tuChon.value = congNgay(homNay.value, -29)
+  tuChon.value = dauThangNay(homNay.value)
   denChon.value = homNay.value
   donViChon.value = ''
   thuongHieuChon.value = ''
@@ -389,10 +390,25 @@ const sapHet = computed(() => {
 })
 
 const theoPt = computed(() => {
+  if (mapTienHoaDonKhopSp.value) {
+    const m = new Map()
+    for (const h of trongKhoang.value) {
+      if (h.trangThai !== TT_HOAN_THANH) continue
+      const ten = h.tenPhuongThucThanhToan || h.phuongThucThanhToan || (h.loaiDon === 'Tại quầy' ? 'Tiền mặt' : 'Chuyển khoản ngân hàng')
+      const r = m.get(ten) ?? { ten, soTien: 0, soDon: 0 }
+      r.soTien += Number(h.doanhThu ?? h.tongTien) || 0
+      r.soDon += 1
+      m.set(ten, r)
+    }
+    const dsLoc = [...m.values()].sort((a, b) => b.soTien - a.soTien || b.soDon - a.soDon)
+    const tongLoc = dsLoc.reduce((s, x) => s + x.soTien, 0)
+    return dsLoc.map((x) => ({ ...x, pct: phanTram(x.soTien, tongLoc) }))
+  }
   const ds = Array.isArray(gd3.value.theoPhuongThuc) ? gd3.value.theoPhuongThuc : []
   const tong = ds.reduce((s, x) => s + (Number(x.soTien) || 0), 0)
   return ds.map((x) => ({ ...x, pct: phanTram(x.soTien, tong) }))
 })
+const tongTienPt = computed(() => theoPt.value.reduce((s, x) => s + (Number(x.soTien) || 0), 0))
 const theoCa = computed(() => {
   const ds = Array.isArray(gd3.value.theoCa) ? gd3.value.theoCa : []
   const max = Math.max(1, ...ds.map((x) => Number(x.doanhThu) || 0))
@@ -562,7 +578,6 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         <div class="d-flex flex-wrap align-items-center gap-2">
           <span>
             Đang hiển thị dữ liệu <strong>{{ moTaKhoang }}</strong>
-            <template v-if="ky"> · so sánh với <span class="text-secondary">{{ formatDate(ky.tu) }} – {{ formatDate(ky.den) }}</span></template>
           </span>
           <span v-if="donViChon" class="tk-active-chip">
             <i class="bi bi-bar-chart me-1" aria-hidden="true"></i>Biểu đồ: Theo {{ bieuDo.donVi }}
@@ -807,7 +822,8 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <div class="col-12 col-lg-4">
+      <!-- Hàng phân tích Kênh bán (Loại đơn) & Phương thức thanh toán (Tiền mặt / Chuyển khoản) -->
+      <div class="col-12 col-lg-6">
         <section class="ad-card tk-section-card h-100 mb-0">
           <div class="tk-sec-head">
             <div class="d-flex align-items-center gap-2">
@@ -835,12 +851,44 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <div class="col-12 col-md-6 col-lg-4">
+      <div class="col-12 col-lg-6">
+        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-phuong-thuc">
+          <div class="tk-sec-head">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tk-sec-ico is-blue"><i class="bi bi-credit-card-2-front-fill" aria-hidden="true"></i></span>
+              <div>
+                <h3 class="tk-sec-title m-0">Tiền thu theo phương thức thanh toán</h3>
+                <p class="tk-sec-sub m-0">Số tiền khách thực trả (Tiền mặt, Chuyển khoản, COD — gồm cả phí ship)</p>
+              </div>
+            </div>
+            <span v-if="tongTienPt > 0" class="tk-count-badge">Tổng thu: {{ formatMoney(tongTienPt) }}</span>
+          </div>
+          <div v-if="!theoPt.length" class="ad-empty">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
+          <div v-for="p in theoPt" :key="p.ten" class="tk-loai-item">
+            <div class="d-flex justify-content-between align-items-center small mb-2">
+              <span class="fw-semibold text-dark">
+                {{ p.ten }}
+                <small class="text-muted fw-normal ms-1">({{ p.soDon }} đơn)</small>
+              </span>
+              <span class="fw-bold text-primary">{{ formatMoney(p.soTien) }} <small class="text-muted fw-normal">({{ pctGon(p.pct) }})</small></span>
+            </div>
+            <div class="progress tk-progress">
+              <div class="progress-bar tk-progress-bar" :style="{ width: p.pct + '%' }"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Hàng xếp hạng Nhân viên & Khách hàng -->
+      <div class="col-12 col-lg-6">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-top-nv">
           <div class="tk-sec-head">
             <div class="d-flex align-items-center gap-2">
               <span class="tk-sec-ico is-green"><i class="bi bi-person-badge-fill" aria-hidden="true"></i></span>
-              <h3 class="tk-sec-title m-0">Nhân viên bán tốt nhất</h3>
+              <div>
+                <h3 class="tk-sec-title m-0">Nhân viên bán tốt nhất</h3>
+                <p class="tk-sec-sub m-0">Top nhân viên theo doanh thu đơn hoàn thành trong kỳ</p>
+              </div>
             </div>
           </div>
           <div v-if="!topNhanVien.length" class="ad-empty">Chưa có dữ liệu.</div>
@@ -857,12 +905,15 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <div class="col-12 col-md-6 col-lg-4">
+      <div class="col-12 col-lg-6">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-top-kh">
           <div class="tk-sec-head">
             <div class="d-flex align-items-center gap-2">
               <span class="tk-sec-ico is-purple"><i class="bi bi-people-fill" aria-hidden="true"></i></span>
-              <h3 class="tk-sec-title m-0">Khách hàng mua nhiều nhất</h3>
+              <div>
+                <h3 class="tk-sec-title m-0">Khách hàng mua nhiều nhất</h3>
+                <p class="tk-sec-sub m-0">Top khách hàng thành viên theo doanh thu đơn hoàn thành (không tính khách lẻ)</p>
+              </div>
             </div>
           </div>
           <div v-if="!topKhach.length" class="ad-empty">Chưa có dữ liệu.</div>
@@ -882,25 +933,6 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 
     <!-- Ẩn hoàn toàn phần ca làm việc / lịch làm việc khỏi giao diện Thống kê -->
     <div class="d-none" aria-hidden="true">
-      <div class="col-12 col-lg-4">
-        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-phuong-thuc">
-          <div class="tk-sec-head">
-            <div class="d-flex align-items-center gap-2">
-              <span class="tk-sec-ico is-blue"><i class="bi bi-credit-card-2-front-fill" aria-hidden="true"></i></span>
-              <div>
-                <h3 class="tk-sec-title m-0">Tiền thu theo phương thức thanh toán</h3>
-                <p class="tk-sec-sub m-0">Số tiền khách thực trả (gồm cả phí ship), khác với doanh thu.</p>
-              </div>
-            </div>
-          </div>
-          <div v-if="!theoPt.length" class="ad-empty">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
-          <div v-for="p in theoPt" :key="p.ten" class="mb-3">
-            <div class="d-flex justify-content-between small mb-1"><span class="fw-medium">{{ p.ten }}</span><span>{{ formatMoney(p.soTien) }} · {{ pctGon(p.pct) }}</span></div>
-            <div class="progress tk-progress"><div class="progress-bar tk-progress-bar" :style="{ width: p.pct + '%' }"></div></div>
-            <small class="text-muted">{{ p.soDon }} đơn</small>
-          </div>
-        </section>
-      </div>
 
       <div class="col-12 col-md-6 col-lg-4">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-theo-ca">
