@@ -290,14 +290,27 @@ const kpi = computed(() => {
 
 /* ----- Biểu đồ cột Doanh thu theo ngày / tuần / tháng (điều khiển từ ô THỐNG KÊ) ----- */
 const bieuDo = computed(() => gomCot(hoaDonDaLoc.value, kq.value.tu, kq.value.den, homNay.value, donViChon.value))
-const cot = computed(() => bieuDo.value.cot)
-const coDoanhThu = computed(() => cot.value.some((x) => x.v > 0))
-const dinhBieuDo = computed(() => cot.value.reduce((max, x) => (x.v > (max?.v ?? 0) ? x : max), null))
-const W = 860, H = 280, PAD = { l: 56, r: 16, t: 28, b: 36 }
-const vMax = computed(() => lamTronTran(Math.max(...cot.value.map((x) => x.v), 0)))
+const tatCaCot = computed(() => bieuDo.value.cot)
+const cotCoDoanhThu = computed(() => tatCaCot.value.filter((x) => x.v > 0))
+const chiHienCoDt = ref(true)
+const coCotTrong = computed(() => tatCaCot.value.length > cotCoDoanhThu.value.length && cotCoDoanhThu.value.length > 0)
+const cot = computed(() => (chiHienCoDt.value && cotCoDoanhThu.value.length ? cotCoDoanhThu.value : tatCaCot.value))
+const coDoanhThu = computed(() => cotCoDoanhThu.value.length > 0)
+const dinhBieuDo = computed(() => cotCoDoanhThu.value.reduce((max, x) => (x.v > (max?.v ?? 0) ? x : max), null))
+const W = 860, H = 300, PAD = { l: 60, r: 20, t: 34, b: 48 }
+function tinhTranBieuDo(max) {
+  if (!(max > 0)) return 1
+  const mucTieu = max * 1.08
+  const mu = 10 ** Math.floor(Math.log10(mucTieu))
+  const f = mucTieu / mu
+  const bac = [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10]
+  const chon = bac.find((b) => b >= f) ?? 10
+  return Math.round(chon * mu)
+}
+const vMax = computed(() => tinhTranBieuDo(Math.max(...cot.value.map((x) => x.v), 0)))
 const rongCot = computed(() => (W - PAD.l - PAD.r) / Math.max(cot.value.length, 1))
-const rongThanh = computed(() => Math.min(rongCot.value * 0.62, 42))
-const cao = (v) => (v > 0 ? Math.max((v / vMax.value) * (H - PAD.t - PAD.b), 4) : 0)
+const rongThanh = computed(() => Math.min(rongCot.value * 0.52, 52))
+const cao = (v) => (v > 0 ? Math.max((v / vMax.value) * (H - PAD.t - PAD.b), 6) : 0)
 const ticks = computed(() => [0, 0.25, 0.5, 0.75, 1].map((t) => ({ t, y: H - PAD.b - t * (H - PAD.t - PAD.b), nhan: nhanTienGon(vMax.value * t) })))
 function nhanTienCot(v) {
   if (!v) return ''
@@ -316,15 +329,12 @@ const nhanTruc = computed(() => {
   if (n <= 16) return ds.map((x) => x.nhan)
 
   const chon = new Set()
-  // 1. BẮT BUỘC hiển thị 100% các cột có doanh thu (kể cả các ngày liền kề như 17/10 và 18/10)
   for (let i = 0; i < n; i++) {
     if (ds[i].v > 0) chon.add(i)
   }
-  // 2. Luôn giữ mốc đầu (0) và mốc cuối (n - 1) nếu cột kế cận chưa có nhãn
   if (!chon.has(0) && !chon.has(1)) chon.add(0)
   if (!chon.has(n - 1) && !chon.has(n - 2)) chon.add(n - 1)
 
-  // 3. Chia đều các khoảng trống lớn (>= 4 cột) giữa các mốc đã chọn để trục ngày đều đặn, không bị hổng
   const Neo = [...chon].sort((a, b) => a - b)
   if (!Neo.length) {
     Neo.push(0, n - 1)
@@ -355,16 +365,17 @@ const nhanTruc = computed(() => {
 })
 const nhanGiaTri = computed(() => {
   const ds = cot.value
+  const n = ds.length
   const daDat = []
   return ds.map((x, i) => {
     if (!(x.v > 0)) return null
     const cx = PAD.l + i * rongCot.value + rongCot.value / 2
-    let cy = H - PAD.b - cao(x.v) - 6
-    // Nếu 2 cột sát nhau có chiều cao gần bằng nhau thì nâng nhẹ nhãn sau lên để không bao giờ đè chữ
-    if (daDat.some((p) => Math.abs(cx - p.x) < 26 && Math.abs(cy - p.y) < 11)) {
-      cy = Math.max(11, cy - 11)
+    let cy = H - PAD.b - cao(x.v) - 8
+    // Khi <= 8 cột: hiển thị số tiền chính xác tuyệt đối (VD: 5.372.500 ₫); khi nhiều cột: hiển thị rút gọn 2 chữ số thập phân (5,37tr)
+    const text = n <= 8 ? formatMoney(x.v) : nhanTienCot(x.v)
+    if (daDat.some((p) => Math.abs(cx - p.x) < 28 && Math.abs(cy - p.y) < 12)) {
+      cy = Math.max(12, cy - 12)
     }
-    const text = nhanTienCot(x.v)
     daDat.push({ x: cx, y: cy })
     return { text, y: cy }
   })
@@ -727,32 +738,68 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
               <span v-if="dinhBieuDo && dinhBieuDo.v > 0" class="tk-chart-pill is-amber">
                 Cao nhất ({{ dinhBieuDo.nhan }}): <strong>{{ formatMoney(dinhBieuDo.v) }}</strong>
               </span>
+              <button
+                v-if="coCotTrong"
+                type="button"
+                class="tk-chart-pill tk-chart-toggle-btn"
+                data-test="tk-che-do-cot"
+                @click="chiHienCoDt = !chiHienCoDt"
+              >
+                <i class="bi me-1" :class="chiHienCoDt ? 'bi-arrows-expand' : 'bi-funnel-fill'" aria-hidden="true"></i>
+                {{ chiHienCoDt ? `Tất cả ${bieuDo.donVi} (${tatCaCot.length})` : `Chỉ ${bieuDo.donVi} có DT (${cotCoDoanhThu.length})` }}
+              </button>
             </div>
           </div>
 
           <div v-if="!coDoanhThu && !loading" class="ad-empty my-3">Chưa có đơn hoàn thành trong khoảng này.</div>
           <svg v-else :viewBox="`0 0 ${W} ${H}`" class="w-100 tk-chart-svg" role="img" :aria-label="`Biểu đồ cột doanh thu theo ${bieuDo.donVi}`">
+            <defs>
+              <linearGradient id="tkBarGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3b82f6" />
+                <stop offset="100%" stop-color="#0977ec" />
+              </linearGradient>
+              <linearGradient id="tkBarPeakGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#0284c7" />
+                <stop offset="100%" stop-color="#075fc0" />
+              </linearGradient>
+            </defs>
+            <path
+              :d="`M ${PAD.l} ${PAD.t} H ${W - PAD.r} V ${H - PAD.b} H ${PAD.l} Z`"
+              fill="#f8fafc"
+              opacity="0.7"
+            />
             <g v-for="t in ticks" :key="t.y">
               <line
                 :x1="PAD.l"
                 :x2="W - PAD.r"
                 :y1="t.y"
                 :y2="t.y"
-                :stroke="t.t === 0 ? '#cbd5e1' : '#e2e8f0'"
-                :stroke-width="t.t === 0 ? 1.2 : 1"
+                :stroke="t.t === 0 ? '#94a3b8' : '#e2e8f0'"
+                :stroke-width="t.t === 0 ? 1.5 : 1"
                 :stroke-dasharray="t.t === 0 ? undefined : '4 4'"
               />
-              <text :x="PAD.l - 8" :y="t.y + 4" text-anchor="end" font-size="11" fill="#64748b" font-weight="500">{{ t.nhan }}</text>
+              <text :x="PAD.l - 10" :y="t.y + 4" text-anchor="end" font-size="11" fill="#475569" font-weight="600">{{ t.nhan }}</text>
             </g>
-            <g v-for="(d, i) in cot" :key="d.k">
+            <g v-for="(d, i) in cot" :key="d.k" class="tk-bar-group">
+              <line
+                v-if="d.v > 0 && cot.length <= 16"
+                :x1="PAD.l + i * rongCot + rongCot / 2"
+                :x2="PAD.l + i * rongCot + rongCot / 2"
+                :y1="PAD.t"
+                :y2="H - PAD.b"
+                stroke="#e2e8f0"
+                stroke-width="1"
+                stroke-dasharray="2 3"
+                opacity="0.65"
+              />
               <rect
                 class="tk-bar-rect"
                 :x="PAD.l + i * rongCot + (rongCot - rongThanh) / 2"
                 :y="H - PAD.b - cao(d.v)"
                 :width="rongThanh"
                 :height="cao(d.v)"
-                rx="3"
-                fill="#0977ec"
+                rx="6"
+                :fill="dinhBieuDo && d.k === dinhBieuDo.k && cot.length > 1 ? 'url(#tkBarPeakGrad)' : 'url(#tkBarGrad)'"
               >
                 <title>{{ d.nhan }}: {{ formatMoney(d.v) }} ({{ d.so }} đơn)</title>
               </rect>
@@ -761,9 +808,9 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
                 :x="PAD.l + i * rongCot + rongCot / 2"
                 :y="nhanGiaTri[i].y"
                 text-anchor="middle"
-                font-size="10"
+                :font-size="cot.length <= 8 ? 11 : 10"
                 font-weight="700"
-                fill="#075fc0"
+                :fill="dinhBieuDo && d.k === dinhBieuDo.k && cot.length > 1 ? '#0369a1' : '#075fc0'"
               >{{ nhanGiaTri[i].text }}</text>
               <line
                 :x1="PAD.l + i * rongCot + rongCot / 2"
@@ -776,12 +823,21 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
               <text
                 v-if="nhanTruc[i]"
                 :x="PAD.l + i * rongCot + rongCot / 2"
-                :y="H - 10"
+                :y="H - (cot.length <= 14 ? 22 : 12)"
                 text-anchor="middle"
-                :font-size="cot.length > 20 ? 10 : 11"
+                :font-size="cot.length > 20 ? 10 : 11.5"
                 :fill="d.v > 0 ? '#0f172a' : '#64748b'"
                 :font-weight="d.v > 0 ? 700 : 500"
               >{{ nhanTruc[i] }}</text>
+              <text
+                v-if="nhanTruc[i] && cot.length <= 14 && d.so > 0"
+                :x="PAD.l + i * rongCot + rongCot / 2"
+                :y="H - 7"
+                text-anchor="middle"
+                font-size="10"
+                fill="#64748b"
+                font-weight="500"
+              >{{ d.so }} đơn</text>
             </g>
           </svg>
         </section>
@@ -1480,14 +1536,28 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   color: #b45309;
 }
 
+.tk-chart-toggle-btn {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tk-chart-toggle-btn:hover {
+  border-color: #0977ec;
+  color: #0977ec;
+  background: #f0f7ff;
+}
+
 .tk-bar-rect {
-  transition: opacity 0.15s ease, fill 0.15s ease;
+  transition: opacity 0.15s ease, filter 0.15s ease;
   cursor: pointer;
 }
 
 .tk-bar-rect:hover {
-  fill: #065bb7;
-  opacity: 0.92;
+  filter: brightness(0.92);
+  opacity: 0.95;
 }
 
 .ad-donut {

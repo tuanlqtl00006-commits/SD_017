@@ -260,19 +260,23 @@ describe('Trang Thống kê', () => {
     w.unmount()
   })
 
-  it('biểu đồ: tháng này theo ngày; 90 ngày gom theo tuần; luôn hiện đủ nhãn ngày và giá trị cho mọi cột có doanh thu kể cả 2 ngày liền kề', async () => {
+  it('biểu đồ: mặc định hiển thị gọn các cột có doanh thu kèm số tiền chính xác; bấm nút mở rộng thì hiện đủ mọi ngày/tuần', async () => {
     const d1 = ngay(2)
     const d2 = ngay(1)
     const nhan1 = `${d1.slice(8, 10)}/${d1.slice(5, 7)}`
     const nhan2 = `${d2.slice(8, 10)}/${d2.slice(5, 7)}`
     const w = await moTrang([hd(1, d1, 3400000), hd(2, d2, 1300000), hd(3, ngay(50), 1000000)])
     expect(w.text()).toContain('Doanh thu theo ngày')
-    expect(w.findAll('svg rect')).toHaveLength(soNgay(`${homNay.slice(0, 7)}-01`, homNay))
+    // Mặc định chỉ hiển thị các cột có doanh thu (2 cột d1, d2) giúp biểu đồ đều đẹp, kèm số tiền chính xác
+    expect(w.findAll('svg rect')).toHaveLength(2)
     const svgText = w.get('svg').text()
     expect(svgText).toContain(nhan1)
     expect(svgText).toContain(nhan2)
-    expect(svgText).toContain('3,4tr')
-    expect(svgText).toContain('1,3tr')
+    expect(svgText).toContain('3.400.000 ₫')
+    expect(svgText).toContain('1.300.000 ₫')
+    // Khi bấm nút "Tất cả ngày" thì mở rộng đủ số ngày trong tháng
+    await w.get('[data-test="tk-che-do-cot"]').trigger('click')
+    expect(w.findAll('svg rect')).toHaveLength(soNgay(`${homNay.slice(0, 7)}-01`, homNay))
     await w.get('#tk-tu').setValue(ngay(89))
     await w.get('#tk-den').setValue(ngay(0))
     expect(w.text()).toContain('Doanh thu theo tuần')
