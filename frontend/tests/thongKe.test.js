@@ -260,10 +260,14 @@ describe('Trang Thống kê', () => {
     w.unmount()
   })
 
-  it('biểu đồ: tháng này theo ngày; 90 ngày gom theo tuần', async () => {
-    const w = await moTrang([hd(1, ngay(2), 1000000), hd(2, ngay(50), 1000000)])
+  it('biểu đồ: tháng này theo ngày; 90 ngày gom theo tuần; luôn hiện nhãn ngày và giá trị cho cột có doanh thu', async () => {
+    const dCoDt = ngay(2)
+    const nhanNgayCoDt = `${dCoDt.slice(8, 10)}/${dCoDt.slice(5, 7)}`
+    const w = await moTrang([hd(1, dCoDt, 27200000), hd(2, ngay(50), 1000000)])
     expect(w.text()).toContain('Doanh thu theo ngày')
     expect(w.findAll('svg rect')).toHaveLength(soNgay(`${homNay.slice(0, 7)}-01`, homNay))
+    expect(w.get('svg').text()).toContain(nhanNgayCoDt)
+    expect(w.get('svg').text()).toContain('27,2tr')
     await w.get('#tk-tu').setValue(ngay(89))
     await w.get('#tk-den').setValue(ngay(0))
     expect(w.text()).toContain('Doanh thu theo tuần')

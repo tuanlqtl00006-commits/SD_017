@@ -293,15 +293,60 @@ const bieuDo = computed(() => gomCot(hoaDonDaLoc.value, kq.value.tu, kq.value.de
 const cot = computed(() => bieuDo.value.cot)
 const coDoanhThu = computed(() => cot.value.some((x) => x.v > 0))
 const dinhBieuDo = computed(() => cot.value.reduce((max, x) => (x.v > (max?.v ?? 0) ? x : max), null))
-const W = 700, H = 250, PAD = { l: 58, r: 10, t: 12, b: 28 }
+const W = 700, H = 260, PAD = { l: 58, r: 12, t: 24, b: 30 }
 const vMax = computed(() => lamTronTran(Math.max(...cot.value.map((x) => x.v), 0)))
 const rongCot = computed(() => (W - PAD.l - PAD.r) / Math.max(cot.value.length, 1))
-const cao = (v) => (v / vMax.value) * (H - PAD.t - PAD.b)
-const ticks = computed(() => [0, 0.25, 0.5, 0.75, 1].map((t) => ({ y: H - PAD.b - t * (H - PAD.t - PAD.b), nhan: nhanTienGon(vMax.value * t) })))
+const rongThanh = computed(() => Math.min(rongCot.value * 0.62, 42))
+const cao = (v) => (v > 0 ? Math.max((v / vMax.value) * (H - PAD.t - PAD.b), 4) : 0)
+const ticks = computed(() => [0, 0.25, 0.5, 0.75, 1].map((t) => ({ t, y: H - PAD.b - t * (H - PAD.t - PAD.b), nhan: nhanTienGon(vMax.value * t) })))
 const nhanTruc = computed(() => {
-  const n = cot.value.length
+  const ds = cot.value
+  const n = ds.length
+  if (!n) return []
+  const minDist = Math.max(1, Math.ceil(32 / rongCot.value))
+  const chon = new Set()
+  // Ưu tiên hiển thị nhãn ngày của các cột có doanh thu (từ cao xuống thấp)
+  const coDt = ds
+    .map((x, i) => ({ i, v: x.v }))
+    .filter((x) => x.v > 0)
+    .sort((a, b) => b.v - a.v)
+  for (const item of coDt) {
+    if ([...chon].every((j) => Math.abs(item.i - j) >= minDist)) chon.add(item.i)
+  }
+  // Luôn ưu tiên mốc đầu và mốc cuối nếu không đè lên cột có doanh thu
+  if ([...chon].every((j) => Math.abs(0 - j) >= minDist)) chon.add(0)
+  if ([...chon].every((j) => Math.abs(n - 1 - j) >= minDist)) chon.add(n - 1)
+  // Bổ sung các mốc định kỳ cho vùng trống
   const b = Math.max(1, Math.ceil(n / 8))
-  return cot.value.map((x, i) => ((n - 1 - i) % b === 0 ? x.nhan : ''))
+  const minTickDist = Math.max(2, minDist, Math.floor(b / 2) + 1)
+  for (let i = 0; i < n; i++) {
+    if ((n - 1 - i) % b === 0 && [...chon].every((j) => Math.abs(i - j) >= minTickDist)) {
+      chon.add(i)
+    }
+  }
+  return ds.map((x, i) => (chon.has(i) ? x.nhan : ''))
+})
+const nhanGiaTri = computed(() => {
+  const ds = cot.value
+  const DaChon = []
+  const kqNhan = Array(ds.length).fill('')
+  const coDt = ds
+    .map((x, i) => ({
+      i,
+      v: x.v,
+      x: PAD.l + i * rongCot.value + rongCot.value / 2,
+      y: H - PAD.b - cao(x.v) - 6,
+    }))
+    .filter((x) => x.v > 0)
+    .sort((a, b) => b.v - a.v)
+  for (const item of coDt) {
+    const biDe = DaChon.some((c) => Math.abs(item.x - c.x) < 32 && Math.abs(item.y - c.y) < 14)
+    if (!biDe) {
+      DaChon.push(item)
+      kqNhan[item.i] = nhanTienGon(item.v)
+    }
+  }
+  return kqNhan
 })
 
 /* ----- Cơ cấu trạng thái (vòng) ----- */
@@ -667,22 +712,56 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
           <div v-if="!coDoanhThu && !loading" class="ad-empty my-3">Chưa có đơn hoàn thành trong khoảng này.</div>
           <svg v-else :viewBox="`0 0 ${W} ${H}`" class="w-100 tk-chart-svg" role="img" :aria-label="`Biểu đồ cột doanh thu theo ${bieuDo.donVi}`">
             <g v-for="t in ticks" :key="t.y">
-              <line :x1="PAD.l" :x2="W - PAD.r" :y1="t.y" :y2="t.y" stroke="#edf2f7" stroke-dasharray="4 4" />
+              <line
+                :x1="PAD.l"
+                :x2="W - PAD.r"
+                :y1="t.y"
+                :y2="t.y"
+                :stroke="t.t === 0 ? '#cbd5e1' : '#e2e8f0'"
+                :stroke-width="t.t === 0 ? 1.2 : 1"
+                :stroke-dasharray="t.t === 0 ? undefined : '4 4'"
+              />
               <text :x="PAD.l - 8" :y="t.y + 4" text-anchor="end" font-size="11" fill="#64748b" font-weight="500">{{ t.nhan }}</text>
             </g>
             <g v-for="(d, i) in cot" :key="d.k">
               <rect
                 class="tk-bar-rect"
-                :x="PAD.l + i * rongCot + rongCot * 0.18"
+                :x="PAD.l + i * rongCot + (rongCot - rongThanh) / 2"
                 :y="H - PAD.b - cao(d.v)"
-                :width="rongCot * 0.64"
+                :width="rongThanh"
                 :height="cao(d.v)"
-                rx="4"
+                rx="3"
                 fill="#0977ec"
               >
                 <title>{{ d.nhan }}: {{ formatMoney(d.v) }} ({{ d.so }} đơn)</title>
               </rect>
-              <text :x="PAD.l + i * rongCot + rongCot / 2" :y="H - 8" text-anchor="middle" font-size="11" fill="#64748b" font-weight="500">{{ nhanTruc[i] }}</text>
+              <text
+                v-if="nhanGiaTri[i]"
+                :x="PAD.l + i * rongCot + rongCot / 2"
+                :y="H - PAD.b - cao(d.v) - 6"
+                text-anchor="middle"
+                font-size="10.5"
+                font-weight="700"
+                fill="#075fc0"
+              >{{ nhanGiaTri[i] }}</text>
+              <line
+                v-if="nhanTruc[i]"
+                :x1="PAD.l + i * rongCot + rongCot / 2"
+                :x2="PAD.l + i * rongCot + rongCot / 2"
+                :y1="H - PAD.b"
+                :y2="H - PAD.b + 4"
+                :stroke="d.v > 0 ? '#0977ec' : '#cbd5e1'"
+                stroke-width="1.2"
+              />
+              <text
+                v-if="nhanTruc[i]"
+                :x="PAD.l + i * rongCot + rongCot / 2"
+                :y="H - 8"
+                text-anchor="middle"
+                font-size="11"
+                :fill="d.v > 0 ? '#0f172a' : '#64748b'"
+                :font-weight="d.v > 0 ? 700 : 500"
+              >{{ nhanTruc[i] }}</text>
             </g>
           </svg>
         </section>
