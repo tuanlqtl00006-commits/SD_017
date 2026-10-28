@@ -358,19 +358,13 @@ async function guiEmail() {
   display: flex;
   flex-direction: column;
   gap: 1.15rem;
-  font-family: var(--bs-body-font-family, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif);
-  letter-spacing: 0;
 }
 .ss-page :deep(*),
 .ss-page input,
 .ss-page select,
+.ss-page option,
 .ss-page button,
-.ss-page svg text,
-.ss-page input[type='month']::-webkit-datetime-edit,
-.ss-page input[type='month']::-webkit-datetime-edit-fields-wrapper,
-.ss-page input[type='month']::-webkit-datetime-edit-month-field,
-.ss-page input[type='month']::-webkit-datetime-edit-year-field,
-.ss-page input[type='month']::-webkit-datetime-edit-text {
+.ss-page svg text {
   font-family: inherit !important;
 }
 .ss-filter-card {
@@ -430,14 +424,15 @@ async function guiEmail() {
 }
 .ss-o,
 .ss-o-nho {
-  height: 36px;
-  font-size: 0.85rem !important;
-  font-weight: 500 !important;
-  color: #1e293b !important;
-  border-radius: 8px;
+  height: 38px;
+  font-family: inherit !important;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
+  color: var(--fs-text, #18242f) !important;
+  border-radius: 10px;
 }
 .ss-o {
-  width: 165px;
+  width: 170px;
 }
 .ss-o-nho {
   width: 120px;
@@ -472,5 +467,18 @@ async function guiEmail() {
 }
 .ss-email input {
   max-width: 280px;
+}
+</style>
+
+<style>
+.ss-page input[type='month'],
+.ss-page input[type='month']::-webkit-datetime-edit,
+.ss-page input[type='month']::-webkit-datetime-edit-fields-wrapper,
+.ss-page input[type='month']::-webkit-datetime-edit-month-field,
+.ss-page input[type='month']::-webkit-datetime-edit-year-field,
+.ss-page input[type='month']::-webkit-datetime-edit-text {
+  font-family: inherit !important;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
 }
 </style>

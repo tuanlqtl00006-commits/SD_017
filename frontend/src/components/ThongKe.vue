@@ -453,16 +453,16 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 
 <template>
   <div class="tk-page">
-    <!-- Khung Bộ lọc thống kê được thiết kế tinh gọn, hiện đại -->
+    <!-- Khung Bộ lọc thống kê đồng bộ kiểu dáng và phông chữ với các bộ lọc khác -->
     <section class="ad-card tk-filter-card">
       <div class="tk-filter-head">
-        <div class="d-flex align-items-center gap-3">
-          <span class="tk-head-icon" aria-hidden="true">
-            <i class="bi bi-sliders2"></i>
+        <div class="ad-card-head mb-0">
+          <span class="ad-icon-box" aria-hidden="true">
+            <i class="bi bi-funnel"></i>
           </span>
           <div>
-            <h2 class="tk-filter-title m-0">Bộ lọc thống kê</h2>
-            <p class="tk-filter-sub m-0">Tra cứu nhanh doanh thu, đơn hàng và sản phẩm theo thời gian thực</p>
+            <h2 class="ad-card-title">Bộ lọc thống kê</h2>
+            <p class="ad-card-sub">Tra cứu nhanh doanh thu, đơn hàng và sản phẩm theo thời gian thực</p>
             <span class="visually-hidden">Tổng quan cửa hàng</span>
           </div>
         </div>
@@ -482,39 +482,35 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
             </button>
           </div>
           <div class="d-flex align-items-center gap-2">
-            <button type="button" class="tk-btn-excel" data-test="tk-xuat-excel" :disabled="loading" @click="xuatExcel">
-              <i class="bi bi-file-earmark-excel-fill me-1" aria-hidden="true"></i>Xuất Excel
+            <button type="button" class="ad-btn tk-btn-excel" data-test="tk-xuat-excel" :disabled="loading" @click="xuatExcel">
+              <i class="bi bi-file-earmark-excel-fill" aria-hidden="true"></i> Xuất Excel
             </button>
-            <RouterLink to="/thong-ke/so-sanh" class="tk-btn-compare" data-test="tk-so-sanh">
-              <i class="bi bi-bar-chart-line-fill me-1" aria-hidden="true"></i>So sánh
+            <RouterLink to="/thong-ke/so-sanh" class="ad-btn ad-btn-primary text-decoration-none" data-test="tk-so-sanh">
+              <i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i> So sánh
             </RouterLink>
           </div>
         </div>
       </div>
 
-      <!-- Hàng điều khiển lọc chi tiết: TỪ NGÀY · ĐẾN NGÀY · THỐNG KÊ · THƯƠNG HIỆU · TÌM SẢN PHẨM · Đặt lại -->
+      <!-- Hàng điều khiển lọc chi tiết: Từ ngày · Đến ngày · Thống kê · Thương hiệu · Tìm sản phẩm · Đặt lại -->
       <div class="tk-filter-grid" data-test="tk-tu-chon">
         <div class="tk-field">
-          <label for="tk-tu" class="tk-label">
-            <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>TỪ NGÀY
-          </label>
+          <label for="tk-tu" class="ad-label">Từ ngày</label>
           <DateInput
             id="tk-tu"
             :model-value="tuChon"
-            class="form-control tk-input"
+            class="form-control ad-control"
             :max="denChon || homNay"
             @update:model-value="capNhatTuNgay"
           />
         </div>
 
         <div class="tk-field">
-          <label for="tk-den" class="tk-label">
-            <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>ĐẾN NGÀY
-          </label>
+          <label for="tk-den" class="ad-label">Đến ngày</label>
           <DateInput
             id="tk-den"
             :model-value="denChon"
-            class="form-control tk-input"
+            class="form-control ad-control"
             :min="tuChon"
             :max="homNay"
             @update:model-value="capNhatDenNgay"
@@ -522,10 +518,8 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </div>
 
         <div class="tk-field">
-          <label for="tk-don-vi" class="tk-label">
-            <i class="bi bi-bar-chart-steps me-1" aria-hidden="true"></i>THỐNG KÊ
-          </label>
-          <select id="tk-don-vi" v-model="donViChon" class="form-select tk-input" data-test="tk-don-vi">
+          <label for="tk-don-vi" class="ad-label">Thống kê</label>
+          <select id="tk-don-vi" v-model="donViChon" class="form-select ad-control" data-test="tk-don-vi">
             <option value="">Theo {{ bieuDo.donVi }} (Tự động)</option>
             <option value="ngày">Theo ngày</option>
             <option value="tuần">Theo tuần</option>
@@ -534,33 +528,29 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </div>
 
         <div class="tk-field">
-          <label for="tk-thuong-hieu" class="tk-label">
-            <i class="bi bi-award me-1" aria-hidden="true"></i>THƯƠNG HIỆU
-          </label>
-          <select id="tk-thuong-hieu" v-model="thuongHieuChon" class="form-select tk-input" data-test="tk-loc-thuong-hieu">
+          <label for="tk-thuong-hieu" class="ad-label">Thương hiệu</label>
+          <select id="tk-thuong-hieu" v-model="thuongHieuChon" class="form-select ad-control" data-test="tk-loc-thuong-hieu">
             <option value="">Tất cả thương hiệu</option>
             <option v-for="th in dsThuongHieu" :key="th" :value="th">{{ th }}</option>
           </select>
         </div>
 
         <div class="tk-field tk-field-search">
-          <label for="tk-tim-sp" class="tk-label">
-            <i class="bi bi-search me-1" aria-hidden="true"></i>TÌM SẢN PHẨM
-          </label>
+          <label for="tk-tim-sp" class="ad-label">Tìm sản phẩm</label>
           <div class="d-flex align-items-center gap-2">
-            <div class="tk-search-wrap flex-grow-1">
-              <i class="bi bi-search tk-search-ico" aria-hidden="true"></i>
+            <div class="ad-affix flex-grow-1">
+              <i class="bi bi-search" aria-hidden="true"></i>
               <input
                 id="tk-tim-sp"
                 v-model="tuKhoaSp"
                 type="search"
-                class="form-control tk-input tk-input-search"
+                class="form-control ad-control"
                 placeholder="Mã hoặc tên sản phẩm..."
                 data-test="tk-tim-sp"
               />
             </div>
-            <button type="button" class="tk-btn-reset" data-test="tk-dat-lai" @click="datLaiBoLoc">
-              <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Đặt lại
+            <button type="button" class="ad-btn" data-test="tk-dat-lai" @click="datLaiBoLoc">
+              <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại
             </button>
           </div>
         </div>
@@ -1007,17 +997,16 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   display: flex;
   flex-direction: column;
   gap: 1.15rem;
-  font-family: var(--bs-body-font-family, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif);
-  letter-spacing: 0;
 }
 
 .tk-page :deep(*),
 .tk-page :deep(input),
 .tk-page :deep(select),
+.tk-page :deep(option),
 .tk-page :deep(button),
 .tk-page :deep(textarea),
 .tk-page svg text {
-  font-family: inherit;
+  font-family: inherit !important;
 }
 
 /* ---------- Khung Bộ lọc thống kê ---------- */
@@ -1052,10 +1041,9 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 }
 
 .tk-filter-title {
-  font-size: 1.08rem;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.01em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--fs-text, #18242f);
 }
 
 .tk-filter-sub {
@@ -1172,34 +1160,41 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 .tk-label {
   display: flex;
   align-items: center;
-  font-size: 0.73rem;
-  font-weight: 700;
-  color: #475569;
-  letter-spacing: 0.03em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fs-text, #18242f);
   margin-bottom: 0.4rem;
-  text-transform: uppercase;
 }
 
 .tk-label i {
   color: #0977ec;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
 }
 
 .tk-input,
-:deep(.tk-input),
-:deep(.di-input) {
-  height: 41px !important;
+.tk-page :deep(.tk-input),
+.tk-page :deep(.di-input) {
+  height: 42px !important;
   font-family: inherit !important;
-  font-size: 0.86rem !important;
-  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
   line-height: 1.4 !important;
-  letter-spacing: 0 !important;
-  color: #1e293b !important;
+  letter-spacing: inherit !important;
+  color: var(--fs-text, #18242f) !important;
   background-color: #f8fafc !important;
   border: 1px solid #dbe3ee !important;
   border-radius: 10px !important;
   box-shadow: none !important;
   transition: all 0.15s ease;
+}
+
+.tk-input::placeholder,
+.tk-page :deep(.tk-input::placeholder),
+.tk-page :deep(.di-input::placeholder) {
+  font-family: inherit !important;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
+  color: #7b8794 !important;
 }
 
 .tk-input:hover,
@@ -1339,11 +1334,10 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 }
 
 .tk-kpi-value {
-  font-size: 1.48rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--fs-text, #18242f);
+  line-height: 1.25;
 }
 
 .tk-kpi-note {
