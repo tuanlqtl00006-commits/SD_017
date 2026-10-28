@@ -337,7 +337,7 @@ async function taiGd3() {
     gd3.value = res?.data && typeof res.data === 'object' ? res.data : {}
     loiGd3.value = ''
   } catch (e) {
-    if (lan === lanTai) loiGd3.value = e.message || 'Không tải được thống kê bán hàng và ca làm việc.'
+    if (lan === lanTai) loiGd3.value = e.message || 'Không tải được dữ liệu thống kê.'
   } finally {
     if (lan === lanTai) dangTaiGd3.value = false
   }
@@ -880,47 +880,61 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
       </div>
     </div>
 
-    <!-- Nút bật/tắt phần thống kê vận hành mở rộng (Ca làm việc, Phương thức thanh toán, Chuyên cần) -->
-    <div class="d-flex justify-content-center">
-      <button type="button" class="tk-more-toggle" @click="hienMoRong = !hienMoRong">
-        <i class="bi me-2" :class="hienMoRong ? 'bi-chevron-up' : 'bi-chevron-down'" aria-hidden="true"></i>
-        {{ hienMoRong ? 'Thu gọn thống kê vận hành (Thanh toán, Ca làm việc & Chuyên cần)' : 'Xem thêm thống kê vận hành (Phương thức thanh toán, Ca làm việc, Giờ cao điểm & Chuyên cần)' }}
-      </button>
-    </div>
-
-    <!-- Các khối phụ thu gọn mặc định để trang không bị rối thông tin -->
-    <div v-show="hienMoRong" class="row g-3">
+    <!-- Ẩn hoàn toàn phần ca làm việc / lịch làm việc khỏi giao diện Thống kê -->
+    <div class="d-none" aria-hidden="true">
       <div class="col-12 col-lg-4">
-        <section class="ad-card h-100 mb-0" data-test="tk-phuong-thuc">
-          <h3 class="fs-6 fw-bold mb-1">Tiền thu theo phương thức thanh toán</h3>
-          <p class="small text-muted mb-3">Số tiền khách thực trả (gồm cả phí ship), khác với doanh thu.</p>
+        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-phuong-thuc">
+          <div class="tk-sec-head">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tk-sec-ico is-blue"><i class="bi bi-credit-card-2-front-fill" aria-hidden="true"></i></span>
+              <div>
+                <h3 class="tk-sec-title m-0">Tiền thu theo phương thức thanh toán</h3>
+                <p class="tk-sec-sub m-0">Số tiền khách thực trả (gồm cả phí ship), khác với doanh thu.</p>
+              </div>
+            </div>
+          </div>
           <div v-if="!theoPt.length" class="ad-empty">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
           <div v-for="p in theoPt" :key="p.ten" class="mb-3">
             <div class="d-flex justify-content-between small mb-1"><span class="fw-medium">{{ p.ten }}</span><span>{{ formatMoney(p.soTien) }} · {{ pctGon(p.pct) }}</span></div>
-            <div class="progress" style="height: 10px"><div class="progress-bar" :style="{ width: p.pct + '%' }"></div></div>
+            <div class="progress tk-progress"><div class="progress-bar tk-progress-bar" :style="{ width: p.pct + '%' }"></div></div>
             <small class="text-muted">{{ p.soDon }} đơn</small>
           </div>
         </section>
       </div>
 
       <div class="col-12 col-md-6 col-lg-4">
-        <section class="ad-card h-100 mb-0" data-test="tk-theo-ca">
-          <h3 class="fs-6 fw-bold mb-3">Doanh thu theo ca làm việc</h3>
+        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-theo-ca">
+          <div class="tk-sec-head">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tk-sec-ico is-sky"><i class="bi bi-calendar2-range-fill" aria-hidden="true"></i></span>
+              <div>
+                <h3 class="tk-sec-title m-0">Doanh thu theo ca làm việc</h3>
+                <p class="tk-sec-sub m-0">Phân bổ doanh thu thực tế theo từng ca trong ngày</p>
+              </div>
+            </div>
+          </div>
           <div v-if="!theoCa.length" class="ad-empty">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
           <div v-for="c in theoCa" :key="c.tenCa" class="mb-3">
             <div class="d-flex justify-content-between small mb-1">
               <span class="fw-medium">{{ c.tenCa }}<small v-if="c.gio" class="text-muted"> ({{ c.gio }})</small></span><span>{{ formatMoney(c.doanhThu) }}</span>
             </div>
-            <div class="progress" style="height: 10px"><div class="progress-bar bg-info" :style="{ width: c.pct + '%' }"></div></div>
+            <div class="progress tk-progress"><div class="progress-bar bg-info" :style="{ width: c.pct + '%' }"></div></div>
             <small class="text-muted">{{ c.soDon }} đơn</small>
           </div>
         </section>
       </div>
 
       <div class="col-12 col-md-6 col-lg-4">
-        <section class="ad-card h-100 mb-0" data-test="tk-theo-gio">
-          <h3 class="fs-6 fw-bold mb-1">Khung giờ đông khách</h3>
-          <p class="small text-muted mb-3">{{ gioDongNhat && gioDongNhat.soDon > 0 ? `Đông nhất ${gioDongNhat.gio}h - ${gioDongNhat.gio + 1}h (${gioDongNhat.soDon} đơn)` : 'Số đơn hoàn thành theo giờ tạo đơn' }}</p>
+        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-theo-gio">
+          <div class="tk-sec-head">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tk-sec-ico is-amber"><i class="bi bi-alarm-fill" aria-hidden="true"></i></span>
+              <div>
+                <h3 class="tk-sec-title m-0">Khung giờ đông khách</h3>
+                <p class="tk-sec-sub m-0">{{ gioDongNhat && gioDongNhat.soDon > 0 ? `Đông nhất ${gioDongNhat.gio}h - ${gioDongNhat.gio + 1}h (${gioDongNhat.soDon} đơn)` : 'Số đơn hoàn thành theo giờ tạo đơn' }}</p>
+              </div>
+            </div>
+          </div>
           <div class="tk-gio" role="img" aria-label="Biểu đồ số đơn theo giờ">
             <div v-for="g in theoGio" :key="g.gio" class="tk-gio-cot" :title="`${g.gio}h: ${g.soDon} đơn · ${formatMoney(g.doanhThu)}`">
               <span class="tk-gio-thanh" :style="{ height: Math.max(g.pct, g.soDon ? 4 : 0) + '%' }"></span>
@@ -931,10 +945,16 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
       </div>
 
       <div class="col-12 col-xl-8">
-        <section class="ad-card h-100 mb-0" data-test="tk-chuyen-can">
-          <div class="d-flex align-items-center mb-3 gap-2">
-            <h3 class="fs-6 fw-bold m-0 me-auto">Chuyên cần theo lịch làm việc</h3>
-            <RouterLink to="/lich-lam-viec" class="small">Xếp lịch</RouterLink>
+        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-chuyen-can">
+          <div class="tk-sec-head">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tk-sec-ico is-green"><i class="bi bi-person-check-fill" aria-hidden="true"></i></span>
+              <div>
+                <h3 class="tk-sec-title m-0">Chuyên cần theo lịch làm việc</h3>
+                <p class="tk-sec-sub m-0">Theo dõi số ca làm, đi muộn và tỷ lệ đúng giờ</p>
+              </div>
+            </div>
+            <RouterLink to="/lich-lam-viec" class="tk-ops-link"><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Xếp lịch</RouterLink>
           </div>
           <div v-if="dangTaiGd3" class="ad-empty">Đang tải…</div>
           <div v-else-if="!chuyenCan.length" class="ad-empty">Chưa có lịch làm việc / ca nào trong khoảng này.</div>
@@ -967,10 +987,16 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
       </div>
 
       <div class="col-12 col-xl-4">
-        <section class="ad-card h-100 mb-0" data-test="tk-giao-ca">
-          <div class="d-flex align-items-center mb-3 gap-2">
-            <h3 class="fs-6 fw-bold m-0 me-auto">Giao ca &amp; đối soát tiền mặt</h3>
-            <RouterLink to="/giao-ca" class="small">Lịch sử giao ca</RouterLink>
+        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-giao-ca">
+          <div class="tk-sec-head">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tk-sec-ico is-indigo"><i class="bi bi-safe2-fill" aria-hidden="true"></i></span>
+              <div>
+                <h3 class="tk-sec-title m-0">Giao ca &amp; đối soát tiền mặt</h3>
+                <p class="tk-sec-sub m-0">Kiểm soát tiền mặt bàn giao cuối ca</p>
+              </div>
+            </div>
+            <RouterLink to="/giao-ca" class="tk-ops-link"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Lịch sử giao ca</RouterLink>
           </div>
           <div class="tk-gc-so">
             <div><span>Ca đã giao</span><b>{{ giaoCa.soCaDaGiao }}</b></div>
@@ -1423,24 +1449,90 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   font-weight: 600;
 }
 
-.tk-more-toggle {
-  display: inline-flex;
+.tk-ops-banner {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0.55rem 1.25rem;
-  border-radius: 999px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #334155;
-  font-size: 0.84rem;
-  font-weight: 600;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.35rem;
+  border-radius: 16px;
+  border: 1px solid #e5ecf4;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  cursor: pointer;
+  user-select: none;
   transition: all 0.16s ease;
 }
 
-.tk-more-toggle:hover {
-  background: #f8fafc;
+.tk-ops-banner:hover {
+  border-color: #bfd7f6;
+  box-shadow: 0 8px 22px rgba(9, 119, 236, 0.08);
+}
+
+.tk-ops-banner.is-open {
   border-color: #0977ec;
+  background: linear-gradient(180deg, #f5f9ff 0%, #ffffff 100%);
+}
+
+.tk-ops-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.72rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.tk-ops-chip i {
   color: #0977ec;
+}
+
+.tk-ops-chip.is-warn {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+}
+
+.tk-ops-chip.is-warn i {
+  color: #d97706;
+}
+
+.tk-ops-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.36rem 0.9rem;
+  border-radius: 999px;
+  background: #e7f1fd;
+  color: #075fc0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.tk-ops-banner:hover .tk-ops-btn,
+.tk-ops-banner.is-open .tk-ops-btn {
+  background: #0977ec;
+  color: #ffffff;
+}
+
+.tk-ops-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.72rem;
+  border-radius: 999px;
+  background: #e7f1fd;
+  color: #075fc0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.tk-ops-link:hover {
+  background: #0977ec;
+  color: #ffffff;
 }
 
 .tk-filter-tag {
