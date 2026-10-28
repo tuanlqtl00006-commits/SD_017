@@ -293,60 +293,81 @@ const bieuDo = computed(() => gomCot(hoaDonDaLoc.value, kq.value.tu, kq.value.de
 const cot = computed(() => bieuDo.value.cot)
 const coDoanhThu = computed(() => cot.value.some((x) => x.v > 0))
 const dinhBieuDo = computed(() => cot.value.reduce((max, x) => (x.v > (max?.v ?? 0) ? x : max), null))
-const W = 700, H = 260, PAD = { l: 58, r: 12, t: 24, b: 30 }
+const W = 860, H = 280, PAD = { l: 56, r: 16, t: 28, b: 36 }
 const vMax = computed(() => lamTronTran(Math.max(...cot.value.map((x) => x.v), 0)))
 const rongCot = computed(() => (W - PAD.l - PAD.r) / Math.max(cot.value.length, 1))
 const rongThanh = computed(() => Math.min(rongCot.value * 0.62, 42))
 const cao = (v) => (v > 0 ? Math.max((v / vMax.value) * (H - PAD.t - PAD.b), 4) : 0)
 const ticks = computed(() => [0, 0.25, 0.5, 0.75, 1].map((t) => ({ t, y: H - PAD.b - t * (H - PAD.t - PAD.b), nhan: nhanTienGon(vMax.value * t) })))
+function nhanTienCot(v) {
+  if (!v) return ''
+  const ty = 1_000_000_000, tr = 1_000_000, k = 1_000
+  const gon = (x, dv) => `${Number(x.toFixed(2)).toString().replace('.', ',')}${dv}`
+  if (v >= ty) return gon(v / ty, ' tỷ')
+  if (v >= tr) return gon(v / tr, 'tr')
+  if (v >= k) return gon(v / k, 'k')
+  return String(v)
+}
 const nhanTruc = computed(() => {
   const ds = cot.value
   const n = ds.length
   if (!n) return []
-  const minDist = Math.max(1, Math.ceil(32 / rongCot.value))
+  // Nếu số cột <= 16 thì hiển thị đầy đủ 100% nhãn trục ngang
+  if (n <= 16) return ds.map((x) => x.nhan)
+
   const chon = new Set()
-  // Ưu tiên hiển thị nhãn ngày của các cột có doanh thu (từ cao xuống thấp)
-  const coDt = ds
-    .map((x, i) => ({ i, v: x.v }))
-    .filter((x) => x.v > 0)
-    .sort((a, b) => b.v - a.v)
-  for (const item of coDt) {
-    if ([...chon].every((j) => Math.abs(item.i - j) >= minDist)) chon.add(item.i)
-  }
-  // Luôn ưu tiên mốc đầu và mốc cuối nếu không đè lên cột có doanh thu
-  if ([...chon].every((j) => Math.abs(0 - j) >= minDist)) chon.add(0)
-  if ([...chon].every((j) => Math.abs(n - 1 - j) >= minDist)) chon.add(n - 1)
-  // Bổ sung các mốc định kỳ cho vùng trống
-  const b = Math.max(1, Math.ceil(n / 8))
-  const minTickDist = Math.max(2, minDist, Math.floor(b / 2) + 1)
+  // 1. BẮT BUỘC hiển thị 100% các cột có doanh thu (kể cả các ngày liền kề như 17/10 và 18/10)
   for (let i = 0; i < n; i++) {
-    if ((n - 1 - i) % b === 0 && [...chon].every((j) => Math.abs(i - j) >= minTickDist)) {
-      chon.add(i)
+    if (ds[i].v > 0) chon.add(i)
+  }
+  // 2. Luôn giữ mốc đầu (0) và mốc cuối (n - 1) nếu cột kế cận chưa có nhãn
+  if (!chon.has(0) && !chon.has(1)) chon.add(0)
+  if (!chon.has(n - 1) && !chon.has(n - 2)) chon.add(n - 1)
+
+  // 3. Chia đều các khoảng trống lớn (>= 4 cột) giữa các mốc đã chọn để trục ngày đều đặn, không bị hổng
+  const Neo = [...chon].sort((a, b) => a - b)
+  if (!Neo.length) {
+    Neo.push(0, n - 1)
+    chon.add(0)
+    chon.add(n - 1)
+  } else {
+    if (Neo[0] >= 3) {
+      chon.add(0)
+      Neo.unshift(0)
+    }
+    if (n - 1 - Neo[Neo.length - 1] >= 3) {
+      chon.add(n - 1)
+      Neo.push(n - 1)
+    }
+  }
+  for (let idx = 0; idx < Neo.length - 1; idx++) {
+    const a = Neo[idx]
+    const b = Neo[idx + 1]
+    const gap = b - a
+    if (gap >= 4) {
+      const soKhoang = Math.max(2, Math.round(gap / 3.5))
+      for (let m = 1; m < soKhoang; m++) {
+        chon.add(Math.round(a + (gap * m) / soKhoang))
+      }
     }
   }
   return ds.map((x, i) => (chon.has(i) ? x.nhan : ''))
 })
 const nhanGiaTri = computed(() => {
   const ds = cot.value
-  const DaChon = []
-  const kqNhan = Array(ds.length).fill('')
-  const coDt = ds
-    .map((x, i) => ({
-      i,
-      v: x.v,
-      x: PAD.l + i * rongCot.value + rongCot.value / 2,
-      y: H - PAD.b - cao(x.v) - 6,
-    }))
-    .filter((x) => x.v > 0)
-    .sort((a, b) => b.v - a.v)
-  for (const item of coDt) {
-    const biDe = DaChon.some((c) => Math.abs(item.x - c.x) < 32 && Math.abs(item.y - c.y) < 14)
-    if (!biDe) {
-      DaChon.push(item)
-      kqNhan[item.i] = nhanTienGon(item.v)
+  const daDat = []
+  return ds.map((x, i) => {
+    if (!(x.v > 0)) return null
+    const cx = PAD.l + i * rongCot.value + rongCot.value / 2
+    let cy = H - PAD.b - cao(x.v) - 6
+    // Nếu 2 cột sát nhau có chiều cao gần bằng nhau thì nâng nhẹ nhãn sau lên để không bao giờ đè chữ
+    if (daDat.some((p) => Math.abs(cx - p.x) < 26 && Math.abs(cy - p.y) < 11)) {
+      cy = Math.max(11, cy - 11)
     }
-  }
-  return kqNhan
+    const text = nhanTienCot(x.v)
+    daDat.push({ x: cx, y: cy })
+    return { text, y: cy }
+  })
 })
 
 /* ----- Cơ cấu trạng thái (vòng) ----- */
@@ -738,27 +759,26 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
               <text
                 v-if="nhanGiaTri[i]"
                 :x="PAD.l + i * rongCot + rongCot / 2"
-                :y="H - PAD.b - cao(d.v) - 6"
+                :y="nhanGiaTri[i].y"
                 text-anchor="middle"
-                font-size="10.5"
+                font-size="10"
                 font-weight="700"
                 fill="#075fc0"
-              >{{ nhanGiaTri[i] }}</text>
+              >{{ nhanGiaTri[i].text }}</text>
               <line
-                v-if="nhanTruc[i]"
                 :x1="PAD.l + i * rongCot + rongCot / 2"
                 :x2="PAD.l + i * rongCot + rongCot / 2"
                 :y1="H - PAD.b"
-                :y2="H - PAD.b + 4"
-                :stroke="d.v > 0 ? '#0977ec' : '#cbd5e1'"
-                stroke-width="1.2"
+                :y2="H - PAD.b + (d.v > 0 ? 5 : nhanTruc[i] ? 4 : 2.5)"
+                :stroke="d.v > 0 ? '#0977ec' : nhanTruc[i] ? '#94a3b8' : '#e2e8f0'"
+                :stroke-width="d.v > 0 ? 1.5 : 1"
               />
               <text
                 v-if="nhanTruc[i]"
                 :x="PAD.l + i * rongCot + rongCot / 2"
-                :y="H - 8"
+                :y="H - 10"
                 text-anchor="middle"
-                font-size="11"
+                :font-size="cot.length > 20 ? 10 : 11"
                 :fill="d.v > 0 ? '#0f172a' : '#64748b'"
                 :font-weight="d.v > 0 ? 700 : 500"
               >{{ nhanTruc[i] }}</text>
@@ -832,9 +852,9 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
                   <tr>
                     <th style="width: 52px">#</th>
                     <th>Sản phẩm</th>
-                    <th>Bán chạy nhất</th>
-                    <th class="text-end">Số lượng</th>
-                    <th class="text-end">Doanh thu</th>
+                    <th>Phân loại bán chạy</th>
+                    <th class="text-center" style="width: 110px">Số lượng</th>
+                    <th class="text-end" style="width: 150px">Doanh thu</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -852,7 +872,7 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
                       <span v-if="p.phanLoaiBanChay" class="tk-variant-chip">{{ p.phanLoaiBanChay }}</span>
                       <span v-else class="text-muted small">—</span>
                     </td>
-                    <td class="text-end">
+                    <td class="text-center">
                       <span class="tk-qty-badge">{{ p.soLuong }}</span>
                     </td>
                     <td class="text-end ad-nowrap fw-bold text-dark">{{ formatMoney(p.doanhThu) }}</td>
@@ -921,7 +941,7 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
                 {{ l.ten }}
                 <small class="text-muted fw-normal ms-1">({{ l.so }} đơn)</small>
               </span>
-              <span class="fw-bold text-primary">{{ formatMoney(l.v) }} <small class="text-muted fw-normal">({{ l.pct.toFixed(0) }}%)</small></span>
+              <span class="fw-bold text-primary">{{ formatMoney(l.v) }} <small class="text-muted fw-normal">({{ pct(l.pct) }})</small></span>
             </div>
             <div class="progress tk-progress">
               <div class="progress-bar tk-progress-bar" :style="{ width: l.pct + '%' }"></div>

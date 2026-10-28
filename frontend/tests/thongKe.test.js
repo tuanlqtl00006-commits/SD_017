@@ -260,14 +260,19 @@ describe('Trang Thống kê', () => {
     w.unmount()
   })
 
-  it('biểu đồ: tháng này theo ngày; 90 ngày gom theo tuần; luôn hiện nhãn ngày và giá trị cho cột có doanh thu', async () => {
-    const dCoDt = ngay(2)
-    const nhanNgayCoDt = `${dCoDt.slice(8, 10)}/${dCoDt.slice(5, 7)}`
-    const w = await moTrang([hd(1, dCoDt, 27200000), hd(2, ngay(50), 1000000)])
+  it('biểu đồ: tháng này theo ngày; 90 ngày gom theo tuần; luôn hiện đủ nhãn ngày và giá trị cho mọi cột có doanh thu kể cả 2 ngày liền kề', async () => {
+    const d1 = ngay(2)
+    const d2 = ngay(1)
+    const nhan1 = `${d1.slice(8, 10)}/${d1.slice(5, 7)}`
+    const nhan2 = `${d2.slice(8, 10)}/${d2.slice(5, 7)}`
+    const w = await moTrang([hd(1, d1, 3400000), hd(2, d2, 1300000), hd(3, ngay(50), 1000000)])
     expect(w.text()).toContain('Doanh thu theo ngày')
     expect(w.findAll('svg rect')).toHaveLength(soNgay(`${homNay.slice(0, 7)}-01`, homNay))
-    expect(w.get('svg').text()).toContain(nhanNgayCoDt)
-    expect(w.get('svg').text()).toContain('27,2tr')
+    const svgText = w.get('svg').text()
+    expect(svgText).toContain(nhan1)
+    expect(svgText).toContain(nhan2)
+    expect(svgText).toContain('3,4tr')
+    expect(svgText).toContain('1,3tr')
     await w.get('#tk-tu').setValue(ngay(89))
     await w.get('#tk-den').setValue(ngay(0))
     expect(w.text()).toContain('Doanh thu theo tuần')
