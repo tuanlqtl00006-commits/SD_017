@@ -89,10 +89,15 @@ public class ThongKeSoSanhService {
                 YearMonth ym = YearMonth.from(homNay);
                 if (!s.isEmpty()) {
                     Matcher m = KY_THANG.matcher(s);
-                    if (!m.matches() || Integer.parseInt(m.group(2)) < 1 || Integer.parseInt(m.group(2)) > 12) {
+                    if (!m.matches()) {
                         throw ApiException.badRequest("Tháng không hợp lệ (dạng 2026-10).");
                     }
-                    ym = YearMonth.of(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
+                    int y = Integer.parseInt(m.group(1));
+                    int mo = Integer.parseInt(m.group(2));
+                    if (y < 2000 || y > 2100 || mo < 1 || mo > 12) {
+                        throw ApiException.badRequest("Tháng không hợp lệ (dạng 2026-10).");
+                    }
+                    ym = YearMonth.of(y, mo);
                 }
                 return thang(ym);
             }
@@ -104,6 +109,7 @@ public class ThongKeSoSanhService {
                     if (!m.matches()) throw ApiException.badRequest("Quý không hợp lệ (dạng 2026-Q4).");
                     nam = Integer.parseInt(m.group(1));
                     quy = Integer.parseInt(m.group(2));
+                    if (nam < 2000 || nam > 2100) throw ApiException.badRequest("Quý không hợp lệ (dạng 2026-Q4).");
                 }
                 return quy(nam, quy);
             }
@@ -112,6 +118,7 @@ public class ThongKeSoSanhService {
                 if (!s.isEmpty()) {
                     if (!KY_NAM.matcher(s).matches()) throw ApiException.badRequest("Năm không hợp lệ (dạng 2026).");
                     nam = Integer.parseInt(s);
+                    if (nam < 2000 || nam > 2100) throw ApiException.badRequest("Năm không hợp lệ (dạng 2026).");
                 }
                 return nam(nam);
             }
@@ -167,10 +174,11 @@ public class ThongKeSoSanhService {
         return !d.isBefore(k.tu()) && !d.isAfter(k.den());
     }
 
-    /** Chỉ số của một kỳ: doanh thu thực tế / dự kiến, số đơn, hoàn thành, hủy, giá trị TB, sản phẩm bán, số khách. */
+    /** Chỉ số của một kỳ: doanh thu thực tế / dự kiến, tổng giảm giá, số đơn, hoàn thành, hủy, giá trị TB, sản phẩm bán, số khách. */
     static Map<String, Object> chiSo(Ky k, List<HoaDon> hoaDons, List<HoaDonChiTiet> chiTietHoanThanh) {
         long thucTe = 0;
         long duKien = 0;
+        long tongGiamGia = 0;
         int soDon = 0;
         int hoanThanh = 0;
         int huy = 0;
@@ -183,6 +191,9 @@ public class ThongKeSoSanhService {
             if (Integer.valueOf(HoaDon.HOAN_THANH).equals(h.getTrangThai())) {
                 hoanThanh++;
                 thucTe += dt;
+                if (h.getSoTienGiam() != null && h.getSoTienGiam().signum() > 0) {
+                    tongGiamGia += h.getSoTienGiam().longValue();
+                }
                 if (h.getKhachHang() != null) khach.add(h.getKhachHang().getId());
             }
             if (Integer.valueOf(HoaDon.DA_HUY).equals(h.getTrangThai())) huy++;
@@ -196,6 +207,7 @@ public class ThongKeSoSanhService {
         m.put("ky", kyDto(k));
         m.put("doanhThuThucTe", thucTe);
         m.put("doanhThuDuKien", duKien);
+        m.put("tongGiamGia", tongGiamGia);
         m.put("soDon", soDon);
         m.put("soHoanThanh", hoanThanh);
         m.put("soHuy", huy);
@@ -220,10 +232,11 @@ public class ThongKeSoSanhService {
         return Math.round((a - b) * 1000.0 / b) / 10.0;
     }
 
-    static final List<String> CHI_SO_SO_SANH = List.of("doanhThuThucTe", "doanhThuDuKien", "soDon", "soHoanThanh", "soHuy",
+    static final List<String> CHI_SO_SO_SANH = List.of("doanhThuThucTe", "doanhThuDuKien", "tongGiamGia", "soDon", "soHoanThanh", "soHuy",
             "giaTriTrungBinh", "soSanPhamBan", "soKhachMua");
     static final Map<String, String> TEN_CHI_SO = Map.of(
-            "doanhThuThucTe", "Doanh thu thực tế", "doanhThuDuKien", "Doanh thu dự kiến", "soDon", "Tổng đơn", "soHoanThanh", "Đơn hoàn thành",
+            "doanhThuThucTe", "Doanh thu thực tế", "doanhThuDuKien", "Doanh thu dự kiến", "tongGiamGia", "Tổng tiền giảm giá",
+            "soDon", "Tổng đơn", "soHoanThanh", "Đơn hoàn thành",
             "soHuy", "Đơn hủy", "giaTriTrungBinh", "Giá trị TB / đơn", "soSanPhamBan", "Sản phẩm bán ra", "soKhachMua", "Khách hàng mua");
 
     static Map<String, Object> bangTang(Map<String, Object> a, Map<String, Object> b) {
@@ -259,7 +272,76 @@ public class ThongKeSoSanhService {
         kq.put("xuHuong", xuHuong(kieu, ky, hoaDons));
         kq.put("chiTietKy", chiTietKy(kieu, ky, hoaDons));
         kq.put("sanPham", sanPham(ky, truoc, chiTiets));
+        kq.put("phanTich", taoPhanTich(kieu, kq));
         return kq;
+    }
+
+    /** Tạo nội dung nhận xét, phân tích tự động (tổng quan, giảm giá, so với kỳ trước, cùng kỳ năm trước và các kỳ khác trong năm). */
+    @SuppressWarnings("unchecked")
+    static List<String> taoPhanTich(Kieu kieu, Map<String, Object> d) {
+        List<String> ds = new ArrayList<>();
+        Map<String, Object> ky = (Map<String, Object>) d.get("ky");
+        Map<String, Object> a = (Map<String, Object>) d.get("hienTai");
+        Map<String, Object> kt = (Map<String, Object>) d.get("kyTruoc");
+        Map<String, Object> ck = (Map<String, Object>) d.get("cungKyNamTruoc");
+        String nhanKy = String.valueOf(ky.get("nhan"));
+        String nhanKt = String.valueOf(((Map<String, Object>) kt.get("ky")).get("nhan"));
+
+        long dtNay = ((Number) a.get("doanhThuThucTe")).longValue();
+        long dtDuKien = ((Number) a.get("doanhThuDuKien")).longValue();
+        long giamGia = ((Number) a.get("tongGiamGia")).longValue();
+        int soDon = ((Number) a.get("soDon")).intValue();
+        int hoanThanh = ((Number) a.get("soHoanThanh")).intValue();
+        int huy = ((Number) a.get("soHuy")).intValue();
+        long spBan = ((Number) a.get("soSanPhamBan")).longValue();
+
+        ds.add(String.format("Kết quả %s: Ghi nhận %d đơn hàng (hoàn thành %d đơn, hủy %d đơn); doanh thu thực tế đạt %s, doanh thu dự kiến đạt %s, tổng chiết khấu/giảm giá khuyến mãi %s, bán ra %d sản phẩm.",
+                nhanKy, soDon, hoanThanh, huy, so(dtNay, true), so(dtDuKien, true), so(giamGia, true), spBan));
+
+        long dtTruoc = ((Number) kt.get("doanhThuThucTe")).longValue();
+        Double tangKt = tangTruong(dtNay, dtTruoc);
+        long chenhKt = dtNay - dtTruoc;
+        String moTaKt = chenhKt == 0 ? "giữ nguyên (0 đ)" : String.format("%s (%s%s)", chenhKt > 0 ? "tăng" : "giảm", chenhKt > 0 ? "+" : "", so(chenhKt, true));
+        ds.add(String.format("So với kỳ liền trước (%s đạt %s): Doanh thu thực tế %s, biến động %s.",
+                nhanKt, so(dtTruoc, true), moTaKt, phanTram(tangKt)));
+
+        if (ck != null) {
+            String nhanCk = String.valueOf(((Map<String, Object>) ck.get("ky")).get("nhan"));
+            long dtCk = ((Number) ck.get("doanhThuThucTe")).longValue();
+            Double tangCk = tangTruong(dtNay, dtCk);
+            long chenhCk = dtNay - dtCk;
+            String moTaCk = chenhCk == 0 ? "giữ nguyên (0 đ)" : String.format("%s (%s%s)", chenhCk > 0 ? "tăng" : "giảm", chenhCk > 0 ? "+" : "", so(chenhCk, true));
+            ds.add(String.format("So với cùng kỳ năm trước (%s đạt %s): Doanh thu thực tế %s, biến động %s.",
+                    nhanCk, so(dtCk, true), moTaCk, phanTram(tangCk)));
+        }
+
+        List<Map<String, Object>> xu = (List<Map<String, Object>>) d.get("xuHuong");
+        if (xu != null && !xu.isEmpty()) {
+            Map<String, Object> maxKy = null;
+            long tongNam = 0;
+            int soKyCoDt = 0;
+            for (Map<String, Object> p : xu) {
+                long v = ((Number) p.get("doanhThu")).longValue();
+                tongNam += v;
+                if (v > 0) soKyCoDt++;
+                if (maxKy == null || v > ((Number) maxKy.get("doanhThu")).longValue()) maxKy = p;
+            }
+            long tb = soKyCoDt > 0 ? Math.round((double) tongNam / soKyCoDt) : 0;
+            String donVi = kieu == Kieu.THANG ? "các tháng trong năm" : kieu == Kieu.QUY ? "các quý trong năm" : "các năm";
+            if (maxKy != null && ((Number) maxKy.get("doanhThu")).longValue() > 0) {
+                ds.add(String.format("So sánh với %s: Tổng doanh thu chuỗi đạt %s (trung bình %s/kỳ có phát sinh); kỳ cao nhất là %s (%s).",
+                        donVi, so(tongNam, true), so(tb, true), maxKy.get("nhan"), so(((Number) maxKy.get("doanhThu")).longValue(), true)));
+            }
+        }
+
+        List<Map<String, Object>> sps = (List<Map<String, Object>>) d.get("sanPham");
+        if (sps != null && !sps.isEmpty()) {
+            Map<String, Object> top1 = sps.get(0);
+            ds.add(String.format("Sản phẩm chủ lực: %s (%s) dẫn đầu với %s sản phẩm bán ra, mang về %s (so với kỳ trước: %s).",
+                    top1.get("tenSanPham"), top1.get("maSanPham"), top1.get("soLuong"),
+                    so(((Number) top1.get("doanhThu")).longValue(), true), phanTram((Double) top1.get("tangTruong"))));
+        }
+        return ds;
     }
 
     /**
@@ -408,18 +490,37 @@ public class ThongKeSoSanhService {
         return kq;
     }
 
-    /** Email TỰ ĐỘNG: 8 giờ sáng ngày 1 hằng tháng gửi báo cáo tháng trước cho mọi quản lý đang hoạt động có email. */
+    /** Email TỰ ĐỘNG HẰNG NGÀY: 21:00 mỗi tối gửi báo cáo doanh thu lũy kế trong tháng & ngày hiện tại cho quản lý. */
+    @Scheduled(cron = "${app.thong-ke.cron-bao-cao-ngay:0 0 21 * * *}")
+    public void baoCaoNgayTuDong() {
+        String ky = YearMonth.from(LocalDate.now(dongHo)).toString();
+        guiBaoCaoChoQuanLy(ky, soSanh("THANG", ky));
+    }
+
+    /** Email TỰ ĐỘNG CUỐI THÁNG: 22:30 ngày cuối tháng gửi báo cáo tổng kết tháng hiện tại cho quản lý. */
+    @Scheduled(cron = "${app.thong-ke.cron-bao-cao-cuoi-thang:0 30 22 28-31 * *}")
+    public void baoCaoCuoiThangTuDong() {
+        LocalDate homNay = LocalDate.now(dongHo);
+        if (homNay.getDayOfMonth() != homNay.lengthOfMonth()) return;
+        String ky = YearMonth.from(homNay).toString();
+        guiBaoCaoChoQuanLy(ky, soSanh("THANG", ky));
+    }
+
+    /** Email TỰ ĐỘNG ĐẦU THÁNG: 8 giờ sáng ngày 1 hằng tháng gửi báo cáo chốt tháng trước cho mọi quản lý đang hoạt động có email. */
     @Scheduled(cron = "${app.thong-ke.cron-bao-cao:0 0 8 1 * *}")
     public void baoCaoThangTuDong() {
         String ky = YearMonth.from(LocalDate.now(dongHo)).minusMonths(1).toString();
-        Map<String, Object> d = soSanh("THANG", ky);
+        guiBaoCaoChoQuanLy(ky, soSanh("THANG", ky));
+    }
+
+    private void guiBaoCaoChoQuanLy(String ky, Map<String, Object> d) {
         for (NhanVien nv : nhanVienRepo.findByTrangThaiOrderByHoTenAsc(NhanVien.HOAT_DONG)) {
             boolean ql = nv.getVaiTro() != null && VaiTro.TEN_QUAN_LY.equalsIgnoreCase(String.valueOf(nv.getVaiTro().getTenVaiTro()).trim());
             if (!ql || nv.getEmail() == null || !nv.getEmail().contains("@")) continue;
             try {
                 guiThu(nv.getEmail().trim(), d);
             } catch (Exception e) {
-                log.error("Không gửi được báo cáo tháng {} tới {}: {}", ky, nv.getEmail(), e.getMessage());
+                log.error("Không gửi được báo cáo {} tới {}: {}", ky, nv.getEmail(), e.getMessage());
             }
         }
     }
@@ -430,8 +531,9 @@ public class ThongKeSoSanhService {
         Map<String, Object> a = (Map<String, Object>) d.get("hienTai");
         Map<String, Object> kt = (Map<String, Object>) d.get("kyTruoc");
         Map<String, Object> ck = (Map<String, Object>) d.get("cungKyNamTruoc");
+        List<String> phanTich = (List<String>) d.get("phanTich");
         String nhanKy = String.valueOf(ky.get("nhan"));
-        String tieuDe = "[FootStyle] Báo cáo so sánh doanh thu " + nhanKy;
+        String tieuDe = "[FootStyle] Báo cáo phân tích & so sánh doanh thu " + nhanKy;
 
         List<BieuDoPng.Cot> xu = new ArrayList<>();
         for (Map<String, Object> p : (List<Map<String, Object>>) d.get("xuHuong")) {
@@ -448,17 +550,31 @@ public class ThongKeSoSanhService {
         byte[] anhCt = BieuDoPng.cotNhom("Chi tiết " + nhanKy, nhanKy, "Cùng kỳ năm trước", ct);
 
         StringBuilder html = new StringBuilder("<div style=\"font-family:Arial,sans-serif;color:#18242f;font-size:14px\">");
-        html.append("<h2 style=\"margin:0 0 4px\">Báo cáo so sánh ").append(esc(nhanKy)).append("</h2>");
+        html.append("<h2 style=\"margin:0 0 4px\">Báo cáo phân tích &amp; so sánh ").append(esc(nhanKy)).append("</h2>");
         html.append("<p style=\"color:#5b6b80;margin:0 0 16px\">Từ ").append(ky.get("tuNgay")).append(" đến ").append(ky.get("denNgay"))
                 .append(". Doanh thu không gồm phí giao hàng; thực tế = đơn đã hoàn thành, dự kiến = mọi đơn chưa hủy.</p>");
+
+        StringBuilder chu = new StringBuilder("Báo cáo phân tích & so sánh " + nhanKy + "\n\n");
+        if (phanTich != null && !phanTich.isEmpty()) {
+            html.append("<div style=\"background:#f8fafc;border:1px solid #dbeafe;border-left:4px solid #0977ec;padding:12px 16px;border-radius:8px;margin-bottom:16px\">")
+                    .append("<b style=\"color:#0977ec;display:block;margin-bottom:6px\">Nhận xét &amp; Phân tích tổng hợp:</b>")
+                    .append("<ul style=\"margin:0;padding-left:18px;line-height:1.55\">");
+            chu.append("NHẬN XÉT & PHÂN TÍCH:\n");
+            for (String dong : phanTich) {
+                html.append("<li>").append(esc(dong)).append("</li>");
+                chu.append("* ").append(dong).append("\n");
+            }
+            html.append("</ul></div>");
+            chu.append("\n");
+        }
+
         html.append("<table cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse:collapse;border:1px solid #e3eaf3\">")
                 .append("<tr style=\"background:#f3f6fb\"><th align=\"left\">Chỉ số</th><th align=\"right\">").append(esc(nhanKy))
                 .append("</th><th align=\"right\">").append(esc(String.valueOf(((Map<String, Object>) kt.get("ky")).get("nhan")))).append("</th><th align=\"right\">±</th>");
         if (ck != null) html.append("<th align=\"right\">").append(esc(String.valueOf(((Map<String, Object>) ck.get("ky")).get("nhan")))).append("</th><th align=\"right\">±</th>");
         html.append("</tr>");
-        StringBuilder chu = new StringBuilder("Báo cáo so sánh " + nhanKy + "\n\n");
         for (String k : CHI_SO_SO_SANH) {
-            boolean tien = k.startsWith("doanhThu") || k.equals("giaTriTrungBinh");
+            boolean tien = k.startsWith("doanhThu") || k.equals("giaTriTrungBinh") || k.equals("tongGiamGia");
             long va = ((Number) a.get(k)).longValue();
             long vb = ((Number) kt.get(k)).longValue();
             html.append("<tr style=\"border-top:1px solid #e3eaf3\"><td>").append(esc(TEN_CHI_SO.get(k))).append("</td><td align=\"right\"><b>")
@@ -486,7 +602,7 @@ public class ThongKeSoSanhService {
             }
             html.append("</table>");
         }
-        html.append("<p style=\"color:#7b8794;margin-top:20px\">Thư gửi từ hệ thống FootStyle. Xem chi tiết tại trang Thống kê &gt; So sánh.</p></div>");
+        html.append("<p style=\"color:#7b8794;margin-top:20px\">Thư gửi từ hệ thống FootStyle (tự động gửi định kỳ hằng ngày lúc 21:00 và cuối mỗi tháng). Xem chi tiết tại trang Thống kê &gt; So sánh.</p></div>");
         Map<String, byte[]> anh = new LinkedHashMap<>();
         anh.put("bieu-do-xu-huong", anhXu);
         anh.put("bieu-do-chi-tiet", anhCt);

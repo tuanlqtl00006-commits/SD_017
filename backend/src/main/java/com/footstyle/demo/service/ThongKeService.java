@@ -188,6 +188,7 @@ public class ThongKeService {
         m.put("ma", c.getMaSpct());
         m.put("idSanPham", c.getSanPham().getId());
         m.put("tenSanPham", c.getSanPham().getTenSanPham());
+        m.put("thuongHieu", c.getSanPham().getThuongHieu() == null ? null : c.getSanPham().getThuongHieu().getTen());
         m.put("phanLoai", BanHangService.phanLoai(c));
         m.put("tonKho", ton(c));
         return m;

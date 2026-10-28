@@ -113,14 +113,18 @@ export function phanTramThayDoi(nay, truoc) {
  * tu / den rỗng (xem "Tất cả") thì lấy từ ngày đầu tiên có đơn tới hôm nay.
  * Trả về { donVi: 'ngày' | 'tuần' | 'tháng', cot: [{ k, nhan, v, so }] }.
  */
-export function gomCot(hoaDon, tu, den, homNay) {
+export function gomCot(hoaDon, tu, den, homNay, donViChon = '') {
   const xong = (hoaDon ?? []).filter((h) => h.trangThai === TT_HOAN_THANH && ngayCua(h))
   const ngay = xong.map(ngayCua).sort()
-  const dau = tu || ngay[0] || homNay
+  let dau = tu || ngay[0] || homNay
   const cuoi = den || homNay
-  if (dau > cuoi) return { donVi: 'ngày', cot: [] }
+  const macDinh = donViChon || 'ngày'
+  if (dau > cuoi) return { donVi: macDinh, cot: [] }
+  // Chặn trường hợp nhập năm quá xa (vd: 1900-01-01) gây vòng lặp lớn làm đơ trình duyệt
+  if (soNgay(dau, cuoi) > 3660) dau = congNgay(cuoi, -3650)
   const n = soNgay(dau, cuoi)
-  const donVi = n <= 31 ? 'ngày' : n <= 182 ? 'tuần' : 'tháng'
+  const donVi = donViChon || (n <= 31 ? 'ngày' : n <= 182 ? 'tuần' : 'tháng')
+  if (donVi === 'ngày' && n > 366) dau = congNgay(cuoi, -365)
 
   const cot = []
   if (donVi === 'ngày' || donVi === 'tuần') {
@@ -169,16 +173,20 @@ export function xepHang(hoaDon, layTen, gioiHan = 5) {
   return [...m.values()].sort((a, b) => b.v - a.v || b.so - a.so || a.ten.localeCompare(b.ten, 'vi')).slice(0, gioiHan)
 }
 
-/** Doanh thu theo loại đơn (đơn hoàn thành), kèm tỷ trọng %. */
+/** Doanh thu theo loại đơn (đơn hoàn thành), kèm số đơn và tỷ trọng %. */
 export function theoLoaiDon(hoaDon) {
   const m = {}
+  const dem = {}
   for (const h of hoaDon ?? []) {
     if (h.trangThai !== TT_HOAN_THANH) continue
     const k = h.loaiDon || 'Khác'
     m[k] = (m[k] || 0) + tien(h)
+    dem[k] = (dem[k] || 0) + 1
   }
   const tong = Object.values(m).reduce((a, b) => a + b, 0)
-  return Object.entries(m).map(([ten, v]) => ({ ten, v, pct: tong ? (v / tong) * 100 : 0 })).sort((a, b) => b.v - a.v)
+  return Object.entries(m)
+    .map(([ten, v]) => ({ ten, v, so: dem[ten] || 0, pct: tong ? (v / tong) * 100 : 0 }))
+    .sort((a, b) => b.v - a.v)
 }
 
 /** Các đơn mới nhất (theo ngày tạo giảm dần, rồi id giảm dần). */

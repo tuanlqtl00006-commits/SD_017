@@ -21,11 +21,34 @@ const KIEU = [
   { v: 'NAM', t: 'Theo năm' },
 ]
 const kieu = ref('THANG')
-const thang = ref(homNay.slice(0, 7))
+const thangHienTai = homNay.slice(0, 7)
+const quyHienTai = Math.floor((Number(homNay.slice(5, 7)) - 1) / 3) + 1
+const thang = ref(thangHienTai)
 const namQuy = ref(namNay)
-const quy = ref(Math.floor((Number(homNay.slice(5, 7)) - 1) / 3) + 1)
+const quy = ref(quyHienTai)
 const nam = ref(namNay)
 const dsNam = Array.from({ length: 6 }, (_, i) => namNay - i)
+
+const canhBaoKy = computed(() => {
+  if (kieu.value === 'THANG') {
+    const t = String(thang.value || '').trim()
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(t)) return 'Tháng chọn không hợp lệ (cần định dạng YYYY-MM).'
+    if (t > thangHienTai) return `Tháng đang chọn (${t}) vượt quá tháng hiện tại (${thangHienTai}).`
+    if (t < '2000-01') return 'Vui lòng chọn tháng từ năm 2000 trở lại đây.'
+  } else if (kieu.value === 'QUY') {
+    if (namQuy.value === namNay && quy.value > quyHienTai) {
+      return `Quý ${quy.value}/${namQuy.value} chưa diễn ra (hiện tại đang ở Quý ${quyHienTai}/${namNay}).`
+    }
+  }
+  return ''
+})
+
+function datVeKyHienTai() {
+  thang.value = thangHienTai
+  namQuy.value = namNay
+  quy.value = quyHienTai
+  nam.value = namNay
+}
 
 const ky = computed(() => (kieu.value === 'THANG' ? thang.value : kieu.value === 'QUY' ? `${namQuy.value}-Q${quy.value}` : String(nam.value)))
 const d = ref(null)
@@ -35,6 +58,7 @@ let lan = 0
 
 async function tai() {
   if (!ky.value) return
+  if (kieu.value === 'THANG' && (!/^\d{4}-(0[1-9]|1[0-2])$/.test(thang.value) || thang.value < '2000-01')) return
   const l = ++lan
   dangTai.value = true
   loi.value = ''
@@ -149,7 +173,11 @@ function batEmail() {
 }
 async function guiEmail() {
   const e = email.value.trim()
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) {
+  if (!e) {
+    loiEmail.value = 'Vui lòng nhập địa chỉ email nhận báo cáo.'
+    return
+  }
+  if (e.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) {
     loiEmail.value = 'Email không hợp lệ.'
     return
   }
@@ -167,16 +195,16 @@ async function guiEmail() {
 </script>
 
 <template>
-  <div>
-    <section class="ad-card">
+  <div class="ss-page">
+    <section class="ad-card ss-filter-card">
       <div class="d-flex flex-wrap align-items-center gap-3">
         <div class="ad-card-head mb-0 me-auto">
           <span class="ad-icon-box"><i class="bi bi-bar-chart-line" aria-hidden="true"></i></span>
           <div>
             <h2 class="ad-card-title">So sánh doanh thu</h2>
             <p class="ad-card-sub">
-              <RouterLink to="/thong-ke"><i class="bi bi-arrow-left" aria-hidden="true"></i> Thống kê</RouterLink>
-              <template v-if="d"> · {{ d.ky.nhan }} ({{ formatDate(d.ky.tuNgay) }} – {{ formatDate(d.ky.denNgay) }})</template>
+              <RouterLink to="/thong-ke" class="fw-semibold text-decoration-none"><i class="bi bi-arrow-left" aria-hidden="true"></i> Quay lại Thống kê</RouterLink>
+              <template v-if="d"> · <strong>{{ d.ky.nhan }}</strong> ({{ formatDate(d.ky.tuNgay) }} – {{ formatDate(d.ky.denNgay) }})</template>
             </p>
           </div>
         </div>
@@ -202,14 +230,28 @@ async function guiEmail() {
           <button type="button" class="ad-btn ad-btn-sm ad-btn-primary" :disabled="!d" data-test="ss-email" @click="batEmail"><i class="bi bi-envelope" aria-hidden="true"></i> Gửi email</button>
         </div>
       </div>
+
+      <div v-if="d" class="ss-ky-bar mt-3">
+        <span class="ss-ky-chip is-main"><i class="bi bi-calendar-check me-1"></i>Kỳ đang xem: <strong>{{ d.ky.nhan }}</strong> ({{ formatDate(d.ky.tuNgay) }} – {{ formatDate(d.ky.denNgay) }})</span>
+        <span class="ss-ky-chip"><i class="bi bi-arrow-left-right me-1"></i>Kỳ liền trước: <strong>{{ d.kyTruoc.ky.nhan }}</strong></span>
+        <span v-if="d.cungKyNamTruoc" class="ss-ky-chip"><i class="bi bi-clock-history me-1"></i>Cùng kỳ năm trước: <strong>{{ d.cungKyNamTruoc.ky.nhan }}</strong></span>
+        <span v-if="d.hienTai?.tongGiamGia !== undefined" class="ss-ky-chip"><i class="bi bi-ticket-perforated me-1"></i>Tổng giảm giá / KM: <strong>{{ formatMoney(d.hienTai.tongGiamGia || 0) }}</strong></span>
+      </div>
+
+      <div v-if="canhBaoKy" class="alert alert-warning d-flex align-items-center gap-2 py-2 px-3 mt-3 mb-0 small" role="status" data-test="ss-canh-bao-ky">
+        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <span>{{ canhBaoKy }}</span>
+        <button type="button" class="btn btn-sm btn-warning ms-auto" data-test="ss-ve-hien-tai" @click="datVeKyHienTai">Về kỳ hiện tại</button>
+      </div>
+
       <form v-if="moEmail" class="ss-email" novalidate @submit.prevent="guiEmail">
-        <label class="ad-label m-0" for="ss-email-o">Gửi báo cáo {{ nhanKy }} (bảng so sánh + biểu đồ) tới</label>
+        <label class="ad-label m-0" for="ss-email-o">Gửi báo cáo {{ nhanKy }} (phân tích + bảng so sánh + biểu đồ) tới</label>
         <input id="ss-email-o" v-model="email" type="email" class="form-control form-control-sm" :class="{ 'is-invalid': loiEmail }" placeholder="email@gmail.com" @input="loiEmail = ''" />
         <button type="submit" class="ad-btn ad-btn-sm ad-btn-primary" :disabled="dangGui">
           <span v-if="dangGui" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Gửi
         </button>
         <p v-if="loiEmail" class="ad-error w-100 mb-0">{{ loiEmail }}</p>
-        <p class="ad-hint w-100 mb-0">Ngoài ra, ngày 1 hằng tháng hệ thống tự động gửi báo cáo tháng trước cho quản lý.</p>
+        <p class="ad-hint w-100 mb-0">Ngoài ra, hệ thống tự động gửi email báo cáo phân tích hằng ngày (21:00) và vào cuối mỗi tháng cho quản lý.</p>
       </form>
     </section>
 
@@ -217,20 +259,20 @@ async function guiEmail() {
     <div v-if="dangTai && !d" class="ad-empty">Đang tải…</div>
 
     <template v-if="d">
-      <div class="row g-3 mb-3">
+      <div class="row g-3">
         <div v-for="c in CHI_SO" :key="c.k" class="col-12 col-sm-6 col-xl-3">
-          <section class="ad-card h-100 mb-0" data-test="ss-chi-so">
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <i class="bi text-primary" :class="c.icon" aria-hidden="true"></i>
-              <span class="text-muted small">{{ c.ten }}</span>
+          <section class="ad-card ss-kpi-card h-100 mb-0" data-test="ss-chi-so">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="ss-kpi-ico"><i class="bi" :class="c.icon" aria-hidden="true"></i></span>
+              <span class="text-secondary fw-semibold small">{{ c.ten }}</span>
             </div>
-            <div class="fs-5 fw-bold">{{ giaTri(c, d.hienTai[c.k]) }}</div>
-            <div class="small mt-1">
-              <span :class="moTaTang(d.tangSoVoiKyTruoc[c.k], c.xauKhiTang).lop" class="fw-semibold">{{ moTaTang(d.tangSoVoiKyTruoc[c.k], c.xauKhiTang).text }}</span>
+            <div class="fs-4 fw-bold text-dark">{{ giaTri(c, d.hienTai[c.k]) }}</div>
+            <div class="small mt-2">
+              <span :class="moTaTang(d.tangSoVoiKyTruoc[c.k], c.xauKhiTang).lop" class="fw-bold">{{ moTaTang(d.tangSoVoiKyTruoc[c.k], c.xauKhiTang).text }}</span>
               <span class="text-muted"> so với {{ d.kyTruoc.ky.nhan }} ({{ giaTri(c, d.kyTruoc[c.k]) }})</span>
             </div>
-            <div v-if="d.cungKyNamTruoc" class="small">
-              <span :class="moTaTang(d.tangSoVoiCungKy[c.k], c.xauKhiTang).lop" class="fw-semibold">{{ moTaTang(d.tangSoVoiCungKy[c.k], c.xauKhiTang).text }}</span>
+            <div v-if="d.cungKyNamTruoc" class="small mt-1">
+              <span :class="moTaTang(d.tangSoVoiCungKy[c.k], c.xauKhiTang).lop" class="fw-bold">{{ moTaTang(d.tangSoVoiCungKy[c.k], c.xauKhiTang).text }}</span>
               <span class="text-muted"> so với cùng kỳ {{ d.cungKyNamTruoc.ky.nhan }}</span>
             </div>
           </section>
@@ -312,17 +354,99 @@ async function guiEmail() {
 </template>
 
 <style scoped>
+.ss-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  font-family: var(--bs-body-font-family, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif);
+  letter-spacing: 0;
+}
+.ss-page :deep(*),
+.ss-page input,
+.ss-page select,
+.ss-page button,
+.ss-page svg text,
+.ss-page input[type='month']::-webkit-datetime-edit,
+.ss-page input[type='month']::-webkit-datetime-edit-fields-wrapper,
+.ss-page input[type='month']::-webkit-datetime-edit-month-field,
+.ss-page input[type='month']::-webkit-datetime-edit-year-field,
+.ss-page input[type='month']::-webkit-datetime-edit-text {
+  font-family: inherit !important;
+}
+.ss-filter-card {
+  border-radius: 18px;
+  border: 1px solid #e5ecf4;
+}
+.ss-ky-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #eef2f7;
+}
+.ss-ky-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.ss-ky-chip.is-main {
+  background: #e7f1fd;
+  color: #075fc0;
+}
+.ss-kpi-card {
+  position: relative;
+  border-radius: 16px;
+  border: 1px solid #e8eef5;
+  overflow: hidden;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.ss-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+}
+.ss-kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0977ec, #38bdf8);
+}
+.ss-kpi-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #e8f3fe;
+  color: #0977ec;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+}
+.ss-o,
+.ss-o-nho {
+  height: 36px;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  color: #1e293b !important;
+  border-radius: 8px;
+}
 .ss-o {
-  width: 160px;
+  width: 165px;
 }
 .ss-o-nho {
-  width: 110px;
+  width: 120px;
 }
 .ss-tot {
-  color: #17a34a;
+  color: #15803d;
 }
 .ss-xau {
-  color: #e5484d;
+  color: #be123c;
 }
 .ss-chu {
   display: inline-block;

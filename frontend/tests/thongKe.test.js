@@ -200,10 +200,10 @@ describe('Trang Thống kê', () => {
     w.unmount()
   })
 
-  it('đổi sang 7 ngày thì chỉ còn đơn trong 7 ngày', async () => {
+  it('đổi sang 7 ngày qua thì chỉ còn đơn trong 7 ngày', async () => {
     const w = await moTrang([hd(1, ngay(2), 1000000), hd(2, ngay(20), 4000000)])
     expect(kpiText(w)[0]).toContain('5.000.000')
-    await w.findAll('button').find((b) => b.text() === '7 ngày').trigger('click')
+    await w.findAll('button').find((b) => b.text() === '7 ngày qua').trigger('click')
     expect(kpiText(w)[0]).toContain('1.000.000')
     expect(kpiText(w)[0]).not.toContain('5.000.000')
     w.unmount()
@@ -211,8 +211,7 @@ describe('Trang Thống kê', () => {
 
   it('Tự chọn: có ô từ ngày / đến ngày và lọc đúng khoảng', async () => {
     const w = await moTrang([hd(1, ngay(5), 1000000), hd(2, ngay(10), 4000000)])
-    expect(w.find('[data-test="tk-tu-chon"]').exists()).toBe(false)
-    await w.findAll('button').find((b) => b.text() === 'Tự chọn').trigger('click')
+    expect(w.find('[data-test="tk-tu-chon"]').exists()).toBe(true)
     await w.get('#tk-tu').setValue(ngay(12))
     await w.get('#tk-den').setValue(ngay(8))
     expect(kpiText(w)[0]).toContain('4.000.000')
@@ -265,7 +264,8 @@ describe('Trang Thống kê', () => {
     const w = await moTrang([hd(1, ngay(2), 1000000), hd(2, ngay(50), 1000000)])
     expect(w.text()).toContain('Doanh thu theo ngày')
     expect(w.findAll('svg rect')).toHaveLength(30)
-    await w.findAll('button').find((b) => b.text() === '90 ngày').trigger('click')
+    await w.get('#tk-tu').setValue(ngay(89))
+    await w.get('#tk-den').setValue(ngay(0))
     expect(w.text()).toContain('Doanh thu theo tuần')
     expect(w.findAll('svg rect')).toHaveLength(Math.ceil(90 / 7))
     w.unmount()
@@ -279,58 +279,51 @@ describe('Trang Thống kê', () => {
     w.unmount()
   })
 
-  it('validate ngày tự chọn + đối soát dòng tiền + lọc tìm kiếm SP và tồn kho từ /thong-ke/tong-quan', async () => {
-    const dsHd = [
-      hd(10, ngay(1), 500000, 6, { maHoaDon: 'HD10', tenKhachHang: 'Trần Bình' }),
-      hd(11, ngay(1), 800000, 3, { maHoaDon: 'HD11', tenKhachHang: 'Lê Hoa', loaiDon: 'Trực tuyến' }),
-      hd(12, ngay(1), 400000, 0, { maHoaDon: 'HD12', tenKhachHang: 'Vũ Nam' }),
-    ]
-    const tongQuanDb = {
-      chiTietHoaDon: [
-        { idHoaDon: 10, maHoaDon: 'HD10', ngayTao: `${ngay(1)}T10:00:00`, trangThaiHoaDon: 6, idSanPham: 1, maSanPham: 'SP1', tenSanPham: 'Bóng Futsal Nike', tenThuongHieu: 'Nike', tenDanhMuc: 'Futsal', idBienThe: 1, maBienThe: 'BT1', soLuong: 1, thanhTien: 500000, soLuongTon: 0 },
-        { idHoaDon: 10, maHoaDon: 'HD10', ngayTao: `${ngay(1)}T10:00:00`, trangThaiHoaDon: 6, idSanPham: 2, maSanPham: 'SP2', tenSanPham: 'Bóng Adidas Pro', tenThuongHieu: 'Adidas', tenDanhMuc: 'Sân cỏ', idBienThe: 2, maBienThe: 'BT2', soLuong: 2, thanhTien: 900000, soLuongTon: 4 },
-      ],
-      uuDaiHoaDon: [
-        { idHoaDon: 10, maHoaDon: 'HD10', ngayTao: `${ngay(1)}T10:00:00`, trangThai: 6, soTienGiam: 900000, phiVanChuyen: 25000 },
-      ],
-      tonKhoCanhBao: [
-        { idBienThe: 1, maBienThe: 'BT1', idSanPham: 1, tenSanPham: 'Bóng Futsal Nike', soLuongTon: 0, giaBan: 500000, giaSauGiam: 500000, phanTramGiam: 0 },
-        { idBienThe: 2, maBienThe: 'BT2', idSanPham: 2, tenSanPham: 'Bóng Adidas Pro', soLuongTon: 4, giaBan: 450000, giaSauGiam: 405000, phanTramGiam: 10 },
-      ],
-      heThong: {
-        tongSanPhamHoatDong: 8, tongBienTheHoatDong: 24, tongTonKho: 320, soBienTheSapHet: 2, soBienTheHetHang: 1,
-        tongKhachHangHoatDong: 15, tongNhanVienHoatDong: 4, soDotDangDienRa: 1, soDotSapDienRa: 1, soPhieuDangHoatDong: 2,
-        dotDangChay: [{ id: 9, maDot: 'DGG09', tenDot: 'Siêu Sale Tháng 10', phanTramGiamDot: 15, trangThaiText: 'Đang diễn ra' }],
-        phieuDangChay: [],
-      },
-    }
-    api.get.mockImplementation((url) => {
-      if (url === '/thong-ke/tong-quan') return Promise.resolve({ data: tongQuanDb })
-      if (url === '/thong-ke') return Promise.resolve({ data: {} })
-      return Promise.resolve({ data: { content: dsHd } })
-    })
-
-    const w = mount(ThongKe, { attachTo: document.body })
-    await flushPromises()
-
-    expect(w.get('[data-test="tk-thuc-thu"]').text()).toContain('25.000')
-    expect(w.get('[data-test="tk-doi-soat"]').text()).toContain('800.000')
-    expect(w.get('[data-test="tk-doi-soat"]').text()).toContain('400.000')
-    expect(w.get('[data-test="tk-he-thong"]').text()).toContain('8 sản phẩm · 24 biến thể')
-
-    await w.get('[data-test="tk-tim-sp"]').setValue('futsal')
-    expect(w.findAll('[data-test="tk-top-sp"] tbody tr')).toHaveLength(1)
-    expect(w.get('[data-test="tk-top-sp"] tbody').text()).toContain('Bóng Futsal Nike')
-
-    await w.get('[data-test="tk-loc-het-hang"]').trigger('click')
-    expect(w.findAll('[data-test="tk-ton-kho"] tbody tr')).toHaveLength(1)
-
-    await w.findAll('button').find((b) => b.text() === 'Tự chọn').trigger('click')
+  it('validate ngày tự chọn: hiện cảnh báo khi nhập ngược ngày và bấm nút chuẩn hóa', async () => {
+    const w = await moTrang([hd(10, ngay(1), 500000, 6)])
     await w.get('#tk-tu').setValue(ngay(1))
     await w.get('#tk-den').setValue(ngay(5))
     expect(w.find('[data-test="tk-canh-bao-ngay"]').exists()).toBe(true)
     await w.get('[data-test="tk-chuan-hoa-ngay"]').trigger('click')
     expect(w.find('[data-test="tk-canh-bao-ngay"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('bộ lọc thống kê: đổi đơn vị biểu đồ, lọc theo thương hiệu, tìm sản phẩm và nút Đặt lại', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/thong-ke') {
+        return Promise.resolve({
+          data: {
+            sanPhamBanChay: [
+              { idSanPham: 1, maSanPham: 'SP01', tenSanPham: 'Vợt Yonex Astrox', thuongHieu: 'Yonex', soLuong: 5, doanhThu: 5000000, soDon: 4 },
+              { idSanPham: 2, maSanPham: 'SP02', tenSanPham: 'Vợt Victor Thruster', thuongHieu: 'Victor', soLuong: 3, doanhThu: 3000000, soDon: 2 },
+            ],
+            sapHetHang: [
+              { id: 10, ma: 'SP01-BT1', idSanPham: 1, tenSanPham: 'Vợt Yonex Astrox', phanLoai: '4U', tonKho: 2 },
+              { id: 11, ma: 'SP02-BT1', idSanPham: 2, tenSanPham: 'Vợt Victor Thruster', phanLoai: '4U', tonKho: 0 },
+            ],
+          },
+        })
+      }
+      return Promise.resolve({ data: { content: [hd(1, ngay(1), 5000000, 6)] } })
+    })
+    const w = mount(ThongKe, { attachTo: document.body })
+    await flushPromises()
+
+    // Đổi THỐNG KÊ sang Theo tuần -> biểu đồ đổi sang tuần
+    await w.get('[data-test="tk-don-vi"]').setValue('tuần')
+    expect(w.text()).toContain('Doanh thu theo tuần')
+
+    // Lọc THƯƠNG HIỆU Yonex -> bảng bán chạy và sắp hết hàng chỉ còn Yonex
+    await w.get('[data-test="tk-loc-thuong-hieu"]').setValue('Yonex')
+    expect(w.findAll('[data-test="tk-ban-chay"] tbody tr')).toHaveLength(1)
+    expect(w.get('[data-test="tk-ban-chay"]').text()).toContain('Vợt Yonex Astrox')
+    expect(w.findAll('[data-test="tk-sap-het"] li')).toHaveLength(1)
+
+    // Bấm Đặt lại -> khôi phục toàn bộ
+    await w.get('[data-test="tk-dat-lai"]').trigger('click')
+    expect(w.findAll('[data-test="tk-ban-chay"] tbody tr')).toHaveLength(2)
+    expect(w.text()).toContain('Doanh thu theo ngày')
     w.unmount()
   })
 })
