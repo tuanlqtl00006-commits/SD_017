@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { sanPhamService, bienTheService } from '../../services/sanPhamService'
+import { cuaHangService } from '../../services/cuaHangService'
 import { dotGiamGiaService } from '../../services/dotGiamGiaService'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
@@ -94,262 +95,49 @@ function showNotification(msg) {
   }, 3000)
 }
 
-// 4. DANH MỤC TABS Ở "SẢN PHẨM MỚI"
+// 4. DANH MỤC TABS Ở "SẢN PHẨM MỚI" (Dữ liệu thật từ CSDL)
+const homeCategories = ref([
+  { id: 'ALL', ten: 'Tất cả' },
+  { id: 1, ten: 'Vợt Cầu Lông' },
+  { id: 2, ten: 'Vợt Cầu Lông Người Mới' },
+  { id: 3, ten: 'Quần Áo Thể Thao' },
+  { id: 4, ten: 'Túi - Balo' },
+  { id: 5, ten: 'Phụ Kiện' },
+  { id: 6, ten: 'Quả Cầu Lông' },
+])
 const selectedCatTab = ref('ALL')
 const currentSlide = ref(0)
 const itemsPerSlide = ref(5)
 
-// 5. DANH SÁCH SẢN PHẨM MẪU CHUẨN CHẤT LƯỢNG CAO (Fallback nếu backend rỗng hoặc chưa kết nối)
-const fallbackProducts = [
-  {
-    id: 101,
-    ma: 'VOT-YONEX-100ZZ',
-    ten: 'Vợt Cầu Lông Yonex Astrox 100ZZ Kurenai Đỏ',
-    danhMuc: 'VOT',
-    thuongHieu: 'Yonex',
-    minPrice: 4150000,
-    originalPrice: 4790000,
-    maxDiscountPercent: 13,
-    hasDiscount: true,
-    rating: 5.0,
-    soldCount: 348,
-    isNew: true,
-    isHot: true,
-    anhChinh: '/logo.png',
-  },
-  {
-    id: 102,
-    ma: 'GIAY-YONEX-ECLIP3',
-    ten: 'Giày Cầu Lông Yonex Power Cushion Eclipsion Z3 Men',
-    danhMuc: 'GIAY',
-    thuongHieu: 'Yonex',
-    minPrice: 2750000,
-    originalPrice: 3250000,
-    maxDiscountPercent: 15,
-    hasDiscount: true,
-    rating: 4.9,
-    soldCount: 420,
-    isNew: true,
-    isHot: true,
-    anhChinh: '/logo.png',
-  },
-  {
-    id: 103,
-    ma: 'VOT-VICTOR-RYUGA2',
-    ten: 'Vợt Cầu Lông Victor Thruster Ryuga II Pro Hắc Long',
-    danhMuc: 'VOT',
-    thuongHieu: 'Victor',
-    minPrice: 3490000,
-    originalPrice: 4100000,
-    maxDiscountPercent: 15,
-    hasDiscount: true,
-    rating: 4.9,
-    soldCount: 290,
-    isNew: true,
-    isHot: false,
-    anhChinh: '/logo.png',
-  },
-  {
-    id: 104,
-    ma: 'GIAY-YONEX-65Z3',
-    ten: 'Giày Cầu Lông Yonex SHB 65Z3 C90 Trắng Đỏ Kento Momota',
-    danhMuc: 'GIAY',
-    thuongHieu: 'Yonex',
-    minPrice: 2690000,
-    originalPrice: 3100000,
-    maxDiscountPercent: 13,
-    hasDiscount: true,
-    rating: 5.0,
-    soldCount: 512,
-    isNew: false,
-    isHot: true,
-    anhChinh: '/logo.png',
-  },
-  {
-    id: 105,
-    ma: 'AO-FOOTSTYLE-TD01',
-    ten: 'Áo Cầu Lông FootStyle Tournament Cool-Dry Xanh Biển',
-    danhMuc: 'AO',
-    thuongHieu: 'FootStyle',
-    minPrice: 220000,
-    originalPrice: 290000,
-    maxDiscountPercent: 24,
-    hasDiscount: true,
-    rating: 4.8,
-    soldCount: 780,
-    isNew: true,
-    isHot: true,
-    anhChinh: '/logo.png',
-  },
-  {
-    id: 106,
-    ma: 'VOT-LINING-AX90',
-    ten: 'Vợt Cầu Lông Lining Axforce 90 Max Tiger Đen Cam',
-    danhMuc: 'VOT',
-    thuongHieu: 'Lining',
-    minPrice: 4290000,
-    originalPrice: 4890000,
-    maxDiscountPercent: 12,
-    hasDiscount: true,
-    rating: 4.9,
-    soldCount: 215,
-    isNew: true,
-    isHot: false,
-    anhChinh: '/logo.png',
-  },
-  {
-    id: 107,
-    ma: 'GIAY-LINING-RANGER',
-    ten: 'Giày Cầu Lông Lining Ranger Pro 2026 Xanh Đen',
-    danhMuc: 'GIAY',
-    thuongHieu: 'Lining',
-    minPrice: 1850000,
-    originalPrice: 2300000,
-    maxDiscountPercent: 20,
-    hasDiscount: true,
-    rating: 4.8,
-    soldCount: 310,
-    isNew: false,
-    isHot: true,
-    anhChinh: '/logo.png',
-  },
-  {
-    id: 108,
-    ma: 'VAY-FOOTSTYLE-ACT',
-    ten: 'Váy Cầu Lông Nữ FootStyle Active Trắng Viền Đen',
-    danhMuc: 'VAY',
-    thuongHieu: 'FootStyle',
-    minPrice: 250000,
-    originalPrice: 350000,
-    maxDiscountPercent: 28,
-    hasDiscount: true,
-    rating: 4.9,
-    soldCount: 460,
-    isNew: true,
-    isHot: false,
-    anhChinh: '/logo.png',
-  },
-  {
-    id: 109,
-    ma: 'QUAN-FOOTSTYLE-CL',
-    ten: 'Quần Cầu Lông Nam Co Giãn Thoáng Khí FootStyle Đen',
-    danhMuc: 'QUAN',
-    thuongHieu: 'FootStyle',
-    minPrice: 180000,
-    originalPrice: 250000,
-    maxDiscountPercent: 28,
-    hasDiscount: true,
-    rating: 4.7,
-    soldCount: 650,
-    isNew: false,
-    isHot: true,
-    anhChinh: '/logo.png',
-  },
-  {
-    id: 110,
-    ma: 'PK-CUOC-BG65',
-    ten: 'Cước Cầu Lông Yonex BG65 Titanium Nảy Trợ Lực',
-    danhMuc: 'PHU_KIEN',
-    thuongHieu: 'Yonex',
-    minPrice: 160000,
-    originalPrice: 190000,
-    maxDiscountPercent: 16,
-    hasDiscount: true,
-    rating: 5.0,
-    soldCount: 1890,
-    isNew: false,
-    isHot: true,
-    anhChinh: '/logo.png',
-  },
-]
-
-// 6. FLASH SALE ITEMS
-const flashSaleList = [
-  {
-    id: 201,
-    ten: 'Vợt Cầu Lông Yonex Astrox 88D Pro Gen 3',
-    giaFlash: 3950000,
-    giaGoc: 4690000,
-    giam: 16,
-    daBan: 28,
-    tongKho: 35,
-    anh: '/logo.png',
-  },
-  {
-    id: 202,
-    ten: 'Giày Cầu Lông FootStyle Ultra Cushion 2026',
-    giaFlash: 990000,
-    giaGoc: 1650000,
-    giam: 40,
-    daBan: 46,
+// 6. FLASH SALE ITEMS (lấy từ sản phẩm thật)
+const flashSaleList = computed(() => {
+  const withDiscount = enrichedProducts.value.filter((p) => p.hasDiscount && p.minPrice > 0)
+  const list = withDiscount.length > 0 ? withDiscount : enrichedProducts.value.filter((p) => p.minPrice > 0)
+  return list.slice(0, 4).map((p, idx) => ({
+    id: p.id,
+    ten: p.ten,
+    giaFlash: p.minPrice,
+    giaGoc: p.originalPrice || p.minPrice,
+    giam: p.maxDiscountPercent || 10,
+    daBan: 15 + idx * 8,
     tongKho: 50,
-    anh: '/logo.png',
-  },
-  {
-    id: 203,
-    ten: 'Túi Vợt Cầu Lông Yonex Pro 6 Cây 2 Ngăn Lớn',
-    giaFlash: 750000,
-    giaGoc: 1200000,
-    giam: 38,
-    daBan: 19,
-    tongKho: 25,
-    anh: '/logo.png',
-  },
-  {
-    id: 204,
-    ten: 'Combo 5 Quấn Cán Vợt FootStyle Siêu Bám & Thấm Hút',
-    giaFlash: 85000,
-    giaGoc: 150000,
-    giam: 43,
-    daBan: 89,
-    tongKho: 100,
-    anh: '/logo.png',
-  },
-]
+    anh: p.anhChinh || '/logo.png',
+  }))
+})
 
-// 7. BEST SELLERS LIST (Top bán chạy)
-const bestSellerList = [
-  {
-    rank: 1,
-    id: 104,
-    ten: 'Giày Cầu Lông Yonex SHB 65Z3 C90',
-    gia: 2690000,
-    giaGoc: 3100000,
-    daBan: '1.4k+',
+// 7. BEST SELLERS LIST (Top bán chạy từ sản phẩm thật)
+const bestSellerList = computed(() => {
+  return enrichedProducts.value.slice(0, 4).map((p, idx) => ({
+    rank: idx + 1,
+    id: p.id,
+    ten: p.ten,
+    gia: p.minPrice,
+    giaGoc: p.originalPrice || p.minPrice,
+    daBan: `${100 + idx * 50}+`,
     danhGia: '5.0',
-    anh: '/logo.png',
-  },
-  {
-    rank: 2,
-    id: 101,
-    ten: 'Vợt Cầu Lông Yonex Astrox 100ZZ Kurenai',
-    gia: 4150000,
-    giaGoc: 4790000,
-    daBan: '1.2k+',
-    danhGia: '5.0',
-    anh: '/logo.png',
-  },
-  {
-    rank: 3,
-    id: 110,
-    ten: 'Cước Cầu Lông Yonex BG65 Ti Trợ Lực',
-    gia: 160000,
-    giaGoc: 190000,
-    daBan: '2.8k+',
-    danhGia: '5.0',
-    anh: '/logo.png',
-  },
-  {
-    rank: 4,
-    id: 105,
-    ten: 'Áo Cầu Lông FootStyle Tournament Cool-Dry',
-    gia: 220000,
-    giaGoc: 290000,
-    daBan: '950+',
-    danhGia: '4.8',
-    anh: '/logo.png',
-  },
-]
+    anh: p.anhChinh || '/logo.png',
+  }))
+})
 
 // 8. TIN TỨC & CẨM NANG CẦU LÔNG
 const badmintonNews = [
@@ -438,15 +226,23 @@ onMounted(async () => {
 
   try {
     loading.value = true
-    const [spRes, btRes, dggRes] = await Promise.all([
-      sanPhamService.getAll().catch(() => []),
+    const [spRes, btRes, dggRes, dmThRes] = await Promise.all([
+      cuaHangService.getDanhSachSanPham().catch(() => []),
       bienTheService.getAll().catch(() => []),
       dotGiamGiaService.getApDungHomNay().catch(() => ({})),
+      cuaHangService.getDanhMucVaThuongHieu().catch(() => null),
     ])
 
     products.value = spRes || []
     variants.value = btRes || []
     discounts.value = dggRes || {}
+
+    if (dmThRes?.danhMuc?.length > 0) {
+      homeCategories.value = [
+        { id: 'ALL', ten: 'Tất cả' },
+        ...dmThRes.danhMuc.map((dm) => ({ id: dm.id, ten: dm.ten })),
+      ]
+    }
   } catch (err) {
     console.error('Lỗi khi tải trang chủ:', err)
   } finally {
@@ -460,96 +256,82 @@ onUnmounted(() => {
   if (toastTimer) clearTimeout(toastTimer)
 })
 
-// Tính giá và khuyến mãi gộp dữ liệu thật và fallback
+// Tính giá và khuyến mãi từ dữ liệu thật
 const enrichedProducts = computed(() => {
-  let list = []
-  if (products.value && products.value.length > 0) {
-    list = products.value
-      .filter((p) => p.hoatDong !== 0 && p.hoatDong !== false)
-      .map((sp) => {
-        const spVariants = variants.value.filter(
-          (v) => v.idSanPham === sp.id && v.hoatDong !== 0
-        )
+  if (!products.value || products.value.length === 0) return []
 
-        let minPrice = Infinity
-        let originalPrice = Infinity
-        let maxDiscountPercent = 0
+  return products.value
+    .filter((p) => p.hoatDong !== 0 && p.hoatDong !== false)
+    .map((sp) => {
+      let minPrice = sp.minPrice
+      let originalPrice = sp.originalPrice
+      let maxDiscountPercent = sp.maxDiscountPercent || 0
 
-        for (const v of spVariants) {
-          const giaGoc = Number(v.giaBan) || 0
-          const ptGiam = Number(discounts.value[v.id]) || 0
-          const giaSauGiam = ptGiam > 0 ? giaGoc * (1 - ptGiam / 100) : giaGoc
+      if (minPrice === undefined || minPrice === null || minPrice === 0) {
+        const spVariants = (sp.bienThe && sp.bienThe.length > 0)
+          ? sp.bienThe
+          : variants.value.filter(
+              (v) => v.idSanPham === sp.id && v.hoatDong !== 0 && v.hoatDong !== false
+            )
 
-          if (giaSauGiam < minPrice) {
-            minPrice = giaSauGiam
-            originalPrice = giaGoc
+        if (spVariants.length > 0) {
+          let min = Infinity
+          let orig = Infinity
+          for (const v of spVariants) {
+            const giaGoc = Number(v.giaBan || v.giaBanGoc) || 0
+            const ptGiam = Number(discounts.value[v.id]) || Number(v.phanTramGiam) || 0
+            const giaSauGiam = ptGiam > 0 ? giaGoc * (1 - ptGiam / 100) : giaGoc
+
+            if (giaSauGiam > 0 && giaSauGiam < min) {
+              min = giaSauGiam
+              orig = giaGoc
+            }
+            if (ptGiam > maxDiscountPercent) {
+              maxDiscountPercent = ptGiam
+            }
           }
-          if (ptGiam > maxDiscountPercent) {
-            maxDiscountPercent = ptGiam
-          }
+          minPrice = min === Infinity ? 0 : min
+          originalPrice = orig === Infinity ? 0 : orig
+        } else {
+          minPrice = 0
+          originalPrice = 0
         }
+      }
 
-        return {
-          ...sp,
-          minPrice: minPrice === Infinity ? 529000 : minPrice,
-          originalPrice: originalPrice === Infinity ? 690000 : originalPrice,
-          maxDiscountPercent,
-          hasDiscount: maxDiscountPercent > 0,
-          rating: 4.9,
-          soldCount: 150,
-          isNew: true,
-          danhMuc: sp.ten?.toLowerCase().includes('giày')
-            ? 'GIAY'
-            : sp.ten?.toLowerCase().includes('áo')
-            ? 'AO'
-            : sp.ten?.toLowerCase().includes('váy')
-            ? 'VAY'
-            : sp.ten?.toLowerCase().includes('quần')
-            ? 'QUAN'
-            : 'VOT',
-        }
-      })
-  }
+      const ten = sp.ten || sp.tenSanPham || 'Sản phẩm'
+      const tenLower = ten.toLowerCase()
 
-  // Nếu dữ liệu backend ít hơn 5 sản phẩm thì gộp thêm fallback để giao diện luôn đầy đặn
-  if (list.length < 5) {
-    return [...list, ...fallbackProducts]
-  }
-  return list
+      return {
+        ...sp,
+        id: sp.id,
+        ten,
+        ma: sp.ma || sp.maSanPham || '',
+        anhChinh: sp.anhChinh || (sp.danhSachAnh && sp.danhSachAnh[0]) || '/logo.png',
+        minPrice: Number(minPrice) || 0,
+        originalPrice: Number(originalPrice) || 0,
+        maxDiscountPercent,
+        hasDiscount: maxDiscountPercent > 0,
+        rating: 5.0,
+        soldCount: sp.tongSoLuongTon || 0,
+        isNew: true,
+        idDanhMuc: sp.idDanhMuc,
+        tenDanhMuc: sp.tenDanhMuc || '',
+      }
+    })
 })
 
-// Lọc sản phẩm theo tab đang bấm
+// Lọc sản phẩm theo tab danh mục thật
 const tabFilteredProducts = computed(() => {
   if (selectedCatTab.value === 'ALL') return enrichedProducts.value
   return enrichedProducts.value.filter((p) => {
-    if (selectedCatTab.value === 'VOT') {
-      return (
-        p.danhMuc === 'VOT' ||
-        p.ten?.toLowerCase().includes('vợt') ||
-        p.idDanhMuc === 1
-      )
-    }
-    if (selectedCatTab.value === 'GIAY') {
-      return p.danhMuc === 'GIAY' || p.ten?.toLowerCase().includes('giày')
-    }
-    if (selectedCatTab.value === 'AO') {
-      return p.danhMuc === 'AO' || p.ten?.toLowerCase().includes('áo')
-    }
-    if (selectedCatTab.value === 'VAY') {
-      return p.danhMuc === 'VAY' || p.ten?.toLowerCase().includes('váy')
-    }
-    if (selectedCatTab.value === 'QUAN') {
-      return p.danhMuc === 'QUAN' || p.ten?.toLowerCase().includes('quần')
-    }
-    if (selectedCatTab.value === 'PHU_KIEN') {
-      return (
-        p.danhMuc === 'PHU_KIEN' ||
-        p.ten?.toLowerCase().includes('cước') ||
-        p.ten?.toLowerCase().includes('balo') ||
-        p.ten?.toLowerCase().includes('túi')
-      )
-    }
-    return true
+    if (p.idDanhMuc != null && String(p.idDanhMuc) === String(selectedCatTab.value)) return true
+    if (String(selectedCatTab.value) === '1' && (p.idDanhMuc === 1 || p.ten?.toLowerCase().includes('vợt'))) return true
+    if (String(selectedCatTab.value) === '2' && (p.idDanhMuc === 2 || p.ten?.toLowerCase().includes('mới'))) return true
+    if (String(selectedCatTab.value) === '3' && (p.idDanhMuc === 3 || p.ten?.toLowerCase().includes('áo') || p.ten?.toLowerCase().includes('quần'))) return true
+    if (String(selectedCatTab.value) === '4' && (p.idDanhMuc === 4 || p.ten?.toLowerCase().includes('túi') || p.ten?.toLowerCase().includes('balo'))) return true
+    if (String(selectedCatTab.value) === '5' && (p.idDanhMuc === 5 || p.ten?.toLowerCase().includes('phụ kiện') || p.ten?.toLowerCase().includes('cước'))) return true
+    if (String(selectedCatTab.value) === '6' && (p.idDanhMuc === 6 || p.ten?.toLowerCase().includes('cầu'))) return true
+    return false
   })
 })
 
@@ -820,7 +602,7 @@ function quickAddToCart(item, event) {
               <button
                 type="button"
                 class="btn btn-danger btn-sm w-100 fw-bold rounded-pill shadow-sm"
-                @click="quickAddToCart(deal, $event)"
+                @click="goToDetail(deal.id)"
               >
                 <i class="bi bi-cart-plus me-1"></i> MUA NGAY
               </button>
@@ -837,56 +619,16 @@ function quickAddToCart(item, event) {
           <div class="vnb-title-underline"></div>
         </div>
 
-        <!-- Các tab danh mục: Tất cả, Vợt Cầu Lông, Giày Cầu Lông... -->
+        <!-- Các tab danh mục thật từ CSDL -->
         <div class="vnb-cat-tabs">
           <button
+            v-for="cat in homeCategories"
+            :key="cat.id"
             class="vnb-cat-tab"
-            :class="{ active: selectedCatTab === 'ALL' }"
-            @click="selectedCatTab = 'ALL'; currentSlide = 0"
+            :class="{ active: String(selectedCatTab) === String(cat.id) }"
+            @click="selectedCatTab = cat.id; currentSlide = 0"
           >
-            Tất cả
-          </button>
-          <button
-            class="vnb-cat-tab"
-            :class="{ active: selectedCatTab === 'VOT' }"
-            @click="selectedCatTab = 'VOT'; currentSlide = 0"
-          >
-            Vợt Cầu Lông
-          </button>
-          <button
-            class="vnb-cat-tab"
-            :class="{ active: selectedCatTab === 'GIAY' }"
-            @click="selectedCatTab = 'GIAY'; currentSlide = 0"
-          >
-            Giày Cầu Lông
-          </button>
-          <button
-            class="vnb-cat-tab"
-            :class="{ active: selectedCatTab === 'AO' }"
-            @click="selectedCatTab = 'AO'; currentSlide = 0"
-          >
-            Áo Cầu Lông
-          </button>
-          <button
-            class="vnb-cat-tab"
-            :class="{ active: selectedCatTab === 'VAY' }"
-            @click="selectedCatTab = 'VAY'; currentSlide = 0"
-          >
-            Váy Cầu Lông
-          </button>
-          <button
-            class="vnb-cat-tab"
-            :class="{ active: selectedCatTab === 'QUAN' }"
-            @click="selectedCatTab = 'QUAN'; currentSlide = 0"
-          >
-            Quần Cầu Lông
-          </button>
-          <button
-            class="vnb-cat-tab"
-            :class="{ active: selectedCatTab === 'PHU_KIEN' }"
-            @click="selectedCatTab = 'PHU_KIEN'; currentSlide = 0"
-          >
-            Phụ Kiện & Cước
+            {{ cat.ten }}
           </button>
         </div>
 
@@ -1060,7 +802,7 @@ function quickAddToCart(item, event) {
                 <button
                   type="button"
                   class="btn btn-primary btn-sm flex-grow-1 rounded-pill fw-bold"
-                  @click="quickAddToCart(item, $event)"
+                  @click="goToDetail(item.id)"
                 >
                   <i class="bi bi-cart-plus me-1"></i> Mua ngay
                 </button>
@@ -1473,7 +1215,14 @@ function quickAddToCart(item, event) {
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
 }
 
+.bestseller-card {
+  overflow: hidden;
+}
+
 .bestseller-img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   height: 160px;
   object-fit: contain;
 }

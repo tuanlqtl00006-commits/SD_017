@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import { formatMoney, formatNgayGio } from '../../utils/format'
+import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
+import { khachDiaChiService } from '../../services/khachDiaChiService'
+import DiaChiHanhChinhSelect from '../../components/common/DiaChiHanhChinhSelect.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,18 +44,8 @@ onMounted(async () => {
     profile.value.hoTen = u.hoTen || u.ten || 'Khách hàng'
     profile.value.sdt = u.sdt || ''
     profile.value.email = u.email || ''
-    addresses.value = [
-      {
-        id: 1,
-        tenNguoiNhan: u.hoTen || u.ten || 'Khách hàng',
-        sdtNguoiNhan: u.sdt || '',
-        diaChiCuThe: u.diaChi || 'Chưa cập nhật địa chỉ giao hàng',
-        phuongXa: '',
-        tinhThanhPho: '',
-        laDiaChiMacDinh: true,
-      },
-    ]
   }
+  await loadAddresses()
 
   if (route.query.tab) {
     activeTab.value = String(route.query.tab)
@@ -60,13 +53,63 @@ onMounted(async () => {
   loadOrders()
 })
 
-function loadOrders() {
+// Sổ địa chỉ thật từ CSDL (của chính khách đang đăng nhập)
+async function loadAddresses() {
   try {
-    const raw = localStorage.getItem('footstyle_orders')
-    orders.value = raw ? JSON.parse(raw) : []
+    addresses.value = (await khachDiaChiService.getAll()) || []
   } catch (e) {
-    orders.value = []
+    addresses.value = []
+    addressError.value = e.message || 'Không tải được sổ địa chỉ.'
   }
+}
+
+const addressError = ref('')
+const showAddressForm = ref(false)
+const addressSaving = ref(false)
+const addressForm = ref({ tenNguoiNhan: '', sdtNguoiNhan: '', tinhThanhPho: '', phuongXa: '', diaChiCuThe: '', laDiaChiMacDinh: false })
+const addressErrors = ref({})
+
+function openAddressForm() {
+  addressForm.value = {
+    tenNguoiNhan: profile.value.hoTen || '',
+    sdtNguoiNhan: profile.value.sdt || '',
+    tinhThanhPho: '',
+    phuongXa: '',
+    diaChiCuThe: '',
+    laDiaChiMacDinh: addresses.value.length === 0,
+  }
+  addressErrors.value = {}
+  addressError.value = ''
+  showAddressForm.value = true
+}
+
+async function saveAddress() {
+  const f = addressForm.value
+  const errs = {}
+  if (!f.tenNguoiNhan.trim()) errs.tenNguoiNhan = 'Vui lòng nhập tên người nhận.'
+  if (!/^0\d{9}$/.test(f.sdtNguoiNhan.trim())) errs.sdtNguoiNhan = 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.'
+  if (!f.tinhThanhPho) errs.tinhThanhPho = 'Vui lòng chọn Tỉnh/Thành phố.'
+  if (!f.phuongXa) errs.phuongXa = 'Vui lòng chọn Phường/Xã.'
+  if (!f.diaChiCuThe.trim()) errs.diaChiCuThe = 'Vui lòng nhập địa chỉ cụ thể (số nhà, tên đường...).'
+  addressErrors.value = errs
+  if (Object.keys(errs).length > 0) return
+
+  addressSaving.value = true
+  addressError.value = ''
+  try {
+    await khachDiaChiService.create({ ...f })
+    showAddressForm.value = false
+    await loadAddresses()
+  } catch (e) {
+    if (e.loiTheoTruong) addressErrors.value = { ...e.loiTheoTruong }
+    addressError.value = e.message || 'Không thêm được địa chỉ.'
+  } finally {
+    addressSaving.value = false
+  }
+}
+
+function loadOrders() {
+  orders.value = docDonHang()
 }
 
 const filteredOrders = computed(() => {
@@ -121,14 +164,23 @@ function saveProfile() {
   }, 3000)
 }
 
-function setDefaultAddress(id) {
-  addresses.value.forEach((a) => {
-    a.laDiaChiMacDinh = a.id === id
-  })
+async function setDefaultAddress(id) {
+  try {
+    await khachDiaChiService.setDefault(id)
+    await loadAddresses()
+  } catch (e) {
+    addressError.value = e.message || 'Không đặt được địa chỉ mặc định.'
+  }
 }
 
-function deleteAddress(id) {
-  addresses.value = addresses.value.filter((a) => a.id !== id)
+async function deleteAddress(id) {
+  if (!confirm('Bạn có chắc chắn muốn xóa địa chỉ này?')) return
+  try {
+    await khachDiaChiService.remove(id)
+    await loadAddresses()
+  } catch (e) {
+    addressError.value = e.message || 'Không xóa được địa chỉ.'
+  }
 }
 
 function cancelOrder(maHoaDon) {
@@ -137,9 +189,7 @@ function cancelOrder(maHoaDon) {
     if (target) {
       target.trangThai = 6
       target.trangThaiText = 'Đã hủy'
-      try {
-        localStorage.setItem('footstyle_orders', JSON.stringify(orders.value))
-      } catch (e) {}
+      ghiDonHang(orders.value)
     }
   }
 }
@@ -398,9 +448,60 @@ function cancelOrder(maHoaDon) {
               <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
                 <i class="bi bi-geo-alt-fill text-primary"></i> Sổ địa chỉ nhận hàng
               </h5>
-              <button class="btn btn-outline-primary btn-sm rounded-pill">
+              <button class="btn btn-outline-primary btn-sm rounded-pill" type="button" @click="openAddressForm">
                 <i class="bi bi-plus-lg me-1"></i> Thêm địa chỉ mới
               </button>
+            </div>
+
+            <div v-if="addressError && !showAddressForm" class="alert alert-danger py-2 small">{{ addressError }}</div>
+
+            <!-- Form thêm địa chỉ mới -->
+            <form v-if="showAddressForm" class="border rounded-3 p-3 mb-3 bg-light-subtle" @submit.prevent="saveAddress">
+              <h6 class="fw-bold mb-3">Thêm địa chỉ mới</h6>
+              <div v-if="addressError" class="alert alert-danger py-2 small">{{ addressError }}</div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted mb-1">Tên người nhận *</label>
+                  <input v-model="addressForm.tenNguoiNhan" type="text" class="form-control" :class="{ 'is-invalid': addressErrors.tenNguoiNhan }" />
+                  <div v-if="addressErrors.tenNguoiNhan" class="invalid-feedback">{{ addressErrors.tenNguoiNhan }}</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted mb-1">Số điện thoại *</label>
+                  <input v-model="addressForm.sdtNguoiNhan" type="text" maxlength="10" class="form-control" :class="{ 'is-invalid': addressErrors.sdtNguoiNhan }" />
+                  <div v-if="addressErrors.sdtNguoiNhan" class="invalid-feedback">{{ addressErrors.sdtNguoiNhan }}</div>
+                </div>
+                <DiaChiHanhChinhSelect
+                  v-model:tinh-thanh="addressForm.tinhThanhPho"
+                  v-model:phuong-xa="addressForm.phuongXa"
+                  required
+                  id-prefix="tk-dc"
+                  :invalid-tinh="!!addressErrors.tinhThanhPho"
+                  :invalid-phuong="!!addressErrors.phuongXa"
+                  :error-tinh="addressErrors.tinhThanhPho || ''"
+                  :error-phuong="addressErrors.phuongXa || ''"
+                />
+                <div class="col-12">
+                  <label class="form-label small text-muted mb-1">Địa chỉ cụ thể *</label>
+                  <input v-model="addressForm.diaChiCuThe" type="text" class="form-control" placeholder="Số nhà, tên đường..." :class="{ 'is-invalid': addressErrors.diaChiCuThe }" />
+                  <div v-if="addressErrors.diaChiCuThe" class="invalid-feedback">{{ addressErrors.diaChiCuThe }}</div>
+                </div>
+                <div class="col-12">
+                  <label class="form-check">
+                    <input v-model="addressForm.laDiaChiMacDinh" type="checkbox" class="form-check-input" :disabled="addresses.length === 0" />
+                    <span class="form-check-label small">Đặt làm địa chỉ mặc định</span>
+                  </label>
+                </div>
+              </div>
+              <div class="d-flex gap-2 justify-content-end mt-3">
+                <button type="button" class="btn btn-light btn-sm rounded-pill px-3" @click="showAddressForm = false">Hủy</button>
+                <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3" :disabled="addressSaving">
+                  {{ addressSaving ? 'Đang lưu...' : 'Lưu địa chỉ' }}
+                </button>
+              </div>
+            </form>
+
+            <div v-if="addresses.length === 0 && !showAddressForm" class="text-muted small text-center py-4">
+              Bạn chưa có địa chỉ nhận hàng nào. Bấm "Thêm địa chỉ mới" để thêm.
             </div>
 
             <div class="d-flex flex-column gap-3">

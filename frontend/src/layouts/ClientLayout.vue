@@ -1,9 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../stores/cart'
 import { useAuth } from '../composables/useAuth'
 import { formatMoney } from '../utils/format'
+import { cuaHangService } from '../services/cuaHangService'
 import NutChatKhach from '../components/chat/NutChatKhach.vue'
 import '../assets/client.css'
 
@@ -18,150 +19,52 @@ const showLookupDropdown = ref(false)
 const showAccountDropdown = ref(false)
 const showCartDropdown = ref(false)
 
-// Dữ liệu bảng Mega Menu đầy đủ theo mẫu hình ảnh người dùng cung cấp
-const megaMenuData = [
-  // Hàng 1
-  {
-    key: 'vot-cau-long',
-    title: 'VỢT CẦU LÔNG',
-    search: 'Vợt',
-    links: [
-      'Vợt cầu lông Yonex',
-      'Vợt cầu lông Victor',
-      'Vợt cầu lông Lining',
-      'Vợt Cầu Lông VS',
-      'Vợt Cầu Lông Mizuno',
-      'Vợt cầu lông Apacs',
-      'Vợt Cầu Lông VNB',
-      'Vợt cầu lông Proace',
-      'Vợt cầu lông Forza',
-      'Vợt Cầu Lông FlyPower',
-    ],
-    hasMore: true,
-  },
-  {
-    key: 'giay-cau-long',
-    title: 'GIÀY CẦU LÔNG',
-    search: 'Giày',
-    links: [
-      'Giày cầu lông Yonex',
-      'Giày cầu lông Victor',
-      'Giày cầu lông Lining',
-      'Giày cầu lông VS',
-      'Giày cầu lông Kawasaki',
-      'Giày Cầu Lông Mizuno',
-      'Giày Cầu Lông Kumpoo',
-      'Giày Cầu Lông Promax',
-      'Giày cầu lông Babolat',
-      'Giày Cầu Lông Sunbatta',
-    ],
-    hasMore: true,
-  },
-  {
-    key: 'ao-cau-long',
-    title: 'ÁO CẦU LÔNG',
-    search: 'Áo',
-    links: [
-      'Áo cầu lông Yonex',
-      'Áo cầu lông VNB',
-      'Áo cầu lông Kamito',
-      'Áo cầu lông VS',
-      'Áo cầu lông Victor',
-      'Áo cầu lông Lining',
-      'Áo cầu lông DonexPro',
-      'Áo Cầu Lông Alien Armour',
-      'Áo thể thao SFD',
-      'Áo cầu lông Kawasaki',
-    ],
-    hasMore: true,
-  },
-  {
-    key: 'vay-cau-long',
-    title: 'VÁY CẦU LÔNG',
-    search: 'Váy',
-    links: [
-      'Váy cầu lông Yonex',
-      'Váy cầu lông Victec',
-      'Váy cầu lông Lining',
-      'Váy cầu lông Donex Pro',
-      'Váy cầu lông Victor',
-      'Váy cầu lông Kamito',
-      'Váy cầu lông Taro',
-      'Váy cầu lông Vina Authentic',
-      'Váy cầu lông Hundred',
-    ],
-    hasMore: false,
-  },
-  {
-    key: 'quan-cau-long',
-    title: 'QUẦN CẦU LÔNG',
-    search: 'Quần',
-    links: [
-      'Quần cầu lông Yonex',
-      'Quần cầu lông Victor',
-      'Quần cầu lông Lining',
-      'Quần cầu lông VNB',
-      'Quần Cầu Lông SFD',
-      'Quần cầu lông Donex Pro',
-      'Quần Cầu Lông Apacs',
-      'Quần cầu lông Alien Armour',
-      'Quần cầu lông Mizuno',
-      'Quần cầu lông Kawasaki',
-    ],
-    hasMore: true,
-  },
-  // Hàng 2
-  {
-    key: 'tui-vot-cau-long',
-    title: 'TÚI VỢT CẦU LÔNG',
-    search: 'Túi',
-    links: [
-      'Túi vợt cầu lông Yonex',
-      'Túi đựng giày',
-    ],
-    hasMore: false,
-  },
-  {
-    key: 'balo-cau-long',
-    title: 'BALO CẦU LÔNG',
-    search: 'Balo',
-    links: [
-      'Balo Cầu Lông Yonex',
-      'Balo cầu lông VS',
-    ],
-    hasMore: false,
-  },
-  {
-    key: 'phu-kien-cau-long',
-    title: 'PHỤ KIỆN CẦU LÔNG',
-    search: 'Phụ kiện',
-    links: [
-      'Vớ Cầu Lông',
-      'Cước đan vợt cầu lông',
-    ],
-    hasMore: false,
-  },
-  {
-    key: 'vot-pickleball',
-    title: 'VỢT PICKLEBALL',
-    search: 'Vợt Pickleball',
-    links: [
-      'Vợt PickleBall Head',
-      'Vợt PickleBall Joola',
-    ],
-    hasMore: false,
-  },
-  {
-    key: 'giay-pickleball',
-    title: 'GIÀY PICKLEBALL',
-    search: 'Giày Pickleball',
-    links: [
-      'Giày Pickleball Jogarbola',
-      'Giày Pickleball Asics',
-    ],
-    hasMore: false,
-  },
-]
+// Danh mục và thương hiệu thật từ CSDL
+const danhMucList = ref([])
+const thuongHieuList = ref([])
+
+onMounted(async () => {
+  try {
+    const res = await cuaHangService.getDanhMucVaThuongHieu()
+    if (res?.danhMuc?.length > 0) {
+      danhMucList.value = res.danhMuc
+    }
+    if (res?.thuongHieu?.length > 0) {
+      thuongHieuList.value = res.thuongHieu
+    }
+  } catch (err) {
+    console.error('Lỗi khi tải danh mục client layout:', err)
+  }
+})
+
+// Dữ liệu menu sản phẩm chỉ lấy từ CSDL thật (loại bỏ hoàn toàn tất cả danh mục ảo và biến thể ảo)
+const menuCategories = computed(() => {
+  const dms = danhMucList.value.length > 0 ? danhMucList.value : [
+    { id: 1, ten: 'Vợt cầu lông' },
+    { id: 2, ten: 'Vợt cầu lông người mới' },
+    { id: 3, ten: 'Quần áo thể thao' },
+    { id: 4, ten: 'Túi - balo' },
+    { id: 5, ten: 'Phụ kiện' },
+    { id: 6, ten: 'Quả cầu lông' },
+  ]
+  const ths = thuongHieuList.value.length > 0 ? thuongHieuList.value : [
+    { id: 1, ten: 'Yonex' },
+    { id: 2, ten: 'Lining' },
+    { id: 3, ten: 'Victor' },
+    { id: 4, ten: 'Mizuno' },
+    { id: 5, ten: 'Kumpoo' },
+  ]
+
+  return dms.map((dm) => ({
+    id: dm.id,
+    title: (dm.ten || '').toUpperCase(),
+    query: { danhMuc: dm.id },
+    links: ths.map((th) => ({
+      label: `${dm.ten} ${th.ten}`,
+      query: { danhMuc: dm.id, thuongHieu: th.id },
+    })),
+  }))
+})
 
 function handleSearch() {
   if (searchQuery.value.trim()) {
@@ -540,30 +443,61 @@ function handleSearch() {
         <div class="vnb-container">
           <div class="vnb-mega-grid">
             <div
-              v-for="cat in megaMenuData"
-              :key="cat.title"
+              v-for="cat in menuCategories"
+              :key="cat.id"
               class="vnb-mega-col"
             >
               <RouterLink
-                :to="{ path: '/shop/san-pham', query: { danhMuc: cat.key } }"
+                :to="{ path: '/shop/san-pham', query: cat.query }"
                 class="vnb-mega-title"
                 @click="showProductDropdown = false"
               >
                 {{ cat.title }}
               </RouterLink>
               <ul class="vnb-mega-links">
-                <li v-for="link in cat.links" :key="link">
+                <li v-for="link in cat.links" :key="link.label">
                   <RouterLink
-                    :to="{ path: '/shop/san-pham', query: { danhMuc: cat.key, search: link } }"
+                    :to="{ path: '/shop/san-pham', query: link.query }"
                     class="vnb-mega-link"
                     @click="showProductDropdown = false"
                   >
-                    {{ link }}
+                    {{ link.label }}
                   </RouterLink>
                 </li>
-                <li v-if="cat.hasMore">
+                <li>
                   <RouterLink
-                    :to="{ path: '/shop/san-pham', query: { danhMuc: cat.key } }"
+                    :to="{ path: '/shop/san-pham', query: cat.query }"
+                    class="vnb-mega-more"
+                    @click="showProductDropdown = false"
+                  >
+                    Xem thêm
+                  </RouterLink>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Cột thương hiệu chính hãng thật -->
+            <div v-if="thuongHieuList && thuongHieuList.length > 0" class="vnb-mega-col">
+              <RouterLink
+                to="/shop/san-pham"
+                class="vnb-mega-title"
+                @click="showProductDropdown = false"
+              >
+                THƯƠNG HIỆU
+              </RouterLink>
+              <ul class="vnb-mega-links">
+                <li v-for="brand in thuongHieuList" :key="brand.id">
+                  <RouterLink
+                    :to="{ path: '/shop/san-pham', query: { thuongHieu: brand.id } }"
+                    class="vnb-mega-link"
+                    @click="showProductDropdown = false"
+                  >
+                    {{ brand.ten }}
+                  </RouterLink>
+                </li>
+                <li>
+                  <RouterLink
+                    to="/shop/san-pham"
                     class="vnb-mega-more"
                     @click="showProductDropdown = false"
                   >

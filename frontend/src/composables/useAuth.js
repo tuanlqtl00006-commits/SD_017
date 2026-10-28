@@ -2,10 +2,22 @@ import { computed, reactive } from 'vue'
 import api from '../services/api'
 import { layPhien, luuPhien, xoaPhien } from '../services/phien'
 import { datLaiGiaoCa } from './useGiaoCa'
+import { useCartStore } from '../stores/cart'
 
 // Trạng thái đăng nhập dùng chung toàn trang (một bản duy nhất, giống useToast).
 //  - nguoiDung: { id, ma, hoTen, email, vaiTro: 'QUAN_LY' | 'NHAN_VIEN', tenVaiTro } hoặc null
 //  - batDangNhap: backend có bật đăng nhập không (app.auth.bat); false thì dùng luôn quyền quản lý, không cần đăng nhập
+/** Nạp lại giỏ hàng của tài khoản hiện tại (mỗi tài khoản một giỏ riêng). Chưa có pinia (vd. môi trường kiểm thử) thì bỏ qua. */
+function napLaiGioHang(lamRong = false) {
+  try {
+    const gio = useCartStore()
+    if (lamRong) gio.clearCart()
+    else gio.taiLai()
+  } catch {
+    // chưa khởi tạo pinia
+  }
+}
+
 const trangThai = reactive({
   nguoiDung: layPhien()?.nguoiDung ?? null,
   batDangNhap: null,
@@ -70,6 +82,7 @@ function ghiPhien(kq, nho = layPhien()?.nho ?? true) {
   trangThai.nguoiDung = kq.nguoiDung
   trangThai.batDangNhap = true
   trangThai.daKhoiTao = true
+  napLaiGioHang()
 }
 
 /** Quản lý vừa đổi vai trò của tài khoản đang đăng nhập (biết qua header X-Vai-Tro): giữ phiên, đổi vai trò, tải lại ca theo vai trò mới. */
@@ -87,6 +100,7 @@ function dangXuat() {
   xoaPhien()
   trangThai.nguoiDung = null
   datLaiGiaoCa()
+  napLaiGioHang(true) // đăng xuất: giỏ hàng trống (giỏ của tài khoản vẫn được giữ, đăng nhập lại sẽ thấy)
 }
 
 /** Trang mở đầu sau khi đăng nhập theo vai trò. */

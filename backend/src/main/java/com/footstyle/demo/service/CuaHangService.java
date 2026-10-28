@@ -22,6 +22,13 @@ public class CuaHangService {
     private final HinhAnhSanPhamRepository hinhAnhRepo;
     private final DanhMucRepository danhMucRepo;
     private final ThuongHieuRepository thuongHieuRepo;
+    private final XuatXuRepository xuatXuRepo;
+    private final ChatLieuRepository chatLieuRepo;
+    private final DoCungRepository doCungRepo;
+    private final DiemCanBangRepository diemCanBangRepo;
+    private final MauSacRepository mauSacRepo;
+    private final TrongLuongRepository trongLuongRepo;
+    private final ChuViRepository chuViRepo;
     private final HoaDonRepository hoaDonRepo;
     private final HoaDonChiTietRepository hoaDonChiTietRepo;
     private final LichSuHoaDonRepository lichSuHoaDonRepo;
@@ -154,6 +161,7 @@ public class CuaHangService {
             spData.put("tenDanhMuc", sp.getDanhMuc() != null ? sp.getDanhMuc().getTen() : "");
             spData.put("idThuongHieu", sp.getThuongHieu() != null ? sp.getThuongHieu().getId() : null);
             spData.put("tenThuongHieu", sp.getThuongHieu() != null ? sp.getThuongHieu().getTen() : "");
+            spData.put("xuatXu", sp.getXuatXu() != null ? sp.getXuatXu().getTen() : "");
             spData.put("chatLieu", sp.getChatLieu() != null ? sp.getChatLieu().getTen() : "");
             spData.put("doCung", sp.getDoCung() != null ? sp.getDoCung().getTen() : "");
             spData.put("diemCanBang", sp.getDiemCanBang() != null ? sp.getDiemCanBang().getTen() : "");
@@ -215,7 +223,38 @@ public class CuaHangService {
             return m;
         }).toList();
 
-        return Map.of("danhMuc", dmList, "thuongHieu", thList);
+        // Danh sách thuộc tính (công khai) để cửa hàng làm bộ lọc theo từng danh mục, kể cả khi danh mục chưa có sản phẩm
+        Map<String, Object> thuocTinh = new LinkedHashMap<>();
+        thuocTinh.put("xuatXu", tenThuocTinh(xuatXuRepo.findAll()));
+        List<Map<String, Object>> clList = new ArrayList<>();
+        for (ChatLieu c : chatLieuRepo.findAll()) {
+            if (!dangDung(c)) continue;
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("ten", c.getTen());
+            m.put("nhom", c.getNhomApDung() == null ? "" : c.getNhomApDung());
+            clList.add(m);
+        }
+        thuocTinh.put("chatLieu", clList);
+        thuocTinh.put("doCung", tenThuocTinh(doCungRepo.findAll()));
+        thuocTinh.put("diemCanBang", tenThuocTinh(diemCanBangRepo.findAll()));
+        thuocTinh.put("mauSac", tenThuocTinh(mauSacRepo.findAll()));
+        thuocTinh.put("trongLuong", tenThuocTinh(trongLuongRepo.findAll()));
+        thuocTinh.put("chuVi", tenThuocTinh(chuViRepo.findAll()));
+
+        Map<String, Object> kq = new LinkedHashMap<>();
+        kq.put("danhMuc", dmList);
+        kq.put("thuongHieu", thList);
+        kq.put("thuocTinh", thuocTinh);
+        return kq;
+    }
+
+    private static boolean dangDung(ThuocTinh t) {
+        return t.getTen() != null && (t.getTrangThai() == null || t.getTrangThai() != 0)
+                && !"Không áp dụng".equalsIgnoreCase(t.getTen().trim());
+    }
+
+    private static List<String> tenThuocTinh(List<? extends ThuocTinh> ds) {
+        return ds.stream().filter(CuaHangService::dangDung).map(ThuocTinh::getTen).toList();
     }
 
     /** Sản phẩm đang có khuyến mãi Flash Sale */

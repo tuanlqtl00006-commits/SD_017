@@ -1,23 +1,75 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useCartStore } from '../../stores/cart'
+import { useAuth } from '../../composables/useAuth'
+import { khachDiaChiService } from '../../services/khachDiaChiService'
+import DiaChiHanhChinhSelect from '../../components/common/DiaChiHanhChinhSelect.vue'
+import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
 import { formatMoney } from '../../utils/format'
 
+const route = useRoute()
 const router = useRouter()
 const cartStore = useCartStore()
+const auth = useAuth()
+
+// Phải đăng nhập tài khoản khách hàng mới được thanh toán
+function laKhachDaDangNhap() {
+  return auth.trangThai.nguoiDung?.vaiTro === 'KHACH_HANG'
+}
+
+function chuyenDenDangNhap() {
+  router.replace({ path: '/shop/dang-nhap', query: { quayLai: route.fullPath } })
+}
 
 // Thông tin khách hàng
 const form = ref({
   hoTen: '',
   sdt: '',
   email: '',
-  tinhThanh: 'Hà Nội',
-  quanHuyen: 'Bắc Từ Liêm',
-  phuongXa: 'Phường Minh Khai',
+  tinhThanh: '',
+  quanHuyen: '',
+  phuongXa: '',
   diaChiCuThe: '',
   ghiChu: '',
   phuongThucThanhToan: 'COD', // COD hoặc QR
+})
+
+// Sổ địa chỉ đã lưu của khách đang đăng nhập (tự điền địa chỉ mặc định)
+const savedAddresses = ref([])
+const selectedAddressId = ref(null)
+
+function applySavedAddress() {
+  const a = savedAddresses.value.find((x) => x.id === selectedAddressId.value)
+  if (!a) return
+  form.value.hoTen = a.tenNguoiNhan || form.value.hoTen
+  form.value.sdt = a.sdtNguoiNhan || form.value.sdt
+  form.value.tinhThanh = a.tinhThanhPho || ''
+  form.value.quanHuyen = a.quanHuyen || ''
+  form.value.phuongXa = a.phuongXa || ''
+  form.value.diaChiCuThe = a.diaChiCuThe || ''
+}
+
+onMounted(async () => {
+  await auth.khoiTao()
+  if (!laKhachDaDangNhap()) {
+    chuyenDenDangNhap()
+    return
+  }
+  const u = auth.trangThai.nguoiDung
+  form.value.hoTen = u.hoTen || ''
+  form.value.sdt = u.sdt || ''
+  form.value.email = u.email || ''
+  try {
+    savedAddresses.value = (await khachDiaChiService.getAll()) || []
+    const macDinh = savedAddresses.value.find((a) => a.laDiaChiMacDinh) || savedAddresses.value[0]
+    if (macDinh) {
+      selectedAddressId.value = macDinh.id
+      applySavedAddress()
+    }
+  } catch {
+    // Không tải được sổ địa chỉ: khách vẫn nhập tay bình thường
+  }
 })
 
 const errors = ref({})
@@ -45,6 +97,10 @@ function validate() {
 }
 
 function handleOrderSubmit() {
+  if (!laKhachDaDangNhap()) {
+    chuyenDenDangNhap()
+    return
+  }
   if (cartStore.items.length === 0) {
     router.push('/shop/san-pham')
     return
@@ -60,7 +116,9 @@ function handleOrderSubmit() {
   const randomSuffix = Math.floor(1000 + Math.random() * 9000)
   const maDonHang = `HD${randomSuffix}`
 
-  const fullAddress = `${form.value.diaChiCuThe}, ${form.value.phuongXa}, ${form.value.quanHuyen}, ${form.value.tinhThanh}`
+  const fullAddress = [form.value.diaChiCuThe, form.value.phuongXa, form.value.quanHuyen, form.value.tinhThanh]
+    .filter((x) => x && String(x).trim())
+    .join(', ')
 
   const newOrder = {
     maHoaDon: maDonHang,
@@ -83,14 +141,9 @@ function handleOrderSubmit() {
   }
 
   // Lưu vào danh sách đơn hàng client (footstyle_orders)
-  try {
-    const raw = localStorage.getItem('footstyle_orders')
-    const existingOrders = raw ? JSON.parse(raw) : []
-    existingOrders.unshift(newOrder)
-    localStorage.setItem('footstyle_orders', JSON.stringify(existingOrders))
-  } catch (e) {
-    console.error('Không thể lưu đơn hàng vào localStorage:', e)
-  }
+  const existingOrders = docDonHang()
+  existingOrders.unshift(newOrder)
+  ghiDonHang(existingOrders)
 
   // Xóa giỏ hàng
   cartStore.clearCart()
@@ -178,37 +231,12 @@ function handleOrderSubmit() {
             </h5>
 
             <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Tỉnh / Thành phố</label>
-                <select class="form-select" v-model="form.tinhThanh">
-                  <option value="Hà Nội">Hà Nội</option>
-                  <option value="TP. Hồ Chí Minh">TP. Hồ Chí Minh</option>
-                  <option value="Đà Nẵng">Đà Nẵng</option>
-                  <option value="Hải Phòng">Hải Phòng</option>
-                  <option value="Cần Thơ">Cần Thơ</option>
-                  <option value="Bắc Ninh">Bắc Ninh</option>
-                </select>
-              </div>
-
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Quận / Huyện</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  v-model="form.quanHuyen"
-                  placeholder="Quận / Huyện"
-                />
-              </div>
-
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Phường / Xã</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  v-model="form.phuongXa"
-                  placeholder="Phường / Xã"
-                />
-              </div>
+              <DiaChiHanhChinhSelect
+                v-model:tinh-thanh="form.tinhThanh"
+                v-model:phuong-xa="form.phuongXa"
+                id-prefix="ck-dc"
+                col-class="col-md-6"
+              />
 
               <div class="col-12">
                 <label class="form-label small fw-semibold">Địa chỉ cụ thể (Số nhà, tên ngõ/đường) <span class="text-danger">*</span></label>

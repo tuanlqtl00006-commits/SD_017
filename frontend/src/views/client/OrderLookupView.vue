@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import { formatMoney, formatNgayGio } from '../../utils/format'
+import { docTatCaDonHang } from '../../utils/donHangLocal'
 
 const route = useRoute()
 
@@ -33,8 +34,7 @@ async function handleSearch() {
 
   // 1. Kiểm tra trong localStorage trước (các đơn vừa đặt ở client)
   try {
-    const raw = localStorage.getItem('footstyle_orders')
-    const localOrders = raw ? JSON.parse(raw) : []
+    const localOrders = docTatCaDonHang()
     const foundLocal = localOrders.find(
       (o) => o.maHoaDon?.toUpperCase() === code.toUpperCase()
     )

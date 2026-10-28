@@ -1,11 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-const STORAGE_KEY = 'footstyle_cart'
+import { layPhien } from '../services/phien'
+
+// Giỏ hàng lưu riêng theo từng tài khoản (đăng xuất / đổi tài khoản thì không thấy giỏ của người khác)
+function khoaGioHang() {
+  const nd = layPhien()?.nguoiDung
+  return nd?.id ? `footstyle_cart_${nd.vaiTro}_${nd.id}` : 'footstyle_cart_khach'
+}
 
 function loadFromStorage() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(khoaGioHang())
     return raw ? JSON.parse(raw) : []
   } catch (e) {
     console.error('Không thể đọc giỏ hàng từ localStorage:', e)
@@ -15,7 +21,7 @@ function loadFromStorage() {
 
 function saveToStorage(items) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+    localStorage.setItem(khoaGioHang(), JSON.stringify(items))
   } catch (e) {
     console.error('Không thể lưu giỏ hàng vào localStorage:', e)
   }
@@ -115,6 +121,12 @@ export const useCartStore = defineStore('cart', () => {
     saveToStorage(items.value)
   }
 
+  // Gọi khi đăng nhập / đăng xuất / đổi tài khoản: nạp lại giỏ của tài khoản hiện tại
+  function taiLai() {
+    items.value = loadFromStorage()
+    appliedVoucher.value = null
+  }
+
   function setVoucher(voucher) {
     appliedVoucher.value = voucher
   }
@@ -135,6 +147,7 @@ export const useCartStore = defineStore('cart', () => {
     updateQuantity,
     removeItem,
     clearCart,
+    taiLai,
     setVoucher,
     removeVoucher,
   }
