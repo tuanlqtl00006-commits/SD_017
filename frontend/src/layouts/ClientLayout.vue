@@ -9,6 +9,9 @@ import NutChatKhach from '../components/chat/NutChatKhach.vue'
 import '../assets/client.css'
 
 const router = useRouter()
+
+// Đang ở trang sản phẩm khuyến mãi (SALE OFF): chỉ mục SALE OFF được gạch chân, mục SẢN PHẨM thì không (cùng đường dẫn nên router tính cả hai là "active")
+const dangXemKhuyenMai = computed(() => !!router.currentRoute.value.query.khuyenMai)
 const cartStore = useCartStore()
 const auth = useAuth()
 
@@ -231,7 +234,7 @@ function handleSearch() {
                     <a
                       href="#"
                       class="vnb-lookup-item d-flex align-items-center gap-2 text-danger"
-                      @click.prevent="auth.dangXuat(); showAccountDropdown = false"
+                      @click.prevent="auth.dangXuat(); showAccountDropdown = false; router.push('/shop')"
                     >
                       <i class="bi bi-box-arrow-right fs-5"></i>
                       <span>Đăng xuất</span>
@@ -350,14 +353,22 @@ function handleSearch() {
               @mouseenter="showProductDropdown = true"
               @mouseleave="showProductDropdown = false"
             >
-              <RouterLink to="/shop/san-pham" class="vnb-nav-link d-flex align-items-center gap-1">
+              <RouterLink
+                to="/shop/san-pham"
+                class="vnb-nav-link d-flex align-items-center gap-1"
+                :class="{ 'vnb-no-active': dangXemKhuyenMai }"
+              >
                 SẢN PHẨM <i class="bi" :class="showProductDropdown ? 'bi-chevron-up' : 'bi-chevron-down'" style="font-size: 0.7rem;"></i>
               </RouterLink>
             </li>
 
             <!-- 3. SALE OFF -->
             <li class="vnb-nav-item">
-              <RouterLink :to="{ path: '/shop/san-pham', query: { khuyenMai: '1' } }" class="vnb-nav-link">
+              <RouterLink
+                :to="{ path: '/shop/san-pham', query: { khuyenMai: '1' } }"
+                class="vnb-nav-link"
+                :class="{ 'vnb-no-active': !dangXemKhuyenMai }"
+              >
                 SALE OFF
               </RouterLink>
             </li>

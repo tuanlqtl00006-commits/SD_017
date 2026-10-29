@@ -2,6 +2,7 @@ package com.footstyle.demo.service;
 
 import com.footstyle.demo.dto.DangKyKhachHangRequest;
 import com.footstyle.demo.dto.KhachHangRequest;
+import com.footstyle.demo.dto.KhachHoSoRequest;
 import com.footstyle.demo.entity.DiaChiKhachHang;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.exception.ApiException;
@@ -176,6 +177,50 @@ public class KhachHangService {
             kh.setAnhDaiDien(anh.isEmpty() ? null : anh);
         }
         return repository.save(kh);
+    }
+
+    /**
+     * Khách tự sửa hồ sơ của chính mình (trang Tài khoản online). Cùng bộ luật với lúc đăng ký:
+     * họ tên, SĐT bắt buộc; email không bắt buộc; ngày sinh (nếu có) phải từ đủ 15 tuổi; trùng SĐT / email không tính chính mình.
+     */
+    @Transactional
+    public KhachHang suaHoSoCuaToi(Integer id, KhachHoSoRequest req) {
+        KhachHang kh = layTheoId(id);
+        LoiForm loi = new LoiForm();
+        String hoTen = QuyTacDuLieu.chuanHoaHoTen(req == null ? null : req.hoTen());
+        if (hoTen.isEmpty()) loi.them("hoTen", "Vui lòng nhập họ và tên.");
+        else if (hoTen.length() < 2 || hoTen.length() > 100) loi.them("hoTen", "Họ tên từ 2 đến 100 ký tự.");
+        else if (!QuyTacDuLieu.HO_TEN.matcher(hoTen).matches()) loi.them("hoTen", QuyTacDuLieu.LOI_HO_TEN_KY_TU);
+
+        String sdt = QuyTacDuLieu.cat(req == null ? null : req.sdt());
+        if (sdt.isEmpty()) loi.them("sdt", "Vui lòng nhập số điện thoại.");
+        else if (!QuyTacDuLieu.SDT.matcher(sdt).matches()) loi.them("sdt", QuyTacDuLieu.LOI_SDT);
+        else if (repository.existsBySdtAndIdNot(sdt, kh.getId())) loi.trung("sdt", "Số điện thoại đã được đăng ký.");
+
+        String email = QuyTacDuLieu.cat(req == null ? null : req.email()).toLowerCase(Locale.ROOT);
+        if (!email.isEmpty()) {
+            if (email.length() > 255 || !QuyTacDuLieu.EMAIL.matcher(email).matches()) loi.them("email", QuyTacDuLieu.LOI_EMAIL);
+            else if (repository.existsByEmailIgnoreCaseAndIdNot(email, kh.getId())) loi.trung("email", "Email đã được đăng ký.");
+        }
+
+        LocalDate ngaySinh = req == null ? null : req.ngaySinh();
+        String loiNgaySinh = QuyTacDuLieu.kiemTraNgaySinh(ngaySinh, KhachHang.TUOI_TOI_THIEU, "Khách hàng", LocalDate.now());
+        if (loiNgaySinh != null) loi.them("ngaySinh", loiNgaySinh);
+
+        Integer gioiTinh = req == null ? null : req.gioiTinh();
+        if (gioiTinh != null && gioiTinh != 0 && gioiTinh != 1) loi.them("gioiTinh", "Giới tính không hợp lệ.");
+        loi.nemNeuCoLoi();
+
+        kh.setHoTen(hoTen);
+        kh.setSdt(sdt);
+        kh.setEmail(email.isEmpty() ? null : email);
+        kh.setNgaySinh(ngaySinh);
+        if (gioiTinh != null) kh.setGioiTinh(gioiTinh);
+        try {
+            return repository.save(kh);
+        } catch (DataIntegrityViolationException e) {
+            throw new ApiException(HttpStatus.CONFLICT, "Số điện thoại hoặc email đã được đăng ký.");
+        }
     }
 
     /** Bật / tắt hoạt động (không xóa dữ liệu). */

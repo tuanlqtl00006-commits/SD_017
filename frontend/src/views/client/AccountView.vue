@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
+import api from '../../services/api'
+import { loiMatKhau } from '../../utils/kiemTra'
 import { formatMoney, formatNgayGio } from '../../utils/format'
-import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
+import { docDonHang, ghiDonHang, dongBoTrangThaiDon } from '../../utils/donHangLocal'
 import { khachDiaChiService } from '../../services/khachDiaChiService'
 import DiaChiHanhChinhSelect from '../../components/common/DiaChiHanhChinhSelect.vue'
 
@@ -23,6 +25,12 @@ const profile = ref({
 })
 const profileErrors = ref({})
 const profileSaved = ref(false)
+
+// Đổi mật khẩu
+const pwForm = ref({ matKhauCu: '', matKhauMoi: '', nhapLai: '' })
+const pwErrors = ref({})
+const pwSaving = ref(false)
+const pwSuccess = ref('')
 
 // 2. Sổ địa chỉ
 const addresses = ref([])
@@ -45,6 +53,7 @@ onMounted(async () => {
     profile.value.sdt = u.sdt || ''
     profile.value.email = u.email || ''
   }
+  await loadProfile()
   await loadAddresses()
 
   if (route.query.tab) {
@@ -52,6 +61,23 @@ onMounted(async () => {
   }
   loadOrders()
 })
+
+function nhanHoSo(h) {
+  profile.value.hoTen = h.hoTen || ''
+  profile.value.sdt = h.sdt || ''
+  profile.value.email = h.email || ''
+  profile.value.ngaySinh = h.ngaySinh || ''
+  profile.value.gioiTinh = h.gioiTinh ?? 1
+}
+
+// Hồ sơ thật từ CSDL (họ tên, SĐT, email, ngày sinh, giới tính của khách đang đăng nhập)
+async function loadProfile() {
+  try {
+    nhanHoSo((await api.get('/khach/tai-khoan')).data)
+  } catch (e) {
+    profileErrors.value = { chung: e.message || 'Không tải được thông tin tài khoản.' }
+  }
+}
 
 // Sổ địa chỉ thật từ CSDL (của chính khách đang đăng nhập)
 async function loadAddresses() {
@@ -108,8 +134,14 @@ async function saveAddress() {
   }
 }
 
-function loadOrders() {
+async function loadOrders() {
   orders.value = docDonHang()
+  // Cập nhật trạng thái thật từ cửa hàng (nhân viên xác nhận / giao hàng ở trang quản lý)
+  orders.value = [
+    ...(await dongBoTrangThaiDon(orders.value, async (ma) =>
+      (await api.get(`/khach/don-hang/${encodeURIComponent(ma)}`)).data,
+    )),
+  ]
 }
 
 const filteredOrders = computed(() => {
@@ -156,12 +188,74 @@ function validateProfile() {
   return Object.keys(errs).length === 0
 }
 
-function saveProfile() {
-  if (!validateProfile()) return
-  profileSaved.value = true
-  setTimeout(() => {
-    profileSaved.value = false
-  }, 3000)
+async function saveProfile() {
+  if (!validateProfile()) return false
+  try {
+    const p = profile.value
+    const res = await api.put('/khach/tai-khoan', {
+      hoTen: p.hoTen,
+      sdt: p.sdt,
+      email: p.email,
+      ngaySinh: p.ngaySinh || null,
+      gioiTinh: p.gioiTinh,
+    })
+    auth.ghiPhien(res.data)
+    nhanHoSo(res.data.hoSo)
+    profileSaved.value = true
+    setTimeout(() => {
+      profileSaved.value = false
+    }, 3000)
+    return true
+  } catch (e) {
+    profileErrors.value = { ...(e.loiTheoTruong || {}), chung: e.message || 'Không lưu được thông tin tài khoản.' }
+    return false
+  }
+}
+
+// Một nút duy nhất: lưu hồ sơ, và đổi mật khẩu nếu khách có nhập vào mục đổi mật khẩu
+async function saveAll() {
+  const muonDoiMatKhau = !!(pwForm.value.matKhauCu || pwForm.value.matKhauMoi || pwForm.value.nhapLai)
+  const hoSoOk = validateProfile()
+  const matKhauOk = muonDoiMatKhau ? validatePassword() : true
+  if (!hoSoOk || !matKhauOk) return
+  pwErrors.value = {}
+  pwSuccess.value = ''
+  if (muonDoiMatKhau) {
+    const ok = await changePassword()
+    if (!ok) return
+  }
+  saveProfile()
+}
+
+// Đổi mật khẩu: backend cấp token mới nên phải lưu lại phiên ngay
+function validatePassword() {
+  const f = pwForm.value
+  const errs = {}
+  if (!f.matKhauCu) errs.matKhauCu = 'Vui lòng nhập mật khẩu hiện tại.'
+  const moi = loiMatKhau(f.matKhauMoi, 'Vui lòng nhập mật khẩu mới.')
+  if (moi) errs.matKhauMoi = moi
+  else if (f.matKhauMoi === f.matKhauCu) errs.matKhauMoi = 'Mật khẩu mới phải khác mật khẩu hiện tại.'
+  if (!f.nhapLai) errs.nhapLai = 'Vui lòng nhập lại mật khẩu mới.'
+  else if (f.nhapLai !== f.matKhauMoi) errs.nhapLai = 'Mật khẩu nhập lại không khớp.'
+  pwErrors.value = errs
+  return Object.keys(errs).length === 0
+}
+
+async function changePassword() {
+  if (pwSaving.value) return false
+  pwSaving.value = true
+  try {
+    const res = await api.put('/khach/doi-mat-khau', { ...pwForm.value })
+    auth.ghiPhien(res.data)
+    pwForm.value = { matKhauCu: '', matKhauMoi: '', nhapLai: '' }
+    pwSuccess.value = 'Đổi mật khẩu thành công! Các phiên đăng nhập cũ trên máy khác đã hết hiệu lực.'
+    return true
+  } catch (e) {
+    pwErrors.value = { ...(e.loiTheoTruong || {}), chung: e.message || 'Không đổi được mật khẩu.' }
+    return false
+  } finally {
+    pwSaving.value = false
+  }
 }
 
 async function setDefaultAddress(id) {
@@ -378,7 +472,9 @@ function cancelOrder(maHoaDon) {
               <i class="bi bi-check-circle-fill me-1"></i> Cập nhật thông tin tài khoản thành công!
             </div>
 
-            <form @submit.prevent="saveProfile">
+            <div v-if="profileErrors.chung" class="alert alert-danger py-2 small mb-3">{{ profileErrors.chung }}</div>
+
+            <form novalidate @submit.prevent="saveAll">
               <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label small fw-semibold">Họ và tên <span class="text-danger">*</span></label>
@@ -433,9 +529,66 @@ function cancelOrder(maHoaDon) {
                   </div>
                 </div>
 
-                <div class="col-12 mt-4">
-                  <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
-                    Lưu thay đổi
+              </div>
+
+            <!-- Đổi mật khẩu (tùy chọn) -->
+            <hr class="my-4" />
+            <h5 class="fw-bold mb-3 text-dark d-flex align-items-center gap-2">
+              <i class="bi bi-key-fill text-primary"></i> Đổi mật khẩu
+            </h5>
+
+            <div v-if="pwSuccess" class="alert alert-success py-2 small mb-3">
+              <i class="bi bi-check-circle-fill me-1"></i> {{ pwSuccess }}
+            </div>
+            <div v-if="pwErrors.chung" class="alert alert-danger py-2 small mb-3">{{ pwErrors.chung }}</div>
+
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold">Mật khẩu hiện tại</label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    :class="{ 'is-invalid': pwErrors.matKhauCu }"
+                    v-model="pwForm.matKhauCu"
+                    autocomplete="current-password"
+                    maxlength="50"
+                  />
+                  <div v-if="pwErrors.matKhauCu" class="invalid-feedback">{{ pwErrors.matKhauCu }}</div>
+                </div>
+                <div class="col-md-6"></div>
+
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold">Mật khẩu mới</label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    :class="{ 'is-invalid': pwErrors.matKhauMoi }"
+                    v-model="pwForm.matKhauMoi"
+                    autocomplete="new-password"
+                    maxlength="50"
+                  />
+                  <div v-if="pwErrors.matKhauMoi" class="invalid-feedback">{{ pwErrors.matKhauMoi }}</div>
+                  <div v-else class="text-muted small mt-1" style="font-size: 0.75rem;">
+                    8-50 ký tự, có cả chữ và số, không có khoảng trắng.
+                  </div>
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold">Nhập lại mật khẩu mới</label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    :class="{ 'is-invalid': pwErrors.nhapLai }"
+                    v-model="pwForm.nhapLai"
+                    autocomplete="new-password"
+                    maxlength="50"
+                  />
+                  <div v-if="pwErrors.nhapLai" class="invalid-feedback">{{ pwErrors.nhapLai }}</div>
+                </div>
+
+                <div class="col-12 mt-3">
+                  <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold" :disabled="pwSaving">
+                    {{ pwSaving ? 'Đang lưu...' : 'Lưu thay đổi' }}
                   </button>
                 </div>
               </div>

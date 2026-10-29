@@ -78,14 +78,31 @@ const categories = ref([
   { key: '6', id: 6, title: 'Quả cầu lông', icon: 'bi-circle' },
 ])
 
+// Trang SALE OFF: chỉ hiện sản phẩm đang giảm giá. Cần tiêu đề / banner riêng, nếu không nhìn giống hệt "Tất cả sản phẩm"
+// (nhất là khi mọi sản phẩm đều đang giảm giá thì danh sách không thay đổi gì khi bấm SALE OFF).
+const laTrangSale = computed(() => route.query.khuyenMai === '1' || route.query.sale === '1')
+
 const currentCategoryTitle = computed(() => {
   const cat = categories.value.find(
     (c) => String(c.key) === String(currentCategory.value) || String(c.id) === String(currentCategory.value)
   )
-  return cat ? cat.title : 'Sản phẩm'
+  const ten = cat ? cat.title : 'Sản phẩm'
+  if (!laTrangSale.value) return ten
+  return cat && cat.key !== 'all' ? `Sale off - ${ten}` : 'Sale off - Sản phẩm đang giảm giá'
 })
 
 const currentBanner = computed(() => {
+  if (laTrangSale.value) {
+    const maxGiam = Math.round(Math.max(0, ...enrichedProducts.value.map((p) => p.maxDiscountPercent || 0)))
+    return {
+      badge: 'FOOTSTYLE SALE OFF',
+      title: 'SẢN PHẨM ĐANG',
+      highlight: maxGiam > 0 ? `GIẢM ĐẾN ${maxGiam}%` : 'GIẢM GIÁ',
+      tag: 'SĂN DEAL CẦU LÔNG CHÍNH HÃNG - SỐ LƯỢNG CÓ HẠN',
+      priceText: 'Giá đã được áp dụng ưu đãi',
+      bg: 'linear-gradient(90deg, #7f1d1d 0%, #dc2626 50%, #ea580c 100%)',
+    }
+  }
   const activeCat = categories.value.find(
     (c) => String(c.key) === String(currentCategory.value) || String(c.id) === String(currentCategory.value)
   )
@@ -205,6 +222,26 @@ function clearAllFilters() {
 }
 
 const sortBy = ref('default')
+
+// Vào SALE OFF thì mặc định xếp giá thấp -> cao để khách thấy ngay các deal rẻ nhất; khách vẫn tự đổi cách sắp xếp được.
+// Rời SALE OFF thì trả về mặc định (chỉ khi cách sắp xếp đó do trang tự đặt, không đè lựa chọn của khách).
+let sortTuDat = false
+watch(
+  laTrangSale,
+  (sale) => {
+    if (sale) {
+      sortBy.value = 'price-asc'
+      sortTuDat = true
+    } else if (sortTuDat) {
+      sortBy.value = 'default'
+      sortTuDat = false
+    }
+  },
+  { immediate: true }
+)
+watch(sortBy, (v) => {
+  if (v !== 'price-asc') sortTuDat = false
+})
 const searchKeyword = ref('')
 
 function getProductCategory(sp) {

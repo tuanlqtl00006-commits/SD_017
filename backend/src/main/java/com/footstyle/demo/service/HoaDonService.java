@@ -53,6 +53,14 @@ public class HoaDonService {
     private final PhieuGiamGiaRepository phieuGiamGiaRepository;
     private final PhieuGiamGiaKhachHangRepository phieuGiamGiaKhachHangRepository;
 
+    /** Gửi mail báo khách khi đơn bị tự hủy (hết hàng). Nạp bằng setter (không bắt buộc) để không đổi hàm khởi tạo của lớp. */
+    private MailService mailService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMailService(MailService mailService) {
+        this.mailService = mailService;
+    }
+
     /* ===================== Danh sách ===================== */
 
     /** Điều kiện lọc dùng chung cho danh sách và bộ đếm theo trạng thái (trangThai = null: không lọc theo trạng thái). */
@@ -363,9 +371,35 @@ public class HoaDonService {
             throw ApiException.badRequest("Ghi chú tối đa 500 ký tự.");
         }
 
+        // Luồng bán hàng: đơn online khách chọn chuyển khoản phải được xác nhận ĐÃ NHẬN TIỀN trước khi xác nhận đơn và trừ kho.
+        // (Đơn COD thì xác nhận đơn với khách rồi thu tiền khi giao.)
+        if (moi == HoaDon.DA_XAC_NHAN && !laTaiQuay(hd)
+                && HoaDonSuaService.CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())) {
+            BigDecimal daTra = BigDecimal.ZERO;
+            for (LichSuThanhToan tt : lichSuThanhToanRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+                if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN) {
+                    daTra = daTra.add(soTien(tt.getSoTien()));
+                }
+            }
+            if (daTra.compareTo(thanhTien(hd)) < 0) {
+                throw ApiException.badRequest("Đơn khách chọn chuyển khoản: vui lòng xác nhận đã nhận thanh toán online trước khi xác nhận đơn.");
+            }
+        }
+
         LocalDateTime now = LocalDateTime.now();
         // Đơn online chỉ trừ tồn kho khi nhân viên xác nhận (lúc khách đặt chưa trừ) - tránh tồn kho âm khi nhiều đơn cùng chờ
         boolean chuaTruKho = !laTaiQuay(hd) && hienTai == HoaDon.CHO_XAC_NHAN;
+        // Luồng bán hàng: kiểm tra tồn kho khi xác nhận; không đủ hàng thì tự hủy đơn (kèm lý do cho khách xem ở mục tra cứu)
+        // và hoàn tiền nếu khách đã chuyển khoản. Đơn chưa trừ kho nên không cộng lại tồn.
+        boolean tuHuyHetHang = false;
+        if (chuaTruKho && moi == HoaDon.DA_XAC_NHAN) {
+            List<String> thieu = danhSachThieuHang(hd);
+            if (!thieu.isEmpty()) {
+                moi = HoaDon.DA_HUY;
+                tuHuyHetHang = true;
+                ghiChu = "Tự động hủy do hết hàng: " + String.join("; ", thieu) + ". Cửa hàng xin lỗi quý khách.";
+            }
+        }
         if (chuaTruKho && moi == HoaDon.DA_XAC_NHAN) {
             truTonKhoKhiXacNhan(hd);
         }
@@ -431,10 +465,36 @@ public class HoaDonService {
         ls.setNguoiThaoTac(nguoi.isEmpty() ? "Quản lý" : nguoi);
         lichSuHoaDonRepository.save(ls);
 
+        // Hết hàng nên đơn tự hủy: báo cho khách qua email (nếu khách có email)
+        if (tuHuyHetHang && mailService != null && hd.getKhachHang() != null) {
+            mailService.guiThongBaoHuyDon(hd.getHoTenNguoiNhan() != null ? hd.getHoTenNguoiNhan() : hd.getKhachHang().getHoTen(),
+                    hd.getKhachHang().getEmail(), hd.getMaHoaDon(), ghiChu);
+        }
+
         return getChiTietHoaDon(hd.getId());
     }
 
     /* ===================== Hàm phụ ===================== */
+
+    /** Các dòng của đơn mà tồn kho hiện tại không đủ (rỗng nếu đủ hàng). */
+    private List<String> danhSachThieuHang(HoaDon hd) {
+        Map<Integer, Integer> canTru = new LinkedHashMap<>();
+        Map<Integer, SanPhamChiTiet> bienThe = new LinkedHashMap<>();
+        for (HoaDonChiTiet ct : hoaDonChiTietRepository.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
+            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
+            int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
+            if (spct == null || spct.getId() == null || sl <= 0) continue;
+            bienThe.putIfAbsent(spct.getId(), spct);
+            canTru.merge(spct.getId(), sl, Integer::sum);
+        }
+        List<String> thieu = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
+            SanPhamChiTiet spct = bienThe.get(e.getKey());
+            int ton = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
+            if (ton < e.getValue()) thieu.add(spct.getMaSpct() + " (còn " + ton + ", đơn cần " + e.getValue() + ")");
+        }
+        return thieu;
+    }
 
     /**
      * Xác nhận đơn online: kiểm tra đủ hàng cho TẤT CẢ dòng trước (báo hết các dòng thiếu một lần), rồi trừ có điều kiện từng biến thể.

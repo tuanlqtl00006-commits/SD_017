@@ -7,6 +7,7 @@ import { khachDiaChiService } from '../../services/khachDiaChiService'
 import DiaChiHanhChinhSelect from '../../components/common/DiaChiHanhChinhSelect.vue'
 import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
 import { formatMoney } from '../../utils/format'
+import api from '../../services/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -74,6 +75,7 @@ onMounted(async () => {
 
 const errors = ref({})
 const submitting = ref(false)
+const submitError = ref('')
 
 function validate() {
   const errs = {}
@@ -96,7 +98,7 @@ function validate() {
   return Object.keys(errs).length === 0
 }
 
-function handleOrderSubmit() {
+async function handleOrderSubmit() {
   if (!laKhachDaDangNhap()) {
     chuyenDenDangNhap()
     return
@@ -111,10 +113,33 @@ function handleOrderSubmit() {
   }
 
   submitting.value = true
+  submitError.value = ''
 
-  // Sinh mã đơn hàng ngẫu nhiên định dạng HD + số
-  const randomSuffix = Math.floor(1000 + Math.random() * 9000)
-  const maDonHang = `HD${randomSuffix}`
+  // Gửi đơn lên backend: backend kiểm tra tồn kho, áp mã giảm giá, lưu hóa đơn thật và gửi mail xác nhận cho khách
+  let ketQua
+  try {
+    ketQua = (
+      await api.post('/cua-hang/dat-hang', {
+        hoTenNguoiNhan: form.value.hoTen.trim(),
+        sdtNguoiNhan: form.value.sdt.trim(),
+        emailNguoiNhan: form.value.email.trim(),
+        diaChiGiaoHang: form.value.diaChiCuThe.trim(),
+        tinhThanh: form.value.tinhThanh,
+        phuongXa: form.value.phuongXa,
+        ghiChu: form.value.ghiChu.trim(),
+        idKhachHang: auth.trangThai.nguoiDung?.id ?? null,
+        idPhuongThucThanhToan: form.value.phuongThucThanhToan === 'QR' ? 2 : 1,
+        maPhieuGiamGia: cartStore.appliedVoucher ? cartStore.appliedVoucher.ma : null,
+        chiTiet: cartStore.items.map((i) => ({ idSanPhamChiTiet: i.bienTheId, soLuong: i.soLuong })),
+      })
+    ).data
+  } catch (e) {
+    submitError.value = e.message || 'Không đặt được hàng. Vui lòng thử lại.'
+    submitting.value = false
+    return
+  }
+
+  const maDonHang = ketQua.maHoaDon
 
   const fullAddress = [form.value.diaChiCuThe, form.value.phuongXa, form.value.quanHuyen, form.value.tinhThanh]
     .filter((x) => x && String(x).trim())
@@ -132,10 +157,10 @@ function handleOrderSubmit() {
     loaiDon: 2, // 2: Trực tuyến
     trangThai: 0, // 0: Chờ xác nhận
     trangThaiText: 'Chờ xác nhận',
-    tongTienHang: cartStore.subTotal,
-    tienGiam: cartStore.discountAmount,
-    phiVanChuyen: cartStore.shippingFee,
-    tongThanhToan: cartStore.finalTotal,
+    tongTienHang: ketQua.tongTien,
+    tienGiam: ketQua.soTienGiam,
+    phiVanChuyen: ketQua.phiVanChuyen,
+    tongThanhToan: ketQua.thanhTien,
     voucher: cartStore.appliedVoucher ? cartStore.appliedVoucher.ma : null,
     items: [...cartStore.items],
   }
@@ -362,6 +387,8 @@ function handleOrderSubmit() {
               <span class="fw-bold">Tổng thanh toán:</span>
               <span class="fs-4 fw-bold text-danger">{{ formatMoney(cartStore.finalTotal) }}</span>
             </div>
+
+            <div v-if="submitError" class="alert alert-danger py-2 small mb-3">{{ submitError }}</div>
 
             <button
               type="button"

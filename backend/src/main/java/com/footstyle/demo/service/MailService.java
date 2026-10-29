@@ -428,6 +428,67 @@ public class MailService {
         }
     }
 
+    /**
+     * Xác nhận cho khách biết đã đặt hàng thành công: mã đơn, các món, tổng thanh toán, địa chỉ, cách thanh toán.
+     * Gửi ở luồng riêng (không làm chậm / làm hỏng việc đặt hàng); không có email hợp lệ thì bỏ qua;
+     * chưa cấu hình Gmail thì chỉ ghi log. `monHang` mỗi phần tử là một dòng chữ, vd "Vợt X (Đen) x2".
+     */
+    public void guiXacNhanDatHang(String hoTen, String email, String maHoaDon, java.util.List<String> monHang,
+                                  String thanhTienChu, String diaChi, String cachThanhToan) {
+        if (email == null || !email.contains("@")) return;
+        final String den = email.trim();
+        String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
+        String tieuDe = "[" + tenCuaHang + "] Đặt hàng thành công - đơn " + maHoaDon;
+        StringBuilder chu = new StringBuilder("Xin chào " + ten + ",\n\n"
+                + "Cảm ơn bạn đã đặt hàng tại " + tenCuaHang + ". Đơn " + maHoaDon + " đã được ghi nhận và đang chờ cửa hàng xác nhận.\n\n");
+        StringBuilder ds = new StringBuilder();
+        for (String m : monHang) {
+            chu.append("- ").append(m).append('\n');
+            ds.append("<li>").append(org.springframework.web.util.HtmlUtils.htmlEscape(m)).append("</li>");
+        }
+        chu.append("\nTổng thanh toán: ").append(thanhTienChu)
+                .append("\nGiao tới: ").append(diaChi)
+                .append("\nThanh toán: ").append(cachThanhToan)
+                .append("\n\nBạn có thể tra cứu đơn hàng bằng mã ").append(maHoaDon).append(" trên website.\n");
+        String html = "<div style=\"font-family:Arial,sans-serif;font-size:15px;color:#18242f\">"
+                + "<p>Xin chào <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(ten) + "</b>,</p>"
+                + "<p>Cảm ơn bạn đã đặt hàng tại " + org.springframework.web.util.HtmlUtils.htmlEscape(tenCuaHang) + ". Đơn <b>"
+                + org.springframework.web.util.HtmlUtils.htmlEscape(String.valueOf(maHoaDon))
+                + "</b> đã được ghi nhận và đang chờ cửa hàng xác nhận.</p>"
+                + "<ul>" + ds + "</ul>"
+                + "<p>Tổng thanh toán: <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(thanhTienChu) + "</b><br>"
+                + "Giao tới: " + org.springframework.web.util.HtmlUtils.htmlEscape(diaChi) + "<br>"
+                + "Thanh toán: " + org.springframework.web.util.HtmlUtils.htmlEscape(cachThanhToan) + "</p>"
+                + "<p>Bạn có thể tra cứu đơn hàng bằng mã <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(String.valueOf(maHoaDon))
+                + "</b> trên website.</p></div>";
+        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), html);
+        luongGui.submit(() -> gui(den, thu, null));
+    }
+
+    /**
+     * Báo cho khách biết đơn bị hủy (vd. hết hàng khi xác nhận đơn). Gửi ở luồng riêng nên không làm chậm thao tác đổi trạng thái;
+     * không có email hợp lệ thì bỏ qua; chưa cấu hình Gmail thì chỉ ghi log (như các thư khác).
+     */
+    public void guiThongBaoHuyDon(String hoTen, String email, String maHoaDon, String lyDo) {
+        if (email == null || !email.contains("@")) return;
+        final String den = email.trim();
+        String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
+        String ly = lyDo == null ? "" : lyDo.trim();
+        String tieuDe = "[" + tenCuaHang + "] Đơn hàng " + maHoaDon + " đã bị hủy";
+        String banChu = "Xin chào " + ten + ",\n\n"
+                + "Rất tiếc, đơn hàng " + maHoaDon + " của bạn tại " + tenCuaHang + " đã bị hủy.\n"
+                + "Lý do: " + ly + "\n\n"
+                + "Nếu bạn đã thanh toán trước, cửa hàng sẽ hoàn tiền lại cho bạn. Xin lỗi vì sự bất tiện này.\n";
+        String html = "<div style=\"font-family:Arial,sans-serif;font-size:15px;color:#18242f\">"
+                + "<p>Xin chào <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(ten) + "</b>,</p>"
+                + "<p>Rất tiếc, đơn hàng <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(String.valueOf(maHoaDon))
+                + "</b> của bạn tại " + org.springframework.web.util.HtmlUtils.htmlEscape(tenCuaHang) + " đã bị hủy.</p>"
+                + "<p>Lý do: " + org.springframework.web.util.HtmlUtils.htmlEscape(ly) + "</p>"
+                + "<p>Nếu bạn đã thanh toán trước, cửa hàng sẽ hoàn tiền lại cho bạn. Xin lỗi vì sự bất tiện này.</p></div>";
+        final ThuMail thu = new ThuMail(tieuDe, banChu, html);
+        luongGui.submit(() -> gui(den, thu, null));
+    }
+
     /** Ghép thư HTML (kèm bản chữ) và logo gắn kiểu CID. logoGan = null: không gắn logo. */
     MimeMessage soanThu(JavaMailSender sender, String den, ThuMail thu, byte[] logoGan) throws Exception {
         MimeMessage m = sender.createMimeMessage();

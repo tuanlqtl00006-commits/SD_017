@@ -37,6 +37,14 @@ public class CuaHangService {
     private final KhachHangRepository khachHangRepo;
     private final GiamGiaApDungService giamGiaService;
 
+    /** Gửi mail xác nhận đặt hàng. Nạp bằng setter (không bắt buộc) để không đổi hàm khởi tạo của lớp. */
+    private MailService mailService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMailService(MailService mailService) {
+        this.mailService = mailService;
+    }
+
     public record DatHangOnlineRequest(
             String hoTenNguoiNhan,
             String sdtNguoiNhan,
@@ -450,7 +458,39 @@ public class CuaHangService {
         res.put("ngayTao", now.toString());
         res.put("trangThai", "Chờ xác nhận");
 
+        // Gửi mail xác nhận đặt hàng: ưu tiên email khách nhập lúc đặt, không có thì dùng email tài khoản khách hàng
+        if (mailService != null) {
+            String email = req.emailNguoiNhan() == null ? "" : req.emailNguoiNhan().trim();
+            if (email.isEmpty() && hd.getKhachHang() != null && hd.getKhachHang().getEmail() != null) {
+                email = hd.getKhachHang().getEmail();
+            }
+            List<String> mon = new ArrayList<>();
+            for (HoaDonChiTiet ct : dsChiTiet) {
+                SanPhamChiTiet bt = ct.getSanPhamChiTiet();
+                String tenSp = bt != null && bt.getSanPham() != null ? bt.getSanPham().getTenSanPham() : "Sản phẩm";
+                String mau = bt != null && bt.getMauSac() != null ? " (" + bt.getMauSac().getTen() + ")" : "";
+                mon.add(tenSp + mau + " x" + ct.getSoLuong());
+            }
+            mailService.guiXacNhanDatHang(hd.getHoTenNguoiNhan(), email, maHd, mon,
+                    String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", thanhTien),
+                    diaChiFull, (String) res.get("tenPhuongThuc"));
+        }
+
         return res;
+    }
+
+    /**
+     * Tra cứu đơn của CHÍNH khách đang đăng nhập: đơn không thuộc khách này thì báo "không tìm thấy"
+     * (không cho biết đơn người khác có tồn tại hay không).
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> traCuuDonHangCuaKhach(String maHoaDon, Integer idKhach) {
+        String ma = maHoaDon == null ? "" : maHoaDon.trim();
+        HoaDon hd = ma.isEmpty() ? null : hoaDonRepo.findFirstByMaHoaDonIgnoreCase(ma).orElse(null);
+        if (hd == null || hd.getKhachHang() == null || !idKhach.equals(hd.getKhachHang().getId())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma + " trong tài khoản của bạn.", null, null, null);
+        }
+        return traCuuDonHang(ma, null);
     }
 
     /** Tra cứu đơn hàng online */

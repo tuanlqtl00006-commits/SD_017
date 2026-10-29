@@ -414,6 +414,11 @@
   border-radius: 2px 2px 0 0;
 }
 
+/* Hai mục SẢN PHẨM và SALE OFF cùng đường dẫn nên chỉ một mục được gạch chân (xem ClientLayout.vue) */
+.vnb-nav-link.vnb-no-active::after {
+  display: none;
+}
+
 /* DROPDOWN MENU HƯỚNG DẪN CHUẨN MẪU SHOPVNB */
 .vnb-guide-menu {
   position: absolute !important;

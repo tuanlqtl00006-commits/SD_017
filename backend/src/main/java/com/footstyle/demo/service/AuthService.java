@@ -143,6 +143,36 @@ public class AuthService {
         return ketQuaDangNhap(token.tao(NguoiDung.LOAI_NHAN_VIEN, nv.getId(), nv.getMatKhau()), XacThucInterceptor.tuNhanVien(nv));
     }
 
+    /** Đổi mật khẩu của khách hàng đang đăng nhập (trang Tài khoản online); trả về token mới như nhân viên. */
+    @Transactional
+    public Map<String, Object> doiMatKhauKhach(DoiMatKhauRequest req) {
+        NguoiDung nd = XacThuc.hienTai()
+                .filter(NguoiDung::laKhachHang)
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập bằng tài khoản khách hàng."));
+        KhachHang kh = khachHangRepo.findById(nd.id()).orElseThrow(() -> ApiException.notFound("Không tìm thấy tài khoản."));
+        LoiForm loi = new LoiForm();
+        String cu = req == null ? null : req.matKhauCu();
+        String moi = req == null ? null : req.matKhauMoi();
+        String nhapLai = req == null ? null : req.nhapLai();
+        if (cu == null || cu.isEmpty()) loi.them("matKhauCu", "Vui lòng nhập mật khẩu hiện tại.");
+        else if (!dungMatKhau(cu, kh.getMatKhau())) loi.them("matKhauCu", "Mật khẩu hiện tại không đúng.");
+        String loiMoi = QuyTacDuLieu.loiMatKhau(moi);
+        if (loiMoi != null) loi.them("matKhauMoi", loiMoi);
+        else if (cu != null && cu.equals(moi)) loi.them("matKhauMoi", "Mật khẩu mới phải khác mật khẩu hiện tại.");
+        if (nhapLai == null || nhapLai.isEmpty()) loi.them("nhapLai", "Vui lòng nhập lại mật khẩu mới.");
+        else if (moi != null && !moi.equals(nhapLai)) loi.them("nhapLai", "Mật khẩu nhập lại không khớp.");
+        loi.nemNeuCoLoi();
+
+        kh.setMatKhau(encoder.encode(moi));
+        khachHangRepo.save(kh);
+        return phienMoiCuaKhach(kh);
+    }
+
+    /** Phiên (token + thông tin hiển thị) cho khách hàng: dùng sau khi đổi mật khẩu hoặc sửa hồ sơ. */
+    public Map<String, Object> phienMoiCuaKhach(KhachHang kh) {
+        return ketQuaDangNhap(token.tao(NguoiDung.LOAI_KHACH_HANG, kh.getId(), kh.getMatKhau()), XacThucInterceptor.tuKhachHang(kh));
+    }
+
     /**
      * Quên mật khẩu: email đúng của nhân viên đang hoạt động thì đặt mật khẩu tạm mới và gửi qua email.
      * Luôn trả cùng một câu (dù email có tồn tại hay không) để không lộ email nào là tài khoản của cửa hàng.
