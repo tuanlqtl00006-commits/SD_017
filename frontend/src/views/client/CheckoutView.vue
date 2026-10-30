@@ -6,6 +6,8 @@ import { useAuth } from '../../composables/useAuth'
 import { khachDiaChiService } from '../../services/khachDiaChiService'
 import DiaChiHanhChinhSelect from '../../components/common/DiaChiHanhChinhSelect.vue'
 import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
+import VoucherPanel from '../../components/shop/VoucherPanel.vue'
+import VanChuyenLogo from '../../components/common/VanChuyenLogo.vue'
 import { formatMoney } from '../../utils/format'
 import api from '../../services/api'
 
@@ -333,75 +335,61 @@ async function handleOrderSubmit() {
         <!-- Cột Tóm Tắt Đơn Hàng -->
         <div class="col-lg-5">
           <div class="card border-0 shadow-sm rounded-4 p-4 sticky-top" style="top: 20px;">
-            <h5 class="fw-bold mb-3 text-dark">Đơn hàng của bạn ({{ cartStore.totalCount }})</h5>
+            <h5 class="co-title">Đơn hàng ({{ cartStore.totalCount }} sản phẩm)</h5>
 
-            <!-- Danh sách món tóm tắt -->
-            <div class="border rounded-3 p-2 mb-3 bg-light overflow-y-auto" style="max-height: 250px;">
-              <div
-                v-for="item in cartStore.items"
-                :key="item.bienTheId"
-                class="d-flex align-items-center gap-2 py-2 border-bottom border-light-subtle last-border-0"
-              >
-                <img
-                  :src="item.anh || '/logo.png'"
-                  :alt="item.sanPhamTen"
-                  class="rounded-2 border p-1 bg-white"
-                  style="width: 44px; height: 44px; object-fit: contain;"
-                />
-                <div class="flex-grow-1 small">
-                  <div class="fw-semibold text-dark text-truncate" style="max-width: 200px;">
-                    {{ item.sanPhamTen }}
+            <!-- Danh sách sản phẩm -->
+            <div class="co-items">
+              <div v-for="item in cartStore.items" :key="item.bienTheId" class="co-item">
+                <RouterLink :to="`/shop/san-pham/${item.sanPhamId}`" class="co-item-img">
+                  <img :src="item.anh || '/logo.png'" :alt="item.sanPhamTen" />
+                  <span class="co-badge">{{ item.soLuong }}</span>
+                </RouterLink>
+                <div class="co-item-body">
+                  <div class="co-item-name">{{ item.sanPhamTen }}</div>
+                  <div class="co-item-attrs">
+                    <span v-if="item.mauSac">Màu: {{ item.mauSac }}</span>
+                    <span v-if="item.trongLuong">Trọng lượng: {{ item.trongLuong }}</span>
+                    <span v-if="item.chuVi">Cán: {{ item.chuVi }}</span>
                   </div>
-                  <div class="text-muted" style="font-size: 0.75rem;">
-                    <span v-if="item.mauSac">{{ item.mauSac }}</span>
-                    <span v-if="item.trongLuong"> • {{ item.trongLuong }}</span>
-                    <span> | x{{ item.soLuong }}</span>
-                  </div>
+                  <div v-if="item.soLuong > 1" class="co-item-unit">{{ formatMoney(item.giaBan) }} x {{ item.soLuong }}</div>
                 </div>
-                <div class="text-end small fw-bold text-dark">
-                  {{ formatMoney(item.giaBan * item.soLuong) }}
-                </div>
+                <div class="co-item-total">{{ formatMoney(item.giaBan * item.soLuong) }}</div>
               </div>
             </div>
 
-            <!-- Tóm tắt chi phí -->
-            <div class="d-flex justify-content-between mb-2 small">
-              <span class="text-muted">Tổng tiền hàng:</span>
-              <span class="fw-semibold">{{ formatMoney(cartStore.subTotal) }}</span>
+            <!-- Mã giảm giá: gợi ý mã tốt nhất + nhập / chọn mã -->
+            <VoucherPanel />
+
+            <!-- Chi phí -->
+            <div class="co-row">
+              <span>Tạm tính</span>
+              <span class="co-val">{{ formatMoney(cartStore.subTotal) }}</span>
+            </div>
+            <div v-if="cartStore.discountAmount > 0" class="co-row">
+              <span class="co-green">Giảm giá voucher<template v-if="cartStore.appliedVoucher"> ({{ cartStore.appliedVoucher.ma }})</template></span>
+              <span class="co-val co-green">-{{ formatMoney(cartStore.discountAmount) }}</span>
+            </div>
+            <div class="co-row">
+              <span class="co-ship">Phí vận chuyển <VanChuyenLogo ten="Giao Hàng Nhanh" /></span>
+              <span v-if="cartStore.shippingFee === 0" class="co-val co-green">Miễn phí</span>
+              <span v-else class="co-val">{{ formatMoney(cartStore.shippingFee) }}</span>
             </div>
 
-            <div class="d-flex justify-content-between mb-2 small" v-if="cartStore.discountAmount > 0">
-              <span class="text-success">Giảm giá voucher:</span>
-              <span class="fw-bold text-success">-{{ formatMoney(cartStore.discountAmount) }}</span>
-            </div>
-
-            <div class="d-flex justify-content-between mb-3 small">
-              <span class="text-muted">Phí vận chuyển:</span>
-              <span v-if="cartStore.shippingFee === 0" class="text-success fw-bold">Miễn phí</span>
-              <span v-else class="fw-semibold">{{ formatMoney(cartStore.shippingFee) }}</span>
-            </div>
-
-            <hr class="my-2" />
-
-            <div class="d-flex justify-content-between align-items-baseline mb-4">
-              <span class="fw-bold">Tổng thanh toán:</span>
-              <span class="fs-4 fw-bold text-danger">{{ formatMoney(cartStore.finalTotal) }}</span>
+            <div class="co-total">
+              <span>Tổng cộng</span>
+              <span class="co-total-val">{{ formatMoney(cartStore.finalTotal) }}</span>
             </div>
 
             <div v-if="submitError" class="alert alert-danger py-2 small mb-3">{{ submitError }}</div>
 
-            <button
-              type="button"
-              class="btn text-white btn-lg w-100 rounded-pill fw-bold shadow-sm"
-              style="background-color: #ea580c; border-color: #ea580c;"
-              :disabled="submitting"
-              @click="handleOrderSubmit"
-            >
+            <button type="button" class="co-submit" :disabled="submitting" @click="handleOrderSubmit">
               <span v-if="submitting" class="spinner-border spinner-border-sm me-2"></span>
-              <span>Xác nhận đặt hàng</span>
+              <span>ĐẶT HÀNG</span>
             </button>
 
-            <div class="text-center text-muted mt-3" style="font-size: 0.775rem;">
+            <RouterLink to="/shop/gio-hang" class="co-back">Quay lại giỏ hàng</RouterLink>
+
+            <div class="co-note">
               <i class="bi bi-shield-check me-1"></i> Bằng việc đặt hàng, bạn đồng ý với Điều khoản dịch vụ và Chính sách của FootStyle.
             </div>
           </div>
@@ -410,3 +398,158 @@ async function handleOrderSubmit() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.co-title {
+  margin: 0 0 1rem;
+  padding-bottom: 0.8rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #111827;
+  border-bottom: 1px solid #eef0f4;
+}
+.co-items {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+.co-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.5rem 0;
+}
+.co-item-img {
+  position: relative;
+  flex: 0 0 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #e3ebf8;
+  border-radius: 10px;
+  padding: 3px;
+}
+.co-item-img img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.co-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+  background: #0d6efd;
+  border-radius: 999px;
+  border: 2px solid #fff;
+}
+.co-item-body {
+  flex: 1;
+  min-width: 0;
+}
+.co-item-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
+}
+.co-item-attrs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.7rem;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+.co-item-unit {
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: #9aa3b2;
+}
+.co-item-total {
+  flex-shrink: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+}
+.co-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.7rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+.co-val {
+  font-weight: 600;
+  color: #111827;
+}
+.co-green {
+  color: #16a34a;
+  font-weight: 700;
+}
+.co-ship {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.co-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0.6rem 0 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid #eef0f4;
+  font-weight: 800;
+  color: #111827;
+}
+.co-total-val {
+  font-size: 1.5rem;
+  color: #0d6efd;
+}
+.co-submit {
+  width: 100%;
+  padding: 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #0d6efd;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(13, 110, 253, 0.28);
+}
+.co-submit:hover:not(:disabled) {
+  background: #0b5ed7;
+}
+.co-submit:disabled {
+  opacity: 0.7;
+}
+.co-back {
+  display: block;
+  margin-top: 0.9rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #6b7280;
+  text-decoration: none;
+}
+.co-back:hover {
+  color: #0d6efd;
+}
+.co-note {
+  margin-top: 0.8rem;
+  text-align: center;
+  font-size: 0.72rem;
+  color: #9aa3b2;
+}
+</style>

@@ -24,6 +24,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Cho điện thoại cùng mạng Wi-Fi mở web bằng IP máy tính (quét QR thanh toán giả lập)
+    host: true,
     proxy: {
       '/api': {
         // Backend mặc định ở cổng 8081; đổi bằng biến môi trường VITE_API_TARGET nếu backend chạy cổng khác

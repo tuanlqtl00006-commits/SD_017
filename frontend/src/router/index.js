@@ -215,6 +215,13 @@ const routes = [
     component: () => import('../components/chat/HoTroKhachPage.vue'),
     meta: { congKhai: true, title: 'Hỗ trợ trực tuyến - FootStyle' },
   },
+  // Trang "ngân hàng giả" mở bằng cách quét QR thanh toán giả lập (demo đồ án), không cần đăng nhập
+  {
+    path: '/thanh-toan-gia-lap',
+    name: 'thanh-toan-gia-lap',
+    component: () => import('../views/GiaLapNganHangView.vue'),
+    meta: { congKhai: true, title: 'Xác nhận chuyển tiền - Demo' },
+  },
   // Bán hàng online cho khách (Giao diện chuẩn nhóm)
   {
     path: '/shop',

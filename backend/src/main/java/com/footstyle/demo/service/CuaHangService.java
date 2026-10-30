@@ -34,6 +34,7 @@ public class CuaHangService {
     private final LichSuHoaDonRepository lichSuHoaDonRepo;
     private final LichSuThanhToanRepository thanhToanRepo;
     private final PhieuGiamGiaRepository phieuRepo;
+    private final PhieuGiamGiaKhachHangRepository phieuKhachRepo;
     private final KhachHangRepository khachHangRepo;
     private final GiamGiaApDungService giamGiaService;
 
@@ -303,6 +304,77 @@ public class CuaHangService {
         return kq;
     }
 
+    /** Lý do khách `idKhach` (có thể null) không dùng được phiếu `p` cho đơn `tongTien` đồng; null = dùng được. */
+    private String lyDoPhieuKhongDung(PhieuGiamGia p, long tongTien, Integer idKhach) {
+        boolean laCuaKhach = false;
+        long soLanDaDung = 0;
+        if (idKhach != null) {
+            for (PhieuGiamGiaKhachHang x : phieuKhachRepo.findByIdKhachHang(idKhach)) {
+                if (p.getId().equals(x.getIdPhieuGiamGia()) && x.getNgaySuDung() == null) laCuaKhach = true;
+            }
+            soLanDaDung = hoaDonRepo.countByKhachHang_IdAndPhieuGiamGia_IdAndTrangThaiNot(idKhach, p.getId(), HoaDon.DA_HUY);
+        }
+        return PhieuApDung.lyDoKhongDung(p, tongTien, bayGio(), idKhach != null, laCuaKhach, soLanDaDung);
+    }
+
+    /**
+     * Khách nhập mã ở giỏ hàng: kiểm tra mã có dùng được cho đơn `tongTien` không (phiếu công khai, hoặc phiếu cá nhân được tặng
+     * cho đúng khách này) và trả về mức giảm. Không dùng được thì báo lý do cụ thể.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> kiemTraPhieuChoKhach(String maPhieu, long tongTien, Integer idKhach) {
+        String ma = maPhieu == null ? "" : maPhieu.trim();
+        if (ma.isEmpty()) throw ApiException.badRequest("Vui lòng nhập mã phiếu giảm giá.");
+        PhieuGiamGia p = phieuRepo.findFirstByMaPhieuIgnoreCase(ma)
+                .orElseThrow(() -> ApiException.badRequest("Mã phiếu giảm giá không tồn tại."));
+        String lyDo = lyDoPhieuKhongDung(p, tongTien, idKhach);
+        if (lyDo != null) throw ApiException.badRequest(lyDo);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("ma", p.getMaPhieu());
+        m.put("ten", p.getTenPhieu());
+        m.put("loaiGiam", p.getLoaiGiam()); // 1 = %, 2 = tiền mặt
+        m.put("giaTriGiam", p.getGiaTriGiam());
+        m.put("giamToiDa", p.getGiamToiDa());
+        m.put("donToiThieu", p.getGiaTriDonHangToiThieu() == null ? 0L : p.getGiaTriDonHangToiThieu());
+        m.put("soTienGiam", PhieuApDung.soTienGiam(p, tongTien));
+        return m;
+    }
+
+    /**
+     * Danh sách mã khách đang xem được ở giỏ hàng: phiếu công khai + phiếu cá nhân được tặng đúng cho khách này (chưa dùng).
+     * Mã chưa đủ điều kiện cho đơn hiện tại vẫn hiện nhưng kèm lý do (vd "còn thiếu ..."), để khách biết cần mua thêm.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> danhSachPhieuChoKhach(long tongTien, Integer idKhach) {
+        Set<Integer> cuaKhach = new HashSet<>();
+        if (idKhach != null) {
+            for (PhieuGiamGiaKhachHang x : phieuKhachRepo.findByIdKhachHang(idKhach)) {
+                if (x.getNgaySuDung() == null) cuaKhach.add(x.getIdPhieuGiamGia());
+            }
+        }
+        List<Map<String, Object>> kq = new ArrayList<>();
+        for (PhieuGiamGia p : phieuRepo.findAll()) {
+            boolean caNhan = Integer.valueOf(PhieuGiamGia.DOI_TUONG_KHACH_CU_THE).equals(p.getDoiTuongApDung());
+            if (caNhan && !cuaKhach.contains(p.getId())) continue; // phiếu tặng riêng cho người khác: không hiện
+            // Hiện TẤT CẢ các phiếu còn lại (kể cả hết hạn / hết lượt / ngừng hoạt động): phiếu không dùng được kèm lý do, giao diện làm xám
+            String lyDo = lyDoPhieuKhongDung(p, tongTien, idKhach);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("ma", p.getMaPhieu());
+            m.put("ten", p.getTenPhieu());
+            m.put("caNhan", caNhan);
+            m.put("loaiGiam", p.getLoaiGiam());
+            m.put("giaTriGiam", p.getGiaTriGiam());
+            m.put("giamToiDa", p.getGiamToiDa());
+            m.put("donToiThieu", p.getGiaTriDonHangToiThieu() == null ? 0L : p.getGiaTriDonHangToiThieu());
+            m.put("ngayKetThuc", p.getNgayKetThuc());
+            m.put("dungDuoc", lyDo == null);
+            m.put("lyDo", lyDo);
+            m.put("soTienGiam", lyDo == null ? PhieuApDung.soTienGiam(p, tongTien) : 0L);
+            kq.add(m);
+        }
+        return kq;
+    }
+
     /** Khách hàng đặt mua online */
     @Transactional
     public Map<String, Object> datHangOnline(DatHangOnlineRequest req) {
@@ -361,23 +433,22 @@ public class CuaHangService {
         PhieuGiamGia phieu = null;
         long soTienGiam = 0;
         if (req.maPhieuGiamGia() != null && !req.maPhieuGiamGia().trim().isEmpty()) {
-            Optional<PhieuGiamGia> pOpt = phieuRepo.findFirstByMaPhieuIgnoreCase(req.maPhieuGiamGia().trim());
-            if (pOpt.isPresent()) {
-                PhieuGiamGia p = pOpt.get();
-                long donToiThieu = p.getGiaTriDonHangToiThieu() == null ? 0L : p.getGiaTriDonHangToiThieu();
-                if (tongTien >= donToiThieu && (p.getSoLuong() == null || p.getSoLuongDaDung() == null || p.getSoLuongDaDung() < p.getSoLuong())) {
-                    phieu = p;
-                    if (Integer.valueOf(1).equals(p.getLoaiGiam())) {
-                        double ptGiam = p.getGiaTriGiam() == null ? 0.0 : p.getGiaTriGiam().doubleValue();
-                        long tinhGiam = Math.round(tongTien * ptGiam / 100.0);
-                        if (p.getGiamToiDa() != null && tinhGiam > p.getGiamToiDa()) {
-                            tinhGiam = p.getGiamToiDa();
-                        }
-                        soTienGiam = tinhGiam;
-                    } else if (Integer.valueOf(2).equals(p.getLoaiGiam())) {
-                        soTienGiam = p.getGiaTriGiam() == null ? 0L : p.getGiaTriGiam();
+            // Mã không dùng được (hết hạn / sai đối tượng / chưa đủ đơn tối thiểu...) thì báo lỗi rõ ràng, không bỏ qua âm thầm
+            PhieuGiamGia p = phieuRepo.findFirstByMaPhieuIgnoreCase(req.maPhieuGiamGia().trim())
+                    .orElseThrow(() -> ApiException.badRequest("Mã phiếu giảm giá không tồn tại."));
+            String lyDoPhieu = lyDoPhieuKhongDung(p, tongTien, req.idKhachHang());
+            if (lyDoPhieu != null) throw ApiException.badRequest("Không áp dụng được mã " + p.getMaPhieu() + ": " + lyDoPhieu);
+            phieu = p;
+            soTienGiam = PhieuApDung.soTienGiam(p, tongTien);
+            phieuRepo.tangLuotDung(p.getId());
+            // Phiếu cá nhân: đánh dấu khách đã dùng để không dùng lại
+            if (req.idKhachHang() != null && Integer.valueOf(PhieuGiamGia.DOI_TUONG_KHACH_CU_THE).equals(p.getDoiTuongApDung())) {
+                for (PhieuGiamGiaKhachHang x : phieuKhachRepo.findByIdKhachHang(req.idKhachHang())) {
+                    if (p.getId().equals(x.getIdPhieuGiamGia()) && x.getNgaySuDung() == null) {
+                        x.setNgaySuDung(now);
+                        phieuKhachRepo.save(x);
+                        break;
                     }
-                    phieuRepo.tangLuotDung(p.getId());
                 }
             }
         }
@@ -539,6 +610,15 @@ public class CuaHangService {
         res.put("donViVanChuyen", hd.getDonViVanChuyen());
         res.put("ngayTao", hd.getNgayTao());
         res.put("chiTiet", monHangs);
+        BigDecimal daTra = BigDecimal.ZERO;
+        for (var tt : thanhToanRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+            if (tt.getTrangThai() != null && tt.getTrangThai() == com.footstyle.demo.entity.LichSuThanhToan.DA_THANH_TOAN && tt.getSoTien() != null) {
+                daTra = daTra.add(tt.getSoTien());
+            }
+        }
+        res.put("daTra", daTra);
+        res.put("daThanhToanDu", hd.getThanhTien() != null && daTra.compareTo(hd.getThanhTien()) >= 0);
+        res.put("idPhuongThucThanhToan", hd.getIdPhuongThucThanhToan());
 
         return res;
     }

@@ -286,6 +286,54 @@ public class HoaDonSuaService {
         return hoaDonService.getChiTietHoaDon(hd.getId());
     }
 
+    /**
+     * Ngân hàng / cổng thanh toán báo "tiền đã vào tài khoản" (webhook): tự ghi khoản đã thanh toán cho đơn online chuyển khoản.
+     * Không cần nhân viên đối chiếu sao kê. Idempotent theo `maGiaoDich` (webhook gửi lại thì không ghi trùng).
+     *
+     * @return mô tả kết quả để trả lại cho bên gọi (log), không bao giờ ném lỗi vì đơn không hợp lệ
+     */
+    @Transactional
+    public String ghiNhanChuyenKhoanTuDong(String maHoaDon, long soTien, String maGiaoDich, String noiDung) {
+        if (maHoaDon == null || soTien <= 0) return "Bỏ qua: thiếu mã đơn hoặc số tiền.";
+        HoaDon hd = hoaDonRepo.findFirstByMaHoaDonIgnoreCase(maHoaDon.trim()).orElse(null);
+        if (hd == null) return "Bỏ qua: không có đơn " + maHoaDon;
+        if (!Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon()) || !CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())) {
+            return "Bỏ qua: đơn " + hd.getMaHoaDon() + " không phải đơn chuyển khoản online.";
+        }
+        int tt = hd.getTrangThai() == null ? HoaDon.CHO_XAC_NHAN : hd.getTrangThai();
+        if (tt == HoaDon.DA_HUY || tt == HoaDon.HOAN_THANH || tt == HoaDon.HOAN_TIEN) {
+            return "Bỏ qua: đơn " + hd.getMaHoaDon() + " đã kết thúc (cần hoàn tiền thủ công nếu khách đã chuyển).";
+        }
+        String ma = maGiaoDich == null ? null : maGiaoDich.trim();
+        if (ma != null && ma.length() > 100) ma = ma.substring(0, 100);
+        if (ma != null && !ma.isEmpty()) {
+            for (LichSuThanhToan x : thanhToanRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+                if (ma.equals(x.getMaGiaoDich())) return "Bỏ qua: giao dịch " + ma + " đã ghi nhận trước đó.";
+            }
+        }
+        LocalDateTime luc = bayGio();
+        LichSuThanhToan t = new LichSuThanhToan();
+        t.setHoaDon(hd);
+        t.setSoTien(BigDecimal.valueOf(soTien));
+        t.setMaGiaoDich(ma == null || ma.isEmpty() ? null : ma);
+        t.setThoiGian(luc);
+        t.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
+        t.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
+        t.setMoTa("Khách chuyển khoản VietQR (hệ thống tự đối chiếu)");
+        thanhToanRepo.save(t);
+        long conLai = (hd.getThanhTien() == null ? 0 : hd.getThanhTien().longValue()) - daTra(hd);
+        LichSuHoaDon ls = new LichSuHoaDon();
+        ls.setHoaDon(hd);
+        ls.setHanhDong("Xác nhận thanh toán");
+        ls.setNguoiThaoTac("Hệ thống");
+        ls.setThoiGian(luc);
+        String ghiChu = "Tự động ghi nhận chuyển khoản " + tien(soTien) + (t.getMaGiaoDich() == null ? "" : " (mã GD " + t.getMaGiaoDich() + ")")
+                + (conLai > 0 ? " - còn thiếu " + tien(conLai) : conLai < 0 ? " - khách chuyển dư " + tien(-conLai) : "");
+        ls.setMoTa(ghiChu.length() > 480 ? ghiChu.substring(0, 480) : ghiChu);
+        lichSuRepo.save(ls);
+        return "Đã ghi nhận " + tien(soTien) + " cho đơn " + hd.getMaHoaDon() + (conLai > 0 ? " (còn thiếu " + tien(conLai) + ")" : "");
+    }
+
     private long daTra(HoaDon hd) {
         long s = 0;
         for (LichSuThanhToan tt : thanhToanRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {

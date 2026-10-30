@@ -1,7 +1,9 @@
 <script setup>
 // Khung chat của KHÁCH: nhập họ tên + SĐT -> trợ lý ảo trả lời ngay từ dữ liệu cửa hàng -> bấm "Gặp nhân viên" khi cần.
 // Cuộc chat (id + mã truy cập) lưu trong trình duyệt nên tải lại trang vẫn tiếp tục. Trang bán hàng online nhúng component này.
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import api from '../../services/api'
+import { useAuth } from '../../composables/useAuth'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import KhungTinNhan from './KhungTinNhan.vue'
 import OSoanTin from './OSoanTin.vue'
@@ -122,6 +124,7 @@ let hen = null
 let demNhip = 0
 onMounted(() => {
   taiDau()
+  tuDongBatDau()
   hen = setInterval(() => {
     if (!phien.value || daDong.value || dangGui.value) return
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
@@ -154,6 +157,29 @@ async function batDau() {
 }
 
 let soTam = 0
+// Khách hàng đã đăng nhập: lấy họ tên + SĐT từ hồ sơ rồi vào chat luôn. Hồ sơ thiếu / sai định dạng thì để khách tự điền.
+const auth = useAuth()
+const dangTuDong = ref(false)
+// Khách đã đăng nhập: điền sẵn họ tên ngay (không cần chờ gọi máy chủ) để khách khỏi nhập lại
+if (auth.laKhachHang.value && !f.hoTen) f.hoTen = auth.trangThai.nguoiDung?.hoTen || ''
+async function tuDongBatDau() {
+  if (phien.value || dangTuDong.value || !auth.laKhachHang.value) return
+  dangTuDong.value = true
+  try {
+    const hs = (await api.get('/khach/tai-khoan')).data
+    f.hoTen = hs?.hoTen || auth.trangThai.nguoiDung?.hoTen || ''
+    f.sdt = hs?.sdt || ''
+    const sdtGon = String(f.sdt).replace(/[\s.]/g, '')
+    if (!chuanHoaHoTen(f.hoTen) || !SDT.test(sdtGon)) return
+    await batDau()
+  } catch {
+    // không đọc được hồ sơ: hiện biểu mẫu để khách tự nhập
+  } finally {
+    dangTuDong.value = false
+  }
+}
+watch(() => auth.trangThai.nguoiDung?.id, tuDongBatDau) // đăng nhập khi khung chat đang mở
+
 async function gui(text) {
   if (!phien.value || dangGui.value) return
   const noi = String(text ?? '').trim()
@@ -227,8 +253,13 @@ const laCuaToi = (t) => t.loaiNguoiGui === NGUOI_GUI.KHACH
       </div>
     </header>
 
+    <!-- Khách đã đăng nhập: tự lấy họ tên + SĐT từ tài khoản, không bắt nhập lại -->
+    <div v-if="!phien && dangTuDong" class="kck-form text-center text-muted py-4">
+      <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Đang kết nối bằng tài khoản của bạn...
+    </div>
+
     <!-- Chưa có cuộc chat: nhập thông tin -->
-    <form v-if="!phien" class="kck-form" novalidate @submit.prevent="batDau">
+    <form v-else-if="!phien" class="kck-form" novalidate @submit.prevent="batDau">
       <p class="kck-moi">Xin chào! Để lại tên và số điện thoại, trợ lý ảo sẽ tư vấn sản phẩm, khuyến mãi, kiểm tra đơn hàng cho bạn ngay. Cần người thật? Nhân viên luôn sẵn sàng.</p>
       <div class="mb-3">
         <label class="ad-label" for="kck-ten">Họ tên <span class="text-danger">*</span></label>

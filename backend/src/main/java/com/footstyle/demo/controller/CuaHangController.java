@@ -1,9 +1,11 @@
 package com.footstyle.demo.controller;
 
 import com.footstyle.demo.service.CuaHangService;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -56,5 +58,23 @@ public class CuaHangController {
             @RequestParam(required = false) String sdt
     ) {
         return service.traCuuDonHang(maHoaDon, sdt);
+    }
+
+    // Tài khoản nhận tiền hiển thị trong mã VietQR (đổi bằng biến môi trường / application.properties).
+    // Mặc định là tài khoản MẪU để thử giao diện, KHÔNG nhận tiền thật.
+    @Value("${app.thanh-toan.ngan-hang:MB}")
+    private String nganHang;
+    @Value("${app.thanh-toan.so-tai-khoan:0123456789}")
+    private String soTaiKhoan;
+    @Value("${app.thanh-toan.ten-chu-tai-khoan:FOOTSTYLE DEMO}")
+    private String tenChuTaiKhoan;
+
+    @GetMapping("/thong-tin-thanh-toan")
+    public Map<String, Object> thongTinThanhToan() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("nganHang", nganHang);
+        m.put("soTaiKhoan", soTaiKhoan);
+        m.put("tenChuTaiKhoan", tenChuTaiKhoan);
+        return m;
     }
 }

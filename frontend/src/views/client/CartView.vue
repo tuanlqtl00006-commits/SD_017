@@ -1,72 +1,10 @@
 <script setup>
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../../stores/cart'
-import { phieuGiamGiaService } from '../../services/phieuGiamGiaService'
 import { formatMoney } from '../../utils/format'
 
 const router = useRouter()
 const cartStore = useCartStore()
-
-const voucherCode = ref('')
-const voucherError = ref('')
-const voucherSuccess = ref('')
-const checkingVoucher = ref(false)
-
-async function applyVoucher() {
-  voucherError.value = ''
-  voucherSuccess.value = ''
-  const code = voucherCode.value.trim().toUpperCase()
-
-  if (!code) {
-    voucherError.value = 'Vui lòng nhập mã phiếu giảm giá.'
-    return
-  }
-
-  try {
-    checkingVoucher.value = true
-    const list = await phieuGiamGiaService.getAll()
-    const found = list.find((v) => v.maPhieu?.toUpperCase() === code)
-
-    if (!found) {
-      voucherError.value = 'Mã phiếu giảm giá không tồn tại hoặc đã hết hạn.'
-      return
-    }
-
-    if (found.trangThai === 0 || found.trangThai === false) {
-      voucherError.value = 'Phiếu giảm giá này hiện đang tạm ngưng hoạt động.'
-      return
-    }
-
-    if (found.donToiThieu && cartStore.subTotal < Number(found.donToiThieu)) {
-      voucherError.value = `Đơn hàng tối thiểu phải từ ${formatMoney(found.donToiThieu)} để áp dụng mã này.`
-      return
-    }
-
-    cartStore.setVoucher({
-      ma: found.maPhieu,
-      ten: found.tenPhieu,
-      loaiGiam: found.loaiGiam,
-      giaTriGiam: found.giaTriGiam,
-      giamToiDa: found.giamToiDa,
-      donToiThieu: found.donToiThieu,
-    })
-
-    voucherSuccess.value = `Đã áp dụng mã "${found.maPhieu}" thành công!`
-    voucherCode.value = ''
-  } catch (err) {
-    console.error('Lỗi khi kiểm tra voucher:', err)
-    voucherError.value = 'Không thể kiểm tra mã giảm giá lúc này.'
-  } finally {
-    checkingVoucher.value = false
-  }
-}
-
-function removeVoucher() {
-  cartStore.removeVoucher()
-  voucherSuccess.value = ''
-  voucherError.value = ''
-}
 
 function goToCheckout() {
   router.push('/shop/thanh-toan')
@@ -208,54 +146,6 @@ function goToCheckout() {
 
         <!-- Cột Tóm tắt thanh toán & Voucher -->
         <div class="col-lg-4">
-          <!-- Nhập mã giảm giá -->
-          <div class="card border-0 shadow-sm rounded-4 p-4 mb-3">
-            <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
-              <i class="bi bi-ticket-perforated-fill text-primary"></i> Mã phiếu giảm giá
-            </h6>
-
-            <div v-if="cartStore.appliedVoucher" class="alert alert-success d-flex justify-content-between align-items-center mb-0 p-2">
-              <div>
-                <strong class="d-block">{{ cartStore.appliedVoucher.ma }}</strong>
-                <span class="small text-muted">{{ cartStore.appliedVoucher.ten }}</span>
-              </div>
-              <button
-                type="button"
-                class="btn btn-outline-danger btn-sm py-0 px-2"
-                @click="removeVoucher"
-              >
-                Gỡ bỏ
-              </button>
-            </div>
-
-            <div v-else>
-              <div class="input-group mb-2">
-                <input
-                  type="text"
-                  class="form-control form-control-sm text-uppercase"
-                  placeholder="Nhập mã voucher (vd: VCH...)"
-                  v-model="voucherCode"
-                  @keyup.enter="applyVoucher"
-                />
-                <button
-                  class="btn btn-primary btn-sm px-3"
-                  type="button"
-                  :disabled="checkingVoucher"
-                  @click="applyVoucher"
-                >
-                  <span v-if="checkingVoucher" class="spinner-border spinner-border-sm"></span>
-                  <span v-else>Áp dụng</span>
-                </button>
-              </div>
-              <div v-if="voucherError" class="small text-danger mt-1">
-                {{ voucherError }}
-              </div>
-              <div v-if="voucherSuccess" class="small text-success mt-1">
-                {{ voucherSuccess }}
-              </div>
-            </div>
-          </div>
-
           <!-- Tóm tắt đơn hàng -->
           <div class="card border-0 shadow-sm rounded-4 p-4">
             <h6 class="fw-bold mb-3">Tóm tắt đơn hàng</h6>
@@ -290,7 +180,7 @@ function goToCheckout() {
             <button
               type="button"
               class="btn text-white btn-lg w-100 rounded-pill fw-bold shadow-sm"
-              style="background-color: #ea580c; border-color: #ea580c;"
+              style="background-color: #0d6efd; border-color: #0d6efd;"
               @click="goToCheckout"
             >
               Tiến hành thanh toán <i class="bi bi-arrow-right ms-1"></i>
