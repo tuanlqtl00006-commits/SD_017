@@ -142,15 +142,6 @@ onMounted(async () => {
                   <div class="osv-row"><span>Số tiền</span><strong class="text-danger">{{ formatMoney(soTien) }}</strong></div>
                   <div class="osv-row"><span>Nội dung</span><strong class="text-primary">{{ maHoaDon }}</strong></div>
                 </div>
-                <p class="osv-qr-note">Dùng điện thoại quét mã bằng <strong>app Camera / Google Lens</strong> (không quét bằng Zalo) để mở trang thanh toán, rồi bấm <strong>Xác nhận chuyển tiền</strong>.</p>
-                <p class="osv-qr-note">Hoặc nhập tay vào trình duyệt điện thoại: <code class="osv-link">{{ linkGiaLap }}</code></p>
-                <p v-if="laLocalhost && !lanIp" class="osv-qr-note">
-                  Không dò được IP mạng của máy tính: hãy mở web bằng địa chỉ IP (ví dụ <code>http://192.168.1.5:5173</code>) hoặc dùng nút bên dưới ngay trên máy này.
-                </p>
-                <a :href="linkTrenMayNay" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm rounded-pill px-3 mt-2">
-                  <i class="bi bi-box-arrow-up-right me-1"></i>Mở trang thanh toán trên máy này
-                </a>
-                <div class="osv-wait"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Đang chờ xác nhận chuyển tiền, trang sẽ tự cập nhật...</div>
               </template>
               <div v-else-if="qrLoi" class="small text-danger py-3">
                 Không tải được thông tin thanh toán. Vui lòng liên hệ cửa hàng để được hướng dẫn chuyển khoản.

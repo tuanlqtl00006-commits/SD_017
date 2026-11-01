@@ -5,6 +5,7 @@ import { useCartStore } from '../stores/cart'
 import { useAuth } from '../composables/useAuth'
 import { formatMoney } from '../utils/format'
 import { cuaHangService } from '../services/cuaHangService'
+import NutChatKhach from '../components/chat/NutChatKhach.vue'
 import '../assets/client.css'
 
 const router = useRouter()
@@ -615,6 +616,9 @@ function handleSearch() {
         </div>
       </div>
     </footer>
+
+    <!-- Nút chat nổi (trợ lý ảo) ở góc dưới bên phải -->
+    <NutChatKhach />
   </div>
 </template>
 

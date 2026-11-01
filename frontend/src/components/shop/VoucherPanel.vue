@@ -157,18 +157,6 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
       <button type="button" class="vp-banner-btn" :disabled="dangKiemTra" @click="apDung(goiY.ma)">Dùng ngay</button>
     </div>
 
-    <!-- Mã đang áp dụng -->
-    <div v-if="cartStore.appliedVoucher" class="vp-applied">
-      <i class="bi bi-check-circle-fill"></i>
-      <div class="vp-applied-text">
-        Đã áp dụng <strong>{{ cartStore.appliedVoucher.ma }}</strong>
-        · Tiết kiệm <strong>{{ formatMoney(cartStore.discountAmount) }}</strong>
-      </div>
-      <button type="button" class="vp-x" title="Bỏ mã này" aria-label="Bỏ mã giảm giá" @click="boMa">
-        <i class="bi bi-x-lg"></i>
-      </button>
-    </div>
-
     <!-- Ô nhập / chọn mã -->
     <div ref="comboRef" class="vp-combo">
       <div class="vp-input">
