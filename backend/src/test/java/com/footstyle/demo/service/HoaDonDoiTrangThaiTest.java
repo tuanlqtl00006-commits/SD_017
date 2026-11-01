@@ -124,17 +124,22 @@ class HoaDonDoiTrangThaiTest {
     }
 
     @Test
-    void donOnline_xacNhanKhiKhongDuHang_baoHetCacDongThieu_khongDoiTrangThai_khongTruKho() {
+    void donOnline_xacNhanKhiKhongDuHang_tuHuyDon_ghiLyDoCacDongThieu_khongTruKho() {
+        // Luồng bán hàng online: xác nhận mà không đủ hàng thì tự hủy đơn (ghi rõ dòng thiếu để khách xem khi tra cứu), không trừ kho
         SanPhamChiTiet a = bienThe(10, 4);
         SanPhamChiTiet b = bienThe(11, 0);
         themDong(a, 2);
         themDong(b, 1);
         themDong(a, 3);
-        ApiException e = loi(() -> service.doiTrangThai(1, sang(HoaDon.DA_XAC_NHAN, null)));
-        assertTrue(e.getMessage().contains("SP01-DEN-10 (còn 4, đơn cần 5)"), e.getMessage());
-        assertTrue(e.getMessage().contains("SP01-DEN-11 (còn 0, đơn cần 1)"));
-        assertEquals(HoaDon.CHO_XAC_NHAN, hd.getTrangThai());
+        service.doiTrangThai(1, sang(HoaDon.DA_XAC_NHAN, null));
+        assertEquals(HoaDon.DA_HUY, hd.getTrangThai());
+        String moTa = lichSu.get(lichSu.size() - 1).getMoTa();
+        assertTrue(moTa.startsWith("Tự động hủy do hết hàng"), moTa);
+        assertTrue(moTa.contains("SP01-DEN-10 (còn 4, đơn cần 5)"), moTa);
+        assertTrue(moTa.contains("SP01-DEN-11 (còn 0, đơn cần 1)"), moTa);
         assertEquals(4, a.getSoLuongTon(), "chưa trừ gì");
+        assertEquals(0, b.getSoLuongTon());
+        assertTrue(daLuuBienThe.isEmpty(), "đơn chưa trừ kho nên hủy cũng không cộng lại");
     }
 
     @Test

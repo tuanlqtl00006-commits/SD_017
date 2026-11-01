@@ -371,20 +371,33 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-// Thêm nhanh vào giỏ hàng
+// Thêm nhanh vào giỏ hàng: lấy biến thể còn hàng có giá thấp nhất (giỏ hàng / đặt hàng cần đúng id biến thể và tên sản phẩm)
 function quickAddToCart(item, event) {
   if (event) event.stopPropagation()
 
+  const bt = (item.bienThe || [])
+    .filter((b) => Number(b.soLuongTon) > 0)
+    .sort((a, b) => Number(a.giaBan) - Number(b.giaBan))[0]
+  if (!bt) {
+    // không có danh sách biến thể (hoặc đã hết hàng): mở trang chi tiết để khách chọn
+    goToDetail(item.id)
+    return
+  }
+
   cartStore.addItem({
-    bienTheId: item.id,
     sanPhamId: item.id,
-    tenSanPham: item.ten,
-    tenBienThe: item.ten,
-    giaBan: item.minPrice || item.giaFlash || item.gia || 500000,
-    giaGoc: item.originalPrice || item.giaGoc || 600000,
-    anh: item.anhChinh || item.anh || '/logo.png',
+    sanPhamTen: item.ten,
+    sanPhamMa: item.ma || '',
+    bienTheId: bt.id,
+    bienTheMa: bt.maSpct || '',
+    mauSac: bt.tenMau || '',
+    trongLuong: bt.trongLuong || '',
+    chuVi: bt.chuVi || '',
+    giaGoc: Number(bt.giaBanGoc) || Number(bt.giaBan) || 0,
+    giaBan: Number(bt.giaBan) || 0,
+    anh: item.anhChinh || '/logo.png',
     soLuong: 1,
-    soLuongTon: 99,
+    soLuongTon: Number(bt.soLuongTon),
   })
 
   showNotification(`Đã thêm "${item.ten}" vào giỏ hàng!`)
@@ -612,7 +625,7 @@ function quickAddToCart(item, event) {
       </section>
 
       <!-- 4. PHẦN SẢN PHẨM MỚI (Tabs + Carousel Frame) -->
-      <section class="mb-5">
+      <section class="mb-5 spm-section">
         <!-- Tiêu đề có gạch xanh dưới -->
         <div class="vnb-section-title-wrap">
           <h2 class="vnb-section-title">Sản Phẩm Mới</h2>
@@ -670,38 +683,37 @@ function quickAddToCart(item, event) {
               :key="item.id"
               class="col-xl-2 col-lg-3 col-md-4 col-6 product-col-flex"
             >
-              <div class="vnb-product-item" @click="goToDetail(item.id)">
-                <div class="vnb-img-box">
+              <div class="vnb-product-item spm-card" @click="goToDetail(item.id)">
+                <div class="vnb-img-box spm-img">
                   <span v-if="item.hasDiscount" class="vnb-badge-discount">-{{ item.maxDiscountPercent }}%</span>
-                  <span class="vnb-badge-premium">Hot</span>
+                  <span class="spm-badge-new">Mới</span>
                   <img :src="item.anhChinh || '/logo.png'" :alt="item.ten" class="vnb-product-img" />
                 </div>
-                <div class="vnb-product-name" :title="item.ten">{{ item.ten }}</div>
-                
-                <!-- Sao đánh giá -->
-                <div class="d-flex align-items-center justify-content-center gap-1 mb-1 text-warning" style="font-size: 0.75rem;">
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <span class="text-muted ms-1 small">({{ item.soldCount || 100 }}+)</span>
-                </div>
+                <div class="spm-body">
+                  <div v-if="item.brandName" class="spm-brand">{{ item.brandName }}</div>
+                  <div class="vnb-product-name spm-name" :title="item.ten">{{ item.ten }}</div>
 
-                <div class="mb-2">
-                  <span class="vnb-product-price">{{ formatMoney(item.minPrice) }}</span>
-                  <span v-if="item.originalPrice > item.minPrice" class="vnb-product-old-price">
-                    {{ formatMoney(item.originalPrice) }}
-                  </span>
-                </div>
+                  <!-- Sao đánh giá -->
+                  <div class="spm-rating">
+                    <i v-for="s in 5" :key="s" class="bi bi-star-fill"></i>
+                    <span>({{ item.soldCount || 100 }}+)</span>
+                  </div>
 
-                <button
-                  type="button"
-                  class="btn btn-outline-primary btn-sm rounded-pill mt-auto w-100 quick-add-btn"
-                  @click="quickAddToCart(item, $event)"
-                >
-                  <i class="bi bi-cart-plus me-1"></i> Thêm vào giỏ
-                </button>
+                  <div class="spm-price-row">
+                    <span class="vnb-product-price">{{ formatMoney(item.minPrice) }}</span>
+                    <span v-if="item.originalPrice > item.minPrice" class="vnb-product-old-price">
+                      {{ formatMoney(item.originalPrice) }}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    class="btn btn-sm mt-auto w-100 quick-add-btn spm-add"
+                    @click="quickAddToCart(item, $event)"
+                  >
+                    <i class="bi bi-cart-plus me-1"></i> Thêm vào giỏ
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -830,45 +842,37 @@ function quickAddToCart(item, event) {
         <div class="row g-4">
           <!-- Card 1: VỢT CẦU LÔNG -->
           <div class="col-lg-3 col-6">
-            <div class="vnb-cat-card" @click="router.push('/shop/san-pham')">
-              <div class="p-3 text-center">
-                <i class="bi bi-crosshair display-3 text-white opacity-75 mb-2 d-block"></i>
-                <div class="small text-white-50 fw-semibold">Yonex, Lining, Victor</div>
-              </div>
-              <div class="vnb-cat-ribbon">VỢT CẦU LÔNG</div>
+            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
+              <img src="/images/san-pham/sp13_lining_halbertec_9000.webp" alt="Vợt cầu lông" class="dm-img dm-img-vot" loading="lazy" />
+              <div class="vnb-cat-ribbon dm-ribbon">VỢT CẦU LÔNG</div>
+              <div class="dm-sub">Yonex, Lining, Victor</div>
             </div>
           </div>
 
           <!-- Card 2: GIÀY CẦU LÔNG -->
           <div class="col-lg-3 col-6">
-            <div class="vnb-cat-card" @click="router.push('/shop/san-pham')">
-              <div class="p-3 text-center">
-                <i class="bi bi-lightning-charge display-3 text-white opacity-75 mb-2 d-block"></i>
-                <div class="small text-white-50 fw-semibold">Bật nhảy, giảm chấn</div>
-              </div>
-              <div class="vnb-cat-ribbon">GIÀY CẦU LÔNG</div>
+            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
+              <img src="/images/danh-muc/giay_yonex_power_cushion_88_dial.webp" alt="Giày cầu lông" class="dm-img" loading="lazy" />
+              <div class="vnb-cat-ribbon dm-ribbon">GIÀY CẦU LÔNG</div>
+              <div class="dm-sub">Bật nhảy, giảm chấn</div>
             </div>
           </div>
 
           <!-- Card 3: ÁO & VÁY CẦU LÔNG -->
           <div class="col-lg-3 col-6">
-            <div class="vnb-cat-card" @click="router.push('/shop/san-pham')">
-              <div class="p-3 text-center">
-                <i class="bi bi-tsunami display-3 text-white opacity-75 mb-2 d-block"></i>
-                <div class="small text-white-50 fw-semibold">Thoáng khí Cool-Dry</div>
-              </div>
-              <div class="vnb-cat-ribbon">QUẦN ÁO THỂ THAO</div>
+            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
+              <img src="/images/san-pham/sp34_ao_yonex_tpm3430_navy.webp" alt="Quần áo thể thao" class="dm-img" loading="lazy" />
+              <div class="vnb-cat-ribbon dm-ribbon">QUẦN ÁO THỂ THAO</div>
+              <div class="dm-sub">Thoáng khí Cool-Dry</div>
             </div>
           </div>
 
           <!-- Card 4: PHỤ KIỆN & CƯỚC -->
           <div class="col-lg-3 col-6">
-            <div class="vnb-cat-card" @click="router.push('/shop/san-pham')">
-              <div class="p-3 text-center">
-                <i class="bi bi-backpack display-3 text-white opacity-75 mb-2 d-block"></i>
-                <div class="small text-white-50 fw-semibold">Cước đan, túi, quấn cán</div>
-              </div>
-              <div class="vnb-cat-ribbon">PHỤ KIỆN & CƯỚC</div>
+            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
+              <img src="/images/san-pham/sp42_tui_yonex_ba92431wz.webp" alt="Phụ kiện và cước" class="dm-img" loading="lazy" />
+              <div class="vnb-cat-ribbon dm-ribbon">PHỤ KIỆN & CƯỚC</div>
+              <div class="dm-sub">Cước đan, túi, quấn cán</div>
             </div>
           </div>
         </div>
@@ -1202,6 +1206,191 @@ function quickAddToCart(item, event) {
 
 .quick-add-btn:hover {
   transform: scale(1.02);
+}
+
+/* Sản phẩm mới: tab dạng viên, khung bo tròn, thẻ có khoảng cách */
+.spm-section .vnb-cat-tabs {
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  padding: 4px 4px 16px;
+}
+
+.spm-section .vnb-cat-tab {
+  border: 1px solid #dbe3f0;
+  border-radius: 999px;
+  padding: 8px 18px;
+  background: #fff;
+  color: #334155;
+  font-weight: 600;
+}
+
+.spm-section .vnb-cat-tab:hover {
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+}
+
+.spm-section .vnb-cat-tab.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(29, 78, 216, 0.25);
+}
+
+.spm-section .vnb-carousel-frame {
+  border: none;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #eef4ff 0%, #ffffff 100%);
+  padding: 20px 44px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.spm-section .product-col-flex {
+  padding: 6px;
+}
+
+.spm-section .vnb-arrow-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #1d4ed8;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  top: 50%;
+}
+
+.spm-section .vnb-arrow-btn:hover {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.spm-card {
+  border-radius: 14px;
+  border-color: #edf1f7;
+}
+
+.spm-img {
+  height: 210px;
+  background: #fff;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.spm-badge-new {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  z-index: 2;
+}
+
+.spm-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 5px;
+  padding: 12px 14px 14px;
+  text-align: left;
+}
+
+.spm-brand {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.spm-name {
+  flex: 0 0 auto;
+  min-height: 2.8em;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.spm-rating {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.7rem;
+  color: #f59e0b;
+}
+
+.spm-rating span {
+  margin-left: 4px;
+  color: #94a3b8;
+}
+
+.spm-price-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.spm-add {
+  border-radius: 999px;
+  border: 1px solid #1d4ed8;
+  color: #1d4ed8;
+  background: #fff;
+  padding: 7px 0;
+}
+
+.spm-card:hover .spm-add,
+.spm-add:hover {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+/* Danh mục nổi bật: ảnh sản phẩm thật trên nền sáng */
+.dm-card {
+  background: radial-gradient(circle at 50% 38%, #ffffff 0%, #eef4ff 55%, #d6e4ff 100%);
+  border: 1px solid #e0e9fb;
+}
+
+.dm-img {
+  position: absolute;
+  top: 6%;
+  left: 12%;
+  width: 76%;
+  height: 58%;
+  object-fit: contain;
+  mix-blend-mode: multiply; /* ảnh sản phẩm nền trắng: hòa nền trắng vào nền thẻ */
+  transition: transform 0.4s;
+}
+
+.dm-img-vot {
+  transform: rotate(-28deg);
+}
+
+.dm-card:hover .dm-img {
+  transform: scale(1.08);
+}
+
+.dm-card:hover .dm-img-vot {
+  transform: rotate(-28deg) scale(1.08);
+}
+
+.dm-ribbon {
+  top: 64%;
+}
+
+.dm-sub {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 7%;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e3a8a;
 }
 
 /* Best Seller */

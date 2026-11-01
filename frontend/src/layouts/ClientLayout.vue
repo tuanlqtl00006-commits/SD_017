@@ -5,7 +5,6 @@ import { useCartStore } from '../stores/cart'
 import { useAuth } from '../composables/useAuth'
 import { formatMoney } from '../utils/format'
 import { cuaHangService } from '../services/cuaHangService'
-import NutChatKhach from '../components/chat/NutChatKhach.vue'
 import '../assets/client.css'
 
 const router = useRouter()
@@ -616,9 +615,6 @@ function handleSearch() {
         </div>
       </div>
     </footer>
-
-    <!-- Chat AI: trợ lý ảo trả lời từ dữ liệu cửa hàng, khách bấm "Gặp nhân viên" để chuyển sang trang Hỗ trợ khách hàng của nhân viên -->
-    <NutChatKhach />
   </div>
 </template>
 

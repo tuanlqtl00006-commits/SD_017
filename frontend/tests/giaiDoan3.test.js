@@ -43,6 +43,14 @@ describe('Bán tại quầy: giỏ hàng', () => {
     expect(tienGiamDot(gio)).toBe(3 * 429000)
   })
 
+  it('giá tăng khi hóa đơn đang chờ: không ghi "Đã giảm theo đợt" sai (260k -> 270k không phải giảm 10k)', () => {
+    const tang = { idBienThe: 21, donGia: 260000, giaGoc: 270000, giaHienTai: 270000, giaDoi: true, soLuong: 1 }
+    expect(tienGiamDot([tang])).toBe(0)
+    // đợt giảm thật, giá đã khớp: vẫn tính đúng
+    const dot = { idBienThe: 20, donGia: 112000, giaGoc: 140000, giaHienTai: 112000, giaDoi: false, soLuong: 2 }
+    expect(tienGiamDot([tang, dot])).toBe(2 * 28000)
+  })
+
   it('đổi số lượng: tối thiểu 1, tối đa tồn kho; xóa dòng; cập nhật giá mới từ máy chủ', () => {
     const { gio } = themVaoGio([], SP)
     expect(doiSoLuong(gio, 1, 0)).toMatchObject({ loi: 'Số lượng tối thiểu là 1. Muốn bỏ sản phẩm hãy bấm nút xóa.' })
@@ -202,7 +210,6 @@ describe('Kiểm tra truy cập trang', () => {
     api.get.mockResolvedValue({ data: { batDangNhap: true } })
     _datLaiAuth()
     expect(await kiemTraTruyCap(trang('/ban-hang', { roles: ['quan-ly', 'nhan-vien'] }))).toEqual({ path: '/dang-nhap', query: { quayLai: '/ban-hang' } })
-    expect(await kiemTraTruyCap(trang('/ho-tro', { congKhai: true }, 'ho-tro-khach'))).toBe(true)
     expect(await kiemTraTruyCap(trang('/shop', { congKhai: true }, 'shop-home'))).toBe(true)
     expect(await kiemTraTruyCap(trang('/dang-nhap', { congKhai: true }, 'dang-nhap'))).toBe(true)
   })
@@ -229,25 +236,25 @@ describe('Kiểm tra truy cập trang', () => {
     dangNhapLa({ id: 7, ma: 'KH07', hoTen: 'Phạm Minh Châu', vaiTro: 'KHACH_HANG' })
     expect(useAuth().vaiTro.value).toBe('khach-hang')
     expect(await kiemTraTruyCap(trang('/ban-hang', { roles: ['nhan-vien', 'quan-ly'] }))).toBe('/shop')
-    expect(await kiemTraTruyCap(trang('/chat-noi-bo', { roles: ['nhan-vien', 'quan-ly'] }))).toBe('/shop')
+    expect(await kiemTraTruyCap(trang('/hoa-don', { roles: ['nhan-vien', 'quan-ly'] }))).toBe('/shop')
     expect(await kiemTraTruyCap(trang('/shop', { congKhai: true }, 'shop-home'))).toBe(true)
   })
 })
 
-describe('Trang ca làm việc / trò chuyện có trong router với đúng quyền', () => {
+describe('Trang ca làm việc có trong router với đúng quyền', () => {
   const quyen = (path) => router.resolve(path).meta
-  it('nhân viên: lịch của mình, lịch sử giao ca, hỗ trợ khách, chat nội bộ; chỉ quản lý xếp lịch', () => {
-    for (const p of ['/lich-cua-toi', '/giao-ca', '/ho-tro-truc-tuyen', '/chat-noi-bo']) {
+  it('nhân viên: lịch của mình, lịch sử giao ca; chỉ quản lý xếp lịch', () => {
+    for (const p of ['/lich-cua-toi', '/giao-ca']) {
       expect(router.resolve(p).name, p).not.toBeUndefined()
       expect(quyen(p).roles, p).toEqual(['nhan-vien', 'quan-ly'])
     }
     expect(quyen('/lich-lam-viec').roles).toEqual(['quan-ly'])
   })
 
-  it('trang chat của khách (/ho-tro) công khai, không bị chuyển về /hoa-don', () => {
-    const r = router.resolve('/ho-tro')
-    expect(r.name).toBe('ho-tro-khach')
-    expect(r.meta.congKhai).toBe(true)
+  it('đã bỏ chat nội bộ, chat hỗ trợ khách (/ho-tro, /ho-tro-truc-tuyen, /chat-noi-bo): không còn trang nào', () => {
+    for (const p of ['/ho-tro', '/ho-tro-truc-tuyen', '/chat-noi-bo']) {
+      expect(router.resolve(p).name, p).toBeUndefined()
+    }
   })
 
   it('đường dẫn gốc (/) tách riêng chuyển thẳng tới Cửa hàng online (/shop), không bị đưa vào trang đăng nhập', () => {

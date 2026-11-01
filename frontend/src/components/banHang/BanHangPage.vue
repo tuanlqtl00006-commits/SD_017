@@ -25,7 +25,7 @@ import { NGAN_HANG, PHUONG_THUC, daCauHinhNganHang } from '../../constants/thanh
 import { formatMoney } from '../../utils/format'
 import { formatPhanTram } from '../../utils/giamGia'
 import { taoHtmlHoaDon } from '../../utils/hoaDonIn'
-import { SO_LUONG_TOI_DA, chuoiVietQR, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
+import { SO_LUONG_TOI_DA, chuoiVietQR, dangGiamTheoDot, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
 
 const SO_HOA_DON_CHO_TOI_DA = 10
 const router = useRouter()
@@ -582,7 +582,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                     <td class="text-muted">{{ d.phanLoai || '—' }}</td>
                     <td class="ad-nowrap">
                       <div class="fw-medium">{{ formatMoney(d.donGia) }}</div>
-                      <small v-if="d.donGia < d.giaGoc" class="text-muted"><s>{{ formatMoney(d.giaGoc) }}</s></small>
+                      <small v-if="dangGiamTheoDot(d)" class="text-muted"><s>{{ formatMoney(d.giaGoc) }}</s></small>
                       <small v-if="d.giaDoi" class="bh-gia-doi d-block"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Giá mới {{ formatMoney(d.giaHienTai) }}</small>
                     </td>
                     <td class="text-center">

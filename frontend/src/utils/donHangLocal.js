@@ -73,6 +73,23 @@ export async function dongBoTrangThaiDon(ds, hoiBackend) {
           o.trangThaiText = m[1]
           doi = true
         }
+        // Món hàng lấy theo hóa đơn thật (bản lưu lúc đặt có thể thiếu tên sản phẩm / sai biến thể)
+        const chiTiet = Array.isArray(d?.chiTiet) ? d.chiTiet : []
+        if (chiTiet.length) {
+          const items = chiTiet.map((c) => ({
+            sanPhamId: c.idSanPham,
+            sanPhamTen: c.tenSanPham || 'Sản phẩm',
+            mauSac: c.mauSac || '',
+            trongLuong: c.trongLuong || '',
+            chuVi: c.chuVi || '',
+            soLuong: c.soLuong,
+            giaBan: Number(c.donGia) || 0,
+          }))
+          if (JSON.stringify(items) !== JSON.stringify(o.items)) {
+            o.items = items
+            doi = true
+          }
+        }
       } catch {
         // không có đơn trên backend (đơn cũ chỉ lưu trên máy) hoặc mất kết nối: giữ trạng thái đang lưu
       }

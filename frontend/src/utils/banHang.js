@@ -111,8 +111,13 @@ export const xoaKhoiGio = (gio, idBienThe) => gio.filter((d) => d.idBienThe !== 
 
 export const tongSoLuong = (gio) => gio.reduce((s, d) => s + d.soLuong, 0)
 export const tongTienHang = (gio) => gio.reduce((s, d) => s + d.donGia * d.soLuong, 0)
-/** Tiền đã giảm nhờ đợt giảm giá (giá gốc - giá bán) để hiện cho khách thấy. */
-export const tienGiamDot = (gio) => gio.reduce((s, d) => s + Math.max(0, d.giaGoc - d.donGia) * d.soLuong, 0)
+/**
+ * Tiền đã giảm nhờ đợt giảm giá (giá gốc - giá bán) để hiện cho khách thấy.
+ * Dòng đang đổi giá (giaDoi: giá bán / đợt vừa thay đổi khi hóa đơn đang chờ) thì không tính: giá gốc hiện tại không còn là giá gốc
+ * lúc thêm vào giỏ (vd giá tăng 260k -> 270k sẽ thành "giảm 10k" dù không có đợt nào); bấm "Cập nhật giá" xong mới tính lại.
+ */
+export const dangGiamTheoDot = (d) => !d.giaDoi && d.donGia < d.giaGoc
+export const tienGiamDot = (gio) => gio.reduce((s, d) => s + (dangGiamTheoDot(d) ? (d.giaGoc - d.donGia) * d.soLuong : 0), 0)
 
 /** Cập nhật giá trong giỏ theo backend báo (lỗi GIA_THAY_DOI: [{ idBienThe, donGiaMoi }]). */
 export function capNhatGia(gio, items = []) {

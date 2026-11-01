@@ -4,6 +4,7 @@ import com.footstyle.demo.service.HoaDonSuaService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -62,7 +63,7 @@ public class ThanhToanWebhookController {
         String kq = "Không thấy mã đơn trong nội dung chuyển khoản.";
         Matcher m = MA_DON.matcher(noiDung);
         while (m.find()) {
-            kq = hoaDonSuaService.ghiNhanChuyenKhoanTuDong(m.group().toUpperCase(), soTien, maGd, noiDung);
+            kq = hoaDonSuaService.ghiNhanChuyenKhoanTuDong(m.group().toUpperCase(Locale.ROOT), soTien, maGd, noiDung);
             if (kq.startsWith("Đã ghi nhận") || kq.contains("đã ghi nhận trước đó")) break;
         }
         log.info("Webhook thanh toán: {} đ, nội dung='{}' -> {}", soTien, noiDung, kq);

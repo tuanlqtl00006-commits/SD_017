@@ -5,6 +5,7 @@ import com.footstyle.demo.service.CuaHangService;
 import com.footstyle.demo.service.HoaDonSuaService;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,7 +39,7 @@ public class ThanhToanGiaLapController {
         try {
             for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
                 if (!ni.isUp() || ni.isLoopback() || ni.isVirtual()) continue;
-                String ten = (ni.getDisplayName() + " " + ni.getName()).toLowerCase();
+                String ten = (ni.getDisplayName() + " " + ni.getName()).toLowerCase(Locale.ROOT);
                 boolean ao = ten.contains("vmware") || ten.contains("virtual") || ten.contains("vbox") || ten.contains("wsl")
                         || ten.contains("docker") || ten.contains("hyper-v") || ten.contains("vethernet") || ten.contains("tap");
                 for (java.net.InetAddress a : java.util.Collections.list(ni.getInetAddresses())) {

@@ -4,15 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import ToastHost from '../components/common/ToastHost.vue'
 import DoiMatKhauModal from '../components/auth/DoiMatKhauModal.vue'
 import GiaoCaNut from '../components/giaoCa/GiaoCaNut.vue'
-import TroLyNoiBo from '../components/troLy/TroLyNoiBo.vue'
 import { THUOC_TINH_LIST } from '../constants/thuocTinh'
 import { useAuth } from '../composables/useAuth'
-import { useChatChuaDoc } from '../composables/useChatChuaDoc'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
-const chuaDoc = useChatChuaDoc()
 
 // Breadcrumb trên header lấy từ meta của route (xem router/index.js)
 const pageTitle = computed(() => route.meta.title || '')
@@ -59,20 +56,7 @@ const menuAll = [
       { label: 'Lịch sử giao ca', icon: 'bi-arrow-left-right', to: '/giao-ca' },
     ],
   },
-  {
-    // badge: khóa trong useChatChuaDoc().dem (hoTro = cuộc chat khách cần xử lý, noiBo = tin nội bộ chưa đọc)
-    key: 'tro-chuyen', label: 'Trò chuyện', icon: 'bi-chat-dots', roles: NV,
-    children: [
-      { label: 'Hỗ trợ khách hàng', icon: 'bi-headset', to: '/ho-tro-truc-tuyen', badge: 'hoTro' },
-      { label: 'Chat nội bộ', icon: 'bi-people-fill', to: '/chat-noi-bo', badge: 'noiBo' },
-    ],
-  },
 ]
-
-// Số trên menu (tối đa "99+"); mục cha cộng số của các mục con để thấy ngay khi nhóm đang đóng
-const soBadge = (khoa) => (khoa ? chuaDoc.dem[khoa] || 0 : 0)
-const nhanBadge = (n) => (n > 99 ? '99+' : String(n))
-const tongBadge = (item) => (item.children || []).reduce((s, c) => s + soBadge(c.badge), 0)
 
 // Vai trò lấy từ tài khoản đang đăng nhập; menu con cũng có thể giới hạn vai trò riêng
 const role = computed(() => auth.vaiTro.value)
@@ -81,11 +65,6 @@ const menu = computed(() =>
     .filter((m) => m.roles.includes(role.value))
     .map((m) => (m.children ? { ...m, children: m.children.filter((c) => !c.roles || c.roles.includes(role.value)) } : m)),
 )
-const tongChuaDoc = computed(() => (chuaDoc.dem.hoTro || 0) + (chuaDoc.dem.noiBo || 0))
-const nhanSo = (n) => (n > 99 ? '99+' : n)
-function moThongBao() {
-  router.push(chuaDoc.dem.hoTro > 0 ? '/ho-tro-truc-tuyen' : '/chat-noi-bo')
-}
 
 /* ----- Tài khoản (góc phải header) ----- */
 const moTaiKhoan = ref(false)
@@ -96,11 +75,9 @@ function dongKhiBamNgoai(e) {
 }
 onMounted(() => {
   document.addEventListener('mousedown', dongKhiBamNgoai)
-  chuaDoc.batDau()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', dongKhiBamNgoai)
-  chuaDoc.dung()
 })
 function dangXuat() {
   moTaiKhoan.value = false
@@ -119,7 +96,7 @@ const ZOOM = 0.75
 }
 
 // Nhóm có menu con mặc định đóng cho gọn; bấm vào nhóm để mở/đóng.
-const open = reactive({ 'san-pham': false, 'thuoc-tinh': false, 'giam-gia': false, 'ca-lam': false, 'tro-chuyen': false })
+const open = reactive({ 'san-pham': false, 'thuoc-tinh': false, 'giam-gia': false, 'ca-lam': false })
 for (const g of menuAll) {
   if (g.children?.some((c) => isActive(c.to, c.exact))) open[g.key] = true
 }
@@ -146,16 +123,12 @@ const toggle = (key) => { open[key] = !open[key] }
                 @click="toggle(item.key)"
               >
                 <span><i class="bi icon" :class="item.icon" aria-hidden="true"></i>{{ item.label }}</span>
-                <span class="d-flex align-items-center gap-2">
-                  <span v-if="!open[item.key] && tongBadge(item)" class="ad-menu-badge" :aria-label="`${tongBadge(item)} mục chưa xem`">{{ nhanBadge(tongBadge(item)) }}</span>
-                  <i class="bi bi-chevron-down chevron" :class="{ up: open[item.key] }" aria-hidden="true"></i>
-                </span>
+                <i class="bi bi-chevron-down chevron" :class="{ up: open[item.key] }" aria-hidden="true"></i>
               </button>
               <ul v-if="open[item.key] && item.children.length" class="nav flex-column mt-1 ad-sub">
                 <li v-for="c in item.children" :key="c.label" class="nav-item">
                   <RouterLink v-if="c.to" :to="c.to" class="nav-link side-link ad-link ad-sublink" :class="{ active: isActive(c.to, c.exact) }">
                     <i class="bi icon" :class="c.icon" aria-hidden="true"></i>{{ c.label }}
-                    <span v-if="soBadge(c.badge)" class="ad-menu-badge" :aria-label="`${soBadge(c.badge)} mục chưa xem`">{{ nhanBadge(soBadge(c.badge)) }}</span>
                   </RouterLink>
                   <a v-else href="#" class="nav-link side-link ad-link ad-sublink" @click.prevent>
                     <i class="bi icon" :class="c.icon" aria-hidden="true"></i>{{ c.label }}
@@ -177,7 +150,7 @@ const toggle = (key) => { open[key] = !open[key] }
 
     <!-- Khu vực nội dung -->
     <div class="flex-grow-1 d-flex flex-column" style="min-width: 0;">
-      <!-- Header gọn theo nhận xét của cô: chỉ còn tiêu đề trang + Ca làm việc, Thông báo, Tài khoản
+      <!-- Header gọn theo nhận xét của cô: chỉ còn tiêu đề trang + Ca làm việc, Tài khoản
            (đã bỏ ô phóng to 75%, ô chọn vai trò "Quản lý" và nút sáng/tối chưa dùng) -->
       <header class="bg-white border-bottom px-4 py-3 d-flex flex-wrap align-items-center gap-3">
         <div class="me-auto d-flex align-items-baseline gap-2">
@@ -193,14 +166,7 @@ const toggle = (key) => { open[key] = !open[key] }
           <i class="bi bi-shop-window text-secondary" aria-hidden="true"></i>
           <span class="d-none d-lg-inline">Cửa hàng online</span>
         </a>
-        <TroLyNoiBo />
         <GiaoCaNut v-if="auth.daDangNhap.value && !auth.laKhachHang.value" />
-        <div class="position-relative">
-          <button type="button" class="btn btn-light rounded-circle p-2 lh-1 text-muted" :aria-label="tongChuaDoc ? `${tongChuaDoc} tin nhắn chưa đọc` : 'Tin nhắn'" title="Tin nhắn chưa đọc" @click="moThongBao">
-            <i class="bi bi-bell"></i>
-          </button>
-          <span v-if="tongChuaDoc" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">{{ nhanSo(tongChuaDoc) }}</span>
-        </div>
         <div ref="taiKhoanRef" class="position-relative ms-1">
           <button type="button" class="ad-tk-nut" :aria-expanded="moTaiKhoan" aria-haspopup="menu" @click="moTaiKhoan = !moTaiKhoan">
             <span class="ad-tk-avatar">{{ auth.vietTat.value }}</span>
@@ -250,7 +216,6 @@ const toggle = (key) => { open[key] = !open[key] }
 .chevron { font-size: 0.75rem; transition: transform 0.2s ease; }
 .chevron.up { transform: rotate(180deg); }
 .ad-sublink { padding: 0.6rem 1rem 0.6rem 2.8rem; font-size: 0.9rem; color: #6c757d; }
-.ad-menu-badge { margin-left: auto; min-width: 1.4rem; padding: 0 0.4rem; border-radius: 999px; background: #e5484d; color: #fff; font-size: 0.72rem; font-weight: 700; line-height: 1.35rem; text-align: center; }
 .ad-tk-nut { display: flex; align-items: center; gap: 0.6rem; border: 0; background: transparent; padding: 0.2rem 0.4rem; border-radius: 10px; }
 .ad-tk-nut:hover { background: var(--fs-hover-bg, #e7f1fd); }
 .ad-tk-avatar { width: 35px; height: 35px; border-radius: 50%; background: var(--fs-primary, #0977ec); color: #fff; font-weight: 600; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
