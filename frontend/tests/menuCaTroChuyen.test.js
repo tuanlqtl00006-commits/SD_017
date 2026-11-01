@@ -97,8 +97,8 @@ describe('Menu quản trị: Ca làm việc (đã bỏ chat nội bộ, chat h�
 })
 
 describe('Trang bán hàng online', () => {
-  it('không còn bong bóng chat hỗ trợ khách (chat AI)', () => {
+  it('có bong bóng chat hỗ trợ khách (chat AI)', () => {
     const src = readFileSync(resolve(__dirname, '../src/layouts/ClientLayout.vue'), 'utf8')
-    expect(src).not.toContain('NutChatKhach')
+    expect(src).toContain('NutChatKhach')
   })
 })

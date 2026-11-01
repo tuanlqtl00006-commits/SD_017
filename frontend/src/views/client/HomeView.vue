@@ -5,10 +5,12 @@ import { sanPhamService, bienTheService } from '../../services/sanPhamService'
 import { cuaHangService } from '../../services/cuaHangService'
 import { dotGiamGiaService } from '../../services/dotGiamGiaService'
 import { useCartStore } from '../../stores/cart'
+import { useAuth } from '../../composables/useAuth'
 import { formatMoney } from '../../utils/format'
 
 const router = useRouter()
 const cartStore = useCartStore()
+const auth = useAuth()
 
 const loading = ref(true)
 const products = ref([])
@@ -204,17 +206,6 @@ const brandLogos = [
   { name: 'KUMPOO', slogan: 'Speed & Power' },
   { name: 'KAWASAKI', slogan: 'Pro Badminton' },
 ]
-
-// NEWSLETTER
-const newsletterEmail = ref('')
-function subscribeNewsletter() {
-  if (!newsletterEmail.value || !newsletterEmail.value.includes('@')) {
-    showNotification('Vui lòng nhập địa chỉ email hợp lệ!')
-    return
-  }
-  showNotification('Đăng ký thành công! Mã giảm giá FOOTSTYLE50K đã được gửi vào hòm thư.')
-  newsletterEmail.value = ''
-}
 
 onMounted(async () => {
   // Chạy đồng hồ flash sale
@@ -983,7 +974,7 @@ function quickAddToCart(item, event) {
       </section>
 
       <!-- 11. ĐĂNG KÝ NHẬN BẢN TIN & MÃ GIẢM GIÁ 50.000₫ -->
-      <section class="mb-5 newsletter-box p-4 p-md-5 rounded-4 text-white shadow-lg text-center position-relative overflow-hidden">
+      <section v-if="!auth.daDangNhap.value" class="mb-5 newsletter-box p-4 p-md-5 rounded-4 text-white shadow-lg text-center position-relative overflow-hidden">
         <div class="position-relative" style="z-index: 2; max-width: 680px; margin: 0 auto;">
           <span class="badge bg-warning text-dark fw-bold px-3 py-1 rounded-pill mb-2">ƯU ĐÃI ĐẶC QUYỀN</span>
           <h3 class="fw-black text-uppercase mb-2" style="font-weight: 900;">
@@ -993,21 +984,12 @@ function quickAddToCart(item, event) {
             Nhận ngay mã giảm giá độc quyền cho đơn hàng đầu tiên, cùng các thông tin ra mắt vợt mới và chương trình Flash Sale hàng tuần.
           </p>
 
-          <form @submit.prevent="subscribeNewsletter" class="d-flex gap-2 flex-column flex-sm-row justify-content-center">
-            <input
-              type="email"
-              v-model="newsletterEmail"
-              class="form-control form-control-lg rounded-pill px-4 border-0"
-              placeholder="Nhập email của bạn (ví dụ: longthuviet@gmail.com)..."
-              required
-            />
-            <button
-              type="submit"
-              class="btn btn-warning btn-lg fw-bold rounded-pill px-4 text-dark flex-shrink-0 shadow"
-            >
-              ĐĂNG KÝ NGAY
-            </button>
-          </form>
+          <RouterLink
+            :to="{ path: '/shop/dang-nhap', query: { tab: 'dang-ky' } }"
+            class="btn btn-warning btn-lg fw-bold rounded-pill px-5 text-dark shadow"
+          >
+            ĐĂNG KÝ NGAY
+          </RouterLink>
         </div>
       </section>
     </div>
