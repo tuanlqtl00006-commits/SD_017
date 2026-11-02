@@ -4,8 +4,7 @@ const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../src/services/api', () => ({ default: api }))
 
 import {
-  capNhatGia, chuoiVietQR, crc16, docHoaDonCho, doiSoLuong, ghiHoaDonCho, goiYTienKhachDua, noiDungChuyenKhoan, soHoaDonCho,
-  taoHoaDonMoi, themVaoGio, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang, xoaKhoiGio,
+  chuoiVietQR, crc16, goiYTienKhachDua, noiDungChuyenKhoan, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang,
 } from '../src/utils/banHang'
 import { chongGio, congNgayIso, demTheoCa, gomLich, ngayTrongTuan, nhanTuan, thu2CuaTuan } from '../src/utils/lichTuan'
 import { htmlBienBanGiaoCa, moTaChenhLech, thoiLuong, tinhChenhLech } from '../src/utils/giaoCa'
@@ -14,8 +13,6 @@ import { daCauHinhNganHang } from '../src/constants/thanhToan'
 import { _datLaiAuth, useAuth } from '../src/composables/useAuth'
 import { _datLaiGiaoCa } from '../src/composables/useGiaoCa'
 import router, { kiemTraTruyCap } from '../src/router'
-
-const SP = { id: 1, ma: 'SP01-DEN-4U-G5', tenSanPham: 'Yonex Astrox 99 Pro', phanLoai: 'Đen · 4U · G5', giaGoc: 4290000, phanTramGiam: 10, donGia: 3861000, tonKho: 3 }
 
 beforeEach(() => {
   localStorage.clear()
@@ -28,18 +25,13 @@ beforeEach(() => {
 /* ====================== Bán hàng tại quầy ====================== */
 
 describe('Bán tại quầy: giỏ hàng', () => {
-  it('thêm, cộng dồn, chặn vượt tồn kho / hết hàng', () => {
-    let { gio, loi } = themVaoGio([], SP)
-    expect(loi).toBe('')
-    expect(gio).toHaveLength(1)
-    ;({ gio, loi } = themVaoGio(gio, SP, 2))
-    expect(gio[0].soLuong).toBe(3)
-    const vuot = themVaoGio(gio, SP)
-    expect(vuot.loi).toBe('Yonex Astrox 99 Pro chỉ còn 3 sản phẩm trong kho.')
-    expect(vuot.gio).toBe(gio)
-    expect(themVaoGio([], { ...SP, tonKho: 0 }).loi).toContain('đã hết hàng')
-    expect(tongSoLuong(gio)).toBe(3)
-    expect(tongTienHang(gio)).toBe(3 * 3861000)
+  it('tổng số lượng, tổng tiền hàng, tiền giảm theo đợt', () => {
+    const gio = [
+      { idBienThe: 1, donGia: 3861000, giaGoc: 4290000, soLuong: 3 },
+      { idBienThe: 2, donGia: 260000, giaGoc: 260000, soLuong: 2 },
+    ]
+    expect(tongSoLuong(gio)).toBe(5)
+    expect(tongTienHang(gio)).toBe(3 * 3861000 + 2 * 260000)
     expect(tienGiamDot(gio)).toBe(3 * 429000)
   })
 
@@ -51,36 +43,12 @@ describe('Bán tại quầy: giỏ hàng', () => {
     expect(tienGiamDot([tang, dot])).toBe(2 * 28000)
   })
 
-  it('đổi số lượng: tối thiểu 1, tối đa tồn kho; xóa dòng; cập nhật giá mới từ máy chủ', () => {
-    const { gio } = themVaoGio([], SP)
-    expect(doiSoLuong(gio, 1, 0)).toMatchObject({ loi: 'Số lượng tối thiểu là 1. Muốn bỏ sản phẩm hãy bấm nút xóa.' })
-    expect(doiSoLuong(gio, 1, 0).gio[0].soLuong).toBe(1)
-    expect(doiSoLuong(gio, 1, 10).gio[0].soLuong).toBe(3)
-    expect(doiSoLuong(gio, 1, 'abc').gio[0].soLuong).toBe(1)
-    expect(doiSoLuong(gio, 99, 2).gio).toBe(gio)
-    expect(xoaKhoiGio(gio, 1)).toEqual([])
-    expect(capNhatGia(gio, [{ idBienThe: 1, donGiaMoi: 4290000 }])[0].donGia).toBe(4290000)
-  })
-
-  it('hóa đơn chờ lưu theo từng nhân viên, đánh số nhỏ nhất còn trống', () => {
-    const a = taoHoaDonMoi([])
-    const b = taoHoaDonMoi([a])
-    expect([a.so, b.so]).toEqual([1, 2])
-    expect(taoHoaDonMoi([b]).so).toBe(1)
-    expect(a.ten).toBe('Hóa đơn 1')
-    ghiHoaDonCho(3, { ds: [{ ...a, gio: [{ idBienThe: 1 }] }, b], dangChon: a.id })
-    expect(docHoaDonCho(3).dangChon).toBe(a.id)
-    expect(soHoaDonCho(3)).toBe(1) // chỉ đếm hóa đơn có hàng
-    expect(docHoaDonCho(4)).toEqual({ ds: [], dangChon: null })
-    localStorage.setItem('fs_hoa_don_cho_5', '{hỏng')
-    expect(docHoaDonCho(5)).toEqual({ ds: [], dangChon: null })
-  })
 })
 
 describe('Bán tại quầy: thanh toán', () => {
   it('tiền mặt: tiền thừa / thiếu', () => {
     expect(tinhThanhToan({ tongTien: 1000000, giam: 100000, tienMat: 1000000 })).toMatchObject({ phaiTra: 900000, tienThua: 100000, loi: '' })
-    expect(tinhThanhToan({ tongTien: 1000000, tienMat: '' }).loi).toBe('Nhập tiền khách đưa.')
+    expect(tinhThanhToan({ tongTien: 1000000, tienMat: '' }).loi).toBe('Vui lòng nhập tiền khách đưa.')
     expect(tinhThanhToan({ tongTien: 1000000, tienMat: 500000 })).toMatchObject({ conThieu: 500000, loi: 'Khách trả chưa đủ.', tienThua: 0 })
   })
 

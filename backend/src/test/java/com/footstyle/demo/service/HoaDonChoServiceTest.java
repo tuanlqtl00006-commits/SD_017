@@ -80,6 +80,7 @@ class HoaDonChoServiceTest {
         Clock dongHo = Clock.fixed(LUC.atZone(CaLamMau.VN).toInstant(), CaLamMau.VN);
         banHang.datDongHo(dongHo);
         service.datDongHo(dongHo);
+        giaoCa.datDongHo(dongHo);
         moCa();
     }
 

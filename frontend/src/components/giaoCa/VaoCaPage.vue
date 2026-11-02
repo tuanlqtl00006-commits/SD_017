@@ -1,9 +1,6 @@
 <script setup>
-// Trang VÀO CA (bắt buộc với nhân viên): đăng nhập xong mà chưa vào ca thì chỉ ở trang này, không mở được chức năng nào khác
-// (backend cũng chặn API, mã CHUA_NHAN_CA). Cô: "nhân viên không bấm vào ca thì sao? vẫn làm được à?".
-//  - Đối soát ca trước: tiền mặt ca trước để lại trong két + tiền chuyển khoản ca trước thu được (theo hệ thống).
-//  - Người vào ca đếm két / kiểm tra sao kê rồi nhập lại 2 số này; khác hệ thống thì bắt buộc ghi lý do.
-//  - "Bắt đầu ca làm việc" xong thì vào trang đang định mở (hoặc Bán hàng tại quầy).
+// Trang vào ca: nhân viên chưa vào ca thì chỉ ở trang này.
+// Nhập lại tiền mặt và chuyển khoản ca trước, khác hệ thống thì phải ghi lý do.
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MoneyInput from '../common/MoneyInput.vue'
@@ -154,7 +151,7 @@ function dangXuat() {
                 <div><dt>Tiền mặt để lại trong két</dt><dd data-testid="vc-tien-mat-truoc">{{ formatMoney(trangThai.goiYTienDauCa) }}</dd></div>
                 <div><dt>Chuyển khoản ca trước thu</dt><dd data-testid="vc-ck-truoc">{{ formatMoney(trangThai.chuyenKhoanCaTruoc ?? 0) }}</dd></div>
               </dl>
-              <p class="ad-hint mb-0">Hãy đếm lại tiền trong két và kiểm tra sao kê tài khoản trước khi xác nhận.</p>
+              <p class="ad-hint mb-0">Vui lòng đếm lại tiền trong két và kiểm tra sao kê tài khoản trước khi xác nhận.</p>
             </template>
             <p v-else class="vc-ghi-nho mb-0">Chưa có ca nào bàn giao trước đó. Nhập số tiền mặt đang có trong két.</p>
           </div>

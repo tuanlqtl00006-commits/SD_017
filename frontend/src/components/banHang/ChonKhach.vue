@@ -1,6 +1,5 @@
 <script setup>
-// Chọn khách cho hóa đơn: khách lẻ (mặc định) hoặc tìm theo SĐT / tên / email; thêm nhanh khách mới (dùng lại POST /api/khach-hang,
-// cùng luật kiểm tra với trang Khách hàng: họ tên, SĐT 10 số đúng đầu số, email không trùng).
+// Chọn khách cho hóa đơn: khách lẻ hoặc tìm theo SĐT / tên / email, có thêm nhanh khách mới.
 import { reactive, ref, watch } from 'vue'
 import api from '../../services/api'
 import BaseModal from '../common/BaseModal.vue'
@@ -59,7 +58,7 @@ const { loi, sua, cham, batDauGui, datLoiMayChu, datLai, focusLoiDau } = useLoiF
   if (sdt) e.sdt = sdt
   const email = cat(f.email)
   if (!email) e.email = 'Vui lòng nhập email.'
-  else if (!EMAIL.test(email)) e.email = 'Email chưa đúng định dạng, ví dụ: ten@gmail.com.'
+  else if (!EMAIL.test(email)) e.email = 'Email không đúng định dạng.'
   return e
 })
 function moThemNhanh() {

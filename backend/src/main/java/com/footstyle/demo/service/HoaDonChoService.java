@@ -32,13 +32,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Hóa đơn chờ tại quầy LƯU Ở CSDL (cô: thêm sản phẩm vào hóa đơn chờ là phải trừ tồn kho và tạo hóa đơn chi tiết ngay).
- * Hóa đơn chờ = hoa_don loại 1 (tại quầy), trạng thái 1 (chưa thanh toán), gắn nhân viên + ca đang mở.
- *  - Thêm sản phẩm: trừ tồn kho có điều kiện (2 máy cùng bán món cuối thì máy sau báo hết hàng), ghi hoa_don_chi_tiet theo giá lúc thêm.
- *    Cùng biến thể mà giá đã khác (đợt giảm giá vừa bắt đầu / kết thúc, sửa giá bán) thì tách thành DÒNG MỚI, không gộp.
- *  - Đổi số lượng: tăng thì trừ thêm kho, giảm thì trả lại kho. Xóa dòng / hủy hóa đơn chờ: trả lại toàn bộ.
- *  - Sản phẩm hết hàng tự biến mất khỏi danh sách chọn (tồn kho trong CSDL đã giảm).
- *  - Thanh toán: BanHangService.thanhToanHoaDonCho (tính lại giá, phiếu, tiền khách trả).
+ * Hóa đơn chờ tại quầy (hoa_don loại 1, trạng thái 1). Thêm sản phẩm là trừ tồn kho ngay, bớt / hủy thì trả lại kho.
+ * Cùng biến thể nhưng giá đã đổi thì tách dòng mới. Thanh toán ở BanHangService.thanhToanHoaDonCho.
  */
 @Service
 @RequiredArgsConstructor
@@ -100,7 +95,7 @@ public class HoaDonChoService {
         GiaoCa ca = giaoCaService.caDangMoBatBuoc(nd.id());
         int dangCo = hoaDonRepo.findByNhanVien_IdAndLoaiDonAndTrangThaiOrderByNgayTaoAscIdAsc(nd.id(), HoaDon.TAI_QUAY, HoaDon.CHO_XAC_NHAN).size();
         if (dangCo >= SO_HOA_DON_CHO_TOI_DA) {
-            throw ApiException.conflict("Tối đa " + SO_HOA_DON_CHO_TOI_DA + " hóa đơn chờ. Hãy thanh toán hoặc hủy bớt.");
+            throw ApiException.conflict("Tối đa " + SO_HOA_DON_CHO_TOI_DA + " hóa đơn chờ. Vui lòng thanh toán hoặc hủy bớt.");
         }
         NhanVien nv = nhanVienRepo.findById(nd.id()).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhân viên."));
         LocalDateTime luc = bayGio();
@@ -285,7 +280,7 @@ public class HoaDonChoService {
             throw new ApiException(HttpStatus.FORBIDDEN, "Đây là hóa đơn chờ của nhân viên khác.");
         }
         if (!laHoaDonCho(h)) {
-            throw new ApiException(HttpStatus.CONFLICT, "Hóa đơn " + h.getMaHoaDon() + " đã thanh toán hoặc đã hủy. Hãy tải lại trang.",
+            throw new ApiException(HttpStatus.CONFLICT, "Hóa đơn " + h.getMaHoaDon() + " đã thanh toán hoặc đã hủy. Vui lòng tải lại trang.",
                     "HOA_DON_CHO_DA_DONG", null);
         }
         return h;
@@ -294,7 +289,7 @@ public class HoaDonChoService {
     private HoaDonChiTiet dongCua(HoaDon h, Integer idChiTiet) {
         return chiTietRepo.findByHoaDon_IdOrderByIdAsc(h.getId()).stream()
                 .filter(ct -> ct.getId().equals(idChiTiet)).findFirst()
-                .orElseThrow(() -> ApiException.notFound("Không tìm thấy dòng sản phẩm trong hóa đơn. Hãy tải lại trang."));
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy dòng sản phẩm trong hóa đơn. Vui lòng tải lại trang."));
     }
 
     private void truKho(SanPhamChiTiet c, int sl) {

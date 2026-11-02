@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,12 +38,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Giao ca: nhận ca (tiền đầu ca) -> bán hàng tại quầy (hóa đơn gắn id_giao_ca) -> kết ca (hệ thống tổng kết, nhân viên đếm tiền,
- * để lại tiền bàn giao cho ca sau).
- *  - Mỗi nhân viên chỉ 1 ca đang mở (kiểm tra ở đây + chỉ mục ux_giao_ca_dang_mo ở CSDL).
- *  - Gợi ý tiền đầu ca = tiền bàn giao của lần giao ca gần nhất; nhập khác thì bắt buộc ghi chú.
- *  - Tự gắn với ca trong lịch làm hôm nay (đến sớm tối đa 60 phút), ghi số phút đến muộn. Không có lịch vẫn nhận được ("ngoài lịch").
- *  - Kết ca: tiền mặt hệ thống = tiền đầu ca + tiền mặt thu trong ca; chênh lệch = thực tế - hệ thống; lệch thì bắt buộc ghi lý do.
+ * Giao ca: nhận ca (tiền đầu ca) -> bán hàng -> kết ca (đếm tiền, bàn giao cho ca sau).
+ * Mỗi nhân viên chỉ có 1 ca đang mở; tiền lệch so với hệ thống thì bắt buộc ghi lý do.
  */
 @Service
 @RequiredArgsConstructor
@@ -53,6 +50,7 @@ public class GiaoCaService {
     public static final int PHUT_MUON_CHO_PHEP = 15;
     /** Nhận ca sớm hơn giờ bắt đầu tối đa bấy nhiêu phút vẫn tính là ca đó. */
     static final int PHUT_DEN_SOM = 60;
+    private static final DateTimeFormatter NGAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final GiaoCaRepository giaoCaRepo;
     private final NhanVienRepository nhanVienRepo;
@@ -94,7 +92,7 @@ public class GiaoCaService {
         Optional<GiaoCa> mo = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA);
         kq.put("dangMo", mo.map(this::dto).orElse(null));
         kq.put("tongKet", mo.map(this::tongKet).orElse(null));
-        Optional<GiaoCa> truoc = giaoCaRepo.findFirstByTrangThaiOrderByThoiGianKetCaDescIdDesc(GiaoCa.DA_GIAO_CA);
+        Optional<GiaoCa> truoc = caTruocChuaNhan();
         kq.put("goiYTienDauCa", truoc.map(g -> soTien(g.getTienBanGiao())).orElse(null));
         kq.put("nguoiBanGiao", truoc.map(g -> g.getNhanVien().getHoTen()).orElse(null));
         kq.put("thoiGianBanGiao", truoc.map(GiaoCa::getThoiGianKetCa).orElse(null));
@@ -114,12 +112,30 @@ public class GiaoCaService {
         return kq;
     }
 
-    /** Ca đang mở của nhân viên (bán hàng tại quầy bắt buộc có). Chưa nhận ca thì 409 mã CHUA_NHAN_CA. */
+    /**
+     * Ca đang mở của nhân viên (bán hàng tại quầy bắt buộc có). Chưa nhận ca thì 409 CHUA_NHAN_CA;
+     * ca nhận từ hôm trước mà quên giao thì 409 CA_CU_CHUA_GIAO (không gắn hóa đơn hôm nay vào ca cũ).
+     */
     @Transactional(readOnly = true)
     public GiaoCa caDangMoBatBuoc(Integer idNhanVien) {
-        return giaoCaRepo.findFirstByNhanVienIdAndTrangThai(idNhanVien, GiaoCa.DANG_TRONG_CA)
+        GiaoCa gc = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(idNhanVien, GiaoCa.DANG_TRONG_CA)
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
-                        "Bạn chưa nhận ca. Hãy bấm \"Ca làm việc\" > Nhận ca trước khi bán hàng.", "CHUA_NHAN_CA", null));
+                        "Bạn chưa nhận ca. Vui lòng bấm \"Ca làm việc\" > Nhận ca trước khi bán hàng.", "CHUA_NHAN_CA", null));
+        if (gc.getThoiGianNhanCa() != null && gc.getThoiGianNhanCa().toLocalDate().isBefore(bayGio().toLocalDate())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Ca " + gc.getMaGiaoCa() + " nhận ngày " + gc.getThoiGianNhanCa().format(NGAY)
+                    + " chưa giao. Vui lòng giao ca đó rồi vào ca mới trước khi bán hàng.", "CA_CU_CHUA_GIAO", null);
+        }
+        return gc;
+    }
+
+    /** Lần giao ca gần nhất mà tiền bàn giao chưa có ca nào nhận (cửa hàng một két tiền: mỗi lần bàn giao chỉ cho một ca sau). */
+    private Optional<GiaoCa> caTruocChuaNhan() {
+        Optional<GiaoCa> truoc = giaoCaRepo.findFirstByTrangThaiOrderByThoiGianKetCaDescIdDesc(GiaoCa.DA_GIAO_CA);
+        if (truoc.isPresent() && truoc.get().getThoiGianKetCa() != null
+                && giaoCaRepo.existsByThoiGianNhanCaGreaterThanEqual(truoc.get().getThoiGianKetCa())) {
+            return Optional.empty();
+        }
+        return truoc;
     }
 
     /* ===================== Nhận ca ===================== */
@@ -129,7 +145,7 @@ public class GiaoCaService {
         NguoiDung nd = XacThuc.nhanVien();
         Optional<GiaoCa> dangMo = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA);
         if (dangMo.isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "Bạn đang trong ca " + dangMo.get().getMaGiaoCa() + ", hãy giao ca trước khi nhận ca mới.",
+            throw new ApiException(HttpStatus.CONFLICT, "Bạn đang trong ca " + dangMo.get().getMaGiaoCa() + ", vui lòng giao ca trước khi nhận ca mới.",
                     "DANG_TRONG_CA", null);
         }
         NhanVien nv = nhanVienRepo.findById(nd.id()).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhân viên."));
@@ -140,12 +156,12 @@ public class GiaoCaService {
         kiemTraTien(tien, "tienDauCa", "tiền đầu ca", loi);
         String ghiChu = gon(req == null ? null : req.ghiChu());
         if (ghiChu != null && ghiChu.length() > 500) loi.them("ghiChu", "Ghi chú tối đa 500 ký tự.");
-        Optional<GiaoCa> caTruoc = giaoCaRepo.findFirstByTrangThaiOrderByThoiGianKetCaDescIdDesc(GiaoCa.DA_GIAO_CA);
+        Optional<GiaoCa> caTruoc = caTruocChuaNhan();
         BigDecimal goiY = caTruoc.map(g -> soTien(g.getTienBanGiao())).orElse(null);
         if (!loi.co("tienDauCa") && goiY != null && tien.compareTo(goiY) != 0 && ghiChu == null) {
             loi.them("ghiChu", "Tiền đầu ca khác tiền ca trước bàn giao (" + dinhDangTien(goiY) + "). Vui lòng ghi lý do.");
         }
-        // Đối soát chuyển khoản của ca trước (cô: vào ca phải nhập cả tiền mặt lẫn chuyển khoản của ca trước)
+        // Đối soát chuyển khoản của ca trước
         if (caTruoc.isPresent()) {
             BigDecimal ck = req == null ? null : req.chuyenKhoanCaTruoc();
             BigDecimal ckHeThong = soTien(caTruoc.get().getChuyenKhoanThu());
@@ -178,7 +194,7 @@ public class GiaoCaService {
             gc = giaoCaRepo.saveAndFlush(gc);
         } catch (DataIntegrityViolationException e) {
             // 2 tab cùng bấm nhận ca: chỉ mục ux_giao_ca_dang_mo chặn ca thứ hai
-            throw new ApiException(HttpStatus.CONFLICT, "Bạn vừa nhận ca ở một cửa sổ khác. Hãy tải lại trang.", "DANG_TRONG_CA", null);
+            throw new ApiException(HttpStatus.CONFLICT, "Bạn vừa nhận ca ở một cửa sổ khác. Vui lòng tải lại trang.", "DANG_TRONG_CA", null);
         }
         return dto(gc);
     }
@@ -217,7 +233,7 @@ public class GiaoCaService {
         long soCho = hoaDonRepo.findByIdGiaoCaOrderByNgayTaoAsc(gc.getId()).stream().filter(HoaDonChoService::laHoaDonCho).count();
         if (soCho > 0) {
             throw new ApiException(HttpStatus.CONFLICT, "Còn " + soCho + " hóa đơn chờ chưa thanh toán (đang giữ hàng trong kho). "
-                    + "Hãy thanh toán hoặc hủy trước khi giao ca.", "CON_HOA_DON_CHO", Map.of("soHoaDonCho", soCho));
+                    + "Vui lòng thanh toán hoặc hủy trước khi giao ca.", "CON_HOA_DON_CHO", Map.of("soHoaDonCho", soCho));
         }
         Map<String, Object> tk = tongKet(gc);
         BigDecimal heThong = (BigDecimal) tk.get("tienMatHeThong");
@@ -244,7 +260,7 @@ public class GiaoCaService {
             if (nguoiNhan == null || !Integer.valueOf(NhanVien.HOAT_DONG).equals(nguoiNhan.getTrangThai())) {
                 loi.them("idNhanVienNhanBanGiao", "Người nhận bàn giao không hợp lệ hoặc đã ngừng hoạt động.");
             } else if (nguoiNhan.getId().equals(nd.id())) {
-                loi.them("idNhanVienNhanBanGiao", "Không bàn giao cho chính mình.");
+                loi.them("idNhanVienNhanBanGiao", "Không được bàn giao cho chính mình.");
             }
         }
         loi.nemNeuCoLoi();
@@ -278,7 +294,8 @@ public class GiaoCaService {
         for (HoaDon hd : hoaDonRepo.findByIdGiaoCaOrderByNgayTaoAsc(gc.getId())) {
             if (Integer.valueOf(HoaDon.DA_HUY).equals(hd.getTrangThai()) || HoaDonChoService.laHoaDonCho(hd)) continue; // bỏ đơn hủy + hóa đơn chờ chưa thanh toán
             soHoaDon++;
-            doanhThu = doanhThu.add(soTien(hd.getThanhTien()));
+            // Doanh thu không gồm phí giao hàng (giống Thống kê); tiền mặt / chuyển khoản bên dưới vẫn tính đủ số khách trả
+            doanhThu = doanhThu.add(soTien(hd.getThanhTien()).subtract(soTien(hd.getPhiVanChuyen())));
         }
         BigDecimal tienMat = BigDecimal.ZERO;
         BigDecimal chuyenKhoan = BigDecimal.ZERO;

@@ -190,6 +190,7 @@ class CaLamMau {
                     .filter(g -> !g.getThoiGianNhanCa().isBefore((LocalDateTime) a[1]) && !g.getThoiGianNhanCa().isAfter((LocalDateTime) a[2]))
                     .sorted(Comparator.comparing(GiaoCa::getThoiGianNhanCa).reversed()).toList();
             case "existsByLichLamViecId" -> giaoCas.stream().anyMatch(g -> g.getLichLamViec() != null && g.getLichLamViec().getId().equals(a[0]));
+            case "existsByThoiGianNhanCaGreaterThanEqual" -> giaoCas.stream().anyMatch(g -> !g.getThoiGianNhanCa().isBefore((LocalDateTime) a[0]));
             case "findAllMaGiaoCa" -> giaoCas.stream().map(GiaoCa::getMaGiaoCa).toList();
             case "save", "saveAndFlush" -> {
                 GiaoCa g = (GiaoCa) a[0];

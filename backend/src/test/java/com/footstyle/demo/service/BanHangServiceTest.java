@@ -97,7 +97,9 @@ class BanHangServiceTest {
                     return KhoGia.KHONG_CO;
                 }),
                 thanhToanRepo(), m.phuongThucRepo(), giam, giaoCa);
-        service.datDongHo(java.time.Clock.fixed(LUC.atZone(CaLamMau.VN).toInstant(), CaLamMau.VN));
+        java.time.Clock dongHo = java.time.Clock.fixed(LUC.atZone(CaLamMau.VN).toInstant(), CaLamMau.VN);
+        service.datDongHo(dongHo);
+        giaoCa.datDongHo(dongHo);
     }
 
     @AfterEach

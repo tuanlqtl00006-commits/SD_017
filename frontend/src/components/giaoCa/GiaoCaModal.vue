@@ -1,8 +1,5 @@
 <script setup>
-// Nhận ca / tổng kết ca / giao ca của người đang đăng nhập.
-//  - Chưa nhận ca: dẫn sang trang Vào ca (/vao-ca) - đối soát tiền mặt + chuyển khoản ca trước ở đó.
-//  - Đang trong ca: xem số hóa đơn, doanh thu, tiền mặt / chuyển khoản thu được; đếm tiền mặt thực tế, để lại tiền cho ca sau, giao ca.
-//  - Giao xong: xem và in biên bản giao ca.
+// Tổng kết ca và giao ca của người đang đăng nhập; giao xong thì in biên bản.
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../../services/api'
@@ -136,7 +133,7 @@ async function guiKetCa() {
 }
 
 function inBienBan() {
-  if (!inBienBanGiaoCa(ketQua.value)) toast.error('Trình duyệt chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại.')
+  if (!inBienBanGiaoCa(ketQua.value)) toast.error('Trình duyệt chặn cửa sổ in. Vui lòng cho phép cửa sổ bật lên rồi thử lại.')
 }
 
 const tieuDe = computed(() => {
@@ -202,7 +199,7 @@ const tieuDe = computed(() => {
 
       <div v-if="hoaDonCho > 0" class="gc-canh-bao" role="alert">
         <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-        Còn {{ hoaDonCho }} hóa đơn chờ chưa thanh toán ở màn hình Bán hàng tại quầy. Hãy thanh toán hoặc hủy (trả hàng về kho) trước khi giao ca.
+        Còn {{ hoaDonCho }} hóa đơn chờ chưa thanh toán ở màn hình Bán hàng tại quầy. Vui lòng thanh toán hoặc hủy (trả hàng về kho) trước khi giao ca.
       </div>
 
       <form id="gc-ket-form" novalidate class="gc-ket" @submit.prevent="moXacNhan">

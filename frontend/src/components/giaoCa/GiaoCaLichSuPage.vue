@@ -71,7 +71,7 @@ async function moChiTiet(g) {
   }
 }
 function inBienBan() {
-  if (!inBienBanGiaoCa(chiTiet.value)) toast.error('Trình duyệt chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại.')
+  if (!inBienBanGiaoCa(chiTiet.value)) toast.error('Trình duyệt chặn cửa sổ in. Vui lòng cho phép cửa sổ bật lên rồi thử lại.')
 }
 </script>
 

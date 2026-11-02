@@ -193,6 +193,40 @@ class GiaoCaServiceTest {
     }
 
     @Test
+    void tienBanGiao_chiMotCaSauNhan_caMoCungLucKhongNhanLai() {
+        caTruocBanGiao(2_000_000);
+        CaLamMau.dangNhap(m.bao);
+        nhanCa("07:00", 2_000_000, null);
+        // người thứ hai vào ca khi tiền bàn giao đã có người nhận: không gợi ý, không bắt đối soát / ghi chú
+        CaLamMau.dangNhap(m.anh);
+        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "07:30"));
+        assertNull(service.hienTai().get("goiYTienDauCa"));
+        assertEquals("GC03", service.nhanCa(new GiaoCaService.NhanCaRequest(tien(500_000), null, null, null)).get("maGiaoCa"));
+    }
+
+    @Test
+    void caCuTuHomTruocChuaGiao_khongBanHangDuoc() {
+        CaLamMau.dangNhap(m.bao);
+        nhanCa("21:00", 0, null);
+        assertEquals("GC01", service.caDangMoBatBuoc(3).getMaGiaoCa());
+        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY.plusDays(1), "08:00"));
+        ApiException e = loi(() -> service.caDangMoBatBuoc(3));
+        assertEquals("CA_CU_CHUA_GIAO", e.getCode());
+        assertTrue(e.getMessage().contains("GC01"));
+    }
+
+    @Test
+    void tongKet_doanhThuKhongGomPhiGiaoHang() {
+        CaLamMau.dangNhap(m.bao);
+        nhanCa("07:00", 0, null);
+        int id = m.giaoCas.get(0).getId();
+        m.hoaDon(id, 530_000, HoaDon.CHO_LAY_HANG, "PT01", 530_000).setPhiVanChuyen(tien(30_000));
+        Map<String, Object> tk = service.tongKet(m.giaoCas.get(0));
+        assertEquals(tien(500_000), tk.get("doanhThu"));
+        assertEquals(tien(530_000), tk.get("tienMat"), "tiền mặt vẫn đủ số khách trả, gồm cả phí giao");
+    }
+
+    @Test
     void banHangBatBuocDangTrongCa() {
         ApiException e = loi(() -> service.caDangMoBatBuoc(3));
         assertEquals("CHUA_NHAN_CA", e.getCode());

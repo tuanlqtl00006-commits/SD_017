@@ -1,6 +1,5 @@
 <script setup>
-// Quét mã QR sản phẩm bằng camera (máy tính / điện thoại). Mã QR in ở trang Biến thể sản phẩm chứa mã biến thể (vd SP01-DEN-4U-G5).
-// Đọc được mã thì báo ra ngoài (emit 'ma') và đóng camera; máy quét mã vạch cầm tay thì dùng ô "Quét mã" trên trang (không cần hộp này).
+// Quét mã QR sản phẩm bằng camera; đọc được mã biến thể thì emit 'ma' và tắt camera.
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 
@@ -29,7 +28,7 @@ async function batCamera() {
   } catch (e) {
     dangMo.value = false
     loi.value = e?.name === 'NotAllowedError'
-      ? 'Bạn chưa cho phép dùng camera. Hãy bấm biểu tượng camera trên thanh địa chỉ để cho phép rồi mở lại.'
+      ? 'Bạn chưa cho phép dùng camera. Vui lòng bấm biểu tượng camera trên thanh địa chỉ để cho phép rồi mở lại.'
       : 'Không mở được camera: ' + (e?.message || 'không có camera.')
   }
 }

@@ -79,14 +79,14 @@ public class LichLamViecImportService {
     @Transactional
     public KetQua nhap(byte[] file, boolean chiKiemTra) {
         List<Dong> dong = XlsxDoc.doc(file);
-        if (dong.isEmpty()) throw ApiException.badRequest("File Excel đang trống. Hãy dùng file mẫu của hệ thống.");
+        if (dong.isEmpty()) throw ApiException.badRequest("File Excel đang trống. Vui lòng dùng file mẫu của hệ thống.");
         Map<Cot, Integer> viTri = nhanDienCot(dong.get(0));
         List<Dong> duLieu = new ArrayList<>();
         for (Dong d : dong.subList(1, dong.size())) if (!d.trong()) duLieu.add(d);
         if (duLieu.isEmpty()) throw ApiException.badRequest("File chưa có dòng lịch nào (chỉ có dòng tiêu đề).");
         if (duLieu.size() > LichLamViecService.SO_O_TOI_DA) {
             throw ApiException.badRequest("File có " + duLieu.size() + " dòng, mỗi lần chỉ nhập tối đa " + LichLamViecService.SO_O_TOI_DA
-                    + " ca. Hãy tách thành nhiều file.");
+                    + " ca. Vui lòng tách thành nhiều file.");
         }
 
         List<CaLamViec> cas = caRepo.findAllByOrderByGioBatDauAscIdAsc();
@@ -149,7 +149,7 @@ public class LichLamViecImportService {
         NhanVien nv = null;
         String ma = chu(d, viTri, Cot.MA_NV);
         if (ma.isEmpty()) {
-            loi.put(Cot.MA_NV, "Nhập mã nhân viên.");
+            loi.put(Cot.MA_NV, "Vui lòng nhập mã nhân viên.");
         } else {
             nv = nhanVienRepo.findFirstByMaNhanVienIgnoreCase(ma).orElse(null);
             if (nv == null) loi.put(Cot.MA_NV, "Không có nhân viên mã " + ma + ".");
@@ -166,7 +166,7 @@ public class LichLamViecImportService {
         CaLamViec ca = null;
         String tenCa = chu(d, viTri, Cot.CA);
         if (tenCa.isEmpty()) {
-            loi.put(Cot.CA, "Nhập ca làm (tên ca hoặc mã ca).");
+            loi.put(Cot.CA, "Vui lòng nhập ca làm (tên ca hoặc mã ca).");
         } else {
             ca = timCa(cas, tenCa);
             if (ca == null) loi.put(Cot.CA, "Không có ca \"" + tenCa + "\". Các ca: " + String.join(", ", cas.stream().map(CaLamViec::getTenCa).toList()) + ".");
@@ -195,10 +195,10 @@ public class LichLamViecImportService {
     static LocalDate docNgay(O o, Map<Cot, String> loi) {
         String s = QuyTacDuLieu.cat(o.giaTri());
         if (s.isEmpty()) {
-            loi.put(Cot.NGAY, "Nhập ngày làm.");
+            loi.put(Cot.NGAY, "Vui lòng nhập ngày làm.");
             return null;
         }
-        String baoLoi = "Ngày làm không đúng định dạng (viết dd/mm/yyyy, ví dụ 27/10/2026).";
+        String baoLoi = "Ngày làm không đúng định dạng dd/mm/yyyy.";
         if (o.laSo()) {
             try {
                 long serial = new BigDecimal(s).longValue();
@@ -241,7 +241,7 @@ public class LichLamViecImportService {
         for (Cot c : Cot.values()) if (c.batBuoc && !kq.containsKey(c)) thieu.add(c.tieuDe);
         if (!thieu.isEmpty()) {
             throw ApiException.badRequest("File thiếu cột bắt buộc: " + String.join(", ", thieu)
-                    + ". Hãy dùng đúng file mẫu của hệ thống (dòng đầu tiên là tiêu đề cột).");
+                    + ". Vui lòng dùng đúng file mẫu của hệ thống (dòng đầu tiên là tiêu đề cột).");
         }
         return kq;
     }
@@ -261,7 +261,7 @@ public class LichLamViecImportService {
         chiTiet.put("tongDong", tongDong);
         chiTiet.put("soDongLoi", soDongLoi);
         String thongBao = "File có " + loi.size() + " lỗi ở " + soDongLoi + "/" + tongDong
-                + " dòng. Cả file bị từ chối, chưa có ca nào được xếp. Hãy sửa các dòng báo lỗi rồi tải lên lại.";
+                + " dòng. Cả file bị từ chối, chưa có ca nào được xếp. Vui lòng sửa các dòng báo lỗi rồi tải lên lại.";
         return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, thongBao, MA_LOI_FILE, chiTiet);
     }
 }

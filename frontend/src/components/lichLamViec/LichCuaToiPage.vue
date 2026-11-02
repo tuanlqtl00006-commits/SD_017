@@ -1,5 +1,5 @@
 <script setup>
-// Lịch làm của nhân viên đang đăng nhập theo tuần (chỉ xem). Ca đang diễn ra được đánh dấu; nhận ca ở nút "Ca làm việc" trên header.
+// Lịch làm theo tuần của nhân viên đang đăng nhập (chỉ xem).
 import { computed, onMounted, ref } from 'vue'
 import { lichLamViecService } from '../../services/lichLamViecService'
 import { useAuth } from '../../composables/useAuth'

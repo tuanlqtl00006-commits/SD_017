@@ -1,8 +1,6 @@
 <script setup>
-// Bảng chọn sản phẩm bán tại quầy (cô: dạng BẢNG có phân trang, sản phẩm mới nhất trước, bộ lọc giống trang sản phẩm + lọc khoảng giá).
-//  - Chỉ hiện biến thể đang bán và CÒN HÀNG (hết hàng thì tự biến mất - kho đã trừ ngay khi thêm vào hóa đơn chờ).
-//  - Nhập số lượng rồi bấm "Thêm"; số lượng lớn hơn tồn kho thì báo ngay, không gửi.
-//  - Vẫn quét được mã: máy quét cầm tay (gõ mã + Enter vào ô "Quét mã") hoặc camera.
+// Bảng chọn sản phẩm tại quầy: có lọc, phân trang, mới nhất trước; chỉ hiện biến thể còn hàng.
+// Quét mã bằng máy quét (gõ mã + Enter) hoặc camera.
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import api from '../../services/api'
 import BasePagination from '../common/BasePagination.vue'

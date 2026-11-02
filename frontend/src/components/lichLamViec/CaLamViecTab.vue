@@ -1,5 +1,5 @@
 <script setup>
-// Danh sách ca làm việc (Ca sáng / chiều / tối...) + thêm / sửa / bật tắt ca. Ca ngừng dùng không xếp lịch mới được, lịch cũ vẫn giữ.
+// Danh sách ca làm việc: thêm, sửa, bật / tắt ca.
 import { reactive, ref } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import StatusSwitch from '../common/StatusSwitch.vue'
@@ -140,7 +140,7 @@ async function doiTrangThai(c) {
   <BaseModal v-if="moForm" :title="f.id ? 'Sửa ca làm việc' : 'Thêm ca làm việc'" size="sm" static-backdrop @close="moForm = false">
     <form id="ca-form" novalidate @submit.prevent="luu">
       <label class="ad-label" for="ca-ten">Tên ca <span class="ad-required">*</span></label>
-      <input id="ca-ten" v-model="f.tenCa" type="text" class="form-control ad-control" :class="{ 'is-invalid': loi.tenCa }" maxlength="100" placeholder="vd: Ca hành chính" @input="sua('tenCa')" @blur="cham('tenCa')" />
+      <input id="ca-ten" v-model="f.tenCa" type="text" class="form-control ad-control" :class="{ 'is-invalid': loi.tenCa }" maxlength="100" placeholder="Nhập tên ca" @input="sua('tenCa')" @blur="cham('tenCa')" />
       <p v-if="loi.tenCa" class="ad-error">{{ loi.tenCa }}</p>
       <div class="row g-2 mt-1">
         <div class="col-6">

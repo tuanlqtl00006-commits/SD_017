@@ -30,9 +30,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Ca làm việc (định nghĩa ca) + lịch làm việc (xếp ca cho nhân viên theo ngày).
- * Luật xếp lịch: chỉ nhân viên đang hoạt động, chỉ ca đang dùng; không xếp / xóa lịch của ngày đã qua;
- * một người không có 2 ca chồng giờ trong cùng ngày; không trùng (người, ca, ngày).
+ * Ca làm việc và xếp lịch làm cho nhân viên.
+ * Không xếp / xóa lịch ngày đã qua, một người không có 2 ca chồng giờ trong cùng ngày.
  */
 @Service
 @RequiredArgsConstructor
@@ -110,7 +109,7 @@ public class LichLamViecService {
         if (kt != null && kt.isAfter(GIO_DONG_CUA)) loi.them("gioKetThuc", "Cửa hàng đóng cửa lúc " + GIO_DONG_CUA.format(GIO) + ", ca phải nằm trong giờ mở cửa (" + khungGio + ").");
         if (bd != null && kt != null && !loi.co("gioBatDau") && !loi.co("gioKetThuc")) {
             if (!bd.isBefore(kt)) loi.them("gioKetThuc", "Giờ kết thúc phải sau giờ bắt đầu (không có ca qua đêm).");
-            else if (Duration.between(bd, kt).compareTo(CA_NGAN_NHAT) < 0) loi.them("gioKetThuc", "Một ca dài ít nhất 30 phút.");
+            else if (Duration.between(bd, kt).compareTo(CA_NGAN_NHAT) < 0) loi.them("gioKetThuc", "Ca làm việc phải dài ít nhất 30 phút.");
         }
         loi.nemNeuCoLoi();
         ca.setTenCa(ten);
@@ -126,7 +125,7 @@ public class LichLamViecService {
         try {
             return LocalTime.parse(s.trim()).truncatedTo(ChronoUnit.MINUTES); // nhận "07:30" hoặc "07:30:00"
         } catch (DateTimeParseException e) {
-            loi.them(truong, "Giờ không hợp lệ, định dạng HH:mm (vd 07:30).");
+            loi.them(truong, "Giờ không hợp lệ (định dạng HH:mm).");
             return null;
         }
     }
@@ -196,11 +195,11 @@ public class LichLamViecService {
         LoiForm loi = new LoiForm();
         List<Integer> idNvs = req == null || req.idNhanViens() == null ? List.of()
                 : req.idNhanViens().stream().filter(java.util.Objects::nonNull).distinct().toList();
-        if (idNvs.isEmpty()) loi.them("idNhanViens", "Chọn ít nhất một nhân viên.");
-        if (req == null || req.idCa() == null) loi.them("idCa", "Chọn ca làm việc.");
+        if (idNvs.isEmpty()) loi.them("idNhanViens", "Vui lòng chọn ít nhất một nhân viên.");
+        if (req == null || req.idCa() == null) loi.them("idCa", "Vui lòng chọn ca làm việc.");
         Set<LocalDate> ngays = new LinkedHashSet<>();
         if (req == null || req.ngays() == null || req.ngays().isEmpty()) {
-            loi.them("ngays", "Chọn ít nhất một ngày.");
+            loi.them("ngays", "Vui lòng chọn ít nhất một ngày.");
         } else {
             for (String s : req.ngays()) {
                 try {
@@ -322,7 +321,7 @@ public class LichLamViecService {
     }
 
     private void kiemTraKhoang(LocalDate tu, LocalDate den) {
-        if (tu == null || den == null) throw ApiException.badRequest("Chọn khoảng ngày cần xem.");
+        if (tu == null || den == null) throw ApiException.badRequest("Vui lòng chọn khoảng ngày cần xem.");
         if (tu.isAfter(den)) throw ApiException.badRequest("Từ ngày phải trước hoặc cùng ngày với Đến ngày.");
         if (ChronoUnit.DAYS.between(tu, den) >= SO_NGAY_XEM_TOI_DA) {
             throw ApiException.badRequest("Mỗi lần xem tối đa " + SO_NGAY_XEM_TOI_DA + " ngày.");

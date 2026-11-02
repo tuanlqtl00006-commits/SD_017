@@ -1,6 +1,5 @@
 <script setup>
-// Xếp lịch nhanh: nhiều nhân viên x một ca x nhiều ngày trong tuần đang xem. Ô không hợp lệ (ngày đã qua, trùng / chồng giờ...)
-// được backend bỏ qua và trả lý do; hộp này hiện kết quả để quản lý biết ô nào chưa xếp được.
+// Xếp lịch nhanh cho nhiều nhân viên, nhiều ngày; ô nào không xếp được thì hiện lý do.
 import { computed, reactive, ref } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import Select2 from '../common/Select2.vue'
@@ -53,9 +52,9 @@ function chonNgay(kieu) {
 
 const { loi, sua, batDauGui, datLoiMayChu } = useLoiForm(() => {
   const e = {}
-  if (!f.idNhanViens.length) e.idNhanViens = 'Chọn ít nhất một nhân viên.'
-  if (!f.idCa) e.idCa = 'Chọn ca làm việc.'
-  if (!f.ngays.length) e.ngays = 'Chọn ít nhất một ngày.'
+  if (!f.idNhanViens.length) e.idNhanViens = 'Vui lòng chọn ít nhất một nhân viên.'
+  if (!f.idCa) e.idCa = 'Vui lòng chọn ca làm việc.'
+  if (!f.ngays.length) e.ngays = 'Vui lòng chọn ít nhất một ngày.'
   if (f.ghiChu.trim().length > 255) e.ghiChu = 'Ghi chú tối đa 255 ký tự.'
   return e
 })
@@ -131,7 +130,7 @@ async function gui() {
           <p v-if="loi.ngays" class="ad-error">{{ loi.ngays }}</p>
 
           <label class="ad-label mt-3" for="xl-ghi-chu">Ghi chú</label>
-          <input id="xl-ghi-chu" v-model="f.ghiChu" type="text" class="form-control ad-control" maxlength="255" placeholder="vd: Trực quầy, kiểm kho…" @input="sua('ghiChu')" />
+          <input id="xl-ghi-chu" v-model="f.ghiChu" type="text" class="form-control ad-control" maxlength="255" placeholder="Ghi chú cho ca (không bắt buộc)" @input="sua('ghiChu')" />
           <p v-if="loi.ghiChu" class="ad-error">{{ loi.ghiChu }}</p>
           <p class="ad-hint mt-2">Sẽ xếp {{ soO }} ô (nhân viên × ngày). Ô trùng ca hoặc chồng giờ với ca khác sẽ được bỏ qua.</p>
         </div>

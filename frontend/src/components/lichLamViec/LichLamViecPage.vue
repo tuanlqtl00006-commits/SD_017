@@ -1,7 +1,5 @@
 <script setup>
-// Xếp lịch làm việc theo tuần (Quản lý): hàng = nhân viên đang hoạt động, cột = thứ 2 -> chủ nhật, ô = các ca của người đó ngày đó.
-// Bấm "+" ở ô để xếp ca cho đúng người / ngày; "Xếp lịch nhanh" cho nhiều người nhiều ngày; "Sao chép tuần trước" để lặp lịch.
-// Ngày đã qua chỉ xem (không thêm / xóa). Hàng cuối đếm số người mỗi ca trong ngày để thấy ngay ca nào đang thiếu người.
+// Xếp lịch làm việc theo tuần (quản lý): hàng là nhân viên, cột là ngày. Ngày đã qua chỉ xem.
 import { computed, onMounted, ref } from 'vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import CaLamViecTab from './CaLamViecTab.vue'

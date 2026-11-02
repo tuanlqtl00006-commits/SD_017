@@ -47,12 +47,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Bán hàng tại quầy. Giao diện giữ các hóa đơn chờ (giỏ hàng) trên trình duyệt; khi thanh toán backend TÍNH LẠI TOÀN BỘ:
- *  - giá theo đợt giảm giá tại thời điểm thanh toán (khác giá đang hiện thì báo GIA_THAY_DOI để nhân viên xác nhận lại);
- *  - phiếu giảm giá (còn hạn, còn lượt, đủ đơn tối thiểu, đúng khách với phiếu cá nhân, giới hạn số lần mỗi khách);
- *  - trừ tồn kho có điều kiện (không bán quá số còn, kể cả 2 máy cùng bán);
- *  - tiền khách trả (tiền mặt + chuyển khoản) phải đủ, tiền thừa chỉ trả bằng tiền mặt.
- * Hóa đơn tạo ra ở trạng thái "Đã hoàn thành", loại "Tại quầy", gắn với ca đang mở của nhân viên (bắt buộc đã nhận ca).
+ * Bán hàng tại quầy: tìm sản phẩm, khách, phiếu giảm giá và thanh toán.
+ * Khi thanh toán luôn tính lại giá, phiếu, tồn kho và tiền khách trả; hóa đơn gắn với ca đang mở của nhân viên.
  */
 @Service
 @RequiredArgsConstructor
@@ -109,10 +105,7 @@ public class BanHangService {
         return kq;
     }
 
-    /**
-     * Bộ lọc bảng chọn sản phẩm tại quầy (cô: dạng bảng có phân trang, mới nhất trước, lọc giống trang sản phẩm + khoảng giá).
-     * trang bắt đầu từ 0; giá lọc theo giá đang bán (đã trừ đợt giảm giá).
-     */
+    /** Bộ lọc bảng chọn sản phẩm. Trang bắt đầu từ 0, giá lọc theo giá đang bán (đã trừ đợt giảm giá). */
     public record LocSanPham(String q, Integer idDanhMuc, Integer idThuongHieu, Integer idMauSac, Integer idTrongLuong, Integer idChuVi,
                              Long giaTu, Long giaDen, Integer trang, Integer kichThuoc) {
     }
@@ -365,8 +358,8 @@ public class BanHangService {
         long tongTienHang = 0;
         for (Map.Entry<Integer, Integer> e : soLuong.entrySet()) {
             SanPhamChiTiet c = spctRepo.findById(e.getKey())
-                    .orElseThrow(() -> ApiException.notFound("Không tìm thấy sản phẩm (mã biến thể #" + e.getKey() + "). Hãy xóa dòng đó khỏi hóa đơn."));
-            if (!dangBan(c)) throw ApiException.conflict("Sản phẩm " + c.getMaSpct() + " đã ngừng bán. Hãy xóa khỏi hóa đơn.");
+                    .orElseThrow(() -> ApiException.notFound("Không tìm thấy sản phẩm (mã biến thể #" + e.getKey() + "). Vui lòng xóa dòng đó khỏi hóa đơn."));
+            if (!dangBan(c)) throw ApiException.conflict("Sản phẩm " + c.getMaSpct() + " đã ngừng bán. Vui lòng xóa khỏi hóa đơn.");
             long gia = PhieuApDung.giaSauDot(c.getGiaBan() == null ? 0 : c.getGiaBan(), phanTram.getOrDefault(c.getId().longValue(), 0.0));
             Long giaCu = giaGiaoDien.get(c.getId());
             if (giaCu != null && giaCu != gia) {
@@ -383,7 +376,7 @@ public class BanHangService {
         }
         if (!giaDoi.isEmpty() && !Boolean.TRUE.equals(req.xacNhanGiaMoi())) {
             throw new ApiException(HttpStatus.CONFLICT, "Giá của " + giaDoi.size() + " sản phẩm đã thay đổi (đợt giảm giá vừa bắt đầu / kết thúc). "
-                    + "Hãy kiểm tra lại giá rồi thanh toán.", "GIA_THAY_DOI", Map.of("items", giaDoi));
+                    + "Vui lòng kiểm tra lại giá rồi thanh toán.", "GIA_THAY_DOI", Map.of("items", giaDoi));
         }
 
         // 3. Khách hàng + phiếu giảm giá
@@ -459,7 +452,7 @@ public class BanHangService {
 
     /* ===================== Thanh toán hóa đơn chờ (lưu ở CSDL) ===================== */
 
-    /** Bán tại quầy nhưng giao hàng cho khách: khách lẻ chỉ nhập MỘT địa chỉ nhận hàng (cô: khách lẻ có mỗi một địa chỉ). */
+    /** Thông tin người nhận khi bán tại quầy nhưng giao hàng (khách lẻ chỉ có một địa chỉ). */
     public record GiaoHangRequest(String hoTen, String sdt, String diaChi) {
     }
 
@@ -473,11 +466,8 @@ public class BanHangService {
     }
 
     /**
-     * Thanh toán một hóa đơn chờ (HoaDonChoService): sản phẩm + tồn kho đã có sẵn trong CSDL nên chỉ cần
-     *  - kiểm tra giá từng dòng còn đúng giá hiện tại không (khác thì GIA_THAY_DOI; nhân viên xác nhận thì cập nhật giá mới);
-     *  - phiếu giảm giá, tiền khách trả như thanh toán thường;
-     *  - giao hàng (nếu chọn): phí ship, người nhận; KHÔNG cần bước "xác nhận" nữa vì khách đã trả tiền tại quầy -> "Chờ giao hàng".
-     * Không giao hàng thì hóa đơn "Đã hoàn thành" ngay (in hóa đơn luôn ở bước này).
+     * Thanh toán hóa đơn chờ: kiểm tra lại giá từng dòng, phiếu giảm giá và tiền khách trả.
+     * Có giao hàng thì chuyển sang "Chờ giao hàng", không thì hoàn thành luôn.
      */
     @Transactional
     public Map<String, Object> thanhToanHoaDonCho(Integer idHoaDon, ThanhToanChoRequest req) {
@@ -489,7 +479,7 @@ public class BanHangService {
             throw new ApiException(HttpStatus.FORBIDDEN, "Đây là hóa đơn chờ của nhân viên khác.");
         }
         if (!HoaDonChoService.laHoaDonCho(hd)) {
-            throw new ApiException(HttpStatus.CONFLICT, "Hóa đơn " + hd.getMaHoaDon() + " đã thanh toán hoặc đã hủy. Hãy tải lại trang.",
+            throw new ApiException(HttpStatus.CONFLICT, "Hóa đơn " + hd.getMaHoaDon() + " đã thanh toán hoặc đã hủy. Vui lòng tải lại trang.",
                     "HOA_DON_CHO_DA_DONG", null);
         }
         if (req == null) throw ApiException.badRequest("Thiếu thông tin thanh toán.");
@@ -505,7 +495,7 @@ public class BanHangService {
         List<Map<String, Object>> giaDoi = new ArrayList<>();
         for (HoaDonChiTiet ct : dong) {
             SanPhamChiTiet c = ct.getSanPhamChiTiet();
-            if (!dangBan(c)) throw ApiException.conflict("Sản phẩm " + c.getMaSpct() + " đã ngừng bán. Hãy xóa khỏi hóa đơn.");
+            if (!dangBan(c)) throw ApiException.conflict("Sản phẩm " + c.getMaSpct() + " đã ngừng bán. Vui lòng xóa khỏi hóa đơn.");
             long gia = PhieuApDung.giaSauDot(c.getGiaBan() == null ? 0 : c.getGiaBan(), phanTram.getOrDefault(c.getId().longValue(), 0.0));
             long cu = ct.getDonGia() == null ? 0 : ct.getDonGia().longValue();
             if (gia != cu) {
@@ -521,7 +511,7 @@ public class BanHangService {
         if (!giaDoi.isEmpty()) {
             if (!Boolean.TRUE.equals(req.xacNhanGiaMoi())) {
                 throw new ApiException(HttpStatus.CONFLICT, "Giá của " + giaDoi.size() + " sản phẩm trong hóa đơn đã thay đổi. "
-                        + "Hãy báo khách giá mới và bấm \"Cập nhật giá\" trước khi thanh toán.", "GIA_THAY_DOI", Map.of("items", giaDoi));
+                        + "Vui lòng báo khách giá mới và bấm \"Cập nhật giá\" trước khi thanh toán.", "GIA_THAY_DOI", Map.of("items", giaDoi));
             }
             for (HoaDonChiTiet ct : dong) {
                 for (Map<String, Object> m : giaDoi) {
@@ -557,7 +547,7 @@ public class BanHangService {
             if (sdt.isEmpty()) loi.them("sdt", "Vui lòng nhập số điện thoại người nhận.");
             else if (!sdt.matches("0[35789]\\d{8}")) loi.them("sdt", "Số điện thoại gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.");
             if (diaChi.isEmpty()) loi.them("diaChi", "Vui lòng nhập địa chỉ giao hàng.");
-            else if (diaChi.length() < 10) loi.them("diaChi", "Địa chỉ quá ngắn, hãy ghi rõ số nhà, đường, phường/xã, tỉnh/thành.");
+            else if (diaChi.length() < 10) loi.them("diaChi", "Địa chỉ quá ngắn, vui lòng ghi rõ số nhà, đường, phường/xã, tỉnh/thành.");
             else if (diaChi.length() > 500) loi.them("diaChi", "Địa chỉ tối đa 500 ký tự.");
             loi.nemNeuCoLoi();
         }
@@ -624,14 +614,14 @@ public class BanHangService {
         String lyDo = PhieuApDung.lyDoKhongDung(phieu, tongTienHang, luc, kh != null, phieuCuaKhach != null, daDung);
         if (lyDo != null) throw new ApiException(HttpStatus.CONFLICT, "Không dùng được phiếu " + maPhieu + ": " + lyDo, "PHIEU_KHONG_HOP_LE", null);
         long giam = PhieuApDung.soTienGiam(phieu, tongTienHang);
-        // Phiếu bị quản lý sửa mức giảm trong lúc hóa đơn đang chờ: không tự đổi số tiền khách phải trả mà báo lại để nhân viên xem
+        // Phiếu bị sửa mức giảm khi hóa đơn đang chờ: báo lại cho nhân viên, không tự đổi số tiền
         if (soTienGiamGiaoDien != null && soTienGiamGiaoDien != giam) {
             Map<String, Object> ct = new LinkedHashMap<>();
             ct.put("maPhieu", phieu.getMaPhieu());
             ct.put("soTienGiamCu", soTienGiamGiaoDien);
             ct.put("soTienGiamMoi", giam);
             throw new ApiException(HttpStatus.CONFLICT, "Phiếu " + phieu.getMaPhieu() + " vừa được cập nhật: mức giảm đổi từ " + tien(soTienGiamGiaoDien)
-                    + " thành " + tien(giam) + ". Hãy kiểm tra lại số tiền khách phải trả rồi thanh toán.", "PHIEU_THAY_DOI", ct);
+                    + " thành " + tien(giam) + ". Vui lòng kiểm tra lại số tiền khách phải trả rồi thanh toán.", "PHIEU_THAY_DOI", ct);
         }
         return new KetQuaPhieu(phieu, phieuCuaKhach, giam);
     }

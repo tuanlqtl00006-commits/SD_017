@@ -20,6 +20,9 @@ public interface GiaoCaRepository extends JpaRepository<GiaoCa, Integer> {
 
     boolean existsByLichLamViecId(Integer idLichLamViec);
 
+    /** Có ca nào nhận từ thời điểm này trở đi không (tiền bàn giao của ca trước đã có người nhận). */
+    boolean existsByThoiGianNhanCaGreaterThanEqual(LocalDateTime luc);
+
     @Query("select g.maGiaoCa from GiaoCa g")
     List<String> findAllMaGiaoCa();
 }

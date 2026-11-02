@@ -1,13 +1,6 @@
 <script setup>
-// Bán hàng tại quầy (giai đoạn 3).
-//  - Hóa đơn chờ LƯU Ở CSDL (cô: thêm sản phẩm là trừ tồn kho + tạo hóa đơn chi tiết ngay; bỏ / hủy thì trả lại kho).
-//    Mỗi tab là một hóa đơn trạng thái "chờ" của nhân viên; tải lại trang hay đổi máy vẫn còn.
-//  - Chọn sản phẩm ở bảng có lọc + phân trang (mới nhất trước), máy quét mã hoặc camera. Không thêm quá tồn kho.
-//  - Giá đổi sau khi đã thêm (đợt giảm giá bắt đầu / kết thúc): dòng đó báo "giá đã đổi", thêm tiếp cùng sản phẩm thì tách dòng mới;
-//    bấm "Cập nhật giá" sau khi báo khách mới thanh toán được.
-//  - Khách lẻ hoặc khách hàng; phiếu giảm giá TỰ CHỌN phiếu giảm nhiều nhất (cả phiếu cá nhân của khách), đổi được.
-//  - Giao hàng: khách lẻ nhập MỘT địa chỉ nhận; tính phí giao như web; thanh toán xong đơn sang "Chờ giao hàng" (không cần xác nhận lại).
-//  - Thanh toán tiền mặt / chuyển khoản (mã QR VietQR) / kết hợp, in hóa đơn ngay ở bước này. Bắt buộc đã vào ca.
+// Bán hàng tại quầy: mỗi tab là một hóa đơn chờ (lưu ở CSDL, thêm sản phẩm là trừ kho).
+// Tự chọn phiếu giảm nhiều nhất, có giao hàng, thanh toán tiền mặt / chuyển khoản / kết hợp. Phải vào ca mới bán được.
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import QRCode from 'qrcode'
@@ -85,11 +78,13 @@ function baoLoiCho(e, macDinh) {
   toast.error(e.message || macDinh)
   if (e.code === 'HOA_DON_CHO_DA_DONG' || e.status === 404) taiHoaDonCho()
   if (e.code === 'HET_HANG') timSp.value?.taiLai()
+  // Ca nhận từ hôm trước chưa giao: mở hộp Ca làm việc để giao ca đó
+  if (e.code === 'CA_CU_CHUA_GIAO') moCa.value = true
 }
 
 async function themHoaDon() {
   if (dsCho.value.length >= SO_HOA_DON_CHO_TOI_DA) {
-    toast.error(`Tối đa ${SO_HOA_DON_CHO_TOI_DA} hóa đơn chờ. Hãy thanh toán hoặc hủy bớt.`)
+    toast.error(`Tối đa ${SO_HOA_DON_CHO_TOI_DA} hóa đơn chờ. Vui lòng thanh toán hoặc hủy bớt.`)
     return null
   }
   if (!giaoCa.dangTrongCa.value) {
@@ -308,7 +303,7 @@ const loiGiao = computed(() => {
   if (!sdt) e.sdt = 'Vui lòng nhập số điện thoại người nhận.'
   else if (!/^0[35789]\d{8}$/.test(sdt)) e.sdt = 'Số điện thoại gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.'
   if (!n.diaChi.trim()) e.diaChi = 'Vui lòng nhập địa chỉ giao hàng.'
-  else if (n.diaChi.trim().length < 10) e.diaChi = 'Địa chỉ quá ngắn, hãy ghi rõ số nhà, đường, phường/xã, tỉnh/thành.'
+  else if (n.diaChi.trim().length < 10) e.diaChi = 'Địa chỉ quá ngắn, vui lòng ghi rõ số nhà, đường, phường/xã, tỉnh/thành.'
   return e
 })
 const daChamGiao = ref(false)
@@ -374,8 +369,8 @@ const lyDoKhongThanhToan = computed(() => {
   if (!hd.value.gio.length) return 'Hóa đơn chưa có sản phẩm.'
   if (hd.value.coGiaDoi) return 'Có sản phẩm đã đổi giá. Báo khách rồi bấm "Cập nhật giá".'
   if (loiPhieu.value) return loiPhieu.value
-  if (Object.keys(loiGiao.value).length) return 'Nhập đủ thông tin người nhận để giao hàng.'
-  if (tt.value.loi === 'Nhập tiền khách đưa.') return ''
+  if (Object.keys(loiGiao.value).length) return 'Vui lòng nhập đủ thông tin người nhận để giao hàng.'
+  if (tt.value.loi === 'Vui lòng nhập tiền khách đưa.') return ''
   return tt.value.loi
 })
 const xacNhan = ref(false)
@@ -449,7 +444,7 @@ async function thanhToan() {
     if (e.code === 'GIA_THAY_DOI') {
       toast.error(e.message)
       await taiHoaDonCho()
-    } else if (e.code === 'CHUA_NHAN_CA') {
+    } else if (e.code === 'CHUA_NHAN_CA' || e.code === 'CA_CU_CHUA_GIAO') {
       toast.error(e.message)
       await giaoCa.taiLai()
       moCa.value = true
@@ -494,7 +489,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   <div class="ad-page bh">
     <div v-if="giaoCa.trangThai.daTai && !giaoCa.dangTrongCa.value" class="bh-chua-ca" role="alert">
       <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
-      <span>Bạn chưa vào ca. Hãy <b>vào ca</b> (nhập tiền đầu ca) trước khi bán hàng.</span>
+      <span>Bạn chưa vào ca. Vui lòng <b>vào ca</b> (nhập tiền đầu ca) trước khi bán hàng.</span>
       <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="moCa = true">Vào ca</button>
     </div>
 
@@ -848,7 +843,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
     />
     <GiaoCaModal v-if="moCa" @close="moCa = false" />
 
-    <!-- Chọn sản phẩm: hộp thoại có lọc + bảng + phân trang (giống bố cục các nhóm demo) -->
+    <!-- Chọn sản phẩm: hộp thoại có lọc + bảng + phân trang -->
     <BaseModal v-if="moChonSp" title="Chọn sản phẩm" size="xl" @close="moChonSp = false">
       <TimSanPham ref="timSp" trong-hop @chon="themSanPham" />
       <template #footer>
