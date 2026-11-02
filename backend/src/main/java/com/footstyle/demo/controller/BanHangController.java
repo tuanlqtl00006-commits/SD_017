@@ -1,6 +1,7 @@
 package com.footstyle.demo.controller;
 
 import com.footstyle.demo.service.BanHangService;
+import com.footstyle.demo.service.ChuyenKhoanQuayService;
 import com.footstyle.demo.service.HoaDonChoService;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ public class BanHangController {
 
     private final BanHangService service;
     private final HoaDonChoService hoaDonCho;
+    private final ChuyenKhoanQuayService chuyenKhoan;
 
     @GetMapping("/san-pham")
     public List<Map<String, Object>> timSanPham(@RequestParam(required = false) String q,
@@ -103,6 +105,22 @@ public class BanHangController {
 
     @PostMapping("/hoa-don-cho/{id}/thanh-toan")
     public Map<String, Object> thanhToanHoaDonCho(@PathVariable Integer id, @RequestBody(required = false) BanHangService.ThanhToanChoRequest req) {
-        return service.thanhToanHoaDonCho(id, req);
+        Map<String, Object> kq = service.thanhToanHoaDonCho(id, req);
+        chuyenKhoan.xoa((String) kq.get("maHoaDon"));
+        return kq;
+    }
+
+    /** Chuyển khoản bằng QR giả lập (khi bật app.thanh-toan.gia-lap): tạo yêu cầu với số tiền đang hiện, rồi hỏi đã nhận tiền chưa. */
+    public record YeuCauChuyenKhoan(Long soTien) {
+    }
+
+    @PostMapping("/hoa-don-cho/{id}/chuyen-khoan")
+    public Map<String, Object> taoChuyenKhoan(@PathVariable Integer id, @RequestBody(required = false) YeuCauChuyenKhoan req) {
+        return chuyenKhoan.taoYeuCau(id, req == null ? null : req.soTien());
+    }
+
+    @GetMapping("/hoa-don-cho/{id}/chuyen-khoan")
+    public Map<String, Object> xemChuyenKhoan(@PathVariable Integer id) {
+        return chuyenKhoan.trangThai(id);
     }
 }

@@ -56,35 +56,38 @@ afterEach(() => {
   gan = []
 })
 
-describe('Menu quản trị: Ca làm việc (đã bỏ chat nội bộ, chat hỗ trợ khách, trợ lý AI)', () => {
-  it('nhân viên thấy lịch của mình, lịch sử giao ca nhưng không thấy Xếp lịch làm việc', async () => {
+describe('Menu quản trị: Quản lý lịch làm, Trò chuyện, Trợ lý AI', () => {
+  it('nhân viên thấy Lịch ca làm, Lịch sử giao ca nhưng không thấy Lịch làm việc (xếp lịch)', async () => {
     const w = moLayout({ id: 3, hoTen: 'Lê Quốc Bảo', vaiTro: 'NHAN_VIEN' })
     await flushPromises()
-    await nhom(w, 'Ca làm việc').trigger('click')
+    await nhom(w, 'Quản lý lịch làm').trigger('click')
     const links = w.findAll('a').map((a) => a.attributes('href'))
     expect(links).toEqual(expect.arrayContaining(['/lich-cua-toi', '/giao-ca']))
     expect(links).not.toContain('/lich-lam-viec')
     expect(links).not.toContain('/thong-ke')
   })
 
-  it('quản lý thấy thêm Xếp lịch làm việc', async () => {
+  it('quản lý thấy thêm Lịch làm việc (xếp lịch)', async () => {
     const w = moLayout({ id: 1, hoTen: 'Nguyễn Hoàng Long', vaiTro: 'QUAN_LY' })
     await flushPromises()
-    await nhom(w, 'Ca làm việc').trigger('click')
+    await nhom(w, 'Quản lý lịch làm').trigger('click')
     expect(w.findAll('a').map((a) => a.attributes('href'))).toContain('/lich-lam-viec')
   })
 
-  it('không còn nhóm Trò chuyện, nút Trợ lý AI, chuông tin nhắn; không gọi API đếm tin chưa đọc', async () => {
+  it('nhóm Trò chuyện (Hỗ trợ trực tuyến, Chat nội bộ) thu gọn được; có nút Trợ lý AI và chuông tin nhắn chưa đọc', async () => {
     for (const nguoiDung of [{ id: 3, hoTen: 'Lê Quốc Bảo', vaiTro: 'NHAN_VIEN' }, { id: 1, hoTen: 'Nguyễn Hoàng Long', vaiTro: 'QUAN_LY' }]) {
       const w = moLayout(nguoiDung)
       await flushPromises()
-      expect(nhom(w, 'Trò chuyện')).toBeUndefined()
+      expect(w.findAll('a').map((a) => a.attributes('href'))).not.toContain('/chat-noi-bo') // nhóm mặc định đóng
+      await nhom(w, 'Trò chuyện').trigger('click')
       const links = w.findAll('a').map((a) => a.attributes('href'))
-      expect(links).not.toContain('/ho-tro-truc-tuyen')
-      expect(links).not.toContain('/chat-noi-bo')
-      expect(w.find('header').text()).not.toContain('Trợ lý AI')
-      expect(w.find('header .bi-bell').exists()).toBe(false)
-      expect(api.get).not.toHaveBeenCalledWith('/chat/chua-doc')
+      expect(links).toContain('/ho-tro-truc-tuyen')
+      expect(links).toContain('/chat-noi-bo')
+      expect(w.find('header').text()).toContain('Trợ lý AI')
+      expect(w.find('header .bi-bell').exists()).toBe(true)
+      expect(api.get).toHaveBeenCalledWith('/chat/chua-doc')
+      w.unmount()
+      gan = gan.filter((x) => x !== w)
     }
   })
 
@@ -92,6 +95,7 @@ describe('Menu quản trị: Ca làm việc (đã bỏ chat nội bộ, chat h�
     const w = moLayout({ id: 3, hoTen: 'Lê Quốc Bảo', vaiTro: 'NHAN_VIEN' })
     await flushPromises()
     expect(w.find('header').text()).toContain('Ca làm việc')
+    expect(w.find('header').text()).not.toContain('Cửa hàng online') // header quản trị không còn nút sang cửa hàng
     expect(api.get).toHaveBeenCalledWith('/giao-ca/hien-tai')
   })
 })

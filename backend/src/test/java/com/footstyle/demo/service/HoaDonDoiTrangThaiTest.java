@@ -124,6 +124,27 @@ class HoaDonDoiTrangThaiTest {
     }
 
     @Test
+    void lichSu_ghiTenNguoiDangDangNhap_khongGhiChuQuanLy() {
+        themDong(bienThe(10, 6), 1);
+        com.footstyle.demo.entity.NhanVien nv = new com.footstyle.demo.entity.NhanVien();
+        nv.setId(1);
+        nv.setMaNhanVien("NV01");
+        nv.setHoTen("Nguyễn Hoàng Long");
+        com.footstyle.demo.entity.VaiTro vt = new com.footstyle.demo.entity.VaiTro();
+        vt.setId(1);
+        vt.setTenVaiTro("Quản lý");
+        nv.setVaiTro(vt);
+        com.footstyle.demo.security.XacThuc.dat(com.footstyle.demo.security.XacThucInterceptor.tuNhanVien(nv));
+        try {
+            // màn hình gửi chữ "Quản lý" nhưng lịch sử phải ghi đúng tên người thao tác
+            service.doiTrangThai(1, new HoaDonTrangThaiRequest(HoaDon.DA_XAC_NHAN, null, "Quản lý"));
+            assertEquals("Nguyễn Hoàng Long", lichSu.get(lichSu.size() - 1).getNguoiThaoTac());
+        } finally {
+            com.footstyle.demo.security.XacThuc.xoa();
+        }
+    }
+
+    @Test
     void donOnline_xacNhanKhiKhongDuHang_tuHuyDon_ghiLyDoCacDongThieu_khongTruKho() {
         // Luồng bán hàng online: xác nhận mà không đủ hàng thì tự hủy đơn (ghi rõ dòng thiếu để khách xem khi tra cứu), không trừ kho
         SanPhamChiTiet a = bienThe(10, 4);

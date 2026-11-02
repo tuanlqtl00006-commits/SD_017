@@ -456,6 +456,21 @@ class BanHangServiceTest {
     }
 
     @Test
+    void phieuChoDon_chuaDuDonToiThieu_baoCanMuaThem_vaMucGiamKhiDu() {
+        phieu("GIAM30K", 1, 2, 30_000, null, 0, 100, 0, null);
+        phieu("DONTO", 1, 2, 100_000, null, 600_000, 100, 0, null);
+        phieu("HETLUOT", 1, 2, 200_000, null, 600_000, 5, 5, null);
+        List<Map<String, Object>> ds = service.phieuChoDon(null, 500_000L);
+        Map<String, Object> dungDuoc = ds.stream().filter(x -> "GIAM30K".equals(x.get("ma"))).findFirst().orElseThrow();
+        assertNull(dungDuoc.get("canMuaThem"));
+        Map<String, Object> donTo = ds.stream().filter(x -> "DONTO".equals(x.get("ma"))).findFirst().orElseThrow();
+        assertEquals(100_000L, donTo.get("canMuaThem"));
+        assertEquals(100_000L, donTo.get("giamKhiDu"));
+        // hết lượt thì mua thêm cũng không dùng được: không gợi ý
+        assertNull(ds.stream().filter(x -> "HETLUOT".equals(x.get("ma"))).findFirst().orElseThrow().get("canMuaThem"));
+    }
+
+    @Test
     void phieuBiSuaMucGiamKhiHoaDonDangCho_baoPhieuThayDoi_khongTuDoiTien() {
         moCa();
         PhieuGiamGia p = phieu("GIAM50K", 1, 2, 50_000, null, 0, 100, 0, null);

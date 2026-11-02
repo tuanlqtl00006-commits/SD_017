@@ -180,21 +180,40 @@ const routes = [
         path: 'giao-ca',
         name: 'giao-ca',
         component: () => import('../components/giaoCa/GiaoCaLichSuPage.vue'),
-        meta: { parent: 'Ca làm việc', title: 'Lịch sử giao ca', roles: NV },
+        meta: { parent: 'Quản lý lịch làm', title: 'Lịch sử giao ca', roles: NV },
       },
       {
         path: 'lich-cua-toi',
         name: 'lich-cua-toi',
         component: () => import('../components/lichLamViec/LichCuaToiPage.vue'),
-        meta: { parent: 'Ca làm việc', title: 'Lịch làm của tôi', roles: NV },
+        meta: { parent: 'Quản lý lịch làm', title: 'Lịch ca làm', roles: NV },
       },
       {
         path: 'lich-lam-viec',
         name: 'lich-lam-viec',
         component: () => import('../components/lichLamViec/LichLamViecPage.vue'),
-        meta: { parent: 'Ca làm việc', title: 'Xếp lịch làm việc', roles: QL },
+        meta: { parent: 'Quản lý lịch làm', title: 'Lịch làm việc', roles: QL },
+      },
+      // ===== Trò chuyện: hỗ trợ khách (trợ lý ảo chuyển sang) + chat nội bộ nhân viên =====
+      {
+        path: 'ho-tro-truc-tuyen',
+        name: 'ho-tro-truc-tuyen',
+        component: () => import('../components/chat/HoTroTrucTuyenPage.vue'),
+        meta: { parent: 'Trò chuyện', title: 'Hỗ trợ trực tuyến', roles: NV },
+      },
+      {
+        path: 'chat-noi-bo',
+        name: 'chat-noi-bo',
+        component: () => import('../components/chat/ChatNoiBoPage.vue'),
+        meta: { parent: 'Trò chuyện', title: 'Chat nội bộ', roles: NV },
       },
     ],
+  },
+  {
+    path: '/ho-tro',
+    name: 'ho-tro-khach',
+    component: () => import('../components/chat/HoTroKhachPage.vue'),
+    meta: { congKhai: true, title: 'Hỗ trợ trực tuyến - FootStyle' },
   },
   // Trang "ngân hàng giả" mở bằng cách quét QR thanh toán giả lập (demo đồ án), không cần đăng nhập
   {

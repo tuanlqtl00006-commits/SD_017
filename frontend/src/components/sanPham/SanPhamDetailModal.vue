@@ -111,17 +111,17 @@ const anhDaiDien = computed(() => props.item.anhChinh || props.item.anhDaiDien |
               <td>{{ i + 1 }}</td>
               <td><span class="ad-code ad-nowrap">{{ b.ma }}</span></td>
               <td class="text-center">
-                <span class="sp-thumb"><img v-if="b.hinhAnh" :src="b.hinhAnh" :alt="`Ảnh ${b.ma}`" /><i v-else class="bi bi-image" aria-hidden="true"></i></span>
+                <span class="sp-thumb">
+                  <img v-if="b.hinhAnh" :src="b.hinhAnh" :alt="`Ảnh ${b.ma}`" /><i v-else class="bi bi-image" aria-hidden="true"></i>
+                  <span v-if="pctOf(b.id)" class="sp-giam-anh" data-testid="giam-hien-tai">-{{ pctOf(b.id) }}%</span>
+                </span>
               </td>
               <td class="ad-nowrap"><span class="sp-dot" :style="{ background: mauHex(ten('mau-sac', b.idMauSac)) }" aria-hidden="true"></span>{{ ten('mau-sac', b.idMauSac) }}</td>
               <td class="ad-nowrap">{{ ten('trong-luong', b.idTrongLuong) }}</td>
               <td>{{ ten('chu-vi', b.idChuVi) }}</td>
               <td class="ad-nowrap" data-testid="o-gia-ban">
                 <template v-if="pctOf(b.id)">
-                  <div class="d-flex align-items-center gap-2">
-                    <span class="fw-bold ad-price-sale" data-testid="gia-sau-giam">{{ formatMoney(giaSauGiam(b)) }}</span>
-                    <span class="ad-pill ad-pill-blue" data-testid="giam-hien-tai">-{{ pctOf(b.id) }}%</span>
-                  </div>
+                  <span class="fw-bold ad-price-sale" data-testid="gia-sau-giam">{{ formatMoney(giaSauGiam(b)) }}</span>
                   <div class="text-muted small text-decoration-line-through" data-testid="gia-goc-gach">{{ formatMoney(b.giaBan) }}</div>
                 </template>
                 <template v-else>{{ formatMoney(b.giaBan) }}</template>
@@ -154,6 +154,7 @@ const anhDaiDien = computed(() => props.item.anhChinh || props.item.anhDaiDien |
 .sp-loc > .s2-wrap { flex: 0 1 190px; min-width: 160px; }
 .sp-dot { display: inline-block; width: 12px; height: 12px; margin-right: 0.4rem; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.18); vertical-align: -1px; }
 .sp-mau-ten { display: inline-flex; align-items: center; min-width: 90px; font-size: 0.85rem; font-weight: 600; }
-.sp-thumb { width: 36px; height: 36px; display: inline-grid; place-items: center; overflow: hidden; border-radius: 8px; border: 1px solid var(--fs-line-soft, #eef1f5); background: var(--fs-surface, #f5f8fc); color: #b8c0cc; }
+.sp-giam-anh { position: absolute; top: 0; left: 0; padding: 1px 4px; border-bottom-right-radius: 7px; background: #dc2626; color: #fff; font-size: 0.62rem; font-weight: 700; line-height: 1.4; }
+.sp-thumb { position: relative; width: 44px; height: 44px; display: inline-grid; place-items: center; overflow: hidden; border-radius: 8px; border: 1px solid var(--fs-line-soft, #eef1f5); background: var(--fs-surface, #f5f8fc); color: #b8c0cc; }
 .sp-thumb img { width: 100%; height: 100%; object-fit: cover; }
 </style>

@@ -156,9 +156,6 @@ function veDangNhap() {
 
     <header class="dn-dau dn-vao" style="--tre: 0ms">
       <span class="dn-thuong-hieu"><i class="bi bi-trophy-fill" aria-hidden="true"></i> FootStyle Badminton</span>
-      <button type="button" class="dn-btn-shop" title="Đến cửa hàng trực tuyến FootStyle" @click="router.push('/shop')">
-        <i class="bi bi-shop" aria-hidden="true"></i> Cửa hàng online <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
-      </button>
     </header>
 
     <main class="dn-giua">
@@ -265,11 +262,6 @@ function veDangNhap() {
                 </template>
               </button>
             </form>
-
-            <p class="dn-khach dn-vao" style="--tre: 260ms">
-              <i class="bi bi-bag-heart" aria-hidden="true"></i> Bạn là khách mua hàng?
-              <button type="button" class="dn-lien-ket" data-testid="dn-sang-khach" @click="router.push('/shop/dang-nhap')">Đăng nhập cửa hàng online</button>
-            </p>
           </div>
 
           <div v-else key="quen">
@@ -303,7 +295,7 @@ function veDangNhap() {
                     required
                     :aria-invalid="!!loiEmail"
                     :aria-describedby="loiEmail ? 'dn-email-loi' : undefined"
-                    placeholder="vd: nhanvien@gmail.com"
+                    placeholder="Email của tài khoản"
                     maxlength="255"
                     @input="loiEmail = ''"
                   />
@@ -319,12 +311,6 @@ function veDangNhap() {
         </Transition>
       </div>
 
-      <ul class="dn-tinh-nang dn-vao" style="--tre: 320ms" aria-label="Tính năng chính">
-        <li><i class="bi bi-upc-scan" aria-hidden="true"></i> Bán tại quầy</li>
-        <li><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Giao ca</li>
-        <li><i class="bi bi-truck" aria-hidden="true"></i> Đơn online</li>
-        <li><i class="bi bi-graph-up-arrow" aria-hidden="true"></i> Thống kê</li>
-      </ul>
     </main>
 
     <footer class="dn-chan">
@@ -450,25 +436,6 @@ function veDangNhap() {
 .dn-thuong-hieu .bi {
   color: #fde047;
 }
-.dn-btn-shop {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border-radius: 999px;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  backdrop-filter: blur(8px);
-  transition: background-color 0.15s ease, transform 0.15s ease;
-}
-.dn-btn-shop:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
-}
 .dn-giua {
   position: relative;
   z-index: 1;
@@ -507,31 +474,6 @@ function veDangNhap() {
   display: flex;
   width: fit-content;
   margin-inline: auto;
-}
-.dn-tinh-nang {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.dn-tinh-nang li {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #dbeafe;
-  font-size: 0.82rem;
-  font-weight: 600;
-  backdrop-filter: blur(6px);
-}
-.dn-tinh-nang .bi {
-  color: #7dd3fc;
 }
 .dn-the.is-lac {
   animation: dn-lac 0.42s ease;
@@ -688,7 +630,6 @@ function veDangNhap() {
   text-decoration: underline;
 }
 .dn-lien-ket:focus-visible,
-.dn-btn-shop:focus-visible,
 .dn-mat:focus-visible {
   outline: 3px solid rgba(9, 119, 236, 0.35);
   outline-offset: 2px;
@@ -791,16 +732,6 @@ function veDangNhap() {
   flex: 1;
   height: 1px;
   background: #e5ebf3;
-}
-.dn-khach {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  margin: 1rem 0 0;
-  color: var(--chu-phu);
-  font-size: 0.9rem;
 }
 .dn-quay-lai {
   display: inline-flex;
@@ -926,12 +857,7 @@ function veDangNhap() {
   .dn-thuong-hieu {
     font-size: 0.85rem;
   }
-  .dn-btn-shop {
-    padding: 0.45rem 0.75rem;
-    font-size: 0.8rem;
-  }
-  .dn-qua-cau,
-  .dn-tinh-nang {
+  .dn-qua-cau {
     display: none;
   }
   .dn-chan {
@@ -958,11 +884,6 @@ function veDangNhap() {
   }
   .dn-giua {
     padding: 0.5rem 0;
-  }
-}
-@media (max-height: 980px) and (min-width: 641px) {
-  .dn-tinh-nang {
-    display: none;
   }
 }
 </style>

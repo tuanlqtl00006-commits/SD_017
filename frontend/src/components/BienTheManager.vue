@@ -353,6 +353,8 @@ function exportFile() {
                     <span class="bt-thumb">
                       <img v-if="b.hinhAnh" :src="b.hinhAnh" :alt="`Ảnh ${b.ma}`" loading="lazy" />
                       <i v-else class="bi bi-image" aria-hidden="true"></i>
+                      <!-- Mức giảm của đợt đang diễn ra hiện đè lên góc ảnh -->
+                      <span v-if="pctOf(b.id)" class="bt-giam-anh" data-testid="giam-hien-tai">-{{ pctOf(b.id) }}%</span>
                     </span>
                   </td>
                   <td class="ad-cell-wrap">{{ spOf(b.idSanPham)?.ten ?? '—' }}</td>
@@ -360,12 +362,9 @@ function exportFile() {
                   <td class="ad-nowrap">{{ tenGon('trong-luong', b.idTrongLuong) }}</td>
                   <td>{{ tenGon('chu-vi', b.idChuVi) }}</td>
                   <td class="ad-nowrap" data-testid="o-gia-ban">
-                    <!-- Có đợt giảm giá đang diễn ra: giá sau giảm + giá gốc gạch ngang (không có cột "Giảm giá" riêng, theo lời cô) -->
+                    <!-- Có đợt giảm giá đang diễn ra: giá sau giảm + giá gốc gạch ngang; % giảm nằm trên ảnh -->
                     <template v-if="pctOf(b.id)">
-                      <div class="d-flex align-items-center gap-2">
-                        <span class="fw-bold ad-price-sale" data-testid="gia-sau-giam">{{ formatMoney(giaSauGiam(b)) }}</span>
-                        <span class="ad-pill ad-pill-blue" data-testid="giam-hien-tai">-{{ pctOf(b.id) }}%</span>
-                      </div>
+                      <span class="fw-bold ad-price-sale" data-testid="gia-sau-giam">{{ formatMoney(giaSauGiam(b)) }}</span>
                       <div class="text-muted small text-decoration-line-through" data-testid="gia-goc-gach">{{ formatMoney(b.giaBan) }}</div>
                     </template>
                     <template v-else>{{ formatMoney(b.giaBan) }}</template>
@@ -419,7 +418,8 @@ function exportFile() {
 </template>
 
 <style scoped>
-.bt-thumb { width: 44px; height: 44px; display: inline-grid; place-items: center; overflow: hidden; border-radius: 10px; border: 1px solid var(--fs-line-soft, #eef1f5); background: var(--fs-surface, #f5f8fc); color: #b8c0cc; }
+.bt-thumb { position: relative; width: 52px; height: 52px; display: inline-grid; place-items: center; overflow: hidden; border-radius: 10px; border: 1px solid var(--fs-line-soft, #eef1f5); background: var(--fs-surface, #f5f8fc); color: #b8c0cc; }
+.bt-giam-anh { position: absolute; top: 0; left: 0; padding: 1px 5px; border-bottom-right-radius: 8px; background: #dc2626; color: #fff; font-size: 0.66rem; font-weight: 700; line-height: 1.4; }
 .bt-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .bt-dot { display: inline-block; width: 12px; height: 12px; margin-right: 0.4rem; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.18); vertical-align: -1px; }
 </style>

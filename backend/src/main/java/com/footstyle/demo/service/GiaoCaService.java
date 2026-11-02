@@ -49,7 +49,7 @@ public class GiaoCaService {
     /** Đến muộn quá bấy nhiêu phút thì đánh dấu "Đi muộn" trên giao diện. */
     public static final int PHUT_MUON_CHO_PHEP = 15;
     /** Nhận ca sớm hơn giờ bắt đầu tối đa bấy nhiêu phút vẫn tính là ca đó. */
-    static final int PHUT_DEN_SOM = 60;
+    static final int PHUT_DEN_SOM = 15;
     private static final DateTimeFormatter NGAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final GiaoCaRepository giaoCaRepo;
@@ -176,6 +176,16 @@ public class GiaoCaService {
             if (lich == null || !lich.getNhanVien().getId().equals(nd.id()) || !lich.getNgayLam().equals(now.toLocalDate())) {
                 loi.them("idLichLamViec", "Ca được chọn không phải lịch làm hôm nay của bạn.");
                 lich = null;
+            } else {
+                // Chỉ nhận ca trong khoảng từ 15 phút trước giờ bắt đầu tới giờ kết thúc
+                CaLamViec ca = lich.getCaLamViec();
+                LocalDateTime tu = lich.getNgayLam().atTime(ca.getGioBatDau()).minusMinutes(PHUT_DEN_SOM);
+                LocalDateTime den = lich.getNgayLam().atTime(ca.getGioKetThuc());
+                if (now.isBefore(tu) || !now.isBefore(den)) {
+                    loi.them("idLichLamViec", ca.getTenCa() + " nhận được từ " + tu.format(LichLamViecService.GIO) + " đến "
+                            + den.format(LichLamViecService.GIO) + " (sớm nhất " + PHUT_DEN_SOM + " phút trước giờ bắt đầu).");
+                    lich = null;
+                }
             }
         }
         loi.nemNeuCoLoi();
@@ -206,7 +216,7 @@ public class GiaoCaService {
         return ds;
     }
 
-    /** Ca trong lịch hôm nay đang diễn ra (cho phép đến sớm 60 phút); không có thì null (nhận ca ngoài lịch). */
+    /** Ca trong lịch hôm nay đang diễn ra (cho phép nhận sớm 15 phút); không có thì null (nhận ca ngoài lịch). */
     LichLamViec chonLichTuDong(Integer idNhanVien, LocalDateTime now) {
         for (LichLamViec l : lichHomNay(idNhanVien)) {
             CaLamViec ca = l.getCaLamViec();

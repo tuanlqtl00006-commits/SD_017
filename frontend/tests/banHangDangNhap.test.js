@@ -13,13 +13,23 @@ vi.mock('vue-router', () => ({
   RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
 }))
 vi.mock('../src/services/api', () => ({ default: api }))
+vi.mock('../src/services/diaChiHanhChinhService', () => ({
+  API_DIA_CHI: 'x',
+  diaChiHanhChinhService: {
+    layTinhThanh: async () => [{ code: 1, name: 'Thành phố Hà Nội' }, { code: 25, name: 'Tỉnh Phú Thọ' }],
+    layPhuongXa: async () => [{ code: 9, name: 'Phường Hà Đông' }],
+    xoaNho() {},
+  },
+}))
 
 import BanHangPage from '../src/components/banHang/BanHangPage.vue'
+import DiaChiHanhChinhSelect from '../src/components/common/DiaChiHanhChinhSelect.vue'
 import DangNhapPage from '../src/components/auth/DangNhapPage.vue'
 import KhachDangNhapView from '../src/views/client/KhachDangNhapView.vue'
 import VaoCaPage from '../src/components/giaoCa/VaoCaPage.vue'
 import { _datLaiAuth, useAuth } from '../src/composables/useAuth'
 import { _datLaiGiaoCa } from '../src/composables/useGiaoCa'
+import { useToast } from '../src/composables/useToast'
 import { layPhien, xoaPhien } from '../src/services/phien'
 
 const body = () => new DOMWrapper(document.body)
@@ -113,12 +123,12 @@ describe('Trang đăng nhập', () => {
     expect(w.find('input[name=remember]').element.checked).toBe(false)
   })
 
-  it('trang quản trị chỉ cho nhân viên / quản lý; khách hàng sang trang đăng nhập riêng', async () => {
+  it('trang quản trị chỉ cho nhân viên / quản lý: không có nút sang cửa hàng online / đăng nhập khách', async () => {
     const w = ganVao(DangNhapPage)
     expect(w.find('[role=tablist]').exists()).toBe(false)
     expect(w.text()).not.toContain('Thu ngân')
-    await w.find('[data-testid=dn-sang-khach]').trigger('click')
-    expect(push).toHaveBeenCalledWith('/shop/dang-nhap')
+    expect(w.text()).not.toContain('Cửa hàng online')
+    expect(w.text()).not.toContain('Đăng nhập cửa hàng online')
   })
 
   it('trang đăng nhập khách: gọi API đăng nhập khách hàng rồi về cửa hàng', async () => {
@@ -169,7 +179,7 @@ const CA = { id: 7, maGiaoCa: 'GC07', thoiGianNhanCa: '2026-10-16T07:00:00', tie
  * Trả về đúng dạng DTO của HoaDonChoService.
  */
 function mayChuGia({ dangMo = CA, phieus = () => [], tonKho = 5 } = {}) {
-  const may = { ds: [], ton: tonKho, idCt: 1, thanhToan: null, loiThanhToan: null }
+  const may = { ds: [], ton: tonKho, idCt: 1, thanhToan: null, loiThanhToan: null, ck: null }
   const dto = (h) => {
     const items = h.dong.map((d) => ({
       ...SP, id: d.id, idBienThe: SP.id, ten: SP.tenSanPham, donGia: d.donGia, giaHienTai: d.giaHienTai ?? d.donGia,
@@ -189,6 +199,7 @@ function mayChuGia({ dangMo = CA, phieus = () => [], tonKho = 5 } = {}) {
     }
     if (url === '/ban-hang/hoa-don-cho') return { data: may.ds.map(dto) }
     if (url === '/ban-hang/phieu-giam-gia') return { data: phieus() }
+    if (url.endsWith('/chuyen-khoan')) return { data: may.ck }
     // Trang chi tiết hóa đơn vừa thanh toán (chuyển tới ngay sau khi trả tiền) và cửa sổ tự in đều đọc lại qua GET này
     if (url === '/hoa-don/9') {
       return {
@@ -210,6 +221,8 @@ function mayChuGia({ dangMo = CA, phieus = () => [], tonKho = 5 } = {}) {
       return { data: dto(h) }
     }
     const h = tim(url)
+    // QR chuyển khoản giả lập: null = backend tắt giả lập (dùng VietQR)
+    if (url.endsWith('/chuyen-khoan')) return { data: may.ck }
     if (url.endsWith('/san-pham')) {
       if (body.soLuong > may.ton) throw loi(`Sản phẩm ${SP.ma} chỉ còn ${may.ton} trong kho.`, 'HET_HANG')
       may.ton -= body.soLuong
@@ -256,10 +269,15 @@ function mayChuGia({ dangMo = CA, phieus = () => [], tonKho = 5 } = {}) {
   return may
 }
 
-async function moBanHang(tuyChon) {
+async function moBanHang(tuyChon = {}) {
   const may = mayChuGia(tuyChon)
   const w = ganVao(BanHangPage)
   await flushPromises()
+  // Nhân viên tự bấm "Thêm hóa đơn chờ" (không còn tự tạo khi chọn sản phẩm)
+  if (tuyChon.taoHoaDon !== false) {
+    await w.find('[data-testid="bh-them-hd"]').trigger('click')
+    await flushPromises()
+  }
   // Giống các nhóm demo: bấm "Chọn sản phẩm" để mở hộp thoại bảng sản phẩm
   await w.find('[data-testid="bh-chon-sp"]').trigger('click')
   await flushPromises()
@@ -278,9 +296,22 @@ function cuaSoInGia() {
 describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it('thêm sản phẩm: tự tạo hóa đơn chờ trên máy chủ, trừ kho ngay; thanh toán gửi đúng hóa đơn', async () => {
+  it('chưa có hóa đơn chờ: bấm "Thêm" sản phẩm thì tự tạo hóa đơn rồi thêm vào', async () => {
+    const { w, may } = await moBanHang({ taoHoaDon: false })
+    expect(w.text()).toContain('Chọn sản phẩm là tự tạo hóa đơn mới.')
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledWith('/ban-hang/hoa-don-cho')
+    expect(api.post).toHaveBeenCalledWith('/ban-hang/hoa-don-cho/100/san-pham', { idBienThe: 1, soLuong: 1 })
+    expect(may.ds).toHaveLength(1)
+    expect(useToast().toasts.some((t) => t.message.includes('Chưa có hóa đơn chờ'))).toBe(false)
+  })
+
+  it('thêm hóa đơn chờ rồi thêm sản phẩm: trừ kho ngay; thanh toán gửi đúng hóa đơn', async () => {
     const { w, may } = await moBanHang()
     expect(body().findAll('.bh-dong-chon')).toHaveLength(1)
+    expect(body().find('.bh-dong-chon [data-testid="bh-giam-anh"]').text()).toBe('-10%') // % giảm nằm trên ảnh
+    expect(body().findAll('.bh-dong-chon .bh-chip').map((c) => c.text())).toEqual(['Đen', '4U', 'G5'])
     await nutThem(w).trigger('click')
     await flushPromises()
     expect(api.post).toHaveBeenCalledWith('/ban-hang/hoa-don-cho')
@@ -328,7 +359,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await nutThem(w).trigger('click')
     await flushPromises()
     expect(body().text()).toContain('Chỉ còn 5 sản phẩm trong kho.')
-    expect(api.post).not.toHaveBeenCalled()
+    expect(api.post.mock.calls.some((c) => c[0].endsWith('/san-pham'))).toBe(false)
   })
 
   it('bỏ sản phẩm / hủy hóa đơn chờ: trả hàng về kho; sản phẩm hết hàng biến mất khỏi bảng', async () => {
@@ -341,6 +372,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
     expect(may.ton).toBe(1)
     expect(body().findAll('.bh-dong-chon')).toHaveLength(1)
+    expect(w.text()).not.toContain('Hủy hóa đơn') // chỉ hủy bằng dấu X trên tab
     await w.find('.bh-tab-xoa').trigger('click')
     await flushPromises()
     expect(api.delete).toHaveBeenCalledWith('/ban-hang/hoa-don-cho/100')
@@ -375,36 +407,102 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('[data-testid="bh-cap-nhat-gia"]').exists()).toBe(false)
   })
 
-  it('giao hàng: khách lẻ nhập một địa chỉ, cộng phí ship khi đơn dưới 1 triệu, gửi kèm người nhận', async () => {
+  it('giao hàng: thẻ riêng ở cột trái, chọn Tỉnh/Phường, phí tính theo tỉnh, gửi kèm người nhận', async () => {
     const { w, may } = await moBanHang()
     await nutThem(w).trigger('click')
     await flushPromises()
+    expect(w.find('[data-testid="bh-khoi-giao"]').exists()).toBe(false)
     await w.find('[data-testid="bh-giao-hang"]').setValue(true)
     await flushPromises()
-    expect(w.text()).toContain('Phí giao hàng')
-    expect(w.text()).toContain('Miễn phí')
+    const khoi = w.find('[data-testid="bh-khoi-giao"]')
+    expect(khoi.exists()).toBe(true)
+    expect(w.find('.bh-trai [data-testid="bh-khoi-giao"]').exists()).toBe(true)
+    expect(w.find('[data-testid="bh-phi-ship"]').text()).toContain('Chưa tính phí') // chưa chọn tỉnh thì chưa có phí
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
     expect(w.text()).toContain('Vui lòng nhập tên người nhận.')
+    expect(w.text()).toContain('Vui lòng chọn Tỉnh/Thành phố.')
     await w.find('#bh-nn-ten').setValue('Trần Văn Hùng')
     await w.find('#bh-nn-sdt').setValue('0901000002')
-    await w.find('#bh-nn-dc').setValue('Số 1 Trần Phú, Hà Đông, Hà Nội')
+    const chonDc = w.findComponent(DiaChiHanhChinhSelect)
+    chonDc.vm.$emit('update:tinhThanh', 'Thành phố Hà Nội')
+    chonDc.vm.$emit('update:phuongXa', 'Phường Hà Đông')
+    await w.find('#bh-nn-dc').setValue('Số 1 Trần Phú')
+    await flushPromises()
+    expect(khoi.text()).toContain('Miễn phí') // đơn từ 1 triệu
+    expect(w.find('[data-testid="bh-phi-ship"]').text()).toContain('Miễn phí')
     const { cuaSo } = cuaSoInGia()
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
     await nutXacNhan().trigger('click')
     await flushPromises()
-    expect(may.thanhToan.giaoHang).toEqual({ hoTen: 'Trần Văn Hùng', sdt: '0901000002', diaChi: 'Số 1 Trần Phú, Hà Đông, Hà Nội' })
+    expect(may.thanhToan.giaoHang).toEqual({ hoTen: 'Trần Văn Hùng', sdt: '0901000002', diaChi: 'Số 1 Trần Phú', tinhThanh: 'Thành phố Hà Nội', phuongXa: 'Phường Hà Đông' })
     // Thanh toán xong đơn giao hàng cũng tự in và chuyển sang trang chi tiết luôn, không hỏi lại
     expect(push).toHaveBeenCalledWith('/hoa-don/9')
-    await new Promise((r) => setTimeout(r, 50)) // tạo mã QR để in chạy bất đồng bộ qua nhiều tick
-    expect(cuaSo.document.write).toHaveBeenCalledTimes(1)
+    // tạo mã QR để in chạy bất đồng bộ qua nhiều tick, máy chậm thì lâu hơn nên chờ tới khi in xong
+    await vi.waitFor(() => expect(cuaSo.document.write).toHaveBeenCalledTimes(1))
   })
 
-  it('ô phiếu dạng thẻ: tự áp phiếu tốt nhất, phiếu chưa đủ điều kiện bị khóa kèm lý do, bỏ phiếu được', async () => {
+  it('SĐT người nhận: chỉ nhận chữ số, tối đa 10 số; rời ô là báo lỗi nếu chưa đúng 10 số bắt đầu bằng 0', async () => {
+    const { w } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="bh-giao-hang"]').setValue(true)
+    await flushPromises()
+    const o = w.find('#bh-nn-sdt')
+    await o.setValue('a09.01-000')
+    expect(o.element.value).toBe('0901000')
+    expect(w.text()).not.toContain('Số điện thoại gồm 10 chữ số')
+    await o.trigger('blur')
+    expect(w.text()).toContain('Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.')
+    await o.setValue('1901000002')
+    expect(w.text()).toContain('Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.')
+    await o.setValue('090100000299')
+    expect(o.element.value).toBe('0901000002')
+    expect(w.text()).not.toContain('Số điện thoại gồm 10 chữ số')
+  })
+
+  it('tiền mặt khách đưa tự điền đúng số khách cần trả; nhân viên sửa thì giữ số đã sửa và tính tiền thừa', async () => {
+    const { w } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    const o = w.find('#bh-tien-mat')
+    expect(o.element.value).toBe('3.861.000')
+    await o.setValue('4000000')
+    await flushPromises()
+    expect(w.find('.bh-thua').text()).toContain('139.000')
+    await w.find('#bh-pt-CHUYEN_KHOAN').setValue(true)
+    await w.find('#bh-pt-TIEN_MAT').setValue(true)
+    await flushPromises()
+    expect(w.find('#bh-tien-mat').element.value).toBe('3.861.000') // đổi sang chuyển khoản rồi quay lại thì điền lại đúng số
+  })
+
+  it('chuyển khoản: QR giả lập như online; khách xác nhận trên ngân hàng giả thì tự thanh toán kèm mã giao dịch', async () => {
+    const { w, may } = await moBanHang()
+    may.ck = { maHoaDon: 'HD100', soTien: 3861000, daNhan: false, maGiaoDich: null, diaChiLan: null }
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    cuaSoInGia()
+    await w.find('#bh-pt-CHUYEN_KHOAN').setValue(true)
+    await new Promise((r) => setTimeout(r, 500))
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledWith('/ban-hang/hoa-don-cho/100/chuyen-khoan', { soTien: 3861000 })
+    expect(w.find('[data-testid="bh-qr-gia-lap"]').text()).toContain('Đang chờ khách chuyển khoản')
+    expect(may.thanhToan).toBeNull()
+    // khách bấm "Xác nhận chuyển tiền" trên trang ngân hàng giả
+    may.ck = { ...may.ck, daNhan: true, maGiaoDich: 'GIALAP-HD100-1' }
+    await new Promise((r) => setTimeout(r, 3200))
+    await flushPromises()
+    expect(may.thanhToan).toEqual(expect.objectContaining({ tienMat: 0, chuyenKhoan: 3861000, maGiaoDich: 'GIALAP-HD100-1' }))
+  }, 10000)
+
+  it('phiếu: tự áp phiếu tốt nhất; hộp thoại chỉ liệt kê phiếu đủ điều kiện, gợi ý mua thêm; bỏ phiếu được', async () => {
     const PHIEUS = [
       { id: 1, ma: 'GIAM50K', ten: 'Giảm 50k', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 },
-      { id: 2, ma: 'VIP10', ten: 'Khách VIP', loaiGiam: 'PHAN_TRAM', giaTri: 10, donToiThieu: 5000000, apDungDuoc: false, lyDo: 'Đơn tối thiểu 5.000.000 ₫ (còn thiếu 1.139.000 ₫).', soTienGiam: 0 },
+      {
+        id: 2, ma: 'VIP10', ten: 'Khách VIP', loaiGiam: 'PHAN_TRAM', giaTri: 10, donToiThieu: 5000000, apDungDuoc: false,
+        lyDo: 'Đơn tối thiểu 5.000.000 ₫ (còn thiếu 1.139.000 ₫).', soTienGiam: 0, canMuaThem: 1139000, giamKhiDu: 500000,
+      },
     ]
     const { w } = await moBanHang({ phieus: () => PHIEUS })
     await nutThem().trigger('click')
@@ -412,17 +510,20 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
     const the = w.find('#bh-phieu')
     expect(the.text()).toContain('GIAM50K')
-    expect(the.text()).toContain('Tự áp phiếu tốt nhất')
-    expect(the.text()).toContain('-50.000')
+    expect(w.find('.bh-tien-giam').text()).toContain('-50.000')
+    expect(w.find('[data-testid="bh-goi-y-ngan"]').text()).toContain('Mua thêm 1.139.000')
     await the.trigger('click')
-    const muc = w.findAll('.bh-phieu-muc')
-    expect(muc).toHaveLength(3)
+    await flushPromises()
+    const muc = body().findAll('.bh-phieu-muc')
+    expect(muc).toHaveLength(2) // "Không dùng phiếu" + GIAM50K; VIP10 chưa đủ điều kiện nên không nằm trong danh sách chọn
     expect(muc[1].text()).toContain('Tốt nhất')
-    expect(muc[2].attributes('disabled')).toBeDefined()
-    expect(muc[2].text()).toContain('còn thiếu 1.139.000')
+    expect(body().find('.bh-phieu-ds').text()).not.toContain('VIP10')
+    expect(body().find('[data-testid="bh-goi-y-mua-them"]').text()).toContain('Mua thêm 1.139.000 ₫ để dùng VIP10, giảm 500.000 ₫')
     await muc[0].trigger('click')
-    expect(w.find('.bh-phieu-ds').exists()).toBe(false)
-    expect(w.find('#bh-phieu').text()).toContain('Không dùng phiếu')
+    await flushPromises()
+    expect(body().find('.bh-phieu-ds').exists()).toBe(false)
+    expect(w.find('#bh-phieu').text()).toContain('Chọn phiếu (1 phiếu dùng được)')
+    expect(w.find('.bh-tien-giam').text()).toContain('-0')
     expect(w.find('.bh-nut-tt').text()).toContain('3.861.000')
   })
 
@@ -465,27 +566,37 @@ describe('Trang vào ca', () => {
     return ganVao(VaoCaPage)
   }
 
-  it('hiện tiền mặt + chuyển khoản ca trước, bắt buộc nhập cả hai; lệch thì phải ghi lý do', async () => {
+  it('tự điền tiền mặt + chuyển khoản ca trước; sửa khác hệ thống thì phải ghi lý do, xóa trống thì báo thiếu', async () => {
     const w = moTrang()
     await flushPromises()
     expect(w.find('[data-testid="vc-tien-mat-truoc"]').text()).toContain('1.000.000')
     expect(w.find('[data-testid="vc-ck-truoc"]').text()).toContain('1.500.000')
-    await w.find('#vc-form').trigger('submit')
-    expect(w.text()).toContain('Vui lòng nhập tiền mặt đầu ca.')
-    expect(w.text()).toContain('Vui lòng nhập số tiền chuyển khoản của ca trước.')
-    expect(api.post).not.toHaveBeenCalled()
-    await w.find('#vc-tien-mat').setValue('1000000')
+    expect(w.find('[data-testid="vc-dung-so"]').exists()).toBe(false) // không còn nút "Dùng số tiền này"
     await w.find('#vc-chuyen-khoan').setValue('1200000')
     await w.find('#vc-form').trigger('submit')
     expect(w.text()).toContain('Chuyển khoản ca trước khác số hệ thống ghi nhận')
+    await w.find('#vc-tien-mat').setValue('')
+    await w.find('#vc-form').trigger('submit')
+    expect(w.text()).toContain('Vui lòng nhập tiền mặt đầu ca.')
     expect(api.post).not.toHaveBeenCalled()
   })
 
-  it('"Dùng số tiền này" điền đúng số ca trước, bắt đầu ca xong vào trang định mở', async () => {
+  it('thông báo ca cần nhận hôm nay, nhận được từ 15 phút trước giờ bắt đầu', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 10, 2, 11, 30))
+    const w = moTrang()
+    await flushPromises()
+    const tb = w.find('[data-testid="vc-ca-can-nhan"]')
+    expect(tb.text()).toContain('Ca chiều')
+    expect(tb.text()).toContain('nhận ca từ 11:45')
+    expect(tb.text()).toContain('chưa đến giờ nhận ca')
+    vi.useRealTimers()
+  })
+
+  it('số ca trước đã điền sẵn: bắt đầu ca xong vào trang định mở', async () => {
     state.query = { quayLai: '/hoa-don' }
     const w = moTrang()
     await flushPromises()
-    await w.find('[data-testid="vc-dung-so"]').trigger('click')
     api.post.mockResolvedValue({ data: { maGiaoCa: 'GC08', ngoaiLich: false, tenCa: 'Ca chiều' } })
     await w.find('#vc-form').trigger('submit')
     await flushPromises()

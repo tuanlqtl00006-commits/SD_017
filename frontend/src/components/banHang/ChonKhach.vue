@@ -61,9 +61,15 @@ const { loi, sua, cham, batDauGui, datLoiMayChu, datLai, focusLoiDau } = useLoiF
   else if (!EMAIL.test(email)) e.email = 'Email không đúng định dạng.'
   return e
 })
+// SĐT chỉ nhận chữ số, tối đa 10 số
+function nhapSdt(e) {
+  f.sdt = e.target.value.replace(/\D/g, '').slice(0, 10)
+  e.target.value = f.sdt
+  sua('sdt')
+}
 function moThemNhanh() {
   const v = tuKhoa.value.trim()
-  Object.assign(f, { hoTen: '', sdt: /^\d+$/.test(v) ? v : '', email: v.includes('@') ? v : '', gioiTinh: 1 })
+  Object.assign(f, { hoTen: '', sdt: /^\d+$/.test(v) ? v.slice(0, 10) : '', email: v.includes('@') ? v : '', gioiTinh: 1 })
   if (!/^\d+$/.test(v) && !v.includes('@')) f.hoTen = v
   datLai()
   moThem.value = true
@@ -137,7 +143,7 @@ async function luuKhach() {
       <input id="khn-ten" v-model="f.hoTen" class="form-control ad-control" :class="{ 'is-invalid': loi.hoTen }" maxlength="100" @input="sua('hoTen')" @blur="cham('hoTen')" />
       <p v-if="loi.hoTen" class="ad-error">{{ loi.hoTen }}</p>
       <label class="ad-label mt-2" for="khn-sdt">Số điện thoại <span class="ad-required">*</span></label>
-      <input id="khn-sdt" v-model="f.sdt" class="form-control ad-control" :class="{ 'is-invalid': loi.sdt }" maxlength="10" inputmode="numeric" @input="sua('sdt')" @blur="cham('sdt')" />
+      <input id="khn-sdt" :value="f.sdt" type="tel" class="form-control ad-control" :class="{ 'is-invalid': loi.sdt }" maxlength="10" inputmode="numeric" placeholder="Nhập số điện thoại" @input="nhapSdt" @blur="cham('sdt')" />
       <p v-if="loi.sdt" class="ad-error">{{ loi.sdt }}</p>
       <label class="ad-label mt-2" for="khn-email">Email <span class="ad-required">*</span></label>
       <input id="khn-email" v-model="f.email" type="email" class="form-control ad-control" :class="{ 'is-invalid': loi.email }" maxlength="255" @input="sua('email')" @blur="cham('email')" />

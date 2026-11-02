@@ -8,6 +8,7 @@ import Select2 from './common/Select2.vue'
 import VanChuyenLogo from './common/VanChuyenLogo.vue'
 import SuaDonModal from './hoaDon/SuaDonModal.vue'
 import { useToast } from '../composables/useToast'
+import { useAuth } from '../composables/useAuth'
 import {
   BUOC_DA_HUY, BUOC_GIAO_THAT_BAI, LUONG_GIAO_HANG, LUONG_TAI_QUAY, TT,
   laTrangThaiCuoi, nutChuyen, trangThaiOf,
@@ -190,8 +191,9 @@ function moXacNhan(trangThai) {
   action.title = trangThai === TT.DA_HUY ? 'Hủy đơn hàng' : trangThai === TT.GIAO_THAT_BAI ? 'Báo giao hàng thất bại' : nut.text
 }
 
+// Tên người đang đăng nhập (backend cũng tự lấy theo phiên đăng nhập)
 function nguoiThaoTac() {
-  return 'Quản lý'
+  return useAuth().trangThai.nguoiDung?.hoTen || 'Quản lý'
 }
 
 /* ===================== In hóa đơn ===================== */

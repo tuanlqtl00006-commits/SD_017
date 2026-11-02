@@ -291,7 +291,15 @@ public class BanHangService {
             long daDung = kh == null || caNhan ? 0
                     : hoaDonRepo.countByKhachHang_IdAndPhieuGiamGia_IdAndTrangThaiNot(kh.getId(), p.getId(), HoaDon.DA_HUY);
             String lyDo = PhieuApDung.lyDoKhongDung(p, tong, luc, kh != null, cuaKhach.containsKey(p.getId()), daDung);
-            kq.add(phieuDto(p, lyDo, lyDo == null ? PhieuApDung.soTienGiam(p, tong) : 0));
+            Map<String, Object> m = phieuDto(p, lyDo, lyDo == null ? PhieuApDung.soTienGiam(p, tong) : 0);
+            // Chỉ thiếu giá trị đơn tối thiểu: báo cần mua thêm bao nhiêu và sẽ được giảm bao nhiêu
+            long donMin = p.getGiaTriDonHangToiThieu() == null ? 0 : p.getGiaTriDonHangToiThieu().longValue();
+            if (lyDo != null && tong < donMin
+                    && PhieuApDung.lyDoKhongDung(p, donMin, luc, kh != null, cuaKhach.containsKey(p.getId()), daDung) == null) {
+                m.put("canMuaThem", donMin - tong);
+                m.put("giamKhiDu", PhieuApDung.soTienGiam(p, donMin));
+            }
+            kq.add(m);
         }
         kq.sort(Comparator.comparing((Map<String, Object> m) -> !(Boolean) m.get("apDungDuoc"))
                 .thenComparing(m -> -((Long) m.get("soTienGiam")))
@@ -452,9 +460,21 @@ public class BanHangService {
 
     /* ===================== Thanh toán hóa đơn chờ (lưu ở CSDL) ===================== */
 
-    /** Thông tin người nhận khi bán tại quầy nhưng giao hàng (khách lẻ chỉ có một địa chỉ). */
-    public record GiaoHangRequest(String hoTen, String sdt, String diaChi) {
+    /**
+     * Thông tin người nhận khi bán tại quầy nhưng giao hàng (khách lẻ chỉ có một địa chỉ).
+     * Có tỉnh/thành thì diaChi là số nhà, đường và phí giao tính theo tỉnh; không có thì diaChi là cả địa chỉ.
+     */
+    public record GiaoHangRequest(String hoTen, String sdt, String diaChi, String tinhThanh, String phuongXa) {
+        public GiaoHangRequest(String hoTen, String sdt, String diaChi) {
+            this(hoTen, sdt, diaChi, null, null);
+        }
     }
+
+    /** Đơn vị vận chuyển của đơn bán tại quầy có giao hàng. */
+    public static final String DON_VI_VAN_CHUYEN = "Giao Hàng Nhanh";
+    static final long MIEN_PHI_GIAO_TU = 1_000_000L;
+    static final long PHI_GIAO_NOI_THANH = 20_000L;
+    static final long PHI_GIAO_TINH_KHAC = 35_000L;
 
     public record ThanhToanChoRequest(String maPhieu, String ghiChu, Long tienMat, Long chuyenKhoan, String maGiaoDich,
                                       Boolean xacNhanGiaMoi, Long soTienGiam, GiaoHangRequest giaoHang) {
@@ -463,6 +483,13 @@ public class BanHangService {
     /** Phí giao hàng giống web bán online: đơn từ 1.000.000 ₫ miễn phí, còn lại 30.000 ₫. */
     public static long phiGiaoHang(long tongTienHang) {
         return tongTienHang >= 1_000_000L ? 0L : 30_000L;
+    }
+
+    /** Phí giao hàng tại quầy theo tỉnh nhận: nội thành Hà Nội (nơi cửa hàng) 20.000 ₫, tỉnh khác 35.000 ₫, đơn từ 1.000.000 ₫ miễn phí. */
+    public static long phiGiaoHang(long tongTienHang, String tinhThanh) {
+        if (tinhThanh == null || tinhThanh.isBlank()) return phiGiaoHang(tongTienHang);
+        if (tongTienHang >= MIEN_PHI_GIAO_TU) return 0L;
+        return "ha noi".equals(boDau(tinhThanh).replaceFirst("^(thanh pho|tinh)\\s+", "")) ? PHI_GIAO_NOI_THANH : PHI_GIAO_TINH_KHAC;
     }
 
     /**
@@ -545,13 +572,25 @@ public class BanHangService {
             if (hoTen.isEmpty()) loi.them("hoTen", "Vui lòng nhập tên người nhận.");
             else if (hoTen.length() > 255) loi.them("hoTen", "Tên người nhận tối đa 255 ký tự.");
             if (sdt.isEmpty()) loi.them("sdt", "Vui lòng nhập số điện thoại người nhận.");
-            else if (!sdt.matches("0[35789]\\d{8}")) loi.them("sdt", "Số điện thoại gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.");
-            if (diaChi.isEmpty()) loi.them("diaChi", "Vui lòng nhập địa chỉ giao hàng.");
-            else if (diaChi.length() < 10) loi.them("diaChi", "Địa chỉ quá ngắn, vui lòng ghi rõ số nhà, đường, phường/xã, tỉnh/thành.");
-            else if (diaChi.length() > 500) loi.them("diaChi", "Địa chỉ tối đa 500 ký tự.");
-            loi.nemNeuCoLoi();
+            else if (!QuyTacDuLieu.SDT.matcher(sdt).matches()) loi.them("sdt", QuyTacDuLieu.LOI_SDT);
+            if (gh.tinhThanh() != null) {
+                // Địa chỉ chọn theo Tỉnh/Thành -> Phường/Xã, diaChi là số nhà, đường
+                String tinh = gh.tinhThanh().trim();
+                String phuong = gh.phuongXa() == null ? "" : gh.phuongXa().trim();
+                if (tinh.isEmpty()) loi.them("tinhThanh", "Vui lòng chọn Tỉnh/Thành phố.");
+                if (phuong.isEmpty()) loi.them("phuongXa", "Vui lòng chọn Phường/Xã.");
+                if (diaChi.isEmpty()) loi.them("diaChi", "Vui lòng nhập địa chỉ cụ thể (số nhà, tên đường).");
+                else if (diaChi.length() > 255) loi.them("diaChi", "Địa chỉ cụ thể tối đa 255 ký tự.");
+                loi.nemNeuCoLoi();
+                diaChi = diaChi + ", " + phuong + ", " + tinh;
+            } else {
+                if (diaChi.isEmpty()) loi.them("diaChi", "Vui lòng nhập địa chỉ giao hàng.");
+                else if (diaChi.length() < 10) loi.them("diaChi", "Địa chỉ quá ngắn, vui lòng ghi rõ số nhà, đường, phường/xã, tỉnh/thành.");
+                else if (diaChi.length() > 500) loi.them("diaChi", "Địa chỉ tối đa 500 ký tự.");
+                loi.nemNeuCoLoi();
+            }
         }
-        long phi = giao ? phiGiaoHang(tongTienHang) : 0;
+        long phi = giao ? phiGiaoHang(tongTienHang, gh.tinhThanh()) : 0;
         long thanhTien = tongTienHang - kp.giam() + phi;
 
         // 4. Tiền khách trả, phiếu
@@ -573,6 +612,7 @@ public class BanHangService {
         hd.setHoTenNguoiNhan(hoTen);
         hd.setSdtNguoiNhan(sdt);
         hd.setDiaChiGiaoHang(diaChi);
+        if (giao) hd.setDonViVanChuyen(DON_VI_VAN_CHUYEN);
         hd.setNgayCapNhat(luc);
         hd.setIdGiaoCa(ca.getId());
         hd = hoaDonRepo.save(hd);

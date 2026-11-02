@@ -31,8 +31,12 @@ public class ThanhToanGiaLapController {
     @Value("${app.thanh-toan.dia-chi-lan:}")
     private String diaChiLanCauHinh;
 
-    /** IPv4 mạng nội bộ của máy này (ưu tiên 192.168.x.x, bỏ card ảo như VMware/VirtualBox/WSL/Docker). */
     private String diaChiLan() {
+        return timDiaChiLan(diaChiLanCauHinh);
+    }
+
+    /** IPv4 mạng nội bộ của máy này (ưu tiên 192.168.x.x, bỏ card ảo như VMware/VirtualBox/WSL/Docker); có cấu hình thì dùng cấu hình. */
+    public static String timDiaChiLan(String diaChiLanCauHinh) {
         if (diaChiLanCauHinh != null && !diaChiLanCauHinh.isBlank()) return diaChiLanCauHinh.trim();
         String tot = null;
         String du = null;

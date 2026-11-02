@@ -461,7 +461,12 @@ public class HoaDonService {
         ls.setHanhDong(HoaDonLuongTrangThai.ten(moi));
         ls.setThoiGian(now);
         ls.setMoTa((ghiChu.isEmpty() ? HoaDonLuongTrangThai.moTaMacDinh(hienTai, moi) : ghiChu) + hoanPhi + hoanPhieu);
-        String nguoi = req.nguoiThaoTac() == null ? "" : req.nguoiThaoTac().trim();
+        // Ghi tên người đang đăng nhập (lấy từ phiên), không dùng chữ chung "Quản lý" do màn hình gửi lên
+        String nguoi = com.footstyle.demo.security.XacThuc.hienTai()
+                .filter(com.footstyle.demo.security.NguoiDung::laNhanVien)
+                .map(com.footstyle.demo.security.NguoiDung::hoTen)
+                .filter(t -> t != null && !t.isBlank())
+                .orElse(req.nguoiThaoTac() == null ? "" : req.nguoiThaoTac().trim());
         ls.setNguoiThaoTac(nguoi.isEmpty() ? "Quản lý" : nguoi);
         lichSuHoaDonRepository.save(ls);
 

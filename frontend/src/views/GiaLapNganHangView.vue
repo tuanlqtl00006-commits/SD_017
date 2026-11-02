@@ -8,6 +8,8 @@ import { formatMoney } from '../utils/format'
 
 const route = useRoute()
 const ma = computed(() => String(route.query.ma || '').trim())
+// QR ở màn bán tại quầy có thêm quay=1 (yêu cầu chuyển khoản của hóa đơn chờ, không phải đơn online)
+const goc = computed(() => (route.query.quay ? '/cua-hang/thanh-toan-gia-lap/quay' : '/cua-hang/thanh-toan-gia-lap'))
 const thongTin = ref(null)
 const loi = ref('')
 const dangGui = ref(false)
@@ -19,7 +21,7 @@ async function tai() {
     return
   }
   try {
-    thongTin.value = (await api.get(`/cua-hang/thanh-toan-gia-lap/${encodeURIComponent(ma.value)}`)).data
+    thongTin.value = (await api.get(`${goc.value}/${encodeURIComponent(ma.value)}`)).data
     xong.value = thongTin.value.daThanhToanDu
   } catch (e) {
     loi.value = e?.message || 'Không tải được thông tin thanh toán.'
@@ -30,7 +32,7 @@ async function xacNhan() {
   dangGui.value = true
   loi.value = ''
   try {
-    thongTin.value = (await api.post(`/cua-hang/thanh-toan-gia-lap/${encodeURIComponent(ma.value)}/xac-nhan`)).data
+    thongTin.value = (await api.post(`${goc.value}/${encodeURIComponent(ma.value)}/xac-nhan`)).data
     xong.value = true
   } catch (e) {
     loi.value = e?.message || 'Không xác nhận được. Vui lòng thử lại.'

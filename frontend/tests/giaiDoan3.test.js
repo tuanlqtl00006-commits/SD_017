@@ -4,7 +4,7 @@ const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../src/services/api', () => ({ default: api }))
 
 import {
-  chuoiVietQR, crc16, goiYTienKhachDua, noiDungChuyenKhoan, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang,
+  chuoiVietQR, crc16, goiYTienKhachDua, noiDungChuyenKhoan, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang,
 } from '../src/utils/banHang'
 import { chongGio, congNgayIso, demTheoCa, gomLich, ngayTrongTuan, nhanTuan, thu2CuaTuan } from '../src/utils/lichTuan'
 import { htmlBienBanGiaoCa, moTaChenhLech, thoiLuong, tinhChenhLech } from '../src/utils/giaoCa'
@@ -43,6 +43,16 @@ describe('Bán tại quầy: giỏ hàng', () => {
     expect(tienGiamDot([tang, dot])).toBe(2 * 28000)
   })
 
+})
+
+describe('Bán tại quầy: phí giao hàng theo tỉnh', () => {
+  it('nội thành Hà Nội / tỉnh khác / đơn từ 1 triệu miễn phí; chưa chọn tỉnh thì chưa tính', () => {
+    expect(phiGiaoHang(500000, 'Thành phố Hà Nội')).toBe(20000)
+    expect(phiGiaoHang(500000, 'Tỉnh Phú Thọ')).toBe(35000)
+    expect(phiGiaoHang(1000000, 'Tỉnh Phú Thọ')).toBe(0)
+    expect(phiGiaoHang(500000, '')).toBeNull()
+    expect(phiGiaoHang(500000)).toBe(30000) // không truyền tỉnh: cách tính cũ (trang sửa đơn)
+  })
 })
 
 describe('Bán tại quầy: thanh toán', () => {
@@ -219,10 +229,10 @@ describe('Trang ca làm việc có trong router với đúng quyền', () => {
     expect(quyen('/lich-lam-viec').roles).toEqual(['quan-ly'])
   })
 
-  it('đã bỏ chat nội bộ, chat hỗ trợ khách (/ho-tro, /ho-tro-truc-tuyen, /chat-noi-bo): không còn trang nào', () => {
-    for (const p of ['/ho-tro', '/ho-tro-truc-tuyen', '/chat-noi-bo']) {
-      expect(router.resolve(p).name, p).toBeUndefined()
-    }
+  it('có trang chat nội bộ, hỗ trợ khách (nhân viên) và trang chat công khai của khách (/ho-tro)', () => {
+    expect(router.resolve('/chat-noi-bo').name).toBe('chat-noi-bo')
+    expect(router.resolve('/ho-tro-truc-tuyen').name).toBe('ho-tro-truc-tuyen')
+    expect(router.resolve('/ho-tro').meta.congKhai).toBe(true)
   })
 
   it('đường dẫn gốc (/) tách riêng chuyển thẳng tới Cửa hàng online (/shop), không bị đưa vào trang đăng nhập', () => {

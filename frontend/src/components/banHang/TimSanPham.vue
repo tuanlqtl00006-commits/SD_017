@@ -179,16 +179,24 @@ defineExpose({ taiLai: tai, focusTim: () => oTim.value?.focus() })
                 <span class="bh-anh-nho">
                   <img v-if="sp.anh" :src="sp.anh" :alt="sp.tenSanPham" />
                   <i v-else class="bi bi-image" aria-hidden="true"></i>
+                  <!-- % giảm theo đợt hiện đè lên góc ảnh (giống trang Biến thể sản phẩm) -->
+                  <span v-if="sp.donGia < sp.giaGoc" class="bh-giam-anh" data-testid="bh-giam-anh">-{{ formatPhanTram(sp.phanTramGiam) }}</span>
                 </span>
               </td>
               <td>
                 <span class="fw-semibold d-block">{{ sp.tenSanPham }}</span>
                 <small class="text-muted"><span class="ad-code">{{ sp.ma }}</span><template v-if="sp.danhMuc"> · {{ sp.danhMuc }}</template></small>
               </td>
-              <td>{{ sp.phanLoai || '—' }}</td>
+              <td>
+                <!-- Phân loại dạng chip như danh sách biến thể ở Đợt giảm giá -->
+                <span v-if="sp.phanLoai" class="bh-chips">
+                  <span v-for="pl in sp.phanLoai.split(' · ')" :key="pl" class="bh-chip">{{ pl }}</span>
+                </span>
+                <template v-else>—</template>
+              </td>
               <td class="text-end ad-nowrap">
                 <b class="d-block">{{ formatMoney(sp.donGia) }}</b>
-                <small v-if="sp.donGia < sp.giaGoc" class="text-muted"><s>{{ formatMoney(sp.giaGoc) }}</s> -{{ formatPhanTram(sp.phanTramGiam) }}</small>
+                <small v-if="sp.donGia < sp.giaGoc" class="text-muted"><s>{{ formatMoney(sp.giaGoc) }}</s></small>
               </td>
               <td class="text-center">
                 <span class="ad-pill" :class="sp.tonKho <= 5 ? 'ad-pill-orange' : 'ad-pill-green'">{{ sp.tonKho }}</span>
@@ -265,8 +273,9 @@ defineExpose({ taiLai: tai, focusTim: () => oTim.value?.focus() })
   vertical-align: middle;
 }
 .bh-anh-nho {
-  width: 44px;
-  height: 44px;
+  position: relative;
+  width: 48px;
+  height: 48px;
   border-radius: 8px;
   background: #f1f5f9;
   display: inline-grid;
@@ -278,6 +287,32 @@ defineExpose({ taiLai: tai, focusTim: () => oTim.value?.focus() })
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.bh-giam-anh {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 1px 4px;
+  border-bottom-right-radius: 7px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.bh-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.bh-chip {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 6px;
+  background: #f1f4f8;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 600;
 }
 .bh-o-sl {
   width: 76px;

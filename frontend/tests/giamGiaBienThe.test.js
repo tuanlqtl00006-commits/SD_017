@@ -88,11 +88,12 @@ async function moTrangBienThe() {
   return w
 }
 const o = (w, ma) => w.findAll('tbody tr').find((r) => r.text().includes(ma))
-const oGia = (w, ma) => o(w, ma).get('[data-testid="o-gia-ban"]')
+// Cả hàng của biến thể: giá ở cột Giá bán, % giảm hiện đè lên ảnh
+const oGia = (w, ma) => o(w, ma)
 const chuaGiam = (cell) => !cell.find('[data-testid="gia-sau-giam"]').exists() && !cell.find('[data-testid="gia-goc-gach"]').exists() && !cell.find('[data-testid="giam-hien-tai"]').exists()
 
 describe('Giá bán ở trang Biến thể sản phẩm (không còn cột "Giảm giá")', () => {
-  it('bảng không có cột "Giảm giá" riêng; mức giảm nằm ngay trong cột Giá bán', async () => {
+  it('bảng không có cột "Giảm giá" riêng; % giảm hiện trên ảnh, giá sau giảm trong cột Giá bán', async () => {
     const w = await moTrangBienThe()
     const dau = w.findAll('thead th').map((x) => x.text())
     expect(dau).not.toContain('Giảm giá')

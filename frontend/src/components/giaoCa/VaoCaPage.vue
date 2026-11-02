@@ -57,21 +57,38 @@ function trangTiepTheo() {
   return q && !q.startsWith('/vao-ca') ? q : auth.trangChu()
 }
 
+// Ca cần nhận hôm nay: ca đầu tiên trong lịch chưa kết thúc; nhận được từ 15 phút trước giờ bắt đầu
+const PHUT_NHAN_SOM = 15
+const phut = (hhmm) => {
+  const [h, m] = String(hhmm).split(':').map(Number)
+  return h * 60 + m
+}
+const gio = (p) => `${String(Math.floor(p / 60)).padStart(2, '0')}:${String(p % 60).padStart(2, '0')}`
+const bayGioPhut = ref(0)
+const caCanNhan = computed(() => {
+  const ca = [...trangThai.lichHomNay].sort((a, b) => phut(a.gioBatDau) - phut(b.gioBatDau)).find((l) => phut(l.gioKetThuc) > bayGioPhut.value)
+  if (!ca) return null
+  const tu = Math.max(0, phut(ca.gioBatDau) - PHUT_NHAN_SOM)
+  return { ...ca, nhanTu: gio(tu), chuaDenGio: bayGioPhut.value < tu }
+})
+
 onMounted(async () => {
   await taiLai()
   if (dangTrongCa.value) {
     router.replace(trangTiepTheo())
     return
   }
+  const now = new Date()
+  bayGioPhut.value = now.getHours() * 60 + now.getMinutes()
+  // Tự điền số ca trước bàn giao để nhân viên đếm két / kiểm sao kê; khác thì sửa và ghi lý do
+  if (coCaTruoc.value) {
+    f.tienDauCa = Number(trangThai.goiYTienDauCa ?? 0)
+    f.chuyenKhoanCaTruoc = Number(trangThai.chuyenKhoanCaTruoc ?? 0)
+  }
+  if (caCanNhan.value) {
+    toast.success(`Hôm nay bạn có ${caCanNhan.value.tenCa} ${caCanNhan.value.gioBatDau} - ${caCanNhan.value.gioKetThuc}, nhận ca từ ${caCanNhan.value.nhanTu}.`)
+  }
 })
-
-function dungSoCaTruoc() {
-  f.tienDauCa = Number(trangThai.goiYTienDauCa ?? 0)
-  f.chuyenKhoanCaTruoc = Number(trangThai.chuyenKhoanCaTruoc ?? 0)
-  sua('tienDauCa')
-  sua('chuyenKhoanCaTruoc')
-  sua('ghiChu')
-}
 
 async function batDauCa() {
   if (dangGui.value) return
@@ -135,13 +152,19 @@ function dangXuat() {
         <div v-else-if="!trangThai.daTai" class="ad-empty">Đang tải thông tin ca…</div>
 
         <form v-else id="vc-form" novalidate @submit.prevent="batDauCa">
+          <!-- Thông báo ca cần nhận hôm nay (theo lịch làm việc) -->
+          <div v-if="caCanNhan" class="vc-thong-bao-ca" :class="{ 'is-som': caCanNhan.chuaDenGio }" role="status" data-testid="vc-ca-can-nhan">
+            <i class="bi bi-bell-fill" aria-hidden="true"></i>
+            <span>
+              Ca cần nhận hôm nay: <b>{{ caCanNhan.tenCa }}</b> {{ caCanNhan.gioBatDau }} - {{ caCanNhan.gioKetThuc }} · nhận ca từ <b>{{ caCanNhan.nhanTu }}</b>
+              <template v-if="caCanNhan.chuaDenGio"> (chưa đến giờ nhận ca)</template>
+            </span>
+          </div>
+
           <!-- Bàn giao từ ca trước -->
           <div class="vc-khoi">
             <div class="vc-khoi-dau">
               <h2 class="vc-khoi-ten"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Bàn giao từ ca trước</h2>
-              <button v-if="coCaTruoc" type="button" class="ad-btn ad-btn-sm" data-testid="vc-dung-so" @click="dungSoCaTruoc">
-                <i class="bi bi-check2-all" aria-hidden="true"></i> Dùng số tiền này
-              </button>
             </div>
             <template v-if="coCaTruoc">
               <p class="vc-ghi-nho">
@@ -151,7 +174,7 @@ function dangXuat() {
                 <div><dt>Tiền mặt để lại trong két</dt><dd data-testid="vc-tien-mat-truoc">{{ formatMoney(trangThai.goiYTienDauCa) }}</dd></div>
                 <div><dt>Chuyển khoản ca trước thu</dt><dd data-testid="vc-ck-truoc">{{ formatMoney(trangThai.chuyenKhoanCaTruoc ?? 0) }}</dd></div>
               </dl>
-              <p class="ad-hint mb-0">Vui lòng đếm lại tiền trong két và kiểm tra sao kê tài khoản trước khi xác nhận.</p>
+              <p class="ad-hint mb-0">Số tiền đã điền sẵn theo hệ thống. Vui lòng đếm lại tiền trong két và kiểm tra sao kê; khác thì sửa và ghi lý do.</p>
             </template>
             <p v-else class="vc-ghi-nho mb-0">Chưa có ca nào bàn giao trước đó. Nhập số tiền mặt đang có trong két.</p>
           </div>
@@ -299,6 +322,21 @@ function dangXuat() {
 .vc-phu {
   color: #5b6b80;
   margin: 0 0 1.5rem;
+}
+.vc-thong-bao-ca {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: #e8f1fe;
+  color: #1e40af;
+  font-size: 0.92rem;
+}
+.vc-thong-bao-ca.is-som {
+  background: #fff7e6;
+  color: #92400e;
 }
 .vc-khoi {
   border: 1px solid #e5e9f0;

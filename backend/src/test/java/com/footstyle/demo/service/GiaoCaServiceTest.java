@@ -54,13 +54,23 @@ class GiaoCaServiceTest {
     }
 
     @Test
-    void nhanCaSom_vanTinhLaCaDo_khongMuon() {
+    void nhanCaSomToiDa15Phut_vanTinhLaCaDo_khongMuon() {
         m.lich(m.bao, m.sang, CaLamMau.HOM_NAY);
         CaLamMau.dangNhap(m.bao);
-        Map<String, Object> gc = nhanCa("06:10", 0, null);
+        Map<String, Object> gc = nhanCa("06:45", 0, null);
         assertEquals("Ca sáng", gc.get("tenCa"));
         assertEquals(0, gc.get("soPhutDiMuon"));
         assertEquals(false, gc.get("diMuon"));
+    }
+
+    @Test
+    void nhanCaSomHon15Phut_tuDong_ngoaiLich_chonCa_bao() {
+        Integer idLich = m.lich(m.bao, m.sang, CaLamMau.HOM_NAY).getId();
+        CaLamMau.dangNhap(m.bao);
+        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "06:30"));
+        ApiException e = loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(tien(0), null, idLich, tien(0))));
+        assertTrue(e.getLoiTheoTruong().get("idLichLamViec").contains("từ 06:45"));
+        assertEquals(true, nhanCa("06:30", 0, null).get("ngoaiLich"), "tự chọn theo giờ mà quá sớm thì ghi ngoài lịch");
     }
 
     @Test
