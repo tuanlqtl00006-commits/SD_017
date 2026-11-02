@@ -168,6 +168,7 @@ describe('Trang Thống kê', () => {
     const w = await moTrang([
       hd(1, ngay(1), 2000000), hd(2, ngay(2), 1000000), hd(3, ngay(3), 5000000, 0), hd(4, ngay(60), 7000000),
     ])
+    await w.get('#tk-tu').setValue(ngay(29))
     const k = kpiText(w)
     expect(k).toHaveLength(4)
     expect(k[0]).toContain('Doanh thu thực tế')
@@ -184,6 +185,7 @@ describe('Trang Thống kê', () => {
       hd(1, ngay(2), 3000000), hd(2, ngay(3), 1000000, 0), hd(3, ngay(4), 1000000, 0), // kỳ này: 3tr, 2 đơn hủy
       hd(4, ngay(40), 2000000), hd(5, ngay(41), 1000000, 0), // kỳ trước (30 ngày liền trước): 2tr, 1 đơn hủy
     ])
+    await w.get('#tk-tu').setValue(ngay(29))
     const [dt, , , huy] = w.findAll('[data-test="tk-kpi"]')
     expect(dt.find('.tk-so').text()).toContain('▲ 50%')
     expect(dt.find('.tk-so').classes()).toContain('tk-tot')
@@ -202,6 +204,7 @@ describe('Trang Thống kê', () => {
 
   it('đổi sang 7 ngày qua thì chỉ còn đơn trong 7 ngày', async () => {
     const w = await moTrang([hd(1, ngay(2), 1000000), hd(2, ngay(20), 4000000)])
+    await w.get('#tk-tu').setValue(ngay(29))
     expect(kpiText(w)[0]).toContain('5.000.000')
     await w.findAll('button').find((b) => b.text() === '7 ngày qua').trigger('click')
     expect(kpiText(w)[0]).toContain('1.000.000')
@@ -266,6 +269,7 @@ describe('Trang Thống kê', () => {
     const nhan1 = `${d1.slice(8, 10)}/${d1.slice(5, 7)}`
     const nhan2 = `${d2.slice(8, 10)}/${d2.slice(5, 7)}`
     const w = await moTrang([hd(1, d1, 3400000), hd(2, d2, 1300000), hd(3, ngay(50), 1000000)])
+    await w.get('#tk-tu').setValue(ngay(29))
     expect(w.text()).toContain('Doanh thu theo ngày')
     // Mặc định chỉ hiển thị các cột có doanh thu (2 cột d1, d2) giúp biểu đồ đều đẹp, kèm số tiền chính xác
     expect(w.findAll('svg rect')).toHaveLength(2)
@@ -274,9 +278,9 @@ describe('Trang Thống kê', () => {
     expect(svgText).toContain(nhan2)
     expect(svgText).toContain('3.400.000 ₫')
     expect(svgText).toContain('1.300.000 ₫')
-    // Khi bấm nút "Tất cả ngày" thì mở rộng đủ số ngày trong tháng
+    // Khi bấm nút "Tất cả ngày" thì mở rộng đủ 30 ngày
     await w.get('[data-test="tk-che-do-cot"]').trigger('click')
-    expect(w.findAll('svg rect')).toHaveLength(soNgay(`${homNay.slice(0, 7)}-01`, homNay))
+    expect(w.findAll('svg rect')).toHaveLength(30)
     await w.get('#tk-tu').setValue(ngay(89))
     await w.get('#tk-den').setValue(ngay(0))
     expect(w.text()).toContain('Doanh thu theo tuần')

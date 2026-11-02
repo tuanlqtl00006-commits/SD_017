@@ -43,6 +43,7 @@ describe('Thống kê so sánh', () => {
     expect(api.get).toHaveBeenCalledWith('/thong-ke/so-sanh', { params: { kieu: 'THANG', ky: expect.stringMatching(/^\d{4}-\d{2}$/) } })
     const the = w.findAll('[data-test="ss-chi-so"]')
     expect(the).toHaveLength(8)
+    expect(w.find('svg[aria-label="Biểu đồ so sánh nhóm chỉ số doanh thu"]').exists()).toBe(true)
     expect(the[0].text()).toContain('1.450.000')
     expect(the[0].text()).toContain('▲ 20,8%')
     expect(the[0].text()).toContain('so với cùng kỳ Tháng 10/2025')
@@ -89,5 +90,109 @@ describe('Thống kê so sánh', () => {
     expect(text).toContain('xl/worksheets/sheet2.xml')
     expect(text).toContain('<sheet name="Tổng hợp" sheetId="1"')
     expect(text).toContain('<sheet name="Tổng hợp 2" sheetId="2"')
+  })
+
+  it('cảnh báo khi chọn kỳ trùng hoặc kỳ tương lai và cho phép đặt về kỳ hiện tại', async () => {
+    const w = mount(ThongKeSoSanh, { attachTo: document.body })
+    await flushPromises()
+    const selectsThang = w.findAll('.ss-period-select--month')
+    expect(selectsThang.length).toBeGreaterThanOrEqual(2)
+    // Chọn trùng tháng giữa Kỳ 1 và Kỳ 2
+    const valKy2 = selectsThang[1].element.value
+    await selectsThang[0].setValue(valKy2)
+    await flushPromises()
+    expect(w.find('[data-test="ss-canh-bao-ky"]').exists()).toBe(true)
+    expect(w.find('[data-test="ss-canh-bao-ky"]').text()).toContain('Đang chọn trùng')
+    // Bấm nút Về kỳ hiện tại để chuẩn hóa lại các kỳ
+    await w.find('[data-test="ss-ve-hien-tai"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="ss-canh-bao-ky"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('gửi email đơn giản: kiểm tra đầy đủ các case khó (dấu chấm đầu/cuối, trùng email, quá 5 email, mã độc trong ghi chú)', async () => {
+    api.post.mockResolvedValue({ data: { daGui: true, giaLap: false, email: 'ql1@gmail.com, ql2@gmail.com' } })
+    const w = mount(ThongKeSoSanh, { attachTo: document.body })
+    await flushPromises()
+    await w.find('[data-test="ss-email"]').trigger('click')
+
+    // Case 1: Để trống hoặc toàn khoảng trắng
+    await w.find('#ss-email-o').setValue('   ')
+    await w.find('.ss-email').trigger('submit')
+    expect(w.text()).toContain('Vui lòng nhập địa chỉ email nhận báo cáo.')
+
+    // Case 2: Dấu chấm ở đầu/cuối phần tên hoặc dấu gạch ngang đầu tên miền
+    for (const sai of ['.abc@gmail.com', 'abc.@gmail.com', 'abc@-gmail.com', 'a..b@gmail.com']) {
+      await w.find('#ss-email-o').setValue(sai)
+      await w.find('.ss-email').trigger('submit')
+      expect(w.text()).toContain('Email không hợp lệ.')
+    }
+
+    // Case 3: Nhập trùng email (không phân biệt hoa thường)
+    await w.find('#ss-email-o').setValue('ql1@gmail.com, QL1@gmail.com')
+    await w.find('.ss-email').trigger('submit')
+    expect(w.text()).toContain('Có địa chỉ email bị trùng lặp trong danh sách nhận.')
+
+    // Case 4: Quá 5 địa chỉ email -> báo lỗi
+    await w.find('#ss-email-o').setValue('a1@g.co, a2@g.co, a3@g.co, a4@g.co, a5@g.co, a6@g.co')
+    await w.find('.ss-email').trigger('submit')
+    expect(w.text()).toContain('Chỉ hỗ trợ gửi tối đa 5 địa chỉ email mỗi lần.')
+
+    // Case 5: Ghi chú chứa mã script độc hại
+    await w.find('#ss-email-o').setValue('ql1@gmail.com')
+    await w.find('#ss-email-note').setValue('<script>alert(1)</script>')
+    await w.find('.ss-email').trigger('submit')
+    expect(w.text()).toContain('Ghi chú không được chứa mã HTML hoặc kịch bản.')
+    expect(api.post).not.toHaveBeenCalled()
+
+    // Case 6: Gửi báo cáo hợp lệ tới 2 email kèm ghi chú ngắn
+    await w.find('#ss-email-o').setValue('ql1@gmail.com, ql2@gmail.com')
+    await w.find('#ss-email-note').setValue('Đề xuất nhập thêm dòng Nike Air')
+    await w.find('.ss-email').trigger('submit')
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledWith(
+      '/thong-ke/so-sanh/gui-email',
+      expect.objectContaining({
+        kieu: 'THANG',
+        email: 'ql1@gmail.com, ql2@gmail.com',
+        ghiChu: 'Đề xuất nhập thêm dòng Nike Air',
+      })
+    )
+    w.unmount()
+  })
+
+  it('tài khoản nào đang đăng nhập thì tự điền email của tài khoản đó và chỉ gửi về đúng email đó', async () => {
+    api.get.mockResolvedValue({
+      data: {
+        ...DU_LIEU,
+        emailNguoiDangNhap: 'long.nh@footstyle.vn',
+      },
+    })
+    api.post.mockResolvedValue({ data: { daGui: true, giaLap: false, email: 'long.nh@footstyle.vn' } })
+
+    const w = mount(ThongKeSoSanh, { attachTo: document.body })
+    await flushPromises()
+    await w.find('[data-test="ss-email"]').trigger('click')
+
+    // Tự động điền đúng email của tài khoản đang đăng nhập
+    expect(w.find('#ss-email-o').element.value).toBe('long.nh@footstyle.vn')
+
+    // Thử đổi sang email người khác -> chặn gửi
+    await w.find('#ss-email-o').setValue('nguoikhac@gmail.com')
+    await w.find('.ss-email').trigger('submit')
+    expect(w.text()).toContain('Chỉ được gửi báo cáo về email của tài khoản đang đăng nhập (long.nh@footstyle.vn).')
+    expect(api.post).not.toHaveBeenCalled()
+
+    // Gửi đúng về email của tài khoản đang đăng nhập -> thành công
+    await w.find('#ss-email-o').setValue('long.nh@footstyle.vn')
+    await w.find('.ss-email').trigger('submit')
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledWith(
+      '/thong-ke/so-sanh/gui-email',
+      expect.objectContaining({
+        email: 'long.nh@footstyle.vn',
+      })
+    )
+    w.unmount()
   })
 })

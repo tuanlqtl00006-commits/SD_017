@@ -9,6 +9,8 @@ import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.NhanVienRepository;
+import com.footstyle.demo.security.NguoiDung;
+import com.footstyle.demo.security.XacThuc;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -41,12 +43,13 @@ import org.springframework.web.util.HtmlUtils;
 public class ThongKeSoSanhService {
 
     private static final Logger log = LoggerFactory.getLogger(ThongKeSoSanhService.class);
+    private static final Pattern KY_NGAY = Pattern.compile("(\\d{4})-(\\d{1,2})-(\\d{1,2})");
     private static final Pattern KY_THANG = Pattern.compile("(\\d{4})-(\\d{1,2})");
     private static final Pattern KY_QUY = Pattern.compile("(\\d{4})-[Qq]([1-4])");
     private static final Pattern KY_NAM = Pattern.compile("(\\d{4})");
     static final int SO_NAM_XU_HUONG = 5;
 
-    public enum Kieu { THANG, QUY, NAM }
+    public enum Kieu { NGAY, THANG, QUY, NAM }
 
     /** Một kỳ thống kê: nhãn hiển thị + khoảng ngày (tính cả 2 đầu). */
     public record Ky(String ma, String nhan, LocalDate tu, LocalDate den) {
@@ -57,6 +60,11 @@ public class ThongKeSoSanhService {
     private final NhanVienRepository nhanVienRepo;
     private final MailService mailService;
     private Clock dongHo = Clock.systemDefaultZone();
+
+    private volatile String emailTuDong = "";
+    private volatile boolean tuDongHangNgay = true;
+    private volatile boolean tuDongThang = true;
+    private volatile boolean tuDongNam = true;
 
     public ThongKeSoSanhService(HoaDonRepository hoaDonRepo, HoaDonChiTietRepository chiTietRepo, NhanVienRepository nhanVienRepo,
                                 MailService mailService) {
@@ -77,7 +85,7 @@ public class ThongKeSoSanhService {
         try {
             return Kieu.valueOf(s.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw ApiException.badRequest("Kiểu so sánh phải là THANG, QUY hoặc NAM.");
+            throw ApiException.badRequest("Kiểu so sánh phải là NGAY, THANG, QUY hoặc NAM.");
         }
     }
 
@@ -85,6 +93,25 @@ public class ThongKeSoSanhService {
         LocalDate homNay = LocalDate.now(dongHo);
         String s = ky == null ? "" : ky.trim();
         switch (kieu) {
+            case NGAY -> {
+                LocalDate ng = homNay;
+                if (!s.isEmpty()) {
+                    Matcher m = KY_NGAY.matcher(s);
+                    if (!m.matches()) {
+                        throw ApiException.badRequest("Ngày không hợp lệ (dạng 2026-10-24).");
+                    }
+                    try {
+                        int y = Integer.parseInt(m.group(1));
+                        int mo = Integer.parseInt(m.group(2));
+                        int da = Integer.parseInt(m.group(3));
+                        if (y < 2000 || y > 2100) throw ApiException.badRequest("Ngày không hợp lệ (dạng 2026-10-24).");
+                        ng = LocalDate.of(y, mo, da);
+                    } catch (Exception ex) {
+                        throw ApiException.badRequest("Ngày không hợp lệ (dạng 2026-10-24).");
+                    }
+                }
+                return ngay(ng);
+            }
             case THANG -> {
                 YearMonth ym = YearMonth.from(homNay);
                 if (!s.isEmpty()) {
@@ -125,6 +152,15 @@ public class ThongKeSoSanhService {
         }
     }
 
+    static Ky ngay(LocalDate d) {
+        return new Ky(
+                d.toString(),
+                String.format("Ngày %02d/%02d/%d", d.getDayOfMonth(), d.getMonthValue(), d.getYear()),
+                d,
+                d
+        );
+    }
+
     static Ky thang(YearMonth ym) {
         return new Ky(ym.toString(), "Tháng " + ym.getMonthValue() + "/" + ym.getYear(), ym.atDay(1), ym.atEndOfMonth());
     }
@@ -140,6 +176,7 @@ public class ThongKeSoSanhService {
 
     static Ky kyTruoc(Kieu kieu, Ky k) {
         return switch (kieu) {
+            case NGAY -> ngay(k.tu().minusDays(1));
             case THANG -> thang(YearMonth.from(k.tu()).minusMonths(1));
             case QUY -> {
                 LocalDate t = k.tu().minusMonths(3);
@@ -151,6 +188,7 @@ public class ThongKeSoSanhService {
 
     static Ky cungKyNamTruoc(Kieu kieu, Ky k) {
         return switch (kieu) {
+            case NGAY -> ngay(k.tu().minusYears(1));
             case THANG -> thang(YearMonth.from(k.tu()).minusYears(1));
             case QUY -> quy(k.tu().getYear() - 1, (k.tu().getMonthValue() - 1) / 3 + 1);
             case NAM -> nam(k.tu().getYear() - 1);
@@ -273,7 +311,59 @@ public class ThongKeSoSanhService {
         kq.put("chiTietKy", chiTietKy(kieu, ky, hoaDons));
         kq.put("sanPham", sanPham(ky, truoc, chiTiets));
         kq.put("phanTich", taoPhanTich(kieu, kq));
+        kq.put("nguoiNhanBaoCao", dsNguoiNhanDangLamViec());
+        kq.put("emailNgungHoatDong", dsEmailNgungHoatDong());
+        String emailDangNhap = layEmailNguoiDangNhap();
+        if (emailDangNhap != null) {
+            kq.put("emailNguoiDangNhap", emailDangNhap);
+        }
         return kq;
+    }
+
+    private String layEmailNguoiDangNhap() {
+        return XacThuc.hienTai()
+                .map(NguoiDung::email)
+                .filter(em -> em != null && !em.isBlank())
+                .map(String::trim)
+                .orElse(null);
+    }
+
+    /** Danh sách Quản lý & Nhân viên đang làm việc tại cửa hàng có email hợp lệ để nhận báo cáo. */
+    private List<Map<String, Object>> dsNguoiNhanDangLamViec() {
+        List<Map<String, Object>> ds = new ArrayList<>();
+        for (NhanVien nv : nhanVienRepo.findByTrangThaiOrderByHoTenAsc(NhanVien.HOAT_DONG)) {
+            if (nv.getEmail() == null || !nv.getEmail().contains("@")) continue;
+            String tenVt = nv.getVaiTro() != null && nv.getVaiTro().getTenVaiTro() != null
+                    ? nv.getVaiTro().getTenVaiTro().trim()
+                    : "Nhân viên";
+            boolean laQl = VaiTro.TEN_QUAN_LY.equalsIgnoreCase(tenVt);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", nv.getId());
+            m.put("maNhanVien", nv.getMaNhanVien());
+            m.put("hoTen", nv.getHoTen());
+            m.put("email", nv.getEmail().trim());
+            m.put("vaiTro", tenVt);
+            m.put("laQuanLy", laQl);
+            ds.add(m);
+        }
+        ds.sort((a, b) -> Boolean.compare((Boolean) b.get("laQuanLy"), (Boolean) a.get("laQuanLy")));
+        return ds;
+    }
+
+    private List<String> dsEmailNgungHoatDong() {
+        try {
+            List<NhanVien> dsNgung = nhanVienRepo.findByTrangThaiOrderByHoTenAsc(NhanVien.NGUNG_HOAT_DONG);
+            if (dsNgung == null) return List.of();
+            List<String> kq = new ArrayList<>();
+            for (NhanVien nv : dsNgung) {
+                if (nv.getEmail() != null && nv.getEmail().contains("@")) {
+                    kq.add(nv.getEmail().trim().toLowerCase(Locale.ROOT));
+                }
+            }
+            return kq;
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     /** Tạo nội dung nhận xét, phân tích tự động (tổng quan, giảm giá, so với kỳ trước, cùng kỳ năm trước và các kỳ khác trong năm). */
@@ -352,6 +442,12 @@ public class ThongKeSoSanhService {
         List<Ky[]> cap = new ArrayList<>();
         int nam = ky.tu().getYear();
         switch (kieu) {
+            case NGAY -> {
+                for (int i = 6; i >= 0; i--) {
+                    LocalDate ng = ky.tu().minusDays(i);
+                    cap.add(new Ky[] {ngay(ng), ngay(ng.minusYears(1))});
+                }
+            }
             case THANG -> {
                 for (int t = 1; t <= 12; t++) cap.add(new Ky[] {thang(YearMonth.of(nam, t)), thang(YearMonth.of(nam - 1, t))});
             }
@@ -367,7 +463,8 @@ public class ThongKeSoSanhService {
         for (Ky[] c : cap) {
             long a = doanhThu(c[0], hoaDons);
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("nhan", kieu == Kieu.THANG ? "T" + c[0].tu().getMonthValue() : kieu == Kieu.QUY ? "Q" + ((c[0].tu().getMonthValue() - 1) / 3 + 1)
+            m.put("nhan", kieu == Kieu.NGAY ? c[0].tu().getDayOfMonth() + "/" + c[0].tu().getMonthValue()
+                    : kieu == Kieu.THANG ? "T" + c[0].tu().getMonthValue() : kieu == Kieu.QUY ? "Q" + ((c[0].tu().getMonthValue() - 1) / 3 + 1)
                     : String.valueOf(c[0].tu().getYear()));
             m.put("ma", c[0].ma());
             m.put("doanhThu", a);
@@ -389,7 +486,15 @@ public class ThongKeSoSanhService {
     /** Chi tiết trong kỳ: tháng -> từng ngày, quý / năm -> từng tháng; kèm doanh thu cùng kỳ năm trước. */
     static List<Map<String, Object>> chiTietKy(Kieu kieu, Ky ky, List<HoaDon> hoaDons) {
         List<Map<String, Object>> ds = new ArrayList<>();
-        if (kieu == Kieu.THANG) {
+        if (kieu == Kieu.NGAY) {
+            for (int i = 6; i >= 0; i--) {
+                LocalDate d = ky.tu().minusDays(i);
+                Ky ng = new Ky(d.toString(), d.getDayOfMonth() + "/" + d.getMonthValue(), d, d);
+                LocalDate dTruoc = d.minusYears(1);
+                Ky ngTruoc = new Ky(dTruoc.toString(), "", dTruoc, dTruoc);
+                ds.add(diem(ng, ngTruoc, hoaDons));
+            }
+        } else if (kieu == Kieu.THANG) {
             for (LocalDate d = ky.tu(); !d.isAfter(ky.den()); d = d.plusDays(1)) {
                 Ky ngay = new Ky(d.toString(), d.getDayOfMonth() + "/" + d.getMonthValue(), d, d);
                 LocalDate dTruoc = d.minusYears(1);
@@ -474,53 +579,154 @@ public class ThongKeSoSanhService {
 
     /** Gửi báo cáo so sánh tới email (quản lý bấm "Gửi email"). Trả về { daGui, giaLap, email }. */
     public Map<String, Object> guiEmail(String kieu, String ky, String email) {
-        String den = email == null ? "" : email.trim();
-        if (!den.matches("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")) throw ApiException.badRequest("Email nhận báo cáo không hợp lệ.");
-        Map<String, Object> d = soSanh(kieu, ky);
-        boolean that;
+        return guiEmail(kieu, ky, email, null, null, null);
+    }
+
+    /** Gửi báo cáo so sánh đầy đủ (hỗ trợ nhiều người nhận ngăn cách bởi dấu phẩy, tiêu đề tùy chọn, ghi chú người gửi và danh sách kỳ đối chiếu). */
+    public Map<String, Object> guiEmail(String kieu, String ky, String email, String tieuDeTuyChon, String ghiChu, List<String> dsKy) {
+        String raw = email == null ? "" : email.trim();
+        if (raw.isEmpty()) throw ApiException.badRequest("Email nhận báo cáo không hợp lệ.");
+        String[] tach = raw.split("[,;]+");
+        List<String> dsEmail = new ArrayList<>();
+        for (String item : tach) {
+            String e = item.trim();
+            if (e.isEmpty()) continue;
+            if (e.contains("..") || !e.matches("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")) {
+                throw ApiException.badRequest("Email nhận báo cáo không hợp lệ: " + e);
+            }
+            if (!dsEmail.contains(e)) dsEmail.add(e);
+        }
+        if (dsEmail.isEmpty()) throw ApiException.badRequest("Email nhận báo cáo không hợp lệ.");
+
+        String emailDangNhap = layEmailNguoiDangNhap();
+        if (emailDangNhap != null) {
+            for (String e : dsEmail) {
+                if (!e.equalsIgnoreCase(emailDangNhap)) {
+                    throw ApiException.badRequest("Chỉ được gửi báo cáo về email của tài khoản đang đăng nhập (" + emailDangNhap + ").");
+                }
+            }
+        }
+
+        // Kiểm tra email người nhận phải thuộc Quản lý hoặc Nhân viên đang làm việc tại cửa hàng
+        List<Map<String, Object>> dsDangLam = dsNguoiNhanDangLamViec();
+        List<String> dsNgung = dsEmailNgungHoatDong();
+        if (!dsDangLam.isEmpty() || !dsNgung.isEmpty()) {
+            Set<String> emailHopLe = new HashSet<>();
+            for (Map<String, Object> nv : dsDangLam) {
+                emailHopLe.add(String.valueOf(nv.get("email")).trim().toLowerCase(Locale.ROOT));
+            }
+            for (String e : dsEmail) {
+                String lower = e.toLowerCase(Locale.ROOT);
+                if (dsNgung.contains(lower)) {
+                    throw ApiException.badRequest("Nhân viên có email " + e + " đã ngừng làm việc tại cửa hàng, không được gửi báo cáo nội bộ.");
+                }
+                if (!emailHopLe.isEmpty() && !emailHopLe.contains(lower)) {
+                    throw ApiException.badRequest("Chỉ được gửi báo cáo cho Quản lý hoặc Nhân viên đang làm việc tại cửa hàng (" + e + " không thuộc nhân sự đang hoạt động).");
+                }
+            }
+        }
+
+        Map<String, Object> d = new LinkedHashMap<>(soSanh(kieu, ky));
+        if (tieuDeTuyChon != null && !tieuDeTuyChon.isBlank()) {
+            d.put("tieuDeTuyChon", tieuDeTuyChon.trim());
+        }
+        if (ghiChu != null && !ghiChu.isBlank()) {
+            d.put("ghiChuNguoiGui", ghiChu.trim());
+        }
+        boolean that = false;
         try {
-            that = guiThu(den, d);
+            for (String den : dsEmail) {
+                that = guiThu(den, d) || that;
+            }
         } catch (Exception e) {
             throw ApiException.conflict("Không gửi được email: " + e.getMessage());
         }
         Map<String, Object> kq = new LinkedHashMap<>();
-        kq.put("email", den);
+        kq.put("email", String.join(", ", dsEmail));
+        kq.put("soNguoiNhan", dsEmail.size());
         kq.put("daGui", that);
         kq.put("giaLap", !that);
         return kq;
     }
 
-    /** Email TỰ ĐỘNG HẰNG NGÀY: 21:00 mỗi tối gửi báo cáo doanh thu lũy kế trong tháng & ngày hiện tại cho quản lý. */
-    @Scheduled(cron = "${app.thong-ke.cron-bao-cao-ngay:0 0 21 * * *}")
+    /** Lấy cấu hình lịch gửi báo cáo tự động. */
+    public Map<String, Object> layLichTuDong() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("email", emailTuDong);
+        m.put("hangNgay", tuDongHangNgay);
+        m.put("hangThang", tuDongThang);
+        m.put("hangNam", tuDongNam);
+        return m;
+    }
+
+    /** Lưu cấu hình lịch gửi báo cáo tự động. */
+    public Map<String, Object> luuLichTuDong(String email, Boolean hangNgay, Boolean hangThang, Boolean hangNam) {
+        String raw = email == null ? "" : email.trim();
+        if (!raw.isEmpty()) {
+            if (raw.contains("..") || !raw.matches("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")) {
+                throw ApiException.badRequest("Email nhận tự động không hợp lệ.");
+            }
+        }
+        this.emailTuDong = raw;
+        if (hangNgay != null) this.tuDongHangNgay = hangNgay;
+        if (hangThang != null) this.tuDongThang = hangThang;
+        if (hangNam != null) this.tuDongNam = hangNam;
+        return layLichTuDong();
+    }
+
+    /** Email TỰ ĐỘNG HẰNG NGÀY: 00:05 mỗi ngày (Giờ Việt Nam) tự gửi báo cáo ngày vừa kết thúc. */
+    @Scheduled(cron = "${app.thong-ke.cron-bao-cao-ngay:0 5 0 * * *}", zone = "Asia/Ho_Chi_Minh")
     public void baoCaoNgayTuDong() {
-        String ky = YearMonth.from(LocalDate.now(dongHo)).toString();
-        guiBaoCaoChoQuanLy(ky, soSanh("THANG", ky));
+        if (!tuDongHangNgay) return;
+        String ky = LocalDate.now(dongHo).minusDays(1).toString();
+        guiBaoCaoChoQuanLy(ky, soSanh("NGAY", ky));
     }
 
     /** Email TỰ ĐỘNG CUỐI THÁNG: 22:30 ngày cuối tháng gửi báo cáo tổng kết tháng hiện tại cho quản lý. */
-    @Scheduled(cron = "${app.thong-ke.cron-bao-cao-cuoi-thang:0 30 22 28-31 * *}")
+    @Scheduled(cron = "${app.thong-ke.cron-bao-cao-cuoi-thang:0 30 22 28-31 * *}", zone = "Asia/Ho_Chi_Minh")
     public void baoCaoCuoiThangTuDong() {
+        if (!tuDongThang) return;
         LocalDate homNay = LocalDate.now(dongHo);
         if (homNay.getDayOfMonth() != homNay.lengthOfMonth()) return;
         String ky = YearMonth.from(homNay).toString();
         guiBaoCaoChoQuanLy(ky, soSanh("THANG", ky));
     }
 
-    /** Email TỰ ĐỘNG ĐẦU THÁNG: 8 giờ sáng ngày 1 hằng tháng gửi báo cáo chốt tháng trước cho mọi quản lý đang hoạt động có email. */
-    @Scheduled(cron = "${app.thong-ke.cron-bao-cao:0 0 8 1 * *}")
+    /** Email TỰ ĐỘNG ĐẦU THÁNG: 00:05 ngày 1 tháng sau (Giờ Việt Nam) gửi báo cáo toàn bộ tháng vừa kết thúc. */
+    @Scheduled(cron = "${app.thong-ke.cron-bao-cao:0 5 0 1 * *}", zone = "Asia/Ho_Chi_Minh")
     public void baoCaoThangTuDong() {
+        if (!tuDongThang) return;
         String ky = YearMonth.from(LocalDate.now(dongHo)).minusMonths(1).toString();
         guiBaoCaoChoQuanLy(ky, soSanh("THANG", ky));
     }
 
+    /** Email TỰ ĐỘNG ĐẦU NĂM: 00:10 ngày 1/1 (Giờ Việt Nam) gửi báo cáo toàn bộ năm vừa kết thúc. */
+    @Scheduled(cron = "${app.thong-ke.cron-bao-cao-nam:0 10 0 1 1 *}", zone = "Asia/Ho_Chi_Minh")
+    public void baoCaoNamTuDong() {
+        if (!tuDongNam) return;
+        String ky = String.valueOf(LocalDate.now(dongHo).getYear() - 1);
+        guiBaoCaoChoQuanLy(ky, soSanh("NAM", ky));
+    }
+
     private void guiBaoCaoChoQuanLy(String ky, Map<String, Object> d) {
+        Set<String> daGui = new HashSet<>();
+        if (emailTuDong != null && !emailTuDong.isBlank() && emailTuDong.contains("@")) {
+            try {
+                guiThu(emailTuDong.trim(), d);
+                daGui.add(emailTuDong.trim().toLowerCase(Locale.ROOT));
+            } catch (Exception e) {
+                log.error("Không gửi được báo cáo tự động {} tới {}: {}", ky, emailTuDong, e.getMessage());
+            }
+        }
         for (NhanVien nv : nhanVienRepo.findByTrangThaiOrderByHoTenAsc(NhanVien.HOAT_DONG)) {
             boolean ql = nv.getVaiTro() != null && VaiTro.TEN_QUAN_LY.equalsIgnoreCase(String.valueOf(nv.getVaiTro().getTenVaiTro()).trim());
             if (!ql || nv.getEmail() == null || !nv.getEmail().contains("@")) continue;
+            String em = nv.getEmail().trim();
+            if (!daGui.add(em.toLowerCase(Locale.ROOT))) continue;
             try {
-                guiThu(nv.getEmail().trim(), d);
+                guiThu(em, d);
             } catch (Exception e) {
-                log.error("Không gửi được báo cáo {} tới {}: {}", ky, nv.getEmail(), e.getMessage());
+                log.error("Không gửi được báo cáo {} tới {}: {}", ky, em, e.getMessage());
             }
         }
     }
@@ -533,7 +739,11 @@ public class ThongKeSoSanhService {
         Map<String, Object> ck = (Map<String, Object>) d.get("cungKyNamTruoc");
         List<String> phanTich = (List<String>) d.get("phanTich");
         String nhanKy = String.valueOf(ky.get("nhan"));
-        String tieuDe = "[FootStyle] Báo cáo phân tích & so sánh doanh thu " + nhanKy;
+        String tieuDeTuyChon = (String) d.get("tieuDeTuyChon");
+        String tieuDe = (tieuDeTuyChon != null && !tieuDeTuyChon.isBlank())
+                ? tieuDeTuyChon
+                : "[FootStyle] Báo cáo phân tích & so sánh doanh thu " + nhanKy;
+        String ghiChuNguoiGui = (String) d.get("ghiChuNguoiGui");
 
         List<BieuDoPng.Cot> xu = new ArrayList<>();
         for (Map<String, Object> p : (List<Map<String, Object>>) d.get("xuHuong")) {
@@ -555,6 +765,12 @@ public class ThongKeSoSanhService {
                 .append(". Doanh thu không gồm phí giao hàng; thực tế = đơn đã hoàn thành, dự kiến = mọi đơn chưa hủy.</p>");
 
         StringBuilder chu = new StringBuilder("Báo cáo phân tích & so sánh " + nhanKy + "\n\n");
+        if (ghiChuNguoiGui != null && !ghiChuNguoiGui.isBlank()) {
+            html.append("<div style=\"background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #d97706;padding:12px 16px;border-radius:8px;margin-bottom:14px\">")
+                    .append("<b style=\"color:#b45309;display:block;margin-bottom:4px\">Ghi chú &amp; Đề xuất từ người gửi:</b>")
+                    .append("<div style=\"line-height:1.5;color:#334155\">").append(esc(ghiChuNguoiGui)).append("</div></div>");
+            chu.append("GHI CHÚ TỪ NGƯỜI GỬI:\n").append(ghiChuNguoiGui).append("\n\n");
+        }
         if (phanTich != null && !phanTich.isEmpty()) {
             html.append("<div style=\"background:#f8fafc;border:1px solid #dbeafe;border-left:4px solid #0977ec;padding:12px 16px;border-radius:8px;margin-bottom:16px\">")
                     .append("<b style=\"color:#0977ec;display:block;margin-bottom:6px\">Nhận xét &amp; Phân tích tổng hợp:</b>")
