@@ -496,59 +496,6 @@ function quickAddToCart(item, event) {
     </section>
 
     <div class="vnb-container">
-      <!-- 2. 4 KHỐI CAM KẾT DỊCH VỤ -->
-      <section class="mb-5">
-        <div class="row g-3">
-          <div class="col-lg-3 col-sm-6">
-            <div class="vnb-service-box">
-              <div class="vnb-service-icon-wrap">
-                <i class="bi bi-truck"></i>
-              </div>
-              <div>
-                <div class="vnb-service-title">Vận chuyển <span class="highlight">TOÀN QUỐC</span></div>
-                <div class="vnb-service-desc">Miễn phí giao hàng từ 500.000₫</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-3 col-sm-6">
-            <div class="vnb-service-box">
-              <div class="vnb-service-icon-wrap">
-                <i class="bi bi-patch-check-fill"></i>
-              </div>
-              <div>
-                <div class="vnb-service-title">Bảo đảm <span class="highlight">CHÍNH HÃNG</span></div>
-                <div class="vnb-service-desc">Cam kết 100% chính hãng, đền x10 nếu giả</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-3 col-sm-6">
-            <div class="vnb-service-box">
-              <div class="vnb-service-icon-wrap">
-                <i class="bi bi-credit-card-2-front-fill"></i>
-              </div>
-              <div>
-                <div class="vnb-service-title">Tiến hành <span class="highlight">THANH TOÁN</span></div>
-                <div class="vnb-service-desc">COD tận nơi hoặc VietQR Banking</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-3 col-sm-6">
-            <div class="vnb-service-box">
-              <div class="vnb-service-icon-wrap">
-                <i class="bi bi-arrow-repeat"></i>
-              </div>
-              <div>
-                <div class="vnb-service-title">Đổi sản phẩm <span class="highlight">MỚI</span></div>
-                <div class="vnb-service-desc">Lỗi 1 đổi 1 nhanh chóng trong 7 ngày</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <!-- 3. FLASH SALE - GIỜ VÀNG GIÁ SỐC (Có đồng hồ đếm ngược trực tiếp) -->
       <section class="mb-5 flash-sale-box p-3 p-md-4 rounded-4 text-white position-relative shadow">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 border-bottom border-light border-opacity-25 pb-3">

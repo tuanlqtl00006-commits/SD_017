@@ -41,6 +41,20 @@ const form = ref({
 // Sổ địa chỉ đã lưu của khách đang đăng nhập (tự điền địa chỉ mặc định)
 const savedAddresses = ref([])
 const selectedAddressId = ref(null)
+const luuVaoSo = ref(false)
+// Chọn "Nhập địa chỉ mới" thì xóa trắng phần địa chỉ để khách nhập nhanh ngay tại đây
+function onChonDiaChi() {
+  if (selectedAddressId.value === null) {
+    form.value.tinhThanh = ''
+    form.value.quanHuyen = ''
+    form.value.phuongXa = ''
+    form.value.diaChiCuThe = ''
+    luuVaoSo.value = true
+    return
+  }
+  luuVaoSo.value = false
+  applySavedAddress()
+}
 
 function applySavedAddress() {
   const a = savedAddresses.value.find((x) => x.id === selectedAddressId.value)
@@ -65,6 +79,7 @@ onMounted(async () => {
   form.value.email = u.email || ''
   try {
     savedAddresses.value = (await khachDiaChiService.getAll()) || []
+    if (savedAddresses.value.length === 0) luuVaoSo.value = true
     const macDinh = savedAddresses.value.find((a) => a.laDiaChiMacDinh) || savedAddresses.value[0]
     if (macDinh) {
       selectedAddressId.value = macDinh.id
@@ -142,6 +157,22 @@ async function handleOrderSubmit() {
   }
 
   const maDonHang = ketQua.maHoaDon
+
+  // Khách nhập địa chỉ mới và tick "lưu": thêm luôn vào sổ địa chỉ (lỗi lưu không ảnh hưởng đơn đã đặt)
+  if (luuVaoSo.value && selectedAddressId.value === null && form.value.tinhThanh && form.value.phuongXa) {
+    try {
+      await khachDiaChiService.create({
+        tenNguoiNhan: form.value.hoTen.trim(),
+        sdtNguoiNhan: form.value.sdt.trim(),
+        tinhThanhPho: form.value.tinhThanh,
+        phuongXa: form.value.phuongXa,
+        diaChiCuThe: form.value.diaChiCuThe.trim(),
+        laDiaChiMacDinh: savedAddresses.value.length === 0,
+      })
+    } catch {
+      // bỏ qua
+    }
+  }
 
   const fullAddress = [form.value.diaChiCuThe, form.value.phuongXa, form.value.quanHuyen, form.value.tinhThanh]
     .filter((x) => x && String(x).trim())
@@ -257,7 +288,35 @@ async function handleOrderSubmit() {
               <i class="bi bi-geo-alt-fill text-primary"></i> 2. Địa chỉ nhận hàng
             </h5>
 
+            <div v-if="savedAddresses.length > 0" class="dc-list mb-3">
+              <label
+                v-for="a in savedAddresses"
+                :key="a.id"
+                class="dc-card"
+                :class="{ active: selectedAddressId === a.id }"
+              >
+                <input type="radio" class="dc-radio" :value="a.id" v-model="selectedAddressId" @change="onChonDiaChi" />
+                <span class="dc-icon"><i class="bi bi-house-door-fill"></i></span>
+                <span class="dc-body">
+                  <span class="dc-name">
+                    {{ a.tenNguoiNhan }}
+                    <span v-if="a.sdtNguoiNhan" class="dc-phone">{{ a.sdtNguoiNhan }}</span>
+                    <span v-if="a.laDiaChiMacDinh" class="dc-badge">Mặc định</span>
+                  </span>
+                  <span class="dc-addr">{{ [a.diaChiCuThe, a.phuongXa, a.quanHuyen, a.tinhThanhPho].filter(Boolean).join(', ') }}</span>
+                </span>
+                <i v-if="selectedAddressId === a.id" class="bi bi-check-circle-fill dc-check"></i>
+              </label>
+
+              <label class="dc-card dc-new" :class="{ active: selectedAddressId === null }">
+                <input type="radio" class="dc-radio" :value="null" v-model="selectedAddressId" @change="onChonDiaChi" />
+                <span class="dc-icon"><i class="bi bi-plus-lg"></i></span>
+                <span class="dc-body"><span class="dc-name">Thêm địa chỉ mới</span><span class="dc-addr">Nhập nhanh địa chỉ giao hàng khác</span></span>
+                <i v-if="selectedAddressId === null" class="bi bi-check-circle-fill dc-check"></i>
+              </label>
+            </div>
             <div class="row g-3">
+              <template v-if="savedAddresses.length === 0 || selectedAddressId === null">
               <DiaChiHanhChinhSelect
                 v-model:tinh-thanh="form.tinhThanh"
                 v-model:phuong-xa="form.phuongXa"
@@ -276,6 +335,14 @@ async function handleOrderSubmit() {
                 />
                 <div v-if="errors.diaChiCuThe" class="invalid-feedback">{{ errors.diaChiCuThe }}</div>
               </div>
+
+              <div class="col-12">
+                <div class="form-check">
+                  <input id="ck-luu-so" v-model="luuVaoSo" type="checkbox" class="form-check-input" />
+                  <label class="form-check-label small" for="ck-luu-so">Lưu địa chỉ này vào sổ địa chỉ cho lần mua sau</label>
+                </div>
+              </div>
+              </template>
 
               <div class="col-12">
                 <label class="form-label small fw-semibold">Ghi chú giao hàng</label>
@@ -400,6 +467,53 @@ async function handleOrderSubmit() {
 </template>
 
 <style scoped>
+.dc-list { display: grid; gap: 10px; }
+.dc-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.dc-card:hover { border-color: #93c5fd; }
+.dc-card.active {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+}
+.dc-radio { position: absolute; opacity: 0; pointer-events: none; }
+.dc-icon {
+  flex: 0 0 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #e0ecff;
+  color: #1d4ed8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+.dc-card.active .dc-icon { background: #1d4ed8; color: #fff; }
+.dc-new { border-style: dashed; }
+.dc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dc-name { font-weight: 700; font-size: 0.92rem; color: #0f172a; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.dc-phone { font-weight: 500; color: #64748b; font-size: 0.85rem; }
+.dc-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #dbeafe;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+.dc-addr { font-size: 0.85rem; color: #64748b; }
+.dc-check { color: #1d4ed8; font-size: 1.25rem; }
+
 .co-title {
   margin: 0 0 1rem;
   padding-bottom: 0.8rem;

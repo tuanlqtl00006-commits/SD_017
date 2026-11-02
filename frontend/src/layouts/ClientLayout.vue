@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../stores/cart'
 import { useAuth } from '../composables/useAuth'
@@ -69,7 +69,79 @@ const menuCategories = computed(() => {
   }))
 })
 
+// ===== Gợi ý tìm kiếm =====
+const showSuggest = ref(false)
+const activeSuggest = ref(-1)
+const allProducts = ref([])
+let productsLoaded = false
+
+function boDau(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+}
+
+async function taiSanPhamChoGoiY() {
+  if (productsLoaded) return
+  productsLoaded = true
+  try {
+    allProducts.value = (await cuaHangService.getDanhSachSanPham()) || []
+  } catch {
+    productsLoaded = false
+  }
+}
+
+const suggestions = computed(() => {
+  const kw = boDau(searchQuery.value).trim()
+  if (!kw) return []
+  const words = kw.split(/\s+/)
+  return allProducts.value
+    .filter((sp) => {
+      const hay = boDau(`${sp.ten} ${sp.brandName} ${sp.tenDanhMuc} ${sp.ma}`)
+      return words.every((w) => hay.includes(w))
+    })
+    .sort((a, b) => Number(boDau(b.ten).startsWith(kw)) - Number(boDau(a.ten).startsWith(kw)))
+    .slice(0, 6)
+})
+
+watch(searchQuery, () => {
+  activeSuggest.value = -1
+  showSuggest.value = !!searchQuery.value.trim()
+  taiSanPhamChoGoiY()
+})
+
+function moGoiY() {
+  taiSanPhamChoGoiY()
+  if (searchQuery.value.trim()) showSuggest.value = true
+}
+
+function dongGoiY() {
+  showSuggest.value = false
+}
+
+function chonGoiY(sp) {
+  showSuggest.value = false
+  searchQuery.value = ''
+  router.push(`/shop/san-pham/${sp.id}`)
+}
+
+function diChuyenGoiY(step) {
+  const n = suggestions.value.length
+  if (!n) return
+  showSuggest.value = true
+  activeSuggest.value = ((activeSuggest.value + 1 + step + (n + 1)) % (n + 1)) - 1
+}
+
 function handleSearch() {
+  const chon = suggestions.value[activeSuggest.value]
+  if (showSuggest.value && chon) {
+    chonGoiY(chon)
+    return
+  }
+  showSuggest.value = false
   if (searchQuery.value.trim()) {
     router.push({ path: '/shop/san-pham', query: { search: searchQuery.value.trim() } })
   } else {
@@ -80,188 +152,103 @@ function handleSearch() {
 
 <template>
   <div class="client-app">
-    <!-- Top Header theo chuẩn giao diện mẫu -->
-    <header class="vnb-top-header">
-      <div class="vnb-container d-flex align-items-center justify-content-between gap-3 flex-nowrap">
-        <!-- Logo -->
-        <RouterLink to="/shop" class="d-flex align-items-center text-decoration-none flex-shrink-0">
-          <img src="/logo.png" alt="FootStyle" class="vnb-logo" />
-        </RouterLink>
+    <!-- Thanh điều hướng một hàng: menu trái, tìm kiếm + giỏ hàng + đăng nhập phải -->
+    <div class="vnb-nav-wrapper">
+      <nav class="vnb-header-bar">
+        <div class="vnb-container d-flex align-items-center gap-4 flex-nowrap">
+          <RouterLink to="/shop" class="d-flex align-items-center text-decoration-none flex-shrink-0">
+            <img src="/logo.png" alt="FootStyle" class="vnb-logo" />
+          </RouterLink>
 
-        <!-- Hotline -->
-        <a href="tel:0977508430" class="vnb-hotline text-decoration-none flex-shrink-0 d-none d-lg-flex" title="Bấm để gọi hotline hỗ trợ">
-          <i class="bi bi-headset text-primary" style="font-size:1.2rem;"></i>
-          <span>HOTLINE: <strong class="vnb-hotline-num text-primary">0977508430</strong></span>
-        </a>
+          <ul class="vnb-nav-list flex-grow-1">
+            <li class="vnb-nav-item">
+              <RouterLink to="/shop" class="vnb-nav-link">TRANG CHỦ</RouterLink>
+            </li>
+            <li
+              class="vnb-nav-item vnb-mega-trigger"
+              @mouseenter="showProductDropdown = true"
+              @mouseleave="showProductDropdown = false"
+            >
+              <RouterLink to="/shop/san-pham" class="vnb-nav-link" :class="{ 'vnb-no-active': dangXemKhuyenMai }">SẢN PHẨM</RouterLink>
+            </li>
+            <li class="vnb-nav-item">
+              <RouterLink
+                :to="{ path: '/shop/san-pham', query: { khuyenMai: '1' } }"
+                class="vnb-nav-link"
+                :class="{ 'vnb-no-active': !dangXemKhuyenMai }"
+              >ƯU ĐÃI</RouterLink>
+            </li>
+            <li class="vnb-nav-item">
+              <RouterLink :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }" class="vnb-nav-link vnb-no-active">ĐƠN HÀNG</RouterLink>
+            </li>
+            <li class="vnb-nav-item">
+              <RouterLink to="/shop/tra-cuu" class="vnb-nav-link">TRA CỨU</RouterLink>
+            </li>
+            <li class="vnb-nav-item">
+              <RouterLink to="/shop/lien-he" class="vnb-nav-link">LIÊN HỆ</RouterLink>
+            </li>
+          </ul>
 
-        <!-- Hệ thống cửa hàng -->
-        <RouterLink to="/shop/lien-he" class="vnb-store-loc flex-shrink-0 d-none d-md-flex text-decoration-none" title="Xem danh sách chi nhánh FootStyle">
-          <i class="bi bi-geo-alt-fill text-primary" style="font-size:1.1rem;"></i>
-          <span>HỆ THỐNG CỬA HÀNG</span>
-        </RouterLink>
+          <div class="vnb-search-wrap flex-shrink-0">
+            <form @submit.prevent="handleSearch">
+              <input
+                type="text"
+                v-model="searchQuery"
+                class="form-control vnb-search-input"
+                placeholder="Tìm kiếm sản phẩm..."
+                autocomplete="off"
+                @focus="moGoiY"
+                @blur="dongGoiY"
+                @keydown.down.prevent="diChuyenGoiY(1)"
+                @keydown.up.prevent="diChuyenGoiY(-1)"
+                @keydown.esc="dongGoiY"
+              />
+              <button type="submit" class="vnb-search-icon-btn" aria-label="Tìm kiếm">
+                <i class="bi bi-search"></i>
+              </button>
+            </form>
 
-        <!-- Ô Tìm kiếm -->
-        <div class="vnb-search-wrap flex-grow-1" style="min-width:160px; max-width:340px;">
-          <form @submit.prevent="handleSearch">
-            <input
-              type="text"
-              v-model="searchQuery"
-              class="form-control vnb-search-input"
-              placeholder="Tìm sản phẩm..."
-            />
-            <button type="submit" class="vnb-search-icon-btn" aria-label="Tìm kiếm">
-              <i class="bi bi-search"></i>
-            </button>
-          </form>
-        </div>
-
-        <!-- 3 Nút tròn: Tra cứu, Tài khoản, Giỏ hàng -->
-        <div class="d-flex align-items-center gap-3 flex-shrink-0">
-          <!-- Tra cứu đơn hàng & bảo hành: Hover hiện popover -->
-          <div
-            class="vnb-lookup-dropdown-wrap"
-            @mouseenter="showLookupDropdown = true"
-            @mouseleave="showLookupDropdown = false"
-          >
-            <RouterLink to="/shop/tra-cuu" class="vnb-header-action" title="Tra cứu đơn hàng & bảo hành">
-              <div class="vnb-action-icon-circle">
-                <i class="bi bi-binoculars-fill"></i>
+            <!-- Gợi ý sản phẩm khi gõ -->
+            <div v-if="showSuggest && searchQuery.trim()" class="vnb-suggest">
+              <template v-if="suggestions.length">
+                <div class="vnb-suggest-head">Sản phẩm gợi ý</div>
+                <a
+                  v-for="(sp, idx) in suggestions"
+                  :key="sp.id"
+                  :href="`/shop/san-pham/${sp.id}`"
+                  class="vnb-suggest-item"
+                  :class="{ active: idx === activeSuggest }"
+                  @mousedown.prevent="chonGoiY(sp)"
+                  @click.prevent
+                  @mouseenter="activeSuggest = idx"
+                >
+                  <img v-if="sp.anhChinh" :src="sp.anhChinh" :alt="sp.ten" class="vnb-suggest-img" />
+                  <span v-else class="vnb-suggest-img vnb-suggest-noimg"><i class="bi bi-image"></i></span>
+                  <span class="vnb-suggest-info">
+                    <span class="vnb-suggest-name">{{ sp.ten }}</span>
+                    <span class="vnb-suggest-meta">{{ [sp.brandName, sp.tenDanhMuc].filter(Boolean).join(' · ') }}</span>
+                  </span>
+                  <span v-if="sp.minPrice > 0" class="vnb-suggest-price">{{ formatMoney(sp.minPrice) }}</span>
+                </a>
+                <a href="#" class="vnb-suggest-all" @mousedown.prevent="activeSuggest = -1; handleSearch()" @click.prevent>
+                  Xem tất cả kết quả cho "{{ searchQuery.trim() }}" <i class="bi bi-arrow-right"></i>
+                </a>
+              </template>
+              <div v-else class="vnb-suggest-empty">
+                <i class="bi bi-search"></i> Không tìm thấy sản phẩm phù hợp
               </div>
-              <span>TRA CỨU</span>
-            </RouterLink>
+            </div>          </div>
 
-            <!-- Popup menu khi di chuột -->
-            <div
-              class="vnb-lookup-popover"
-              :class="{ show: showLookupDropdown }"
-              @mouseenter="showLookupDropdown = true"
-              @mouseleave="showLookupDropdown = false"
-            >
-              <div class="vnb-lookup-arrow"></div>
-              <ul class="vnb-lookup-menu">
-                <li>
-                  <RouterLink
-                    to="/shop/tra-cuu"
-                    class="vnb-lookup-item"
-                    @click="showLookupDropdown = false"
-                  >
-                    Kiểm tra đơn hàng
-                  </RouterLink>
-                </li>
-                <li>
-                  <RouterLink
-                    :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }"
-                    class="vnb-lookup-item"
-                    @click="showLookupDropdown = false"
-                  >
-                    Kiểm tra bảo hành
-                  </RouterLink>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Tài khoản cá nhân: Hover hiện popover Đăng nhập / Đăng ký -->
+          <!-- Giỏ hàng -->
           <div
-            class="vnb-lookup-dropdown-wrap"
-            @mouseenter="showAccountDropdown = true"
-            @mouseleave="showAccountDropdown = false"
-          >
-            <RouterLink
-              :to="auth.daDangNhap.value ? '/shop/tai-khoan' : '/shop/dang-nhap'"
-              class="vnb-header-action"
-              title="Tài khoản cá nhân"
-            >
-              <div class="vnb-action-icon-circle">
-                <i class="bi bi-person-fill"></i>
-              </div>
-              <span>TÀI KHOẢN</span>
-            </RouterLink>
-
-            <!-- Popup menu khi di chuột -->
-            <div
-              class="vnb-lookup-popover"
-              :class="{ show: showAccountDropdown }"
-              @mouseenter="showAccountDropdown = true"
-              @mouseleave="showAccountDropdown = false"
-            >
-              <div class="vnb-lookup-arrow"></div>
-              <ul class="vnb-lookup-menu">
-                <template v-if="!auth.daDangNhap.value">
-                  <li>
-                    <RouterLink
-                      to="/shop/dang-nhap"
-                      class="vnb-lookup-item d-flex align-items-center gap-2"
-                      @click="showAccountDropdown = false"
-                    >
-                      <i class="bi bi-box-arrow-in-right fs-5 text-secondary"></i>
-                      <span>Đăng nhập</span>
-                    </RouterLink>
-                  </li>
-                  <li>
-                    <RouterLink
-                      :to="{ path: '/shop/dang-nhap', query: { tab: 'dang-ky' } }"
-                      class="vnb-lookup-item d-flex align-items-center gap-2"
-                      @click="showAccountDropdown = false"
-                    >
-                      <i class="bi bi-person-plus fs-5 text-secondary"></i>
-                      <span>Đăng ký</span>
-                    </RouterLink>
-                  </li>
-                </template>
-                <template v-else>
-                  <li>
-                    <RouterLink
-                      to="/shop/tai-khoan"
-                      class="vnb-lookup-item d-flex align-items-center gap-2"
-                      @click="showAccountDropdown = false"
-                    >
-                      <i class="bi bi-person-circle fs-5 text-primary"></i>
-                      <span>{{ auth.trangThai.nguoiDung?.hoTen || 'Tài khoản của tôi' }}</span>
-                    </RouterLink>
-                  </li>
-                  <li>
-                    <RouterLink
-                      :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }"
-                      class="vnb-lookup-item d-flex align-items-center gap-2"
-                      @click="showAccountDropdown = false"
-                    >
-                      <i class="bi bi-bag-check fs-5 text-success"></i>
-                      <span>Đơn hàng của tôi</span>
-                    </RouterLink>
-                  </li>
-                  <li>
-                    <a
-                      href="#"
-                      class="vnb-lookup-item d-flex align-items-center gap-2 text-danger"
-                      @click.prevent="auth.dangXuat(); showAccountDropdown = false; router.push('/shop')"
-                    >
-                      <i class="bi bi-box-arrow-right fs-5"></i>
-                      <span>Đăng xuất</span>
-                    </a>
-                  </li>
-                </template>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Giỏ hàng: Hover hiện popover xem nhanh giỏ hàng -->
-          <div
-            class="vnb-lookup-dropdown-wrap"
+            class="vnb-lookup-dropdown-wrap flex-shrink-0"
             @mouseenter="showCartDropdown = true"
             @mouseleave="showCartDropdown = false"
           >
-            <RouterLink to="/shop/gio-hang" class="vnb-header-action" title="Xem giỏ hàng">
-              <div class="vnb-action-icon-circle">
-                <i class="bi bi-cart3"></i>
-                <span v-if="cartStore.totalCount > 0" class="vnb-cart-badge">
-                  {{ cartStore.totalCount }}
-                </span>
-                <span v-else class="vnb-cart-badge">0</span>
-              </div>
-              <span>GIỎ HÀNG</span>
+            <RouterLink to="/shop/gio-hang" class="vnb-cart-link" title="Xem giỏ hàng">
+              <i class="bi bi-cart3"></i>
+              <span class="vnb-cart-badge">{{ cartStore.totalCount }}</span>
             </RouterLink>
-
             <!-- Popup giỏ hàng khi di chuột -->
             <div
               class="vnb-cart-popover"
@@ -332,115 +319,92 @@ function handleSearch() {
                 </RouterLink>
               </div>
             </div>
+
           </div>
-        </div>
-      </div>
-    </header>
 
-    <!-- Navigation Bar màu xanh dương FootStyle -->
-    <div class="vnb-nav-wrapper">
-      <nav class="vnb-nav-bar">
-        <div class="vnb-container d-flex justify-content-between align-items-center">
-          <ul class="vnb-nav-list flex-grow-1" style="justify-content: space-evenly;">
-            <!-- 1. TRANG CHỦ -->
-            <li class="vnb-nav-item">
-              <RouterLink to="/shop" class="vnb-nav-link">TRANG CHỦ</RouterLink>
-            </li>
-
-            <!-- 2. SẢN PHẨM (MEGA MENU) -->
-            <li
-              class="vnb-nav-item vnb-mega-trigger"
-              @mouseenter="showProductDropdown = true"
-              @mouseleave="showProductDropdown = false"
+          <!-- Đăng nhập / tài khoản -->
+          <div
+            class="vnb-lookup-dropdown-wrap flex-shrink-0"
+            @mouseenter="showAccountDropdown = true"
+            @mouseleave="showAccountDropdown = false"
+          >
+            <RouterLink
+              :to="auth.daDangNhap.value ? '/shop/tai-khoan' : '/shop/dang-nhap'"
+              class="vnb-login-pill"
+              title="Tài khoản cá nhân"
             >
-              <RouterLink
-                to="/shop/san-pham"
-                class="vnb-nav-link d-flex align-items-center gap-1"
-                :class="{ 'vnb-no-active': dangXemKhuyenMai }"
-              >
-                SẢN PHẨM <i class="bi" :class="showProductDropdown ? 'bi-chevron-up' : 'bi-chevron-down'" style="font-size: 0.7rem;"></i>
-              </RouterLink>
-            </li>
-
-            <!-- 3. SALE OFF -->
-            <li class="vnb-nav-item">
-              <RouterLink
-                :to="{ path: '/shop/san-pham', query: { khuyenMai: '1' } }"
-                class="vnb-nav-link"
-                :class="{ 'vnb-no-active': !dangXemKhuyenMai }"
-              >
-                SALE OFF
-              </RouterLink>
-            </li>
-
-            <!-- 4. TIN TỨC -->
-            <li class="vnb-nav-item">
-              <RouterLink to="/shop/tin-tuc" class="vnb-nav-link">TIN TỨC</RouterLink>
-            </li>
-
-            <!-- 5. TUYỂN DỤNG -->
-            <li class="vnb-nav-item">
-              <RouterLink to="/shop/tuyen-dung" class="vnb-nav-link">TUYỂN DỤNG</RouterLink>
-            </li>
-
-            <!-- 6. CHÍNH SÁCH NHƯỢNG QUYỀN -->
-            <li class="vnb-nav-item">
-              <RouterLink to="/shop/nhuong-quyen" class="vnb-nav-link">CHÍNH SÁCH NHƯỢNG QUYỀN</RouterLink>
-            </li>
-
-            <!-- 7. HƯỚNG DẪN (DROPDOWN) -->
-            <li
-              class="vnb-nav-item dropdown"
-              @mouseenter="showGuideDropdown = true"
-              @mouseleave="showGuideDropdown = false"
+              <span class="vnb-login-avatar">
+                <template v-if="auth.daDangNhap.value">{{ (auth.trangThai.nguoiDung?.hoTen || 'T').trim().charAt(0).toUpperCase() }}</template>
+                <i v-else class="bi bi-person-fill"></i>
+              </span>
+              <span class="vnb-login-text">{{ auth.daDangNhap.value ? (auth.trangThai.nguoiDung?.hoTen || 'TÀI KHOẢN') : 'ĐĂNG NHẬP' }}</span>
+            </RouterLink>
+            <!-- Popup menu khi di chuột -->
+            <div
+              class="vnb-lookup-popover"
+              :class="{ show: showAccountDropdown }"
+              @mouseenter="showAccountDropdown = true"
+              @mouseleave="showAccountDropdown = false"
             >
-              <RouterLink to="/shop/huong-dan" class="vnb-nav-link d-flex align-items-center gap-1">
-                HƯỚNG DẪN <i class="bi" :class="showGuideDropdown ? 'bi-chevron-up' : 'bi-chevron-down'" style="font-size: 0.7rem;"></i>
-              </RouterLink>
-              <ul class="vnb-guide-menu" :class="{ show: showGuideDropdown }">
-                <li class="vnb-guide-menu-li">
-                  <RouterLink to="/shop/huong-dan" class="vnb-guide-link fw-bold" @click="showGuideDropdown = false">
-                    Trung tâm hướng dẫn
-                  </RouterLink>
-                </li>
-                <li class="vnb-guide-menu-li">
-                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'thanh-toan' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
-                    Hướng dẫn thanh toán
-                  </RouterLink>
-                </li>
-                <li class="vnb-guide-menu-li">
-                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
-                    Hướng dẫn mua hàng
-                  </RouterLink>
-                </li>
-                <li class="vnb-guide-menu-li">
-                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'chon-vot' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
-                    Hướng dẫn chọn vợt cầu lông
-                  </RouterLink>
-                </li>
-                <li class="vnb-guide-menu-li">
-                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'size-giay' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
-                    Bảng quy đổi size giày
-                  </RouterLink>
-                </li>
-                <li class="vnb-guide-menu-li">
-                  <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="vnb-guide-link" @click="showGuideDropdown = false">
-                    Chính sách bảo hành & đổi trả
-                  </RouterLink>
-                </li>
+              <div class="vnb-lookup-arrow"></div>
+              <ul class="vnb-lookup-menu">
+                <template v-if="!auth.daDangNhap.value">
+                  <li>
+                    <RouterLink
+                      to="/shop/dang-nhap"
+                      class="vnb-lookup-item d-flex align-items-center gap-2"
+                      @click="showAccountDropdown = false"
+                    >
+                      <i class="bi bi-box-arrow-in-right fs-5 text-secondary"></i>
+                      <span>Đăng nhập</span>
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <RouterLink
+                      :to="{ path: '/shop/dang-nhap', query: { tab: 'dang-ky' } }"
+                      class="vnb-lookup-item d-flex align-items-center gap-2"
+                      @click="showAccountDropdown = false"
+                    >
+                      <i class="bi bi-person-plus fs-5 text-secondary"></i>
+                      <span>Đăng ký</span>
+                    </RouterLink>
+                  </li>
+                </template>
+                <template v-else>
+                  <li>
+                    <RouterLink
+                      to="/shop/tai-khoan"
+                      class="vnb-lookup-item d-flex align-items-center gap-2"
+                      @click="showAccountDropdown = false"
+                    >
+                      <i class="bi bi-person-circle fs-5 text-primary"></i>
+                      <span>{{ auth.trangThai.nguoiDung?.hoTen || 'Tài khoản của tôi' }}</span>
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <RouterLink
+                      :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }"
+                      class="vnb-lookup-item d-flex align-items-center gap-2"
+                      @click="showAccountDropdown = false"
+                    >
+                      <i class="bi bi-bag-check fs-5 text-success"></i>
+                      <span>Đơn hàng của tôi</span>
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <a
+                      href="#"
+                      class="vnb-lookup-item d-flex align-items-center gap-2 text-danger"
+                      @click.prevent="auth.dangXuat(); showAccountDropdown = false; router.push('/shop')"
+                    >
+                      <i class="bi bi-box-arrow-right fs-5"></i>
+                      <span>Đăng xuất</span>
+                    </a>
+                  </li>
+                </template>
               </ul>
-            </li>
-
-            <!-- 8. GIỚI THIỆU -->
-            <li class="vnb-nav-item">
-              <RouterLink to="/shop/gioi-thieu" class="vnb-nav-link">GIỚI THIỆU</RouterLink>
-            </li>
-
-            <!-- 9. LIÊN HỆ -->
-            <li class="vnb-nav-item">
-              <RouterLink to="/shop/lien-he" class="vnb-nav-link">LIÊN HỆ</RouterLink>
-            </li>
-          </ul>
+            </div>
+          </div>
         </div>
       </nav>
 

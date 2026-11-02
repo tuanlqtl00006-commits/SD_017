@@ -1143,3 +1143,207 @@
   border-bottom: 1px solid #f1f5f9;
   letter-spacing: 0.3px;
 }
+
+/* ==========================================================================
+   HEADER MỘT HÀNG (menu trái, tìm kiếm + giỏ hàng + đăng nhập phải)
+   ========================================================================== */
+.vnb-header-bar {
+  position: relative;
+  background: #ffffff;
+  padding: 6px 0;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+}
+
+.vnb-header-bar .vnb-logo {
+  height: 92px;
+  max-width: 300px;
+}
+
+.vnb-header-bar .vnb-nav-list {
+  gap: 6px;
+  justify-content: center;
+}
+
+.vnb-header-bar .vnb-nav-link {
+  color: #3b5470;
+  font-size: calc(0.9rem + 2px);
+  font-weight: 700;
+  padding: 12px 18px;
+  letter-spacing: 0.4px;
+  background: transparent;
+}
+
+.vnb-header-bar .vnb-nav-link:hover {
+  background: transparent;
+  color: #1d4ed8;
+}
+
+.vnb-header-bar .vnb-nav-link.router-link-exact-active,
+.vnb-header-bar .vnb-nav-link:not([href="/shop"]):not([href="/shop/"]).router-link-active {
+  color: #1d4ed8;
+}
+
+.vnb-header-bar .vnb-nav-link.router-link-exact-active::after,
+.vnb-header-bar .vnb-nav-link:not([href="/shop"]):not([href="/shop/"]).router-link-active::after {
+  background-color: #1d4ed8;
+  bottom: 2px;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+}
+
+.vnb-header-bar .vnb-search-wrap {
+  width: 220px;
+  max-width: 220px;
+}
+
+.vnb-header-bar .vnb-search-input {
+  height: 40px;
+  border: 1px solid #e2e8f0;
+  background: #f1f5f9;
+  font-size: calc(0.82rem + 2px);
+  box-shadow: none;
+}
+
+.vnb-header-bar .vnb-search-input:focus {
+  border-color: #93c5fd;
+  background: #ffffff;
+}
+
+.vnb-header-bar .vnb-search-icon-btn {
+  color: #64748b;
+  font-size: calc(0.95rem + 2px);
+}
+
+.vnb-cart-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  color: #3b5470;
+  font-size: calc(1.3rem + 2px);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.vnb-cart-link:hover {
+  color: #1d4ed8;
+}
+
+.vnb-cart-link .vnb-cart-badge {
+  top: 0;
+  right: -2px;
+  background-color: #f59e0b;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  box-shadow: none;
+}
+
+.vnb-login-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px 4px 4px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #3b5470;
+  text-decoration: none;
+  font-size: calc(0.78rem + 2px);
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.vnb-login-pill:hover {
+  background: #e0ecff;
+  color: #1d4ed8;
+}
+
+.vnb-login-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  color: #ffffff;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.vnb-login-text {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* GỢI Ý TÌM KIẾM */
+.vnb-header-bar .vnb-search-wrap { position: relative; }
+.vnb-suggest {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 380px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+  overflow: hidden;
+  z-index: 1300;
+}
+.vnb-suggest-head {
+  padding: 10px 16px 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.vnb-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  text-decoration: none;
+  color: #0f172a;
+}
+.vnb-suggest-item.active,
+.vnb-suggest-item:hover { background: #eff6ff; color: #0f172a; }
+.vnb-suggest-img {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+.vnb-suggest-noimg { display: flex; align-items: center; justify-content: center; color: #cbd5e1; }
+.vnb-suggest-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.vnb-suggest-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.vnb-suggest-meta { font-size: 0.74rem; color: #94a3b8; }
+.vnb-suggest-price { flex-shrink: 0; font-size: 0.86rem; font-weight: 800; color: #dc2626; }
+.vnb-suggest-all {
+  display: block;
+  padding: 11px 16px;
+  border-top: 1px solid #eef2f7;
+  background: #f8fafc;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+.vnb-suggest-all:hover { background: #eff6ff; }
+.vnb-suggest-empty { padding: 18px 16px; text-align: center; font-size: 0.86rem; color: #64748b; }
