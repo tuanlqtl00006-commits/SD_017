@@ -43,8 +43,8 @@ api.interceptors.response.use(
         error.code = data?.code ?? null;
         error.loiTheoTruong = data?.loiTheoTruong && typeof data.loiTheoTruong === 'object' ? data.loiTheoTruong : null;
         error.chiTiet = data?.chiTiet ?? null;
-        // Hết phiên: về trang đăng nhập (trừ chính lời gọi đăng nhập - sai mật khẩu cũng là 401 nhưng phải báo ngay trên form)
-        if (error.status === 401 && MA_HET_PHIEN.includes(error.code) && !String(error.config?.url ?? '').includes('/auth/dang-nhap')) {
+        // Hết phiên: chỉ báo khi người dùng đang có token đăng nhập mà bị 401 (khách vãng lai chưa đăng nhập thì không gọi dangXuat làm mất giỏ hàng)
+        if (error.status === 401 && MA_HET_PHIEN.includes(error.code) && layToken() && !String(error.config?.url ?? '').includes('/auth/dang-nhap')) {
             baoHetPhien(error.message);
         }
         if (error.status === 409 && error.code === 'CHUA_NHAN_CA') baoChuaVaoCa();

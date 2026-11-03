@@ -261,16 +261,14 @@ const FALLBACK_BRANDS = [
 onMounted(async () => {
   try {
     loading.value = true
-    const [spRes, btRes, dggRes, dmThRes] = await Promise.all([
+    const [spRes, dmThRes] = await Promise.all([
       cuaHangService.getDanhSachSanPham(),
-      bienTheService.getAll().catch(() => []),
-      dotGiamGiaService.getApDungHomNay().catch(() => ({})),
       cuaHangService.getDanhMucVaThuongHieu().catch(() => null),
     ])
 
     products.value = spRes || []
-    variants.value = btRes || []
-    discounts.value = dggRes || {}
+    variants.value = []
+    discounts.value = {}
 
     if (dmThRes?.danhMuc?.length > 0) {
       categories.value = [

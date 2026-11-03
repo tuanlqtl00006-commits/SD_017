@@ -441,4 +441,31 @@ class MailServiceTest {
         };
         assertNull(MailService.docLogo(hong));
     }
+
+    @Test
+    void guiXacNhanDatHang_coLogoCidVaBangChiTietSanPham() throws Exception {
+        GhiThu sender = new GhiThu();
+        MailService s = dich(new NoiCap(sender));
+        s.guiXacNhanDatHang(
+                "Minh",
+                "minh@gmail.com",
+                "HD37",
+                List.of("Yonex Astrox 99 Pro (Đen) x1 - 3.559.000 ₫", "Lining Axforce 80 (Đen) x5 - 12.000.000 ₫"),
+                "15.559.000 ₫",
+                "Phường An Thắng, Thành phố Đà Nẵng",
+                "Thanh toán khi nhận hàng (COD)"
+        );
+        doiDuThu(sender, 1);
+        assertEquals(1, sender.daGui.size());
+        MimeMessage m = docLai(sender.daGui.get(0));
+        assertTrue(m.getSubject().contains("HD37"));
+        List<Part> phan = cacPhanLa(m);
+        String html = (String) phanLoai(phan, "text/html").getContent();
+        assertTrue(html.contains("cid:logo"));
+        assertTrue(html.contains("HD37"));
+        assertTrue(html.contains("Yonex Astrox 99 Pro"));
+        assertTrue(html.contains("Phân loại: Đen"));
+        assertTrue(html.contains("15.559.000 ₫"));
+        assertNotNull(phanLoai(phan, "image/jpeg"));
+    }
 }

@@ -3,6 +3,7 @@
 // Dùng chung giỏ hàng (cart store) với trang giỏ hàng, nên mã áp ở đâu cũng được giữ lại.
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import api from '../../services/api'
+import { layPhien } from '../../services/phien'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
 
@@ -15,29 +16,37 @@ const dangKiemTra = ref(false)
 const moDanhSach = ref(false)
 const comboRef = ref(null)
 
+function laKhachDangNhap() {
+  return layPhien()?.nguoiDung?.vaiTro === 'KHACH_HANG'
+}
+
 async function taiDanhSachMa() {
   const tong = Math.round(cartStore.subTotal)
-  try {
-    danhSachMa.value = (await api.get('/khach/phieu-giam-gia', { params: { tongTien: tong } })).data
-  } catch {
-    // Chưa đăng nhập khách hàng: chỉ xem được các mã công khai
+  if (laKhachDangNhap()) {
     try {
-      const ds = (await api.get('/cua-hang/phieu-giam-gia', { params: { tongTien: tong } })).data
-      danhSachMa.value = ds.map((p) => ({
-        ma: p.maPhieu,
-        ten: p.tenPhieu,
-        caNhan: false,
-        loaiGiam: p.hinhThucGiam,
-        giaTriGiam: p.giaTriGiam,
-        giamToiDa: p.giamToiDa,
-        donToiThieu: p.donToiThieu,
-        dungDuoc: p.duDieuKien,
-        lyDo: p.duDieuKien ? null : `Cần mua thêm ${formatMoney(p.donToiThieu - tong)}`,
-        soTienGiam: p.duDieuKien ? tinhGiamTam(p, tong) : 0,
-      }))
+      danhSachMa.value = (await api.get('/khach/phieu-giam-gia', { params: { tongTien: tong } })).data
+      return
     } catch {
-      danhSachMa.value = []
+      // rơi xuống lấy mã công khai bên dưới
     }
+  }
+  // Chưa đăng nhập khách hàng: chỉ xem được các mã công khai
+  try {
+    const ds = (await api.get('/cua-hang/phieu-giam-gia', { params: { tongTien: tong } })).data
+    danhSachMa.value = ds.map((p) => ({
+      ma: p.maPhieu,
+      ten: p.tenPhieu,
+      caNhan: false,
+      loaiGiam: p.hinhThucGiam,
+      giaTriGiam: p.giaTriGiam,
+      giamToiDa: p.giamToiDa,
+      donToiThieu: p.donToiThieu,
+      dungDuoc: p.duDieuKien,
+      lyDo: p.duDieuKien ? null : `Cần mua thêm ${formatMoney(p.donToiThieu - tong)}`,
+      soTienGiam: p.duDieuKien ? tinhGiamTam(p, tong) : 0,
+    }))
+  } catch {
+    danhSachMa.value = []
   }
 }
 
@@ -98,17 +107,38 @@ async function apDung(maNhap) {
   }
   dangKiemTra.value = true
   try {
-    const found = (
-      await api.get(`/khach/phieu-giam-gia/${encodeURIComponent(code)}`, { params: { tongTien: Math.round(cartStore.subTotal) } })
-    ).data
-    cartStore.setVoucher({
-      ma: found.ma,
-      ten: found.ten,
-      loaiGiam: found.loaiGiam,
-      giaTriGiam: found.giaTriGiam,
-      giamToiDa: found.giamToiDa,
-      donToiThieu: found.donToiThieu,
-    })
+    if (laKhachDangNhap()) {
+      const found = (
+        await api.get(`/khach/phieu-giam-gia/${encodeURIComponent(code)}`, { params: { tongTien: Math.round(cartStore.subTotal) } })
+      ).data
+      cartStore.setVoucher({
+        ma: found.ma,
+        ten: found.ten,
+        loaiGiam: found.loaiGiam,
+        giaTriGiam: found.giaTriGiam,
+        giamToiDa: found.giamToiDa,
+        donToiThieu: found.donToiThieu,
+      })
+    } else {
+      await taiDanhSachMa()
+      const found = danhSachMa.value.find((v) => String(v.ma || '').toUpperCase() === code)
+      if (!found) {
+        loi.value = 'Mã giảm giá không tồn tại hoặc cần đăng nhập để sử dụng.'
+        return
+      }
+      if (!found.dungDuoc) {
+        loi.value = found.lyDo || 'Đơn hàng chưa đủ điều kiện áp dụng mã này.'
+        return
+      }
+      cartStore.setVoucher({
+        ma: found.ma,
+        ten: found.ten,
+        loaiGiam: found.loaiGiam,
+        giaTriGiam: found.giaTriGiam,
+        giamToiDa: found.giamToiDa,
+        donToiThieu: found.donToiThieu,
+      })
+    }
     voucherCode.value = ''
     moDanhSach.value = false
   } catch (err) {

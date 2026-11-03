@@ -54,14 +54,14 @@ function goToCheckout() {
             </div>
 
             <div class="table-responsive">
-              <table class="table align-middle">
+              <table class="table align-middle mb-0" style="min-width: 0;">
                 <thead class="table-light small text-muted text-uppercase">
                   <tr>
-                    <th style="min-width: 250px;">Sản phẩm</th>
-                    <th class="text-center">Đơn giá</th>
-                    <th class="text-center" style="width: 130px;">Số lượng</th>
-                    <th class="text-end">Tạm tính</th>
-                    <th style="width: 40px;"></th>
+                    <th>Sản phẩm</th>
+                    <th class="text-center text-nowrap">Đơn giá</th>
+                    <th class="text-center text-nowrap" style="width: 120px;">Số lượng</th>
+                    <th class="text-end text-nowrap">Tạm tính</th>
+                    <th style="width: 36px;"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -89,7 +89,7 @@ function goToCheckout() {
                         </div>
                       </div>
                     </td>
-                    <td class="text-center fw-semibold text-danger">
+                    <td class="text-center fw-semibold text-danger text-nowrap">
                       {{ formatMoney(item.giaBan) }}
                     </td>
                     <td class="text-center">
@@ -118,14 +118,14 @@ function goToCheckout() {
                         </button>
                       </div>
                     </td>
-                    <td class="text-end fw-bold text-dark">
+                    <td class="text-end fw-bold text-dark text-nowrap">
                       {{ formatMoney(item.giaBan * item.soLuong) }}
                     </td>
                     <td class="text-end">
                       <button
                         type="button"
-                        class="btn btn-link text-secondary p-0"
                         @click="cartStore.removeItem(item.bienTheId)"
+                        class="btn btn-link text-secondary p-0"
                         title="Xóa món này"
                       >
                         <i class="bi bi-x-lg"></i>

@@ -219,8 +219,8 @@ onMounted(async () => {
     loading.value = true
     const [spRes, btRes, dggRes, dmThRes] = await Promise.all([
       cuaHangService.getDanhSachSanPham().catch(() => []),
-      bienTheService.getAll().catch(() => []),
-      dotGiamGiaService.getApDungHomNay().catch(() => ({})),
+      Promise.resolve([]),
+      Promise.resolve({}),
       cuaHangService.getDanhMucVaThuongHieu().catch(() => null),
     ])
 

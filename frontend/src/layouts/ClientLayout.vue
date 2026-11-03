@@ -17,6 +17,22 @@ const auth = useAuth()
 
 const searchQuery = ref('')
 const showProductDropdown = ref(false)
+let megaMenuTimer = null
+
+function openProductDropdown() {
+  if (megaMenuTimer) {
+    clearTimeout(megaMenuTimer)
+    megaMenuTimer = null
+  }
+  showProductDropdown.value = true
+}
+
+function closeProductDropdown() {
+  if (megaMenuTimer) clearTimeout(megaMenuTimer)
+  megaMenuTimer = setTimeout(() => {
+    showProductDropdown.value = false
+  }, 150)
+}
 const showGuideDropdown = ref(false)
 const showLookupDropdown = ref(false)
 const showAccountDropdown = ref(false)
@@ -166,8 +182,8 @@ function handleSearch() {
             </li>
             <li
               class="vnb-nav-item vnb-mega-trigger"
-              @mouseenter="showProductDropdown = true"
-              @mouseleave="showProductDropdown = false"
+              @mouseenter="openProductDropdown"
+              @mouseleave="closeProductDropdown"
             >
               <RouterLink to="/shop/san-pham" class="vnb-nav-link" :class="{ 'vnb-no-active': dangXemKhuyenMai }">SẢN PHẨM</RouterLink>
             </li>
@@ -412,8 +428,8 @@ function handleSearch() {
       <div
         class="vnb-mega-menu"
         v-show="showProductDropdown"
-        @mouseenter="showProductDropdown = true"
-        @mouseleave="showProductDropdown = false"
+        @mouseenter="openProductDropdown"
+        @mouseleave="closeProductDropdown"
       >
         <div class="vnb-container">
           <div class="vnb-mega-grid">

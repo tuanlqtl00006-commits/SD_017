@@ -9,6 +9,7 @@ import VanChuyenLogo from './common/VanChuyenLogo.vue'
 import SuaDonModal from './hoaDon/SuaDonModal.vue'
 import { useToast } from '../composables/useToast'
 import { useAuth } from '../composables/useAuth'
+import { useChatChuaDoc } from '../composables/useChatChuaDoc'
 import {
   BUOC_DA_HUY, BUOC_GIAO_THAT_BAI, LUONG_GIAO_HANG, LUONG_TAI_QUAY, TT,
   laTrangThaiCuoi, nutChuyen, trangThaiOf,
@@ -243,6 +244,7 @@ async function xacNhanDoiTrangThai() {
     })
     setData(res.data)
     action.open = false
+    useChatChuaDoc().taiLai()
     const ma = hd.value.maHoaDon
     if (action.trangThai === TT.DA_HUY) toast.success(`Đã hủy hóa đơn ${ma}`)
     else if (action.trangThai === TT.GIAO_THAT_BAI) toast.success(`Hóa đơn ${ma}: đã ghi nhận giao hàng thất bại`)

@@ -16,13 +16,9 @@ const router = useRouter()
 const cartStore = useCartStore()
 const auth = useAuth()
 
-// Phải đăng nhập tài khoản khách hàng mới được thanh toán
+// Khách vãng lai (chưa đăng nhập/đăng ký) vẫn được mua hàng; đăng nhập chỉ để tự điền thông tin và dùng sổ địa chỉ
 function laKhachDaDangNhap() {
   return auth.trangThai.nguoiDung?.vaiTro === 'KHACH_HANG'
-}
-
-function chuyenDenDangNhap() {
-  router.replace({ path: '/shop/dang-nhap', query: { quayLai: route.fullPath } })
 }
 
 // Thông tin khách hàng
@@ -69,10 +65,7 @@ function applySavedAddress() {
 
 onMounted(async () => {
   await auth.khoiTao()
-  if (!laKhachDaDangNhap()) {
-    chuyenDenDangNhap()
-    return
-  }
+  if (!laKhachDaDangNhap()) return
   const u = auth.trangThai.nguoiDung
   form.value.hoTen = u.hoTen || ''
   form.value.sdt = u.sdt || ''
@@ -116,10 +109,6 @@ function validate() {
 }
 
 async function handleOrderSubmit() {
-  if (!laKhachDaDangNhap()) {
-    chuyenDenDangNhap()
-    return
-  }
   if (cartStore.items.length === 0) {
     router.push('/shop/san-pham')
     return
@@ -144,7 +133,7 @@ async function handleOrderSubmit() {
         tinhThanh: form.value.tinhThanh,
         phuongXa: form.value.phuongXa,
         ghiChu: form.value.ghiChu.trim(),
-        idKhachHang: auth.trangThai.nguoiDung?.id ?? null,
+        idKhachHang: laKhachDaDangNhap() ? (auth.trangThai.nguoiDung?.id ?? null) : null,
         idPhuongThucThanhToan: form.value.phuongThucThanhToan === 'QR' ? 2 : 1,
         maPhieuGiamGia: cartStore.appliedVoucher ? cartStore.appliedVoucher.ma : null,
         chiTiet: cartStore.items.map((i) => ({ idSanPhamChiTiet: i.bienTheId, soLuong: i.soLuong })),
@@ -159,7 +148,7 @@ async function handleOrderSubmit() {
   const maDonHang = ketQua.maHoaDon
 
   // Khách nhập địa chỉ mới và tick "lưu": thêm luôn vào sổ địa chỉ (lỗi lưu không ảnh hưởng đơn đã đặt)
-  if (luuVaoSo.value && selectedAddressId.value === null && form.value.tinhThanh && form.value.phuongXa) {
+  if (laKhachDaDangNhap() && luuVaoSo.value && selectedAddressId.value === null && form.value.tinhThanh && form.value.phuongXa) {
     try {
       await khachDiaChiService.create({
         tenNguoiNhan: form.value.hoTen.trim(),
@@ -202,6 +191,13 @@ async function handleOrderSubmit() {
   const existingOrders = docDonHang()
   existingOrders.unshift(newOrder)
   ghiDonHang(existingOrders)
+
+  // Báo cho tab quản trị của shop (nếu đang mở cùng trình duyệt) biết có đơn hàng mới ngay lập tức
+  try {
+    localStorage.setItem('footstyle_new_order_ping', JSON.stringify({ t: Date.now(), ma: maDonHang }))
+  } catch {
+    // bỏ qua
+  }
 
   // Xóa giỏ hàng
   cartStore.clearCart()
@@ -401,7 +397,7 @@ async function handleOrderSubmit() {
 
         <!-- Cột Tóm Tắt Đơn Hàng -->
         <div class="col-lg-5">
-          <div class="card border-0 shadow-sm rounded-4 p-4 sticky-top" style="top: 20px;">
+          <div class="card border-0 shadow-sm rounded-4 p-4 sticky-top" style="top: 20px; z-index: 10;">
             <h5 class="co-title">Đơn hàng ({{ cartStore.totalCount }} sản phẩm)</h5>
 
             <!-- Danh sách sản phẩm -->

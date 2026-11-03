@@ -23,35 +23,25 @@ const STEPS = [
   { ten: 'Hoàn thành', icon: 'bi-check2-circle' },
 ]
 
-// Tra cứu đơn là của TÀI KHOẢN đang đăng nhập: chưa đăng nhập / vừa đăng xuất thì rời khỏi trang
+// Khách đã đăng nhập hay khách vãng lai đều tra cứu được đơn hàng bằng mã đơn
 function laKhachDangNhap() {
   return auth.trangThai.nguoiDung?.vaiTro === 'KHACH_HANG'
 }
 
-function roiKhoiTrang() {
-  orderResult.value = null
-  router.replace({ path: '/shop/dang-nhap', query: { quayLai: route.fullPath } })
-}
-
 onMounted(async () => {
   await auth.khoiTao()
-  if (!laKhachDangNhap()) {
-    roiKhoiTrang()
-    return
-  }
   if (route.query.ma) {
     orderCode.value = String(route.query.ma).trim()
     handleSearch()
   }
 })
 
-// Đăng xuất khi đang xem: xóa kết quả ngay
+// Đăng xuất khi đang xem: xóa kết quả đang mở của tài khoản cũ
 watch(
   () => auth.trangThai.nguoiDung,
-  (nd) => {
-    if (!nd) {
+  (nd, cu) => {
+    if (cu && !nd) {
       orderResult.value = null
-      router.replace('/shop')
     }
   },
 )
@@ -103,7 +93,9 @@ async function handleSearch() {
 
 // Tra cứu từ backend (đường dẫn công khai của cửa hàng online, khách không cần đăng nhập)
 async function traCuuBackend(code) {
-  const data = (await api.get(`/khach/don-hang/${encodeURIComponent(code)}`)).data
+  const data = laKhachDangNhap()
+    ? (await api.get(`/khach/don-hang/${encodeURIComponent(code)}`).catch(() => api.get('/cua-hang/tra-cuu', { params: { maHoaDon: code } }))).data
+    : (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: code } })).data
   const { buoc, huy, hoanTat } = buocTuBackend(data.trangThai)
   return {
     maHoaDon: data.maHoaDon || code,

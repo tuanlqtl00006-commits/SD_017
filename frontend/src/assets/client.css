@@ -347,10 +347,10 @@
   overflow: visible;
 }
 
-/* Wrapper bao nav + mega menu để position: relative */
+/* Wrapper bao nav + mega menu để position: relative (z-index > 1020 của Bootstrap .sticky-top để popup giỏ hàng không bị che) */
 .vnb-nav-wrapper {
   position: relative;
-  z-index: 1000;
+  z-index: 1100;
   overflow: visible;
 }
 
@@ -478,9 +478,19 @@
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
   border-top: 3px solid #1d4ed8;
   border-bottom: 1px solid #e5e7eb;
-  z-index: 1050;
+  z-index: 1200;
   padding: 24px 0 32px 0;
   animation: vnbFadeDown 0.15s ease-out;
+}
+
+/* Cầu nối vô hình từ chữ SẢN PHẨM xuống bảng danh mục để di chuột xuống không bị tắt bảng */
+.vnb-mega-menu::before {
+  content: "";
+  position: absolute;
+  top: -36px;
+  left: 0;
+  right: 0;
+  height: 36px;
 }
 
 @keyframes vnbFadeDown {

@@ -540,7 +540,9 @@ public class CuaHangService {
                 SanPhamChiTiet bt = ct.getSanPhamChiTiet();
                 String tenSp = bt != null && bt.getSanPham() != null ? bt.getSanPham().getTenSanPham() : "Sản phẩm";
                 String mau = bt != null && bt.getMauSac() != null ? " (" + bt.getMauSac().getTen() + ")" : "";
-                mon.add(tenSp + mau + " x" + ct.getSoLuong());
+                long tienMon = ct.getThanhTien() != null ? ct.getThanhTien().longValue() : 0L;
+                String giaChu = tienMon > 0 ? " - " + String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", tienMon) : "";
+                mon.add(tenSp + mau + " x" + ct.getSoLuong() + giaChu);
             }
             mailService.guiXacNhanDatHang(hd.getHoTenNguoiNhan(), email, maHd, mon,
                     String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", thanhTien),

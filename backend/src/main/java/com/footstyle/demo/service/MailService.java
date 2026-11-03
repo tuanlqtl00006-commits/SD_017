@@ -54,6 +54,7 @@ public class MailService {
     private final String username;
     private final String password;
     private final String tenCuaHang;
+    private final String linkCuaHang;
     private final PhieuMailNoiDung noiDung;
     private final NhanVienMailNoiDung noiDungNhanVien;
     // Nội dung ảnh logo đọc sẵn vào bộ nhớ lúc khởi động; null: không tìm thấy / không đọc được -> thư không có logo
@@ -79,9 +80,11 @@ public class MailService {
         this.username = username == null ? "" : username.trim();
         this.password = password == null ? "" : password.trim();
         this.from = (from == null || from.isBlank()) ? this.username : from;
-        this.tenCuaHang = tenCuaHang;
-        this.noiDung = new PhieuMailNoiDung(tenCuaHang, linkCuaHang);
-        this.noiDungNhanVien = new NhanVienMailNoiDung(tenCuaHang, linkCuaHang);
+        this.tenCuaHang = (tenCuaHang == null || tenCuaHang.isBlank()) ? "FootStyle" : tenCuaHang.trim();
+        this.linkCuaHang = (linkCuaHang != null && (linkCuaHang.trim().startsWith("http://") || linkCuaHang.trim().startsWith("https://")))
+                ? linkCuaHang.trim() : null;
+        this.noiDung = new PhieuMailNoiDung(this.tenCuaHang, linkCuaHang);
+        this.noiDungNhanVien = new NhanVienMailNoiDung(this.tenCuaHang, linkCuaHang);
         this.logo = docLogo(new ClassPathResource(DUONG_DAN_LOGO));
     }
 
@@ -285,14 +288,27 @@ public class MailService {
                 + "Mật khẩu tạm: " + matKhauTam + "\n\n"
                 + "Hãy đăng nhập bằng mật khẩu này rồi đổi mật khẩu ngay (menu tài khoản > Đổi mật khẩu).\n"
                 + "Nếu không phải bạn yêu cầu, hãy báo cho quản lý cửa hàng.\n";
-        String html = "<div style=\"font-family:Arial,sans-serif;font-size:15px;color:#18242f\">"
-                + "<p>Xin chào <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(ten) + "</b>,</p>"
-                + "<p>Bạn (hoặc ai đó) vừa yêu cầu cấp lại mật khẩu tài khoản " + org.springframework.web.util.HtmlUtils.htmlEscape(tenCuaHang) + ".</p>"
-                + "<p>Mật khẩu tạm: <b style=\"font-size:18px;letter-spacing:1px\">" + org.springframework.web.util.HtmlUtils.htmlEscape(matKhauTam) + "</b></p>"
-                + "<p>Hãy đăng nhập bằng mật khẩu này rồi <b>đổi mật khẩu ngay</b> (menu tài khoản &gt; Đổi mật khẩu).</p>"
-                + "<p style=\"color:#7b8794\">Nếu không phải bạn yêu cầu, hãy báo cho quản lý cửa hàng.</p></div>";
-        final ThuMail thu = new ThuMail(tieuDe, banChu, html);
-        luongGui.submit(() -> gui(den, thu, null));
+        final byte[] logoGan = logo;
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        String ten2 = esc(tenCuaHang);
+        StringBuilder h = new StringBuilder(3500);
+        moKhungHtml(h, tieuDe, "Mật khẩu tạm tài khoản " + tenCuaHang, "#0977ec", logoGan != null, "KHÔI PHỤC MẬT KHẨU", "Mật khẩu tạm để đăng nhập");
+        h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
+                .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>")
+                .append("Bạn vừa yêu cầu cấp lại mật khẩu đăng nhập hệ thống <strong>").append(ten2).append("</strong>. Vui lòng sử dụng mật khẩu tạm bên dưới:</td></tr>\n");
+        h.append("<tr><td style=\"padding:12px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#eff6ff;border:2px dashed #0977ec;border-radius:12px;\">")
+                .append("<tr><td align=\"center\" style=\"padding:20px 16px;\">")
+                .append("<div style=\"").append(phong).append("font-size:12px;color:#6b7280;letter-spacing:1px;font-weight:bold;\">MẬT KHẨU TẠM</div>")
+                .append("<div style=\"font-family:'Courier New',Courier,monospace;font-size:28px;line-height:36px;letter-spacing:3px;font-weight:bold;color:#0977ec;margin-top:6px;\">")
+                .append(esc(matKhauTam)).append("</div>")
+                .append("</td></tr></table></td></tr>\n");
+        h.append("<tr><td style=\"padding:8px 28px 16px 28px;").append(phong).append("font-size:14px;line-height:22px;color:#374151;\">")
+                .append("Hãy đăng nhập bằng mật khẩu này rồi <strong>đổi mật khẩu ngay</strong> tại mục <em>Tài khoản &gt; Đổi mật khẩu</em>.<br>")
+                .append("<span style=\"color:#b45309;\">Nếu không phải bạn yêu cầu, vui lòng báo ngay cho quản lý cửa hàng.</span></td></tr>\n");
+        dongKhungHtml(h);
+        final ThuMail thu = new ThuMail(tieuDe, banChu, h.toString());
+        luongGui.submit(() -> gui(den, thu, logoGan));
     }
 
     /**
@@ -454,31 +470,120 @@ public class MailService {
         if (email == null || !email.contains("@")) return;
         final String den = email.trim();
         String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
-        String tieuDe = "[" + tenCuaHang + "] Đặt hàng thành công - đơn " + maHoaDon;
+        String ma = String.valueOf(maHoaDon);
+        String tieuDe = "[" + tenCuaHang + "] Đặt hàng thành công - đơn " + ma;
         StringBuilder chu = new StringBuilder("Xin chào " + ten + ",\n\n"
-                + "Cảm ơn bạn đã đặt hàng tại " + tenCuaHang + ". Đơn " + maHoaDon + " đã được ghi nhận và đang chờ cửa hàng xác nhận.\n\n");
-        StringBuilder ds = new StringBuilder();
-        for (String m : monHang) {
-            chu.append("- ").append(m).append('\n');
-            ds.append("<li>").append(org.springframework.web.util.HtmlUtils.htmlEscape(m)).append("</li>");
+                + "Cảm ơn bạn đã đặt hàng tại " + tenCuaHang + ". Đơn " + ma + " đã được ghi nhận và đang chờ cửa hàng xác nhận.\n\n");
+        if (monHang != null) {
+            for (String m : monHang) {
+                chu.append("- ").append(m).append('\n');
+            }
         }
         chu.append("\nTổng thanh toán: ").append(thanhTienChu)
                 .append("\nGiao tới: ").append(diaChi)
                 .append("\nThanh toán: ").append(cachThanhToan)
-                .append("\n\nBạn có thể tra cứu đơn hàng bằng mã ").append(maHoaDon).append(" trên website.\n");
-        String html = "<div style=\"font-family:Arial,sans-serif;font-size:15px;color:#18242f\">"
-                + "<p>Xin chào <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(ten) + "</b>,</p>"
-                + "<p>Cảm ơn bạn đã đặt hàng tại " + org.springframework.web.util.HtmlUtils.htmlEscape(tenCuaHang) + ". Đơn <b>"
-                + org.springframework.web.util.HtmlUtils.htmlEscape(String.valueOf(maHoaDon))
-                + "</b> đã được ghi nhận và đang chờ cửa hàng xác nhận.</p>"
-                + "<ul>" + ds + "</ul>"
-                + "<p>Tổng thanh toán: <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(thanhTienChu) + "</b><br>"
-                + "Giao tới: " + org.springframework.web.util.HtmlUtils.htmlEscape(diaChi) + "<br>"
-                + "Thanh toán: " + org.springframework.web.util.HtmlUtils.htmlEscape(cachThanhToan) + "</p>"
-                + "<p>Bạn có thể tra cứu đơn hàng bằng mã <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(String.valueOf(maHoaDon))
-                + "</b> trên website.</p></div>";
-        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), html);
-        luongGui.submit(() -> gui(den, thu, null));
+                .append("\n\nBạn có thể tra cứu đơn hàng bằng mã ").append(ma).append(" trên website.\n");
+
+        final byte[] logoGan = logo;
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        StringBuilder h = new StringBuilder(6500);
+        moKhungHtml(h, tieuDe,
+                "Đơn hàng " + ma + " đã được ghi nhận — Tổng thanh toán: " + thanhTienChu,
+                "#16a34a", logoGan != null, "ĐẶT HÀNG THÀNH CÔNG", "Cảm ơn bạn đã đặt hàng!");
+
+        // Lời chào + giới thiệu
+        h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
+                .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>")
+                .append("Đơn hàng của bạn tại <strong>").append(esc(tenCuaHang))
+                .append("</strong> đã được tiếp nhận thành công và đang chờ cửa hàng xác nhận.</td></tr>\n");
+
+        // Thẻ mã đơn hàng nổi bật
+        h.append("<tr><td style=\"padding:12px 28px 8px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#f0fdf4;border:2px dashed #16a34a;border-radius:12px;\">")
+                .append("<tr><td align=\"center\" style=\"padding:18px 16px;\">")
+                .append("<div style=\"").append(phong).append("font-size:12px;color:#6b7280;letter-spacing:1px;font-weight:bold;\">MÃ ĐƠN HÀNG</div>")
+                .append("<div style=\"font-family:'Courier New',Courier,monospace;font-size:28px;line-height:36px;letter-spacing:3px;font-weight:bold;color:#15803d;margin-top:4px;\">")
+                .append(esc(ma)).append("</div>")
+                .append("</td></tr></table></td></tr>\n");
+
+        // Bảng chi tiết sản phẩm
+        boolean coCotGia = false;
+        java.util.List<String[]> dsMonTach = new java.util.ArrayList<>();
+        if (monHang != null) {
+            for (String m : monHang) {
+                String[] tach = tachMonHang(m);
+                if (!tach[3].isEmpty()) coCotGia = true;
+                dsMonTach.add(tach);
+            }
+        }
+
+        h.append("<tr><td style=\"padding:14px 28px 6px 28px;\">")
+                .append("<div style=\"").append(phong).append("font-size:13px;font-weight:bold;color:#111827;letter-spacing:0.5px;margin-bottom:8px;\">CHI TIẾT SẢN PHẨM</div>")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;\">")
+                .append("<tr style=\"background-color:#f9fafb;\">")
+                .append("<td style=\"padding:10px 14px;border-bottom:1px solid #e5e7eb;").append(phong).append("font-size:12px;font-weight:bold;color:#6b7280;\">SẢN PHẨM</td>")
+                .append("<td align=\"center\" style=\"padding:10px 10px;border-bottom:1px solid #e5e7eb;white-space:nowrap;").append(phong).append("font-size:12px;font-weight:bold;color:#6b7280;\">SL</td>");
+        if (coCotGia) {
+            h.append("<td align=\"right\" style=\"padding:10px 14px;border-bottom:1px solid #e5e7eb;white-space:nowrap;").append(phong).append("font-size:12px;font-weight:bold;color:#6b7280;\">THÀNH TIỀN</td>");
+        }
+        h.append("</tr>\n");
+
+        for (int i = 0; i < dsMonTach.size(); i++) {
+            String[] t = dsMonTach.get(i);
+            String borderBottom = (i < dsMonTach.size() - 1) ? "border-bottom:1px solid #f3f4f6;" : "";
+            h.append("<tr>")
+                    .append("<td style=\"padding:12px 14px;").append(borderBottom).append(phong).append("font-size:14px;line-height:20px;color:#111827;\">")
+                    .append("<strong>").append(esc(t[0])).append("</strong>");
+            if (!t[1].isEmpty()) {
+                h.append("<div style=\"font-size:12px;color:#6b7280;margin-top:2px;\">Phân loại: ").append(esc(t[1])).append("</div>");
+            }
+            h.append("</td>")
+                    .append("<td align=\"center\" style=\"padding:12px 10px;white-space:nowrap;").append(borderBottom).append(phong).append("\">")
+                    .append("<span style=\"display:inline-block;background-color:#eff6ff;color:#1d4ed8;font-size:13px;font-weight:bold;padding:3px 10px;border-radius:999px;\">")
+                    .append(esc(t[2].isEmpty() ? "x1" : t[2])).append("</span></td>");
+            if (coCotGia) {
+                h.append("<td align=\"right\" style=\"padding:12px 14px;white-space:nowrap;").append(borderBottom).append(phong).append("font-size:14px;font-weight:bold;color:#111827;\">")
+                        .append(esc(t[3])).append("</td>");
+            }
+            h.append("</tr>\n");
+        }
+
+        // Dòng tổng thanh toán
+        h.append("<tr style=\"background-color:#f8fafc;\">")
+                .append("<td colspan=\"").append(coCotGia ? "2" : "1").append("\" style=\"padding:14px;border-top:2px solid #e5e7eb;").append(phong).append("font-size:15px;font-weight:bold;color:#111827;\">Tổng thanh toán</td>")
+                .append("<td align=\"right\" style=\"padding:14px;border-top:2px solid #e5e7eb;white-space:nowrap;").append(phong).append("font-size:18px;font-weight:bold;color:#dc2626;\">")
+                .append(esc(thanhTienChu)).append("</td></tr>")
+                .append("</table></td></tr>\n");
+
+        // Thông tin nhận hàng & thanh toán
+        h.append("<tr><td style=\"padding:12px 28px 8px 28px;\">")
+                .append("<div style=\"").append(phong).append("font-size:13px;font-weight:bold;color:#111827;letter-spacing:0.5px;margin-bottom:8px;\">THÔNG TIN GIAO NHẬN</div>")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;\">")
+                .append("<tr><td style=\"padding:14px 18px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;\">");
+        dongThongTinDon(h, "Người nhận", ten, true);
+        dongThongTinDon(h, "Địa chỉ giao tới", diaChi, false);
+        dongThongTinDon(h, "Phương thức thanh toán", cachThanhToan, false);
+        h.append("</table></td></tr></table></td></tr>\n");
+
+        // Hộp hướng dẫn tra cứu đơn hàng
+        h.append("<tr><td style=\"padding:12px 28px 8px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;\">")
+                .append("<tr><td style=\"padding:14px 18px;").append(phong).append("font-size:14px;line-height:22px;color:#1e3a8a;\">")
+                .append("Bạn có thể kiểm tra tiến độ đơn hàng bất cứ lúc nào tại mục <strong>Tra cứu đơn hàng</strong> trên website bằng mã đơn <strong>")
+                .append(esc(ma)).append("</strong>.")
+                .append("</td></tr></table></td></tr>\n");
+
+        if (linkCuaHang != null) {
+            h.append("<tr><td align=\"center\" style=\"padding:14px 28px 4px 28px;\">")
+                    .append("<a href=\"").append(esc(linkCuaHang)).append("\" target=\"_blank\" style=\"").append(phong)
+                    .append("display:inline-block;background-color:#16a34a;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;\">")
+                    .append("Tra cứu đơn hàng</a></td></tr>\n");
+        }
+
+        dongKhungHtml(h);
+        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
+        luongGui.submit(() -> gui(den, thu, logoGan));
     }
 
     /**
@@ -489,20 +594,120 @@ public class MailService {
         if (email == null || !email.contains("@")) return;
         final String den = email.trim();
         String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
-        String ly = lyDo == null ? "" : lyDo.trim();
-        String tieuDe = "[" + tenCuaHang + "] Đơn hàng " + maHoaDon + " đã bị hủy";
+        String ly = lyDo == null || lyDo.isBlank() ? "Cửa hàng không thể đáp ứng đơn hàng vào lúc này" : lyDo.trim();
+        String ma = String.valueOf(maHoaDon);
+        String tieuDe = "[" + tenCuaHang + "] Đơn hàng " + ma + " đã bị hủy";
         String banChu = "Xin chào " + ten + ",\n\n"
-                + "Rất tiếc, đơn hàng " + maHoaDon + " của bạn tại " + tenCuaHang + " đã bị hủy.\n"
+                + "Rất tiếc, đơn hàng " + ma + " của bạn tại " + tenCuaHang + " đã bị hủy.\n"
                 + "Lý do: " + ly + "\n\n"
                 + "Nếu bạn đã thanh toán trước, cửa hàng sẽ hoàn tiền lại cho bạn. Xin lỗi vì sự bất tiện này.\n";
-        String html = "<div style=\"font-family:Arial,sans-serif;font-size:15px;color:#18242f\">"
-                + "<p>Xin chào <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(ten) + "</b>,</p>"
-                + "<p>Rất tiếc, đơn hàng <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(String.valueOf(maHoaDon))
-                + "</b> của bạn tại " + org.springframework.web.util.HtmlUtils.htmlEscape(tenCuaHang) + " đã bị hủy.</p>"
-                + "<p>Lý do: " + org.springframework.web.util.HtmlUtils.htmlEscape(ly) + "</p>"
-                + "<p>Nếu bạn đã thanh toán trước, cửa hàng sẽ hoàn tiền lại cho bạn. Xin lỗi vì sự bất tiện này.</p></div>";
-        final ThuMail thu = new ThuMail(tieuDe, banChu, html);
-        luongGui.submit(() -> gui(den, thu, null));
+
+        final byte[] logoGan = logo;
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        StringBuilder h = new StringBuilder(4000);
+        moKhungHtml(h, tieuDe, "Đơn hàng " + ma + " tại " + tenCuaHang + " đã bị hủy", "#dc2626", logoGan != null, "ĐƠN HÀNG ĐÃ HỦY", "Thông báo hủy đơn hàng");
+        h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
+                .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>")
+                .append("Rất tiếc, đơn hàng <strong>").append(esc(ma)).append("</strong> của bạn tại <strong>")
+                .append(esc(tenCuaHang)).append("</strong> đã bị hủy.</td></tr>\n");
+        h.append("<tr><td style=\"padding:10px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#fef2f2;border:1.5px dashed #dc2626;border-radius:12px;\">")
+                .append("<tr><td style=\"padding:16px 20px;").append(phong).append("font-size:14px;line-height:22px;color:#991b1b;\">")
+                .append("<strong>Mã đơn hàng:</strong> ").append(esc(ma)).append("<br>")
+                .append("<strong>Lý do hủy:</strong> ").append(esc(ly))
+                .append("</td></tr></table></td></tr>\n");
+        h.append("<tr><td style=\"padding:8px 28px 12px 28px;").append(phong).append("font-size:14px;line-height:22px;color:#4b5563;\">")
+                .append("Nếu bạn đã thanh toán trước, cửa hàng sẽ liên hệ để hoàn tiền lại cho bạn. Rất mong bạn thông cảm vì sự bất tiện này.</td></tr>\n");
+        dongKhungHtml(h);
+
+        final ThuMail thu = new ThuMail(tieuDe, banChu, h.toString());
+        luongGui.submit(() -> gui(den, thu, logoGan));
+    }
+
+    /** Dựng phần mở đầu chuẩn cho thư HTML (dải màu nhấn, logo cửa hàng, nhãn trạng thái, tiêu đề lớn). */
+    private void moKhungHtml(StringBuilder h, String tieuDeTrang, String xemTruoc, String mauNhan,
+                             boolean coLogo, String nhanTrangThai, String tieuDeLon) {
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        String ten2 = esc(tenCuaHang);
+        h.append("<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n")
+                .append("<meta charset=\"UTF-8\">\n")
+                .append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
+                .append("<title>").append(esc(tieuDeTrang)).append("</title>\n</head>\n")
+                .append("<body style=\"margin:0;padding:0;background-color:#f3f4f6;\">\n")
+                .append("<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:#f3f4f6;font-size:1px;line-height:1px;\">")
+                .append(esc(xemTruoc)).append("</div>\n")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#f3f4f6;\">\n")
+                .append("<tr><td align=\"center\" style=\"padding:28px 12px;\">\n")
+                .append("<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;max-width:600px;background-color:#ffffff;border-radius:14px;border:1px solid #e5e7eb;\">\n")
+                .append("<tr><td style=\"background-color:").append(mauNhan)
+                .append(";height:6px;font-size:0;line-height:0;border-radius:14px 14px 0 0;\">&nbsp;</td></tr>\n")
+                .append("<tr><td align=\"center\" style=\"padding:24px 28px 6px 28px;\">");
+        if (coLogo) {
+            h.append("<img src=\"cid:").append(PhieuMailNoiDung.CID_LOGO).append("\" alt=\"").append(ten2)
+                    .append("\" width=\"145\" style=\"display:block;margin:0 auto;border:0;outline:none;width:145px;max-width:100%;height:auto;\">");
+        } else {
+            h.append("<div style=\"").append(phong).append("font-size:22px;font-weight:bold;color:#111827;\">").append(ten2).append("</div>");
+        }
+        h.append("</td></tr>\n")
+                .append("<tr><td align=\"center\" style=\"padding:14px 28px 0 28px;\">")
+                .append("<span style=\"").append(phong).append("display:inline-block;background-color:").append(mauNhan)
+                .append(";color:#ffffff;font-size:11px;font-weight:bold;letter-spacing:1px;padding:5px 14px;border-radius:999px;\">")
+                .append(esc(nhanTrangThai)).append("</span></td></tr>\n")
+                .append("<tr><td align=\"center\" style=\"padding:10px 28px 0 28px;\">")
+                .append("<h1 style=\"").append(phong).append("margin:0;font-size:23px;line-height:30px;color:#111827;\">")
+                .append(esc(tieuDeLon)).append("</h1></td></tr>\n");
+    }
+
+    /** Dựng phần chân thư và đóng bảng HTML. */
+    private void dongKhungHtml(StringBuilder h) {
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        h.append("<tr><td align=\"center\" style=\"padding:20px 28px 28px 28px;border-top:1px solid #f3f4f6;margin-top:12px;").append(phong)
+                .append("font-size:13px;line-height:20px;color:#6b7280;\">")
+                .append("Cảm ơn bạn đã tin tưởng và đồng hành cùng <strong>").append(esc(tenCuaHang)).append("</strong>.<br>")
+                .append("Đây là thư tự động, vui lòng không trả lời thư này.</td></tr>\n")
+                .append("</table>\n</td></tr>\n</table>\n</body>\n</html>\n");
+    }
+
+    private static void dongThongTinDon(StringBuilder h, String nhan, String giaTri, boolean dongDau) {
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        String padTop = dongDau ? "0" : "10px";
+        h.append("<tr>")
+                .append("<td valign=\"top\" style=\"padding:").append(padTop).append(" 12px 0 0;white-space:nowrap;").append(phong).append("font-size:14px;color:#6b7280;\">")
+                .append(esc(nhan)).append("</td>")
+                .append("<td valign=\"top\" align=\"right\" style=\"padding:").append(padTop).append(" 0 0 0;").append(phong).append("font-size:14px;font-weight:bold;color:#111827;\">")
+                .append(esc(giaTri)).append("</td></tr>\n");
+    }
+
+    /**
+     * Tách chuỗi món hàng (vd: "Yonex Astrox 99 Pro (Đen) x1 - 3.500.000 ₫") thành 4 phần:
+     * [0] Tên sản phẩm, [1] Phân loại (màu), [2] Số lượng ("x1"), [3] Thành tiền ("3.500.000 ₫" hoặc "").
+     */
+    static String[] tachMonHang(String raw) {
+        if (raw == null) return new String[] {"", "", "", ""};
+        String s = raw.trim();
+        String gia = "";
+        int idxGia = s.lastIndexOf(" - ");
+        if (idxGia > 0 && s.substring(idxGia + 3).contains("₫")) {
+            gia = s.substring(idxGia + 3).trim();
+            s = s.substring(0, idxGia).trim();
+        }
+        String sl = "";
+        int idxSl = s.lastIndexOf(" x");
+        if (idxSl > 0 && s.substring(idxSl + 2).matches("\\d+")) {
+            sl = "x" + s.substring(idxSl + 2);
+            s = s.substring(0, idxSl).trim();
+        }
+        String phanLoai = "";
+        if (s.endsWith(")") && s.contains(" (")) {
+            int idxMo = s.lastIndexOf(" (");
+            phanLoai = s.substring(idxMo + 2, s.length() - 1).trim();
+            s = s.substring(0, idxMo).trim();
+        }
+        return new String[] {s, phanLoai, sl, gia};
+    }
+
+    private static String esc(String s) {
+        return s == null ? "" : org.springframework.web.util.HtmlUtils.htmlEscape(s, "UTF-8");
     }
 
     /** Ghép thư HTML (kèm bản chữ) và logo gắn kiểu CID. logoGan = null: không gắn logo. */

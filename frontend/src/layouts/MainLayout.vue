@@ -8,11 +8,13 @@ import TroLyNoiBo from '../components/troLy/TroLyNoiBo.vue'
 import { THUOC_TINH_LIST } from '../constants/thuocTinh'
 import { useAuth } from '../composables/useAuth'
 import { useChatChuaDoc } from '../composables/useChatChuaDoc'
+import { formatMoney, formatNgayGio } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
 const chuaDoc = useChatChuaDoc()
+const donChoList = chuaDoc.donChoList
 
 // Breadcrumb trên header lấy từ meta của route (xem router/index.js)
 const pageTitle = computed(() => route.meta.title || '')
@@ -81,18 +83,42 @@ const menu = computed(() =>
     .filter((m) => m.roles.includes(role.value))
     .map((m) => (m.children ? { ...m, children: m.children.filter((c) => !c.roles || c.roles.includes(role.value)) } : m)),
 )
-const tongChuaDoc = computed(() => (chuaDoc.dem.hoTro || 0) + (chuaDoc.dem.noiBo || 0))
+const tongChuaDoc = computed(() => (chuaDoc.dem.donCho || 0) + (chuaDoc.dem.hoTro || 0) + (chuaDoc.dem.noiBo || 0))
 const nhanSo = (n) => (n > 99 ? '99+' : n)
-function moThongBao() {
-  router.push(chuaDoc.dem.hoTro > 0 ? '/ho-tro-truc-tuyen' : '/chat-noi-bo')
-}
 
-/* ----- Tài khoản (góc phải header) ----- */
+/* ----- Thông báo & Tài khoản (góc phải header) ----- */
+const moMenuThongBao = ref(false)
+const thongBaoRef = ref(null)
 const moTaiKhoan = ref(false)
 const moDoiMatKhau = ref(false)
 const taiKhoanRef = ref(null)
+
+function moThongBao() {
+  moMenuThongBao.value = !moMenuThongBao.value
+  if (moMenuThongBao.value) {
+    moTaiKhoan.value = false
+    chuaDoc.taiLai()
+  }
+}
+
+function diDenDonHang(id) {
+  moMenuThongBao.value = false
+  router.push(`/hoa-don/${id}`)
+}
+
+function diDenTatCaDon() {
+  moMenuThongBao.value = false
+  router.push('/hoa-don')
+}
+
+function diDenChat(path) {
+  moMenuThongBao.value = false
+  router.push(path)
+}
+
 function dongKhiBamNgoai(e) {
   if (moTaiKhoan.value && taiKhoanRef.value && !taiKhoanRef.value.contains(e.target)) moTaiKhoan.value = false
+  if (moMenuThongBao.value && thongBaoRef.value && !thongBaoRef.value.contains(e.target)) moMenuThongBao.value = false
 }
 onMounted(() => {
   document.addEventListener('mousedown', dongKhiBamNgoai)
@@ -192,11 +218,98 @@ const toggle = (key) => { open[key] = !open[key] }
 
         <TroLyNoiBo />
         <GiaoCaNut v-if="auth.daDangNhap.value && !auth.laKhachHang.value" />
-        <div class="position-relative">
-          <button type="button" class="btn btn-light rounded-circle p-2 lh-1 text-muted" :aria-label="tongChuaDoc ? `${tongChuaDoc} tin nhắn chưa đọc` : 'Tin nhắn'" title="Tin nhắn chưa đọc" @click="moThongBao">
+        <div ref="thongBaoRef" class="position-relative">
+          <button
+            type="button"
+            class="btn btn-light rounded-circle p-2 lh-1 text-muted"
+            :aria-expanded="moMenuThongBao"
+            :aria-label="tongChuaDoc ? `${tongChuaDoc} thông báo` : 'Thông báo'"
+            title="Thông báo đơn hàng & tin nhắn"
+            @click="moThongBao"
+          >
             <i class="bi bi-bell"></i>
           </button>
           <span v-if="tongChuaDoc" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">{{ nhanSo(tongChuaDoc) }}</span>
+
+          <!-- Bảng thông báo đơn hàng & tin nhắn -->
+          <div v-if="moMenuThongBao" class="ad-tb-menu" role="menu">
+            <div class="ad-tb-dau d-flex align-items-center justify-content-between">
+              <span class="fw-bold text-dark">Thông báo cửa hàng</span>
+              <span v-if="chuaDoc.dem.donCho" class="badge rounded-pill bg-danger-subtle text-danger fw-semibold" style="font-size: 0.72rem;">
+                {{ chuaDoc.dem.donCho }} đơn chờ xác nhận
+              </span>
+            </div>
+
+            <div class="ad-tb-danh-sach">
+              <!-- Tin nhắn hỗ trợ / nội bộ chưa đọc -->
+              <button
+                v-if="chuaDoc.dem.hoTro > 0"
+                type="button"
+                class="ad-tb-muc"
+                @click="diDenChat('/ho-tro-truc-tuyen')"
+              >
+                <span class="ad-tb-icon is-chat"><i class="bi bi-headset"></i></span>
+                <div class="flex-grow-1 min-w-0">
+                  <div class="fw-semibold text-dark small">Hỗ trợ trực tuyến</div>
+                  <div class="text-muted" style="font-size: 0.78rem;">Có {{ chuaDoc.dem.hoTro }} cuộc trò chuyện khách hàng cần xử lý</div>
+                </div>
+              </button>
+
+              <button
+                v-if="chuaDoc.dem.noiBo > 0"
+                type="button"
+                class="ad-tb-muc"
+                @click="diDenChat('/chat-noi-bo')"
+              >
+                <span class="ad-tb-icon is-chat"><i class="bi bi-chat-dots-fill"></i></span>
+                <div class="flex-grow-1 min-w-0">
+                  <div class="fw-semibold text-dark small">Chat nội bộ</div>
+                  <div class="text-muted" style="font-size: 0.78rem;">Có {{ chuaDoc.dem.noiBo }} tin nhắn nội bộ chưa đọc</div>
+                </div>
+              </button>
+
+              <!-- Danh sách đơn đặt hàng online đang chờ xác nhận -->
+              <template v-if="donChoList.length">
+                <button
+                  v-for="d in donChoList"
+                  :key="d.id"
+                  type="button"
+                  class="ad-tb-muc"
+                  @click="diDenDonHang(d.id)"
+                >
+                  <span class="ad-tb-icon is-order"><i class="bi bi-bag-check-fill"></i></span>
+                  <div class="flex-grow-1 min-w-0">
+                    <div class="d-flex align-items-center justify-content-between gap-2">
+                      <span class="fw-bold text-dark small">Đơn mới #{{ d.maHoaDon }}</span>
+                      <span class="fw-bold text-danger small">{{ formatMoney(d.tongTien) }}</span>
+                    </div>
+                    <div class="text-muted text-truncate" style="font-size: 0.78rem;">
+                      Khách: <strong class="text-dark">{{ d.tenKhachHang || 'Khách lẻ' }}</strong>
+                      <template v-if="d.sdtKhachHang"> · {{ d.sdtKhachHang }}</template>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mt-1" style="font-size: 0.72rem;">
+                      <span class="text-warning-emphasis bg-warning-subtle px-2 py-0 rounded-pill fw-semibold">Chờ xác nhận</span>
+                      <span class="text-muted">{{ formatNgayGio(d.ngayTao) }}</span>
+                    </div>
+                  </div>
+                </button>
+              </template>
+
+              <div
+                v-if="!donChoList.length && !chuaDoc.dem.hoTro && !chuaDoc.dem.noiBo"
+                class="text-center text-muted py-4 px-3 small"
+              >
+                <i class="bi bi-bell-slash d-block fs-4 mb-1 opacity-50"></i>
+                Chưa có đơn hàng mới hay thông báo nào cần xử lý.
+              </div>
+            </div>
+
+            <div class="ad-tb-chan">
+              <button type="button" class="ad-tb-xem-het" @click="diDenTatCaDon">
+                Xem tất cả hóa đơn <i class="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
+          </div>
         </div>
         <div ref="taiKhoanRef" class="position-relative ms-1">
           <button type="button" class="ad-tk-nut" :aria-expanded="moTaiKhoan" aria-haspopup="menu" @click="moTaiKhoan = !moTaiKhoan">
@@ -258,6 +371,20 @@ const toggle = (key) => { open[key] = !open[key] }
 .ad-tk-muc:hover { background: var(--fs-hover-bg, #e7f1fd); }
 .ad-tk-muc.is-danger { color: #c62828; }
 .ad-sublink .icon { font-size: 1rem; margin-right: 0.6rem; width: 20px; }
+
+/* Bảng thông báo đơn hàng & tin nhắn ở chuông */
+.ad-tb-menu { position: absolute; right: 0; top: calc(100% + 0.45rem); z-index: 1060; width: 340px; background: #fff; border: 1px solid var(--fs-line, #e6eaf0); border-radius: 14px; box-shadow: 0 14px 34px rgba(24, 36, 47, 0.14); overflow: hidden; }
+.ad-tb-dau { padding: 0.75rem 1rem; border-bottom: 1px solid var(--fs-line-soft, #eef1f5); background: #fafbfd; }
+.ad-tb-danh-sach { max-height: 360px; overflow-y: auto; padding: 0.35rem; }
+.ad-tb-muc { display: flex; width: 100%; align-items: flex-start; gap: 0.7rem; border: 0; background: transparent; padding: 0.65rem 0.7rem; border-radius: 10px; text-align: left; transition: background 0.15s ease; }
+.ad-tb-muc + .ad-tb-muc { border-top: 1px solid #f4f6f9; }
+.ad-tb-muc:hover { background: var(--fs-hover-bg, #e7f1fd); }
+.ad-tb-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+.ad-tb-icon.is-order { background: #ecfdf5; color: #16a34a; }
+.ad-tb-icon.is-chat { background: #eff6ff; color: #0977ec; }
+.ad-tb-chan { padding: 0.5rem 0.75rem; border-top: 1px solid var(--fs-line-soft, #eef1f5); background: #fafbfd; text-align: center; }
+.ad-tb-xem-het { border: 0; background: transparent; color: var(--fs-primary, #0977ec); font-size: 0.84rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 6px; }
+.ad-tb-xem-het:hover { text-decoration: underline; }
 
 /* Màn hình thấp (zoom 100% trên laptop): thu gọn khoảng cách để thấy ĐỦ các chức năng mà không phải cuộn */
 @media (max-height: 820px) {

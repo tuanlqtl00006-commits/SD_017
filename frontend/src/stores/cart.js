@@ -3,20 +3,67 @@ import { ref, computed } from 'vue'
 
 import { layPhien } from '../services/phien'
 
-// Giỏ hàng lưu riêng theo từng tài khoản (đăng xuất / đổi tài khoản thì không thấy giỏ của người khác)
+const KHOA_KHACH_VANG_LAI = 'footstyle_cart_khach'
+
+// Giỏ hàng lưu theo tài khoản; nếu khách thêm hàng khi chưa đăng nhập (footstyle_cart_khach) rồi mới đăng nhập/đăng ký thì tự gộp sang giỏ của tài khoản
 function khoaGioHang() {
   const nd = layPhien()?.nguoiDung
-  return nd?.id ? `footstyle_cart_${nd.vaiTro}_${nd.id}` : 'footstyle_cart_khach'
+  return nd?.id ? `footstyle_cart_${nd.vaiTro}_${nd.id}` : KHOA_KHACH_VANG_LAI
 }
 
-function loadFromStorage() {
+function docTheoKhoa(khoa) {
   try {
-    const raw = localStorage.getItem(khoaGioHang())
-    return raw ? JSON.parse(raw) : []
+    const raw = localStorage.getItem(khoa)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
   } catch (e) {
     console.error('Không thể đọc giỏ hàng từ localStorage:', e)
     return []
   }
+}
+
+function gopGioHang(dsTaiKhoan, dsKhachVangLai) {
+  const map = new Map()
+  for (const item of dsTaiKhoan) {
+    if (item && item.bienTheId != null) {
+      map.set(item.bienTheId, { ...item })
+    }
+  }
+  for (const item of dsKhachVangLai) {
+    if (!item || item.bienTheId == null) continue
+    const maxStock = item.soLuongTon ?? 999
+    const qtyToAdd = Number(item.soLuong) || 1
+    if (map.has(item.bienTheId)) {
+      const existing = map.get(item.bienTheId)
+      const newQty = (Number(existing.soLuong) || 0) + qtyToAdd
+      existing.soLuong = Math.min(newQty, maxStock)
+    } else {
+      map.set(item.bienTheId, { ...item, soLuong: Math.min(qtyToAdd, maxStock) })
+    }
+  }
+  return Array.from(map.values())
+}
+
+function loadFromStorage() {
+  const khoa = khoaGioHang()
+  const dsHienTai = docTheoKhoa(khoa)
+
+  // Khi khách đã đăng nhập: nếu trước đó lúc chưa đăng nhập có sản phẩm trong giỏ vãng lai thì giữ nguyên / gộp vào giỏ tài khoản
+  if (khoa !== KHOA_KHACH_VANG_LAI) {
+    const dsKhachVangLai = docTheoKhoa(KHOA_KHACH_VANG_LAI)
+    if (dsKhachVangLai.length > 0) {
+      const daGop = gopGioHang(dsHienTai, dsKhachVangLai)
+      try {
+        localStorage.setItem(khoa, JSON.stringify(daGop))
+        localStorage.removeItem(KHOA_KHACH_VANG_LAI)
+      } catch (e) {
+        console.error('Không thể lưu giỏ hàng đã gộp vào localStorage:', e)
+      }
+      return daGop
+    }
+  }
+
+  return dsHienTai
 }
 
 function saveToStorage(items) {
@@ -121,10 +168,12 @@ export const useCartStore = defineStore('cart', () => {
     saveToStorage(items.value)
   }
 
-  // Gọi khi đăng nhập / đăng xuất / đổi tài khoản: nạp lại giỏ của tài khoản hiện tại
+  // Gọi khi đăng nhập / đăng xuất / đổi tài khoản: nạp lại giỏ của tài khoản hiện tại (tự gộp giỏ khách vãng lai nếu có)
   function taiLai() {
     items.value = loadFromStorage()
-    appliedVoucher.value = null
+    if (items.value.length === 0) {
+      appliedVoucher.value = null
+    }
   }
 
   function setVoucher(voucher) {

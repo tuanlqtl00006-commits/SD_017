@@ -149,16 +149,21 @@ watch(
   },
 )
 watch([page, pageSize], () => load())
+const onDonMoi = () => {
+  if (!capNhatNgayHienTai()) load(true)
+}
 let dongHoNgay = null
 onBeforeUnmount(() => {
   clearTimeout(timer)
   clearInterval(dongHoNgay)
   document.removeEventListener('mousedown', onOutsideStatusDropdown)
+  window.removeEventListener('footstyle:don-moi', onDonMoi)
 })
 onMounted(() => {
   load()
   dongHoNgay = setInterval(capNhatNgayHienTai, KIEM_TRA_NGAY_MS)
   document.addEventListener('mousedown', onOutsideStatusDropdown)
+  window.addEventListener('footstyle:don-moi', onDonMoi)
 })
 // Quay lại tab: kiểm tra ngày trước (đổi ngày thì watch tải lại), không đổi thì tải lại lặng lẽ như cũ
 useAutoRefresh(() => {

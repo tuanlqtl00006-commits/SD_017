@@ -184,11 +184,11 @@ function changeQuantity(delta) {
 function addToCart() {
   if (!currentVariant.value) {
     notify('Vui lòng chọn đầy đủ phiên bản sản phẩm.')
-    return
+    return false
   }
   if ((currentVariant.value.soLuongTon || 0) < 1) {
     notify('Phiên bản này hiện đã hết hàng!')
-    return
+    return false
   }
 
   const colorObj = availableColors.value.find((c) => c.id === currentVariant.value.idMauSac)
@@ -212,11 +212,13 @@ function addToCart() {
   })
 
   notify(`Đã thêm "${product.value.ten}" vào giỏ hàng!`)
+  return true
 }
 
 function buyNow() {
-  addToCart()
-  router.push('/shop/thanh-toan')
+  if (addToCart()) {
+    router.push('/shop/thanh-toan')
+  }
 }
 </script>
 

@@ -97,10 +97,11 @@ function capNhatVaiTro(vaiTroMoi) {
 
 /** Đăng xuất (token chỉ lưu ở trình duyệt nên xóa là xong). */
 function dangXuat() {
+  const coPhien = !!layPhien() || !!trangThai.nguoiDung
   xoaPhien()
   trangThai.nguoiDung = null
   datLaiGiaoCa()
-  napLaiGioHang(true) // đăng xuất: giỏ hàng trống (giỏ của tài khoản vẫn được giữ, đăng nhập lại sẽ thấy)
+  if (coPhien) napLaiGioHang(true) // đăng xuất: giỏ hàng trống (giỏ của tài khoản vẫn được giữ, đăng nhập lại sẽ thấy)
 }
 
 /** Trang mở đầu sau khi đăng nhập theo vai trò. */

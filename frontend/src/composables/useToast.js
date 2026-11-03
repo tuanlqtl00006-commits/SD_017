@@ -20,7 +20,7 @@ export function useToast() {
     toasts,
     remove,
     // title (tùy chọn): dòng đậm phía trên nội dung, vd "Thành công!"
-    success: (message, title = '') => push(message, 'success', 3500, title),
-    error: (message, title = '') => push(message, 'error', 5500, title),
+    success: (message, title = '', timeout = 3500) => push(message, 'success', timeout, title),
+    error: (message, title = '', timeout = 5500) => push(message, 'error', timeout, title),
   }
 }
