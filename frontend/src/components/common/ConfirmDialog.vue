@@ -3,7 +3,7 @@ import BaseModal from './BaseModal.vue'
 
 defineProps({
   title: { type: String, required: true },
-  message: { type: String, required: true },
+  message: { type: String, default: '' },
   confirmText: { type: String, default: 'Xác nhận' },
   variant: { type: String, default: 'primary' }, // primary | danger
   loading: { type: Boolean, default: false },
@@ -34,7 +34,9 @@ const emit = defineEmits(['confirm', 'cancel'])
       <h3 class="cf-title" aria-hidden="true">{{ title }}</h3>
       <p class="cf-text">{{ message }}</p>
     </div>
-    <p v-else class="ad-confirm-text">{{ message }}</p>
+    <div v-else class="ad-confirm-text">
+      <slot>{{ message }}</slot>
+    </div>
 
     <template #footer>
       <button type="button" class="ad-btn" :disabled="loading" @click="emit('cancel')">Hủy</button>

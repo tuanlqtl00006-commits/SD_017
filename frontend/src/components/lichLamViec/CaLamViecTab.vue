@@ -139,20 +139,26 @@ async function doiTrangThai(c) {
 
   <BaseModal v-if="moForm" :title="f.id ? 'Sửa ca làm việc' : 'Thêm ca làm việc'" size="sm" static-backdrop @close="moForm = false">
     <form id="ca-form" novalidate @submit.prevent="luu">
-      <label class="ad-label" for="ca-ten">Tên ca <span class="ad-required">*</span></label>
-      <input id="ca-ten" v-model="f.tenCa" type="text" class="form-control ad-control" :class="{ 'is-invalid': loi.tenCa }" maxlength="100" placeholder="Nhập tên ca" @input="sua('tenCa')" @blur="cham('tenCa')" />
-      <p v-if="loi.tenCa" class="ad-error">{{ loi.tenCa }}</p>
-      <div class="row g-2 mt-1">
+      <div>
+        <label class="ad-label" for="ca-ten">Tên ca <span class="ad-required">*</span></label>
+        <input id="ca-ten" v-model="f.tenCa" type="text" class="form-control ad-control" :class="{ 'is-invalid': loi.tenCa }" maxlength="100" placeholder="Ví dụ: Ca sáng, Ca chiều, Ca tối…" @input="sua('tenCa')" @blur="cham('tenCa')" />
+        <p v-if="loi.tenCa" class="ad-error">{{ loi.tenCa }}</p>
+      </div>
+      <div class="row g-3 mt-1">
         <div class="col-6">
-          <label class="ad-label" for="ca-bd">Bắt đầu <span class="ad-required">*</span></label>
+          <label class="ad-label" for="ca-bd">Giờ bắt đầu <span class="ad-required">*</span></label>
           <input id="ca-bd" v-model="f.gioBatDau" type="time" :min="GIO_MO_CUA" :max="GIO_DONG_CUA" class="form-control ad-control" :class="{ 'is-invalid': loi.gioBatDau }" @input="sua('gioBatDau')" />
           <p v-if="loi.gioBatDau" class="ad-error">{{ loi.gioBatDau }}</p>
         </div>
         <div class="col-6">
-          <label class="ad-label" for="ca-kt">Kết thúc <span class="ad-required">*</span></label>
+          <label class="ad-label" for="ca-kt">Giờ kết thúc <span class="ad-required">*</span></label>
           <input id="ca-kt" v-model="f.gioKetThuc" type="time" :min="GIO_MO_CUA" :max="GIO_DONG_CUA" class="form-control ad-control" :class="{ 'is-invalid': loi.gioKetThuc }" @input="sua('gioKetThuc')" />
           <p v-if="loi.gioKetThuc" class="ad-error">{{ loi.gioKetThuc }}</p>
         </div>
+      </div>
+      <div class="ca-khung-gio">
+        <span>Giờ mở cửa: <b>{{ GIO_MO_CUA }} - {{ GIO_DONG_CUA }}</b></span>
+        <span v-if="f.gioBatDau && f.gioKetThuc && f.gioKetThuc > f.gioBatDau">Thời lượng: <b>{{ thoiLuong(f) }}</b></span>
       </div>
     </form>
     <template #footer>
@@ -170,5 +176,18 @@ async function doiTrangThai(c) {
   padding: 0.1rem 0.65rem;
   font-weight: 600;
   font-size: 0.85rem;
+}
+.ca-khung-gio {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+  padding: 0.55rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid var(--fs-line-soft, #e5eaf2);
+  border-radius: 10px;
+  font-size: 0.84rem;
+  color: var(--fs-text-2, #475569);
 }
 </style>

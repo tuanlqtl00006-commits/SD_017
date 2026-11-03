@@ -210,7 +210,14 @@ async function saoChep() {
       :loading="dangXoa"
       @confirm="xacNhanXoa"
       @cancel="xoa = null"
-    />
+    >
+      <p class="mb-2">Bạn có chắc muốn bỏ ca làm việc này khỏi lịch phân công?</p>
+      <div class="ll-hop-info">
+        <div><span>Nhân viên:</span> <b>{{ xoa.hoTen }}</b></div>
+        <div><span>Ca làm việc:</span> <b>{{ xoa.tenCa }} ({{ xoa.gioBatDau }} - {{ xoa.gioKetThuc }})</b></div>
+        <div><span>Ngày làm:</span> <b>{{ formatDate(xoa.ngayLam) }}</b></div>
+      </div>
+    </ConfirmDialog>
     <ConfirmDialog
       v-if="moSaoChep"
       title="Sao chép lịch tuần trước"
@@ -219,7 +226,14 @@ async function saoChep() {
       :loading="dangSaoChep"
       @confirm="saoChep"
       @cancel="moSaoChep = false"
-    />
+    >
+      <p class="mb-2">Sao chép toàn bộ lịch làm việc từ tuần trước sang tuần đang xem:</p>
+      <div class="ll-hop-info">
+        <div><span>Tuần nguồn:</span> <b>{{ nhanTuan(congNgayIso(thu2, -7)) }}</b></div>
+        <div><span>Tuần đích:</span> <b>{{ nhanTuan(thu2) }}</b></div>
+      </div>
+      <p class="ll-hop-luu-y">Lưu ý: Ô thuộc ngày đã qua, ca trùng hoặc bị chồng giờ sẽ tự động được bỏ qua.</p>
+    </ConfirmDialog>
   </div>
 </template>
 
@@ -287,14 +301,22 @@ async function saoChep() {
 .ll-chip-o {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 0.3rem;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  margin-bottom: 0.35rem;
 }
 .ll-bo {
   border: 0;
   background: transparent;
   color: inherit;
-  padding: 0;
+  padding: 0 0.1rem;
   line-height: 1;
+  border-radius: 4px;
+  opacity: 0.7;
+}
+.ll-bo:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
 }
 .ll-them {
   width: 100%;
@@ -302,7 +324,7 @@ async function saoChep() {
   background: transparent;
   border-radius: 8px;
   color: var(--fs-muted, #7b8794);
-  padding: 0.1rem 0;
+  padding: 0.15rem 0;
   opacity: 0.6;
 }
 .ll-o:hover .ll-them {
@@ -316,5 +338,32 @@ async function saoChep() {
 }
 .ll-dem .is-thieu {
   color: #b42318;
+}
+.ll-hop-info {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.7rem 0.9rem;
+  background: #f8fafc;
+  border: 1px solid var(--fs-line-soft, #e5eaf2);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+.ll-hop-info > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.ll-hop-info span {
+  color: var(--fs-muted, #64748b);
+}
+.ll-hop-info b {
+  color: var(--fs-text, #0f172a);
+  text-align: right;
+}
+.ll-hop-luu-y {
+  margin: 0.65rem 0 0;
+  font-size: 0.84rem;
+  color: var(--fs-muted, #64748b);
+  line-height: 1.45;
 }
 </style>

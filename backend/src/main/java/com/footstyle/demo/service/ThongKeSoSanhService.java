@@ -33,10 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.HtmlUtils;
 
 /**
- * Thống kê SO SÁNH (cô: nút "So sánh" - so theo tháng / quý / năm, so với kỳ trước và CÙNG KỲ năm trước, biểu đồ tăng trưởng,
- * tải Excel và gửi email báo cáo kèm biểu đồ; email tự động gửi báo cáo tháng cho quản lý).
- *  - Doanh thu THỰC TẾ: đơn "Đã hoàn thành". Doanh thu DỰ KIẾN: mọi đơn chưa hủy / chưa hoàn tiền (gồm đơn đang xử lý, đang giao).
- *    Cả hai đều KHÔNG tính phí ship (DoanhThu.cua). Hóa đơn chờ tại quầy (chưa thanh toán) không tính.
+ * Thống kê so sánh doanh thu theo tháng / quý / năm, so với kỳ trước và cùng kỳ năm trước, biểu đồ tăng trưởng,
+ * xuất Excel và gửi email báo cáo kèm biểu đồ.
+ *  - Doanh thu thực tế: đơn "Đã hoàn thành". Doanh thu dự kiến: mọi đơn chưa hủy / chưa hoàn tiền (gồm đơn đang xử lý, đang giao).
+ *    Cả hai đều không tính phí ship (DoanhThu.cua). Hóa đơn chờ tại quầy (chưa thanh toán) không tính.
  *  - kỳ: tháng "2026-10", quý "2026-Q4", năm "2026"; bỏ trống = kỳ hiện tại.
  */
 @Service

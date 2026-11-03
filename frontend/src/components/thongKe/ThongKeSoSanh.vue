@@ -1,6 +1,6 @@
 <script setup>
-// Thống kê SO SÁNH (cô: nút "So sánh" - so theo tháng / quý / năm, chọn các kỳ bất kỳ để đối chiếu, biểu đồ tăng trưởng,
-// tải Excel, gửi email báo cáo kèm biểu đồ). Số liệu tính ở backend: GET /api/thong-ke/so-sanh?kieu=THANG|QUY|NAM&ky=...
+// Thống kê so sánh doanh thu theo tháng / quý / năm, đối chiếu các kỳ, biểu đồ tăng trưởng,
+// xuất Excel và gửi email báo cáo. Số liệu tính ở backend: GET /api/thong-ke/so-sanh?kieu=THANG|QUY|NAM&ky=...
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '../../services/api'
@@ -878,7 +878,7 @@ async function guiEmail() {
 
 <template>
   <div class="ss-page">
-    <!-- ==================== KHỐI 1: CHỌN CÁC KỲ MUỐN ĐỐI CHIẾU (1, 2, 3... + THÊM KỲ) ĐÚNG MẪU ==================== -->
+    <!-- Chọn các kỳ đối chiếu -->
     <section class="ad-card ss-filter-card">
       <div class="ss-filter-head">
         <div class="d-flex align-items-center gap-3">
@@ -919,7 +919,7 @@ async function guiEmail() {
         </div>
       </div>
 
-      <!-- Hàng chọn các kỳ (1, 2, 3... + Thêm kỳ) đúng như ảnh mẫu nhưng sang trọng hơn -->
+      <!-- Danh sách kỳ đối chiếu -->
       <div
         class="ss-periods-row"
         style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; margin-top: 16px"
@@ -1054,7 +1054,7 @@ async function guiEmail() {
     <div v-if="dangTai && !d" class="ad-empty">Đang tải…</div>
 
     <template v-if="d">
-      <!-- ==================== KHỐI 2: BIỂU ĐỒ ĐỐI CHIẾU CÁC KỲ ĐÃ CHỌN + BẢNG ĐỐI CHIẾU CHI TIẾT ==================== -->
+      <!-- Biểu đồ và bảng đối chiếu các kỳ đã chọn -->
       <div class="row g-3">
         <!-- Cột trái: Biểu đồ cột so sánh trực tiếp các kỳ đã chọn ở trên -->
         <div class="col-12 col-xl-6">
@@ -1290,7 +1290,7 @@ async function guiEmail() {
         </div>
       </div>
 
-      <!-- ==================== KHỐI 3: BIỂU ĐỒ XU HƯỚNG & CHI TIẾT TRONG KỲ ==================== -->
+      <!-- Biểu đồ xu hướng và chi tiết trong kỳ -->
       <div class="row g-3">
         <!-- Cột trái: Biểu đồ Tăng trưởng doanh thu theo tháng / quý / năm -->
         <div class="col-12 col-xl-6">
@@ -1726,7 +1726,7 @@ async function guiEmail() {
           </section>
         </div>
 
-        <!-- ==================== KHỐI 4: TOP SẢN PHẨM BÁN CHẠY ==================== -->
+        <!-- Top sản phẩm bán chạy -->
         <div class="col-12">
           <section class="ad-card ss-panel-card mb-0" data-test="ss-san-pham">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">

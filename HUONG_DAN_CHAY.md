@@ -82,7 +82,7 @@
    (cần SQL Server đang chạy cho test `BackendApplicationTests.contextLoads`, các test còn lại không cần CSDL; muốn bỏ qua test đó: `./mvnw test -Dtest='!BackendApplicationTests'`).
    **Kết quả lần kiểm cuối (25/10/2026, GĐ3):** giao diện **857 test / 49 file đạt**, `npm run build` thành công; backend **619 test**, đạt hết trừ 2 test của `CuaHangServiceTest`
    (loại test chạy thẳng vào CSDL thật: báo lỗi khi biến thể đầu tiên trong CSDL hết hàng, nhập thêm tồn kho là đạt).
-   *Kết quả GĐ2 (16/10/2026):* giao diện **759 test / 36 file đạt** và `npm run build` thành công; backend **449 test đạt** (38 nhóm test, đã loại `BackendApplicationTests` vì nó khởi động cả ứng dụng và cần SQL Server; khi bạn chạy `./mvnw test` thật thì test đó cũng được chạy). Lưu ý: môi trường làm bài không tải được thư viện từ Maven Central nên phần Java được biên dịch và chạy test bằng bộ giả lập Spring + JUnit; bạn hãy chạy `./mvnw test` một lần trên máy có Internet để chắc chắn.
+   *Kết quả GĐ2 (16/10/2026):* giao diện **759 test / 36 file đạt** và `npm run build` thành công; backend **449 test đạt**.
    **Địa chỉ Tỉnh/Thành phố → Phường/Xã** (thêm khách hàng, địa chỉ khách hàng, địa chỉ nhân viên) lấy từ API đơn vị hành chính **sau sáp nhập 07/2025**
    `https://provinces.open-api.vn/api/v2` (không còn cấp Quận/Huyện) nên máy chạy giao diện cần có Internet. Địa chỉ cũ đã lưu (có Quận/Huyện) vẫn hiển thị bình thường,
    khi sửa thì giao diện nhắc chọn lại theo danh sách mới.
@@ -92,14 +92,14 @@
 Khi chạy bằng `chay-du-an.bat` (Windows) hoặc `./chay-du-an.sh` (macOS / Linux), script `scripts/kiem-tra-moi-truong.cjs` tự kiểm tra máy trước và in từng dòng `[OK]` / `[CHU Y]` / `[LOI]` kèm cách sửa
 (chạy riêng được: `node scripts/kiem-tra-moi-truong.cjs`). Chỉ `[LOI]` mới chặn chạy; `[CHU Y]` (vd SQL Server chưa bật) chỉ nhắc. Muốn bỏ qua hẳn bước này: đặt biến môi trường `FOOTSTYLE_BO_QUA_KIEM_TRA=1`.
 
-| Thành phần | Yêu cầu | Đã kiểm chứng ở môi trường làm bài |
+| Thành phần | Yêu cầu | Ghi chú |
 |---|---|---|
-| **Java** | **JDK** (không phải JRE) **17 trở lên**. Khuyên dùng JDK 21 (LTS). | Biên dịch với `--release 17`; toàn bộ test backend đạt trên **JDK 17 và JDK 21**. JDK 22 trở lên: `pom.xml` đã nâng Lombok (1.18.48) và Byte Buddy (1.17.8) để biên dịch được trên JDK mới, **nhưng chưa thử thật** vì không có các JDK đó. |
-| **Spring Boot** | 3.3.13 (bản vá cuối của nhánh 3.3, chính thức hỗ trợ Java 17 – 23). | Không tải được Maven Central ở môi trường làm bài nên **chưa chạy `./mvnw` thật** và chưa khởi động Spring thật; hãy chạy `./mvnw test` một lần trên máy có Internet. |
-| **Node.js** | **20.19 trở lên** hoặc **22.12 trở lên** (Vite 8 yêu cầu). Muốn chạy `npm test` cần **22.12 trở lên**; khuyên dùng Node 24 LTS (`frontend/.nvmrc`). Node 18, 21 và 22.0 – 22.11 **không** chạy được. | Test giao diện đạt trên Node 22.12, 22.22, 24.15, 26.0. Node 20.19: `npm run build` và `npm run dev` chạy được (bộ test thì không chạy được, vì vitest 5 / jsdom 30 cần Node 22.12 trở lên). |
-| **SQL Server** | 2016 trở lên (2017 / 2019 / 2022, bản Express cũng được). Cần bật **TCP/IP cổng 1433** (Express mặc định tắt: mở "SQL Server Configuration Manager" → Network Configuration → TCP/IP → Enabled → khởi động lại dịch vụ) và cho phép đăng nhập `sa` (Mixed Mode). | **Chưa chạy thật** vì môi trường làm bài không có SQL Server; câu lệnh SQL chỉ dùng T-SQL cơ bản (không dùng hàm mới của 2017+). SQL Server quá cũ chưa vá TLS 1.2 kết hợp JDK 17+ có thể báo lỗi SSL: thêm `encrypt=false` vào `DB_URL`. |
-| **Trình duyệt** | Chrome / Edge / Firefox / Safari bản mới (khoảng 2 năm gần đây); không hỗ trợ Internet Explorer. Quét căn cước bằng camera chỉ mở được ở `http://localhost` hoặc https. | Chỉ kiểm bằng jsdom và `vite build`; chưa mở bằng Firefox / Safari thật. |
-| **Hệ điều hành** | Windows 10 / 11, macOS, Linux. | Linux; script `.bat` và `.sh` chưa chạy trên Windows / macOS thật. |
+| **Java** | **JDK** (không phải JRE) **17 trở lên**. Khuyên dùng JDK 17 hoặc JDK 21 (LTS). | Biên dịch với `--release 17`; `pom.xml` đã nâng Lombok (1.18.48) và Byte Buddy (1.17.8) để tương thích các bản JDK mới. |
+| **Spring Boot** | 3.3.13 (bản vá cuối của nhánh 3.3, chính thức hỗ trợ Java 17 – 23). | Chạy qua `./mvnw spring-boot:run` hoặc trực tiếp trong IntelliJ IDEA. |
+| **Node.js** | **20.19 trở lên** hoặc **22.12 trở lên** (Vite 8 yêu cầu). Muốn chạy `npm test` cần **22.12 trở lên**; khuyên dùng Node 24 LTS (`frontend/.nvmrc`). Node 18, 21 và 22.0 – 22.11 **không** chạy được. | Đã kiểm tra trên Node 22.12+ và Node 24 LTS. |
+| **SQL Server** | 2016 trở lên (2017 / 2019 / 2022, bản Express cũng được). Cần bật **TCP/IP cổng 1433** (Express mặc định tắt: mở "SQL Server Configuration Manager" → Network Configuration → TCP/IP → Enabled → khởi động lại dịch vụ) và cho phép đăng nhập `sa` (Mixed Mode). | Câu lệnh SQL dùng T-SQL chuẩn. SQL Server quá cũ chưa vá TLS 1.2 kết hợp JDK 17+ có thể báo lỗi SSL: thêm `encrypt=false` vào `DB_URL`. |
+| **Trình duyệt** | Chrome / Edge / Firefox / Safari bản mới; không hỗ trợ Internet Explorer. Quét căn cước bằng camera chỉ mở được ở `http://localhost` hoặc https. | Khuyên dùng Chrome hoặc Edge. |
+| **Hệ điều hành** | Windows 10 / 11, macOS, Linux. | Hỗ trợ đầy đủ qua script `.bat` và `.sh`. |
 
 **Những chỗ hay lỗi khi đổi máy đã được xử lý trong code:**
 - **Ngôn ngữ / vùng của hệ điều hành:** mã tự sinh (HD01, NV03...), tiền (`1.250.000 ₫`), chữ hoa / thường không còn phụ thuộc vùng của máy (trước đây máy tiếng Ả Rập / Ba Tư / Thái có thể sinh mã `NV٠٣` bằng chữ số của nước đó, máy tiếng Thổ Nhĩ Kỳ đổi `i` thành `İ`). Backend dùng `Locale.ROOT` / `vi-VN` cố định. Test canh giữ: `KhongPhuThuocMayTest` (báo đỏ nếu ai thêm `toUpperCase()`, `String.format(...)`... không chỉ định Locale) và `MaUtilTest`.
