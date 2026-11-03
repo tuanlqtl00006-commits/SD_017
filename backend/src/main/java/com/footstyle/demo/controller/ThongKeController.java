@@ -63,10 +63,4 @@ public class ThongKeController {
         if (req == null) return soSanh.layLichTuDong();
         return soSanh.luuLichTuDong(req.email(), req.hangNgay(), req.hangThang(), req.hangNam());
     }
-
-    /** API trả về dữ liệu liên kết toàn hệ thống từ CSDL cho trang Quản lý Thống kê. */
-    @GetMapping("/tong-quan")
-    public Map<String, Object> layTongQuan() {
-        return service.layTongQuan();
-    }
 }

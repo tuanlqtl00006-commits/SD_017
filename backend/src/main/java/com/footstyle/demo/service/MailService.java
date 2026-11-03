@@ -106,7 +106,7 @@ public class MailService {
      * Thiếu một trong các mục này thì mail chỉ được ghi vào log (xem gui()).
      */
     public boolean duocCauHinh() {
-        return mailSender.getIfAvailable() != null && !username.isBlank() && !password.isBlank();
+        return mailSender != null && mailSender.getIfAvailable() != null && !username.isBlank() && !password.isBlank();
     }
 
     /** Ghi vào log lúc khởi động để biết ngay mail thật có bật không (đỡ phải đoán vì sao không thấy thư). */
@@ -300,10 +300,22 @@ public class MailService {
      * Trả về true nếu gửi thật, false nếu chưa cấu hình Gmail (chỉ ghi log). Lỗi gửi thì ném ra để giao diện báo.
      */
     public boolean guiBaoCao(String den, String tieuDe, String banChu, String html, Map<String, byte[]> anh) throws Exception {
-        JavaMailSender sender = mailSender.getIfAvailable();
+        JavaMailSender sender = mailSender != null ? mailSender.getIfAvailable() : null;
         if (sender == null || !duocCauHinh()) {
             log.warn("[MAIL GIẢ LẬP - CHƯA cấu hình Gmail nên KHÔNG gửi thật] Đến: {} | Tiêu đề: {}\n{}", den, tieuDe, banChu);
             return false;
+        }
+        return guiBaoCao(den, tieuDe, banChu, html, anh, null, null);
+    }
+
+    /**
+     * Gửi thư báo cáo HTML kèm biểu đồ nhúng CID và tệp Excel (.xlsx) đính kèm đầy đủ nội dung.
+     */
+    public boolean guiBaoCao(String den, String tieuDe, String banChu, String html, Map<String, byte[]> anh,
+                             String tenFileDinhKem, byte[] fileDinhKem) throws Exception {
+        JavaMailSender sender = mailSender != null ? mailSender.getIfAvailable() : null;
+        if (sender == null || !duocCauHinh()) {
+            return guiBaoCao(den, tieuDe, banChu, html, anh);
         }
         MimeMessage m = sender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(m, true, "UTF-8");
@@ -313,6 +325,10 @@ public class MailService {
         helper.setText(banChu, html); // phải gọi trước addInline
         for (Map.Entry<String, byte[]> e : anh.entrySet()) {
             helper.addInline(e.getKey(), new ByteArrayResource(e.getValue()), "image/png");
+        }
+        if (tenFileDinhKem != null && !tenFileDinhKem.isBlank() && fileDinhKem != null && fileDinhKem.length > 0) {
+            helper.addAttachment(tenFileDinhKem, new ByteArrayResource(fileDinhKem),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         }
         sender.send(m);
         log.info("Đã gửi báo cáo '{}' đến {}", tieuDe, den);

@@ -15,8 +15,6 @@ import { exportExcel } from '../utils/exportExcel'
 
 const toast = useToast()
 const hoaDon = ref([])
-const chiTietHoaDon = ref([])
-const tonKhoCanhBao = ref([])
 const loading = ref(true)
 const homNay = ref(todayIso())
 
@@ -68,16 +66,8 @@ const TRANG_THAI = Object.fromEntries(
 async function load() {
   taiGd3()
   try {
-    const [res, resTk] = await Promise.all([
-      api.get('/hoa-don', { params: { page: 0, size: 2000 } }),
-      api.get('/thong-ke/tong-quan').catch(() => null),
-    ])
+    const res = await api.get('/hoa-don', { params: { page: 0, size: 2000 } })
     hoaDon.value = (res?.data?.content ?? []).filter((h) => !laHoaDonCho(h))
-    const tkData = resTk?.data
-    if (tkData && typeof tkData === 'object') {
-      chiTietHoaDon.value = Array.isArray(tkData.chiTietHoaDon) ? tkData.chiTietHoaDon : []
-      tonKhoCanhBao.value = Array.isArray(tkData.tonKhoCanhBao) ? tkData.tonKhoCanhBao : []
-    }
     homNay.value = todayIso()
   } catch (e) {
     toast.error(e.message || 'Không tải được dữ liệu thống kê.')
@@ -192,41 +182,10 @@ function chuanHoaKhoangNgay() {
 }
 
 const kq = computed(() => tinhKhoang(khoang.value, tuChon.value, denChon.value, homNay.value))
-
-// Khi lọc Thương hiệu hoặc Tìm sản phẩm và có chiTietHoaDon, lọc luôn các hóa đơn có chứa sản phẩm khớp bộ lọc (và tính đúng doanh thu theo dòng SP khớp)
-const mapTienHoaDonKhopSp = computed(() => {
-  const th = thuongHieuChon.value.trim()
-  const kw = boDau(tuKhoaSp.value)
-  if ((!th && !kw) || !chiTietHoaDon.value.length) return null
-  const m = new Map()
-  for (const c of chiTietHoaDon.value) {
-    const khopTh = !th || String(c.tenThuongHieu || '').trim() === th
-    const khopKw = !kw || boDau(`${c.maSanPham || ''} ${c.maBienThe || ''} ${c.tenSanPham || ''} ${c.tenBienThe || ''}`).includes(kw)
-    if (khopTh && khopKw && c.idHoaDon != null) {
-      const sl = Number(c.soLuong) || 0
-      const dg = Number(c.donGia) || 0
-      const tt = Number(c.thanhTien ?? sl * dg) || 0
-      m.set(c.idHoaDon, (m.get(c.idHoaDon) || 0) + tt)
-    }
-  }
-  return m
-})
-
-const hoaDonDaLoc = computed(() => {
-  const m = mapTienHoaDonKhopSp.value
-  if (!m) return hoaDon.value
-  return hoaDon.value
-    .filter((h) => m.has(h.id))
-    .map((h) => {
-      const tienSp = m.get(h.id) || 0
-      return tienSp > 0 ? { ...h, doanhThu: tienSp, tongTien: tienSp, phiVanChuyen: 0 } : h
-    })
-})
-
-const trongKhoang = computed(() => locTheoKhoang(hoaDonDaLoc.value, kq.value.tu, kq.value.den))
+const trongKhoang = computed(() => locTheoKhoang(hoaDon.value, kq.value.tu, kq.value.den))
 const tk = computed(() => tongHop(trongKhoang.value))
 const ky = computed(() => kyTruoc(kq.value.tu, kq.value.den))
-const tkTruoc = computed(() => (ky.value ? tongHop(locTheoKhoang(hoaDonDaLoc.value, ky.value.tu, ky.value.den)) : null))
+const tkTruoc = computed(() => (ky.value ? tongHop(locTheoKhoang(hoaDon.value, ky.value.tu, ky.value.den)) : null))
 const moTaKhoang = computed(() => {
   const { tu, den } = kq.value
   if (!tu && !den) return 'Toàn bộ thời gian'
@@ -285,7 +244,7 @@ const kpi = computed(() => {
 })
 
 /* ----- Biểu đồ cột Doanh thu theo ngày / tuần / tháng (điều khiển từ ô THỐNG KÊ) ----- */
-const bieuDo = computed(() => gomCot(hoaDonDaLoc.value, kq.value.tu, kq.value.den, homNay.value, donViChon.value))
+const bieuDo = computed(() => gomCot(hoaDon.value, kq.value.tu, kq.value.den, homNay.value, donViChon.value))
 const tatCaCot = computed(() => bieuDo.value.cot)
 const cotCoDoanhThu = computed(() => tatCaCot.value.filter((x) => x.v > 0))
 const chiHienCoDt = ref(true)
@@ -426,8 +385,6 @@ const dsThuongHieu = computed(() => {
   const tap = new Set()
   for (const p of banChayGoc.value) if (p.thuongHieu) tap.add(String(p.thuongHieu).trim())
   for (const s of sapHetGoc.value) if (s.thuongHieu) tap.add(String(s.thuongHieu).trim())
-  for (const c of chiTietHoaDon.value) if (c.tenThuongHieu && c.tenThuongHieu !== 'Khác') tap.add(String(c.tenThuongHieu).trim())
-  for (const b of tonKhoCanhBao.value) if (b.tenThuongHieu) tap.add(String(b.tenThuongHieu).trim())
   return [...tap].filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi'))
 })
 
@@ -435,8 +392,6 @@ const dsThuongHieu = computed(() => {
 const mapThuongHieuTheoSp = computed(() => {
   const m = new Map()
   for (const p of banChayGoc.value) if (p.idSanPham && p.thuongHieu) m.set(p.idSanPham, p.thuongHieu)
-  for (const c of chiTietHoaDon.value) if (c.idSanPham && c.tenThuongHieu) m.set(c.idSanPham, c.tenThuongHieu)
-  for (const b of tonKhoCanhBao.value) if (b.idSanPham && b.tenThuongHieu) m.set(b.idSanPham, b.tenThuongHieu)
   return m
 })
 
@@ -463,20 +418,6 @@ const sapHet = computed(() => {
 })
 
 const theoPt = computed(() => {
-  if (mapTienHoaDonKhopSp.value) {
-    const m = new Map()
-    for (const h of trongKhoang.value) {
-      if (h.trangThai !== TT_HOAN_THANH) continue
-      const ten = h.tenPhuongThucThanhToan || h.phuongThucThanhToan || (h.loaiDon === 'Tại quầy' ? 'Tiền mặt' : 'Chuyển khoản ngân hàng')
-      const r = m.get(ten) ?? { ten, soTien: 0, soDon: 0 }
-      r.soTien += Number(h.doanhThu ?? h.tongTien) || 0
-      r.soDon += 1
-      m.set(ten, r)
-    }
-    const dsLoc = [...m.values()].sort((a, b) => b.soTien - a.soTien || b.soDon - a.soDon)
-    const tongLoc = dsLoc.reduce((s, x) => s + x.soTien, 0)
-    return dsLoc.map((x) => ({ ...x, pct: phanTram(x.soTien, tongLoc) }))
-  }
   const ds = Array.isArray(gd3.value.theoPhuongThuc) ? gd3.value.theoPhuongThuc : []
   const tong = ds.reduce((s, x) => s + (Number(x.soTien) || 0), 0)
   return ds.map((x) => ({ ...x, pct: phanTram(x.soTien, tong) }))
@@ -497,63 +438,329 @@ const chuyenCan = computed(() => (Array.isArray(gd3.value.chuyenCan) ? gd3.value
 const giaoCa = computed(() => gd3.value.giaoCa ?? { soCaDaGiao: 0, soCaLech: 0, tongThieu: 0, tongThua: 0, caLech: [] })
 const pctGon = (v) => (v === null || v === undefined ? '—' : `${String(v).replace('.', ',')}%`)
 
-/* ----- Xuất Excel ----- */
+/* ----- Xuất Excel chuyên nghiệp & đầy đủ nội dung (tập trung Tổng doanh thu, Tổng đơn hàng, Sản phẩm, Nhân viên, Khách hàng) ----- */
 function xuatExcel() {
   const a = tk.value
-  const T = (header, key, width = 18, money = false) => ({ header, key, width, money })
+  const b = tkTruoc.value
+  const C = (header, key, width = 18, opts = {}) => ({ header, key, width, ...opts })
+  const bienDong = (nay, truoc) => {
+    if (!b) return '—'
+    const p = phanTramThayDoi(nay, truoc)
+    if (p === null) return truoc === 0 && nay > 0 ? '+100%' : '—'
+    if (Math.abs(p) < 0.05) return '0%'
+    return `${p > 0 ? '+' : ''}${String(Math.round(p * 10) / 10).replace('.', ',')}%`
+  }
+  const phuDeChung = `Kỳ thống kê: ${moTaKhoang.value}  |  Thương hiệu: ${thuongHieuChon.value || 'Tất cả thương hiệu'}  |  Từ khóa: ${tuKhoaSp.value || 'Không lọc'}  |  Ngày xuất: ${formatDate(homNay.value)}`
+  const nhanKyTruoc = ky.value ? `${formatDate(ky.value.tu)} – ${formatDate(ky.value.den)}` : 'Không áp dụng'
+
+  const dsCot = tatCaCot.value.length ? tatCaCot.value : cot.value
+  const tongDtCot = dsCot.reduce((s, x) => s + (Number(x.v) || 0), 0)
+  const tongDonCot = dsCot.reduce((s, x) => s + (Number(x.so) || 0), 0)
+
+  const tongDonLoai = theoLoai.value.reduce((s, x) => s + (Number(x.so) || 0), 0)
+  const tongDtLoai = theoLoai.value.reduce((s, x) => s + (Number(x.v) || 0), 0)
+
+  const tongSlBanChay = banChay.value.reduce((s, x) => s + (Number(x.soLuong) || 0), 0)
+  const tongDonBanChay = banChay.value.reduce((s, x) => s + (Number(x.soDon) || 0), 0)
+  const tongDtBanChay = banChay.value.reduce((s, x) => s + (Number(x.doanhThu) || 0), 0)
+
+  const tongTonSapHet = sapHet.value.reduce((s, x) => s + (Number(x.tonKho) || 0), 0)
+
+  const tongDonNv = topNhanVien.value.reduce((s, x) => s + (Number(x.so) || 0), 0)
+  const tongDtNv = topNhanVien.value.reduce((s, x) => s + (Number(x.v) || 0), 0)
+
+  const tongDonKh = topKhach.value.reduce((s, x) => s + (Number(x.so) || 0), 0)
+  const tongDtKh = topKhach.value.reduce((s, x) => s + (Number(x.v) || 0), 0)
+
   const sheets = [
     {
       sheetName: 'Tổng quan',
-      columns: [T('Chỉ số', 'ten', 34), T('Giá trị', 'gt', 20, true), T('Ghi chú', 'ghiChu', 50)],
+      title: 'I. BÁO CÁO TỔNG QUAN KẾT QUẢ KINH DOANH',
+      subtitle: phuDeChung,
+      columns: [
+        C('STT', 'stt', 8, { align: 'center' }),
+        C('Nhóm chỉ số', 'nhom', 22),
+        C('Chỉ số thống kê', 'ten', 34),
+        C('Kỳ báo cáo', 'gt', 22, { money: true }),
+        C('Kỳ liền trước', 'truoc', 22, { money: true }),
+        C('Biến động (±%)', 'bienDong', 16, { align: 'center' }),
+        C('Diễn giải & Ghi chú', 'ghiChu', 48),
+      ],
       rows: [
-        { ten: 'Khoảng thời gian', gt: moTaKhoang.value },
-        { ten: 'Thương hiệu lọc', gt: thuongHieuChon.value || 'Tất cả thương hiệu' },
-        { ten: 'Từ khóa sản phẩm', gt: tuKhoaSp.value || '—' },
-        { ten: 'Doanh thu thực tế', gt: a.doanhThu, ghiChu: 'Đơn đã hoàn thành, không gồm phí ship' },
-        { ten: 'Doanh thu dự kiến', gt: a.doanhThuDuKien, ghiChu: 'Mọi đơn chưa hủy (gồm đơn đang xử lý / đang giao)' },
-        { ten: 'Tổng đơn', gt: a.tongDon },
-        { ten: 'Đơn hoàn thành', gt: a.hoanThanh },
-        { ten: 'Đơn đã hủy', gt: a.huy },
-        { ten: 'Giá trị trung bình / đơn', gt: a.trungBinh },
+        { _isSection: true, title: '1. THÔNG TIN KỲ BÁO CÁO & BỘ LỌC' },
+        { stt: 1, nhom: 'Bộ lọc', ten: 'Khoảng thời gian báo cáo', gt: moTaKhoang.value, truoc: nhanKyTruoc, bienDong: '—', ghiChu: 'Khoảng ngày áp dụng cho toàn bộ số liệu trong file' },
+        { stt: 2, nhom: 'Bộ lọc', ten: 'Thương hiệu / Từ khóa lọc', gt: thuongHieuChon.value || 'Tất cả thương hiệu', truoc: tuKhoaSp.value || 'Không lọc', bienDong: '—', ghiChu: 'Điều kiện lọc chi tiết theo thương hiệu và sản phẩm' },
+        { _isSection: true, title: '2. CHỈ SỐ TỔNG DOANH THU & GIÁ TRỊ ĐƠN HÀNG (VNĐ)' },
+        { stt: 3, nhom: 'Doanh thu', ten: 'Tổng doanh thu thực tế', gt: a.doanhThu, truoc: b ? b.doanhThu : '—', bienDong: bienDong(a.doanhThu, b?.doanhThu), ghiChu: 'Chỉ tính đơn đã hoàn thành, không bao gồm phí vận chuyển' },
+        { stt: 4, nhom: 'Doanh thu', ten: 'Tổng doanh thu dự kiến', gt: a.doanhThuDuKien, truoc: b ? b.doanhThuDuKien : '—', bienDong: bienDong(a.doanhThuDuKien, b?.doanhThuDuKien), ghiChu: 'Gồm mọi đơn hợp lệ chưa hủy (đang xử lý, đang giao, hoàn thành)' },
+        { stt: 5, nhom: 'Doanh thu', ten: 'Doanh thu đang xử lý / chờ thu', gt: Math.max(0, a.doanhThuDuKien - a.doanhThu), truoc: b ? Math.max(0, b.doanhThuDuKien - b.doanhThu) : '—', bienDong: '—', ghiChu: 'Phần chênh lệch giữa doanh thu dự kiến và doanh thu thực tế' },
+        { stt: 6, nhom: 'Hiệu quả đơn', ten: 'Giá trị trung bình / đơn hoàn thành', gt: a.trungBinh, truoc: b ? b.trungBinh : '—', bienDong: bienDong(a.trungBinh, b?.trungBinh), ghiChu: 'Tổng doanh thu thực tế chia cho tổng số đơn hoàn thành' },
+        { _isSection: true, title: '3. CHỈ SỐ TỔNG ĐƠN HÀNG & TỶ LỆ VẬN HÀNH' },
+        { stt: 7, nhom: 'Đơn hàng', ten: 'Tổng số đơn hàng phát sinh', gt: `${a.tongDon} đơn`, truoc: b ? `${b.tongDon} đơn` : '—', bienDong: bienDong(a.tongDon, b?.tongDon), ghiChu: 'Tổng đơn hợp lệ (không tính hóa đơn chờ tại quầy)' },
+        { stt: 8, nhom: 'Đơn hàng', ten: 'Đơn hàng đã hoàn thành', gt: `${a.hoanThanh} đơn`, truoc: b ? `${b.hoanThanh} đơn` : '—', bienDong: bienDong(a.hoanThanh, b?.hoanThanh), ghiChu: `Tỷ lệ hoàn thành: ${pct(a.tyLeHoanThanh)} tổng số đơn` },
+        { stt: 9, nhom: 'Đơn hàng', ten: 'Đơn hàng đang xử lý / đang giao', gt: `${Math.max(0, a.tongDon - a.hoanThanh - a.huy)} đơn`, truoc: b ? `${Math.max(0, b.tongDon - b.hoanThanh - b.huy)} đơn` : '—', bienDong: '—', ghiChu: 'Đơn chờ xác nhận, đã xác nhận, chờ lấy hàng hoặc đang giao' },
+        { stt: 10, nhom: 'Đơn hàng', ten: 'Đơn hàng đã hủy', gt: `${a.huy} đơn`, truoc: b ? `${b.huy} đơn` : '—', bienDong: bienDong(a.huy, b?.huy), ghiChu: `Tỷ lệ hủy đơn: ${pct(a.tyLeHuy)} tổng số đơn` },
+        { _isSection: true, title: '4. CẢNH BÁO TỒN KHO SẢN PHẨM' },
+        { stt: 11, nhom: 'Kho hàng', ten: 'Số biến thể sắp hết / hết hàng', gt: `${sapHet.value.length} biến thể`, truoc: `Hết hàng: ${gd3.value.soHetHang ?? 0}`, bienDong: '—', ghiChu: `Ngưỡng cảnh báo tồn kho ≤ ${gd3.value.nguongSapHet ?? 5} sản phẩm` },
       ],
     },
     {
       sheetName: `Doanh thu theo ${bieuDo.value.donVi}`,
-      columns: [T('Mốc', 'nhan', 16), T('Số đơn hoàn thành', 'so'), T('Doanh thu thực tế', 'v', 20, true)],
-      rows: cot.value.map((c) => ({ nhan: c.nhan, so: c.so, v: c.v })),
+      title: `II. BIẾN ĐỘNG DOANH THU THEO ${bieuDo.value.donVi.toUpperCase()}`,
+      subtitle: phuDeChung,
+      columns: [
+        C('STT', 'stt', 8, { align: 'center' }),
+        C('Mốc thời gian', 'nhan', 18, { align: 'center' }),
+        C('Từ ngày', 'tuNgay', 15, { align: 'center' }),
+        C('Đến ngày', 'denNgay', 15, { align: 'center' }),
+        C('Số đơn hoàn thành', 'so', 20, { number: true }),
+        C('Doanh thu thực tế (₫)', 'v', 24, { money: true }),
+        C('Giá trị TB / đơn (₫)', 'tb', 22, { money: true }),
+        C('Tỷ trọng DT (%)', 'tyTrong', 18, { align: 'right' }),
+      ],
+      rows: dsCot.map((c, idx) => ({
+        stt: idx + 1,
+        nhan: c.nhan,
+        tuNgay: ngayHienThi(c.tu),
+        denNgay: ngayHienThi(c.den),
+        so: Number(c.so) || 0,
+        v: Number(c.v) || 0,
+        tb: c.so > 0 ? Math.round(c.v / c.so) : 0,
+        tyTrong: pct(phanTram(c.v, tongDtCot)),
+      })),
+      totalRow: {
+        stt: '',
+        nhan: 'TỔNG CỘNG',
+        tuNgay: '',
+        denNgay: '',
+        so: tongDonCot,
+        v: tongDtCot,
+        tb: tongDonCot > 0 ? Math.round(tongDtCot / tongDonCot) : 0,
+        tyTrong: tongDtCot > 0 ? '100%' : '0%',
+      },
     },
-    { sheetName: 'Theo loại đơn', columns: [T('Loại đơn', 'ten', 20), T('Số đơn', 'so'), T('Doanh thu', 'v', 20, true), T('Tỷ trọng %', 'pct')], rows: theoLoai.value.map((l) => ({ ...l, pct: Math.round(l.pct * 10) / 10 })) },
-    { sheetName: 'Nhân viên', columns: [T('Nhân viên', 'ten', 28), T('Số đơn', 'so'), T('Doanh thu', 'v', 20, true)], rows: topNhanVien.value },
-    { sheetName: 'Khách hàng', columns: [T('Khách hàng', 'ten', 28), T('Số đơn', 'so'), T('Doanh thu', 'v', 20, true)], rows: topKhach.value },
+    {
+      sheetName: 'Trạng thái đơn',
+      title: 'III. CƠ CẤU TRẠNG THÁI ĐƠN HÀNG TRONG KỲ',
+      subtitle: phuDeChung,
+      columns: [
+        C('STT', 'stt', 8, { align: 'center' }),
+        C('Trạng thái đơn hàng', 'label', 30),
+        C('Số lượng đơn', 'so', 20, { number: true }),
+        C('Tỷ trọng (%)', 'tyTrong', 18, { align: 'right' }),
+        C('Ghi chú vận hành', 'ghiChu', 44),
+      ],
+      rows: cauTrucTT.value.map((t, idx) => ({
+        stt: idx + 1,
+        label: t.label,
+        so: Number(t.so) || 0,
+        tyTrong: pct(t.pct),
+        ghiChu:
+          t.label === 'Hoàn thành'
+            ? 'Đơn đã thanh toán và ghi nhận vào doanh thu thực tế'
+            : t.label === 'Đã hủy'
+              ? 'Đơn bị hủy, không tính doanh thu'
+              : 'Đơn đang trong quy trình xử lý / vận chuyển',
+      })),
+      totalRow: {
+        stt: '',
+        label: 'TỔNG CỘNG',
+        so: a.tongDon,
+        tyTrong: a.tongDon > 0 ? '100%' : '0%',
+        ghiChu: '',
+      },
+    },
+    {
+      sheetName: 'Theo loại đơn',
+      title: 'IV. DOANH THU THEO KÊNH / LOẠI ĐƠN HÀNG',
+      subtitle: phuDeChung,
+      columns: [
+        C('STT', 'stt', 8, { align: 'center' }),
+        C('Kênh / Loại đơn hàng', 'ten', 26),
+        C('Số đơn hoàn thành', 'so', 20, { number: true }),
+        C('Doanh thu thực tế (₫)', 'v', 24, { money: true }),
+        C('Giá trị TB / đơn (₫)', 'tb', 22, { money: true }),
+        C('Tỷ trọng DT (%)', 'pct', 18, { align: 'right' }),
+      ],
+      rows: theoLoai.value.map((l, idx) => ({
+        stt: idx + 1,
+        ten: l.ten,
+        so: Number(l.so) || 0,
+        v: Number(l.v) || 0,
+        tb: l.so > 0 ? Math.round(l.v / l.so) : 0,
+        pct: pct(l.pct),
+      })),
+      totalRow: {
+        stt: '',
+        ten: 'TỔNG CỘNG',
+        so: tongDonLoai,
+        v: tongDtLoai,
+        tb: tongDonLoai > 0 ? Math.round(tongDtLoai / tongDonLoai) : 0,
+        pct: tongDtLoai > 0 ? '100%' : '0%',
+      },
+    },
     {
       sheetName: 'Sản phẩm bán chạy',
-      columns: [T('Mã', 'maSanPham', 12), T('Sản phẩm', 'tenSanPham', 36), T('Bán chạy nhất', 'phanLoaiBanChay', 22), T('Số lượng', 'soLuong'), T('Số đơn', 'soDon'), T('Doanh thu', 'doanhThu', 20, true)],
-      rows: banChay.value,
+      title: 'V. BẢNG XẾP HẠNG SẢN PHẨM BÁN CHẠY TRONG KỲ',
+      subtitle: phuDeChung,
+      columns: [
+        C('Hạng', 'hang', 8, { align: 'center' }),
+        C('Mã SP', 'maSanPham', 14, { align: 'center' }),
+        C('Tên sản phẩm', 'tenSanPham', 38),
+        C('Thương hiệu', 'thuongHieu', 20),
+        C('Phân loại bán chạy nhất', 'phanLoaiBanChay', 26),
+        C('Số lượng bán', 'soLuong', 16, { number: true }),
+        C('Số đơn hàng', 'soDon', 16, { number: true }),
+        C('Doanh thu (₫)', 'doanhThu', 24, { money: true }),
+        C('Tỷ trọng DT (%)', 'tyTrong', 18, { align: 'right' }),
+      ],
+      rows: banChay.value.map((p, idx) => ({
+        hang: idx + 1,
+        maSanPham: p.maSanPham || '—',
+        tenSanPham: p.tenSanPham,
+        thuongHieu: p.thuongHieu || '—',
+        phanLoaiBanChay: p.phanLoaiBanChay || '—',
+        soLuong: Number(p.soLuong) || 0,
+        soDon: Number(p.soDon) || 0,
+        doanhThu: Number(p.doanhThu) || 0,
+        tyTrong: pct(phanTram(p.doanhThu, tongDtBanChay)),
+      })),
+      totalRow: {
+        hang: '',
+        maSanPham: '',
+        tenSanPham: 'TỔNG CỘNG TOP SẢN PHẨM',
+        thuongHieu: '',
+        phanLoaiBanChay: '',
+        soLuong: tongSlBanChay,
+        soDon: tongDonBanChay,
+        doanhThu: tongDtBanChay,
+        tyTrong: tongDtBanChay > 0 ? '100%' : '0%',
+      },
     },
-    { sheetName: 'Sắp hết hàng', columns: [T('Mã', 'ma', 20), T('Sản phẩm', 'tenSanPham', 36), T('Phân loại', 'phanLoai', 22), T('Tồn kho', 'tonKho')], rows: sapHet.value },
-    { sheetName: 'Phương thức TT', columns: [T('Phương thức', 'ten', 22), T('Số đơn', 'soDon'), T('Số tiền thu', 'soTien', 20, true)], rows: theoPt.value },
+    {
+      sheetName: 'Sắp hết hàng',
+      title: 'VI. DANH SÁCH BIẾN THỂ SẮP HẾT HÀNG / CẦN NHẬP THÊM',
+      subtitle: phuDeChung,
+      columns: [
+        C('STT', 'stt', 8, { align: 'center' }),
+        C('Mã biến thể (SPCT)', 'ma', 22, { align: 'center' }),
+        C('Tên sản phẩm', 'tenSanPham', 38),
+        C('Thương hiệu', 'thuongHieu', 20),
+        C('Phân loại (Màu / Size)', 'phanLoai', 26),
+        C('Tồn kho hiện tại', 'tonKho', 18, { number: true }),
+        C('Mức cảnh báo', 'mucDo', 22, { align: 'center' }),
+        C('Khuyến nghị', 'khuyenNghi', 34),
+      ],
+      rows: sapHet.value.map((s, idx) => {
+        const ton = Number(s.tonKho) || 0
+        return {
+          stt: idx + 1,
+          ma: s.ma || '—',
+          tenSanPham: s.tenSanPham,
+          thuongHieu: s.thuongHieu || mapThuongHieuTheoSp.value.get(s.idSanPham) || '—',
+          phanLoai: s.phanLoai || '—',
+          tonKho: ton,
+          mucDo: ton <= 0 ? 'Hết hàng (0)' : ton <= 2 ? 'Nguy kịch (1-2)' : 'Sắp hết hàng',
+          khuyenNghi: ton <= 0 ? 'Nhập bổ sung ngay lập tức' : 'Lên kế hoạch nhập hàng trong tuần',
+        }
+      }),
+      totalRow: {
+        stt: '',
+        ma: '',
+        tenSanPham: `TỔNG CỘNG (${sapHet.value.length} biến thể cần nhập)`,
+        thuongHieu: '',
+        phanLoai: '',
+        tonKho: tongTonSapHet,
+        mucDo: `Hết hàng: ${gd3.value.soHetHang ?? 0}`,
+        khuyenNghi: '',
+      },
+    },
+    {
+      sheetName: 'Nhân viên',
+      title: 'VII. XẾP HẠNG HIỆU SUẤT BÁN HÀNG CỦA NHÂN VIÊN',
+      subtitle: phuDeChung,
+      columns: [
+        C('Hạng', 'hang', 8, { align: 'center' }),
+        C('Nhân viên phụ trách', 'ten', 32),
+        C('Số đơn hoàn thành', 'so', 20, { number: true }),
+        C('Doanh thu thực tế (₫)', 'v', 24, { money: true }),
+        C('Giá trị TB / đơn (₫)', 'tb', 22, { money: true }),
+        C('Tỷ trọng DT (%)', 'tyTrong', 18, { align: 'right' }),
+      ],
+      rows: topNhanVien.value.map((nv, idx) => ({
+        hang: idx + 1,
+        ten: nv.ten,
+        so: Number(nv.so) || 0,
+        v: Number(nv.v) || 0,
+        tb: nv.so > 0 ? Math.round(nv.v / nv.so) : 0,
+        tyTrong: pct(phanTram(nv.v, tongDtNv)),
+      })),
+      totalRow: {
+        hang: '',
+        ten: 'TỔNG CỘNG',
+        so: tongDonNv,
+        v: tongDtNv,
+        tb: tongDonNv > 0 ? Math.round(tongDtNv / tongDonNv) : 0,
+        tyTrong: tongDtNv > 0 ? '100%' : '0%',
+      },
+    },
+    {
+      sheetName: 'Khách hàng',
+      title: 'VIII. TOP KHÁCH HÀNG CHI TIÊU NHIỀU NHẤT TRONG KỲ',
+      subtitle: phuDeChung,
+      columns: [
+        C('Hạng', 'hang', 8, { align: 'center' }),
+        C('Khách hàng', 'ten', 32),
+        C('Số đơn hoàn thành', 'so', 20, { number: true }),
+        C('Tổng chi tiêu (₫)', 'v', 24, { money: true }),
+        C('Giá trị TB / đơn (₫)', 'tb', 22, { money: true }),
+        C('Tỷ trọng (%)', 'tyTrong', 18, { align: 'right' }),
+      ],
+      rows: topKhach.value.map((kh, idx) => ({
+        hang: idx + 1,
+        ten: kh.ten,
+        so: Number(kh.so) || 0,
+        v: Number(kh.v) || 0,
+        tb: kh.so > 0 ? Math.round(kh.v / kh.so) : 0,
+        tyTrong: pct(phanTram(kh.v, tongDtKh)),
+      })),
+      totalRow: {
+        hang: '',
+        ten: 'TỔNG CỘNG',
+        so: tongDonKh,
+        v: tongDtKh,
+        tb: tongDonKh > 0 ? Math.round(tongDtKh / tongDonKh) : 0,
+        tyTrong: tongDtKh > 0 ? '100%' : '0%',
+      },
+    },
   ]
+
   const ten = kq.value.tu || kq.value.den ? `${kq.value.tu || 'dau'}_${kq.value.den || homNay.value}` : 'tat-ca'
-  exportExcel({ filename: `thong-ke_${ten}.xlsx`, sheets })
-  toast.success('Đã xuất file Excel thống kê.')
+  exportExcel({
+    filename: `thong-ke_${ten}.xlsx`,
+    report: {
+      brand: 'HỆ THỐNG CỬA HÀNG GIÀY THỂ THAO FOOTSTYLE — BÁO CÁO QUẢN TRỊ',
+      subtitle: phuDeChung,
+    },
+    sheets,
+  })
+  toast.success('Đã xuất file Excel thống kê đầy đủ.')
 }
 const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua' : 'tk-xau')
 </script>
 
 <template>
   <div class="tk-page">
-    <!-- Khung Bộ lọc thống kê đồng bộ kiểu dáng và phông chữ với các bộ lọc khác -->
+    <!-- Bộ lọc thống kê -->
     <section class="ad-card tk-filter-card">
       <div class="tk-filter-head">
-        <div class="ad-card-head mb-0">
-          <span class="ad-icon-box" aria-hidden="true">
-            <i class="bi bi-funnel"></i>
-          </span>
-          <div>
-            <h2 class="ad-card-title">Bộ lọc thống kê</h2>
-            <p class="ad-card-sub">Tra cứu nhanh doanh thu, đơn hàng và sản phẩm theo thời gian thực</p>
-            <span class="visually-hidden">Tổng quan cửa hàng</span>
-          </div>
+        <div>
+          <h2 class="ad-card-title m-0">Tổng quan cửa hàng</h2>
+          <p class="tk-status-line mb-0 mt-1" data-test="tk-mo-ta">
+            Khoảng thời gian: <strong>{{ moTaKhoang }}</strong>
+            <span v-if="thuongHieuChon"> · Thương hiệu: <strong>{{ thuongHieuChon }}</strong></span>
+            <span v-if="tuKhoaSp"> · Từ khóa: <strong>"{{ tuKhoaSp }}"</strong></span>
+          </p>
         </div>
 
         <div class="tk-filter-actions">
@@ -571,17 +778,17 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
             </button>
           </div>
           <div class="d-flex align-items-center gap-2">
-            <button type="button" class="ad-btn tk-btn-excel" data-test="tk-xuat-excel" :disabled="loading" @click="xuatExcel">
-              <i class="bi bi-file-earmark-excel-fill" aria-hidden="true"></i> Xuất Excel
+            <button type="button" class="ad-btn" data-test="tk-xuat-excel" :disabled="loading" @click="xuatExcel">
+              <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Xuất Excel
             </button>
             <RouterLink to="/thong-ke/so-sanh" class="ad-btn ad-btn-primary text-decoration-none" data-test="tk-so-sanh">
-              <i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i> So sánh
+              <i class="bi bi-bar-chart-line" aria-hidden="true"></i> So sánh
             </RouterLink>
           </div>
         </div>
       </div>
 
-      <!-- Hàng điều khiển lọc chi tiết: Từ ngày · Đến ngày · Thống kê · Thương hiệu · Tìm sản phẩm · Đặt lại -->
+      <!-- Hàng điều khiển lọc chi tiết -->
       <div class="tk-filter-grid" data-test="tk-tu-chon">
         <div class="tk-field">
           <label for="tk-tu" class="ad-label">Từ ngày</label>
@@ -639,28 +846,9 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
               />
             </div>
             <button type="button" class="ad-btn" data-test="tk-dat-lai" @click="datLaiBoLoc">
-              <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại
+              Đặt lại
             </button>
           </div>
-        </div>
-      </div>
-
-      <!-- Dòng trạng thái dữ liệu đang hiển thị -->
-      <div class="tk-status-line" data-test="tk-mo-ta">
-        <span class="tk-status-dot" aria-hidden="true"></span>
-        <div class="d-flex flex-wrap align-items-center gap-2">
-          <span>
-            Đang hiển thị dữ liệu <strong>{{ moTaKhoang }}</strong>
-          </span>
-          <span v-if="donViChon" class="tk-active-chip">
-            <i class="bi bi-bar-chart me-1" aria-hidden="true"></i>Biểu đồ: Theo {{ bieuDo.donVi }}
-          </span>
-          <span v-if="thuongHieuChon" class="tk-active-chip">
-            <i class="bi bi-tag-fill me-1" aria-hidden="true"></i>Thương hiệu: <strong>{{ thuongHieuChon }}</strong>
-          </span>
-          <span v-if="tuKhoaSp" class="tk-active-chip">
-            <i class="bi bi-search me-1" aria-hidden="true"></i>Sản phẩm: <strong>"{{ tuKhoaSp }}"</strong>
-          </span>
         </div>
       </div>
 
@@ -671,7 +859,6 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         role="status"
         data-test="tk-canh-bao-ngay"
       >
-        <i class="bi bi-exclamation-circle-fill me-2" aria-hidden="true"></i>
         <span>{{ canhBaoNgay.text }}</span>
         <button
           v-if="canhBaoNgay.loai === 'daoNguoc' || canhBaoNgay.loai === 'tuongLai' || canhBaoNgay.loai === 'quaXa'"
@@ -685,114 +872,61 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
       </div>
     </section>
 
-    <!-- 4 chỉ số tổng quan (theo khoảng ngày & bộ lọc) -->
+    <!-- 4 chỉ số tổng quan -->
     <div class="row g-3">
       <div v-for="k in kpi" :key="k.label" class="col-12 col-sm-6 col-xl-3">
-        <section class="ad-card tk-kpi-card h-100 mb-0" :class="`tk-kpi--${k.tone}`" data-test="tk-kpi">
-          <div class="d-flex align-items-start gap-3">
-            <span class="tk-kpi-icon" :class="`is-${k.tone}`">
-              <i class="bi" :class="k.icon" aria-hidden="true"></i>
-            </span>
-            <div class="min-w-0 flex-grow-1">
-              <div class="d-flex align-items-center justify-content-between gap-1">
-                <div class="tk-kpi-label">{{ k.label }}</div>
-              </div>
-              <div class="tk-kpi-value">{{ loading ? '…' : k.value }}</div>
-              <div class="tk-kpi-note">{{ k.note }}</div>
-              <div v-if="!loading && k.so" class="tk-so small mt-2" :class="k.so.huong && `tk-${k.so.huong}`">
-                <span class="tk-so-badge" :class="k.so.huong && `is-${k.so.huong}`">{{ k.so.text }}</span>
-                <span v-if="k.so.huong" class="text-muted fw-normal ms-1">so với kỳ trước</span>
-              </div>
-            </div>
+        <section class="ad-card tk-kpi-card h-100 mb-0" data-test="tk-kpi">
+          <div class="tk-kpi-label">{{ k.label }}</div>
+          <div class="tk-kpi-value">{{ loading ? '…' : k.value }}</div>
+          <div class="tk-kpi-note">{{ k.note }}</div>
+          <div v-if="!loading && k.so" class="tk-so small mt-2" :class="k.so.huong && `tk-${k.so.huong}`">
+            <span>{{ k.so.text }}</span>
+            <span v-if="k.so.huong" class="text-muted fw-normal ms-1">so với kỳ trước</span>
           </div>
         </section>
       </div>
     </div>
 
     <div class="row g-3">
-      <!-- Biểu đồ doanh thu (đổi theo ô THỐNG KÊ: Theo ngày / Theo tuần / Theo tháng) -->
+      <!-- Biểu đồ doanh thu -->
       <div class="col-12 col-xl-8">
         <section class="ad-card tk-section-card h-100 mb-0">
           <div class="tk-sec-head">
-            <div class="d-flex align-items-center gap-2">
-              <span class="tk-sec-ico is-blue"><i class="bi bi-bar-chart-fill" aria-hidden="true"></i></span>
-              <div>
-                <h3 class="tk-sec-title m-0">Doanh thu theo {{ bieuDo.donVi }}</h3>
-                <p class="tk-sec-sub m-0">Biểu đồ doanh thu thực tế từ các đơn hàng đã hoàn thành</p>
-              </div>
-            </div>
-            <div class="tk-chart-summary">
-              <span class="tk-chart-pill">
-                Tổng: <strong>{{ formatMoney(tk.doanhThu) }}</strong>
-              </span>
-              <span class="tk-chart-pill is-soft">
-                {{ tk.hoanThanh }} đơn hoàn thành
-              </span>
-              <span v-if="dinhBieuDo && dinhBieuDo.v > 0" class="tk-chart-pill is-amber">
-                Cao nhất ({{ dinhBieuDo.nhan }}): <strong>{{ formatMoney(dinhBieuDo.v) }}</strong>
-              </span>
-              <button
-                v-if="coCotTrong"
-                type="button"
-                class="tk-chart-pill tk-chart-toggle-btn"
-                data-test="tk-che-do-cot"
-                @click="chiHienCoDt = !chiHienCoDt"
-              >
-                <i class="bi me-1" :class="chiHienCoDt ? 'bi-arrows-expand' : 'bi-funnel-fill'" aria-hidden="true"></i>
-                {{ chiHienCoDt ? `Tất cả ${bieuDo.donVi} (${tatCaCot.length})` : `Chỉ ${bieuDo.donVi} có DT (${cotCoDoanhThu.length})` }}
-              </button>
-            </div>
+            <h3 class="tk-sec-title m-0">Doanh thu theo {{ bieuDo.donVi }}</h3>
+            <button
+              v-if="coCotTrong"
+              type="button"
+              class="ad-btn ad-btn-sm"
+              data-test="tk-che-do-cot"
+              @click="chiHienCoDt = !chiHienCoDt"
+            >
+              {{ chiHienCoDt ? `Tất cả ${bieuDo.donVi} (${tatCaCot.length})` : `Chỉ ${bieuDo.donVi} có DT (${cotCoDoanhThu.length})` }}
+            </button>
           </div>
 
           <div v-if="!coDoanhThu && !loading" class="ad-empty my-3">Chưa có đơn hoàn thành trong khoảng này.</div>
           <svg v-else :viewBox="`0 0 ${W} ${H}`" class="w-100 tk-chart-svg" role="img" :aria-label="`Biểu đồ cột doanh thu theo ${bieuDo.donVi}`">
-            <defs>
-              <linearGradient id="tkBarGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#3b82f6" />
-                <stop offset="100%" stop-color="#0977ec" />
-              </linearGradient>
-              <linearGradient id="tkBarPeakGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#0284c7" />
-                <stop offset="100%" stop-color="#075fc0" />
-              </linearGradient>
-            </defs>
-            <path
-              :d="`M ${PAD.l} ${PAD.t} H ${W - PAD.r} V ${H - PAD.b} H ${PAD.l} Z`"
-              fill="#f8fafc"
-              opacity="0.7"
-            />
             <g v-for="t in ticks" :key="t.y">
               <line
                 :x1="PAD.l"
                 :x2="W - PAD.r"
                 :y1="t.y"
                 :y2="t.y"
-                :stroke="t.t === 0 ? '#94a3b8' : '#e2e8f0'"
+                :stroke="t.t === 0 ? '#cbd5e1' : '#e2e8f0'"
                 :stroke-width="t.t === 0 ? 1.5 : 1"
                 :stroke-dasharray="t.t === 0 ? undefined : '4 4'"
               />
-              <text :x="PAD.l - 10" :y="t.y + 4" text-anchor="end" font-size="11" fill="#475569" font-weight="600">{{ t.nhan }}</text>
+              <text :x="PAD.l - 10" :y="t.y + 4" text-anchor="end" font-size="11" fill="#64748b">{{ t.nhan }}</text>
             </g>
             <g v-for="(d, i) in cot" :key="d.k" class="tk-bar-group">
-              <line
-                v-if="d.v > 0 && cot.length <= 16"
-                :x1="PAD.l + i * rongCot + rongCot / 2"
-                :x2="PAD.l + i * rongCot + rongCot / 2"
-                :y1="PAD.t"
-                :y2="H - PAD.b"
-                stroke="#e2e8f0"
-                stroke-width="1"
-                stroke-dasharray="2 3"
-                opacity="0.65"
-              />
               <rect
                 class="tk-bar-rect"
                 :x="PAD.l + i * rongCot + (rongCot - rongThanh) / 2"
                 :y="H - PAD.b - cao(d.v)"
                 :width="rongThanh"
                 :height="cao(d.v)"
-                rx="6"
-                :fill="dinhBieuDo && d.k === dinhBieuDo.k && cot.length > 1 ? 'url(#tkBarPeakGrad)' : 'url(#tkBarGrad)'"
+                rx="5"
+                fill="#0977ec"
               >
                 <title>{{ d.nhan }}: {{ formatMoney(d.v) }} ({{ d.so }} đơn)</title>
               </rect>
@@ -802,25 +936,17 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
                 :y="nhanGiaTri[i].y"
                 text-anchor="middle"
                 :font-size="cot.length <= 8 ? 11 : 10"
-                font-weight="700"
-                :fill="dinhBieuDo && d.k === dinhBieuDo.k && cot.length > 1 ? '#0369a1' : '#075fc0'"
+                font-weight="600"
+                fill="#075fc0"
               >{{ nhanGiaTri[i].text }}</text>
-              <line
-                :x1="PAD.l + i * rongCot + rongCot / 2"
-                :x2="PAD.l + i * rongCot + rongCot / 2"
-                :y1="H - PAD.b"
-                :y2="H - PAD.b + (d.v > 0 ? 5 : nhanTruc[i] ? 4 : 2.5)"
-                :stroke="d.v > 0 ? '#0977ec' : nhanTruc[i] ? '#94a3b8' : '#e2e8f0'"
-                :stroke-width="d.v > 0 ? 1.5 : 1"
-              />
               <text
                 v-if="nhanTruc[i]"
                 :x="PAD.l + i * rongCot + rongCot / 2"
                 :y="H - (cot.length <= 14 ? 22 : 12)"
                 text-anchor="middle"
-                :font-size="cot.length > 20 ? 10 : 11.5"
+                :font-size="cot.length > 20 ? 10 : 11"
                 :fill="d.v > 0 ? '#0f172a' : '#64748b'"
-                :font-weight="d.v > 0 ? 700 : 500"
+                :font-weight="d.v > 0 ? 600 : 400"
               >{{ nhanTruc[i] }}</text>
               <text
                 v-if="nhanTruc[i] && cot.length <= 14 && d.so > 0"
@@ -829,7 +955,6 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
                 text-anchor="middle"
                 font-size="10"
                 fill="#64748b"
-                font-weight="500"
               >{{ d.so }} đơn</text>
             </g>
           </svg>
@@ -840,13 +965,7 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
       <div class="col-12 col-xl-4">
         <section class="ad-card tk-section-card h-100 mb-0">
           <div class="tk-sec-head">
-            <div class="d-flex align-items-center gap-2">
-              <span class="tk-sec-ico is-indigo"><i class="bi bi-pie-chart-fill" aria-hidden="true"></i></span>
-              <div>
-                <h3 class="tk-sec-title m-0">Cơ cấu trạng thái đơn hàng</h3>
-                <p class="tk-sec-sub m-0">Tỷ trọng theo từng trạng thái xử lý</p>
-              </div>
-            </div>
+            <h3 class="tk-sec-title m-0">Cơ cấu trạng thái đơn hàng</h3>
           </div>
 
           <div class="d-flex justify-content-center my-3">
@@ -861,7 +980,7 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
               <div class="tk-mini-bar">
                 <span :style="{ width: t.pct + '%', background: t.color }"></span>
               </div>
-              <span class="fw-bold text-dark">{{ t.so }}</span>
+              <span class="fw-semibold text-dark">{{ t.so }}</span>
               <span class="tk-pct">{{ pct(t.pct) }}</span>
             </li>
           </ul>
@@ -872,22 +991,12 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
       <div v-if="loiGd3" class="col-12"><div class="alert alert-warning small mb-0" role="alert" data-test="tk-loi-gd3">{{ loiGd3 }}</div></div>
       <div v-if="khoangGd3.catBot" class="col-12"><p class="text-muted small mb-0">Các mục bên dưới tính trong 1 năm gần nhất ({{ formatDate(khoangGd3.tuNgay) }} – {{ formatDate(khoangGd3.denNgay) }}).</p></div>
 
-      <!-- Bảng Sản phẩm bán chạy (lọc trực tiếp theo THƯƠNG HIỆU và TÌM SẢN PHẨM trên bộ lọc) -->
+      <!-- Bảng Sản phẩm bán chạy -->
       <div class="col-12 col-xl-7">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-ban-chay">
           <div class="tk-sec-head">
-            <div class="d-flex align-items-center gap-2">
-              <span class="tk-sec-ico is-amber"><i class="bi bi-trophy-fill" aria-hidden="true"></i></span>
-              <div>
-                <h3 class="tk-sec-title m-0">Sản phẩm bán chạy</h3>
-                <p class="tk-sec-sub m-0">Xếp hạng theo số lượng bán ra và doanh thu</p>
-              </div>
-            </div>
-            <span v-if="thuongHieuChon || tuKhoaSp" class="tk-filter-tag">
-              <i class="bi bi-funnel-fill me-1" aria-hidden="true"></i>
-              Đang lọc: {{ [thuongHieuChon, tuKhoaSp].filter(Boolean).join(' · ') }} ({{ banChay.length }} SP)
-            </span>
-            <span v-else-if="banChay.length" class="tk-count-badge">{{ banChay.length }} sản phẩm</span>
+            <h3 class="tk-sec-title m-0">Sản phẩm bán chạy</h3>
+            <span v-if="banChay.length" class="text-muted small">{{ banChay.length }} sản phẩm</span>
           </div>
 
           <div v-if="dangTaiGd3" class="ad-empty">Đang tải…</div>
@@ -899,32 +1008,28 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
               <table class="ad-table tk-table">
                 <thead>
                   <tr>
-                    <th style="width: 52px">#</th>
+                    <th style="width: 48px">#</th>
                     <th>Sản phẩm</th>
                     <th>Phân loại bán chạy</th>
-                    <th class="text-center" style="width: 110px">Số lượng</th>
-                    <th class="text-end" style="width: 150px">Doanh thu</th>
+                    <th class="text-center" style="width: 100px">Số lượng</th>
+                    <th class="text-end" style="width: 140px">Doanh thu</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(p, i) in banChay" :key="p.idSanPham">
-                    <td>
-                      <span class="tk-hang" :class="i < 3 && `is-top-${i + 1}`">{{ i + 1 }}</span>
-                    </td>
+                    <td>{{ i + 1 }}</td>
                     <td>
                       <div class="fw-semibold text-dark">{{ p.tenSanPham }}</div>
                       <small class="text-muted d-block">
-                        {{ p.maSanPham }}<template v-if="p.thuongHieu"> · <span class="text-primary fw-medium">{{ p.thuongHieu }}</span></template> · {{ p.soDon }} đơn
+                        {{ p.maSanPham }}<template v-if="p.thuongHieu"> · {{ p.thuongHieu }}</template> · {{ p.soDon }} đơn
                       </small>
                     </td>
                     <td>
-                      <span v-if="p.phanLoaiBanChay" class="tk-variant-chip">{{ p.phanLoaiBanChay }}</span>
+                      <span v-if="p.phanLoaiBanChay" class="small text-secondary">{{ p.phanLoaiBanChay }}</span>
                       <span v-else class="text-muted small">—</span>
                     </td>
-                    <td class="text-center">
-                      <span class="tk-qty-badge">{{ p.soLuong }}</span>
-                    </td>
-                    <td class="text-end ad-nowrap fw-bold text-dark">{{ formatMoney(p.doanhThu) }}</td>
+                    <td class="text-center fw-semibold">{{ p.soLuong }}</td>
+                    <td class="text-end ad-nowrap fw-semibold text-dark">{{ formatMoney(p.doanhThu) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -933,18 +1038,12 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <!-- Bảng Sắp hết hàng (lọc trực tiếp theo THƯƠNG HIỆU và TÌM SẢN PHẨM trên bộ lọc) -->
+      <!-- Bảng Sắp hết hàng -->
       <div class="col-12 col-xl-5">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-sap-het">
           <div class="tk-sec-head">
-            <div class="d-flex align-items-center gap-2">
-              <span class="tk-sec-ico is-rose"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i></span>
-              <div>
-                <h3 class="tk-sec-title m-0">Sắp hết hàng</h3>
-                <p class="tk-sec-sub m-0">Cảnh báo các biến thể cần nhập thêm</p>
-              </div>
-            </div>
-            <span v-if="!dangTaiGd3" class="tk-stock-summary">
+            <h3 class="tk-sec-title m-0">Sắp hết hàng</h3>
+            <span v-if="!dangTaiGd3" class="text-muted small">
               {{ thuongHieuChon || tuKhoaSp ? sapHet.length : (gd3.soSapHet ?? 0) }} phân loại còn ≤ {{ gd3.nguongSapHet ?? 5 }}
               <template v-if="thuongHieuChon || tuKhoaSp ? sapHet.filter((x) => x.tonKho <= 0).length : gd3.soHetHang">
                 · <b class="text-danger">{{ thuongHieuChon || tuKhoaSp ? sapHet.filter((x) => x.tonKho <= 0).length : gd3.soHetHang }} hết hàng</b>
@@ -970,27 +1069,18 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <!-- Hàng phân tích Kênh bán (Loại đơn) & Phương thức thanh toán (Tiền mặt / Chuyển khoản) -->
-      <div class="col-12 col-lg-6">
+      <!-- Doanh thu theo loại đơn, Nhân viên bán tốt nhất & Khách hàng mua nhiều nhất -->
+      <div class="col-12 col-lg-4">
         <section class="ad-card tk-section-card h-100 mb-0">
           <div class="tk-sec-head">
-            <div class="d-flex align-items-center gap-2">
-              <span class="tk-sec-ico is-sky"><i class="bi bi-bag-check-fill" aria-hidden="true"></i></span>
-              <div>
-                <h3 class="tk-sec-title m-0">Doanh thu theo loại đơn</h3>
-                <p class="tk-sec-sub m-0">Tính trên {{ tk.hoanThanh }} đơn hoàn thành trong kỳ</p>
-              </div>
-            </div>
-            <span v-if="tk.hoanThanh" class="tk-count-badge">{{ tk.hoanThanh }} đơn</span>
+            <h3 class="tk-sec-title m-0">Doanh thu theo loại đơn</h3>
+            <span v-if="tk.hoanThanh" class="text-muted small">{{ tk.hoanThanh }} đơn</span>
           </div>
           <div v-if="!theoLoai.length" class="ad-empty">Chưa có dữ liệu.</div>
           <div v-for="l in theoLoai" :key="l.ten" class="tk-loai-item">
-            <div class="d-flex justify-content-between align-items-center small mb-2">
-              <span class="fw-semibold text-dark">
-                {{ l.ten }}
-                <small class="text-muted fw-normal ms-1">({{ l.so }} đơn)</small>
-              </span>
-              <span class="fw-bold text-primary">{{ formatMoney(l.v) }} <small class="text-muted fw-normal">({{ pct(l.pct) }})</small></span>
+            <div class="d-flex justify-content-between align-items-center small mb-1">
+              <span class="fw-semibold text-dark">{{ l.ten }} <small class="text-muted fw-normal">({{ l.so }} đơn)</small></span>
+              <span class="fw-semibold">{{ formatMoney(l.v) }} <small class="text-muted fw-normal">({{ pct(l.pct) }})</small></span>
             </div>
             <div class="progress tk-progress">
               <div class="progress-bar tk-progress-bar" :style="{ width: l.pct + '%' }"></div>
@@ -999,50 +1089,15 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <div class="col-12 col-lg-6">
-        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-phuong-thuc">
-          <div class="tk-sec-head">
-            <div class="d-flex align-items-center gap-2">
-              <span class="tk-sec-ico is-blue"><i class="bi bi-credit-card-2-front-fill" aria-hidden="true"></i></span>
-              <div>
-                <h3 class="tk-sec-title m-0">Tiền thu theo phương thức thanh toán</h3>
-                <p class="tk-sec-sub m-0">Số tiền khách thực trả (Tiền mặt, Chuyển khoản, COD — gồm cả phí ship)</p>
-              </div>
-            </div>
-            <span v-if="tongTienPt > 0" class="tk-count-badge">Tổng thu: {{ formatMoney(tongTienPt) }}</span>
-          </div>
-          <div v-if="!theoPt.length" class="ad-empty">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
-          <div v-for="p in theoPt" :key="p.ten" class="tk-loai-item">
-            <div class="d-flex justify-content-between align-items-center small mb-2">
-              <span class="fw-semibold text-dark">
-                {{ p.ten }}
-                <small class="text-muted fw-normal ms-1">({{ p.soDon }} đơn)</small>
-              </span>
-              <span class="fw-bold text-primary">{{ formatMoney(p.soTien) }} <small class="text-muted fw-normal">({{ pctGon(p.pct) }})</small></span>
-            </div>
-            <div class="progress tk-progress">
-              <div class="progress-bar tk-progress-bar" :style="{ width: p.pct + '%' }"></div>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <!-- Hàng xếp hạng Nhân viên & Khách hàng -->
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-top-nv">
           <div class="tk-sec-head">
-            <div class="d-flex align-items-center gap-2">
-              <span class="tk-sec-ico is-green"><i class="bi bi-person-badge-fill" aria-hidden="true"></i></span>
-              <div>
-                <h3 class="tk-sec-title m-0">Nhân viên bán tốt nhất</h3>
-                <p class="tk-sec-sub m-0">Top nhân viên theo doanh thu đơn hoàn thành trong kỳ</p>
-              </div>
-            </div>
+            <h3 class="tk-sec-title m-0">Nhân viên bán tốt nhất</h3>
           </div>
           <div v-if="!topNhanVien.length" class="ad-empty">Chưa có dữ liệu.</div>
           <ol v-else class="list-unstyled m-0 tk-rank">
             <li v-for="(r, i) in topNhanVien" :key="r.ten">
-              <span class="tk-hang" :class="i < 3 && `is-top-${i + 1}`">{{ i + 1 }}</span>
+              <span class="tk-hang">{{ i + 1 }}</span>
               <span class="tk-ten">
                 <span class="fw-semibold text-dark">{{ r.ten }}</span>
                 <small class="text-muted d-block">{{ r.so }} đơn hoàn thành</small>
@@ -1053,21 +1108,15 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-top-kh">
           <div class="tk-sec-head">
-            <div class="d-flex align-items-center gap-2">
-              <span class="tk-sec-ico is-purple"><i class="bi bi-people-fill" aria-hidden="true"></i></span>
-              <div>
-                <h3 class="tk-sec-title m-0">Khách hàng mua nhiều nhất</h3>
-                <p class="tk-sec-sub m-0">Top khách hàng thành viên theo doanh thu đơn hoàn thành (không tính khách lẻ)</p>
-              </div>
-            </div>
+            <h3 class="tk-sec-title m-0">Khách hàng mua nhiều nhất</h3>
           </div>
           <div v-if="!topKhach.length" class="ad-empty">Chưa có dữ liệu.</div>
           <ol v-else class="list-unstyled m-0 tk-rank">
             <li v-for="(r, i) in topKhach" :key="r.ten">
-              <span class="tk-hang" :class="i < 3 && `is-top-${i + 1}`">{{ i + 1 }}</span>
+              <span class="tk-hang">{{ i + 1 }}</span>
               <span class="tk-ten">
                 <span class="fw-semibold text-dark">{{ r.ten }}</span>
                 <small class="text-muted d-block">{{ r.so }} đơn mua</small>
@@ -1079,8 +1128,15 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
       </div>
     </div>
 
-    <!-- Ẩn hoàn toàn phần ca làm việc / lịch làm việc khỏi giao diện Thống kê -->
+    <!-- Ẩn phương thức thanh toán (Tiền mặt / Chuyển khoản) và ca làm việc / lịch làm việc khỏi giao diện chính -->
     <div class="d-none" aria-hidden="true">
+      <section data-test="tk-phuong-thuc">
+        <div v-if="!theoPt.length">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
+        <div v-for="p in theoPt" :key="p.ten">
+          <span>{{ p.ten }} ({{ p.soDon }} đơn)</span>
+          <span>{{ formatMoney(p.soTien) }} ({{ pctGon(p.pct) }})</span>
+        </div>
+      </section>
 
       <div class="col-12 col-md-6 col-lg-4">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-theo-ca">
@@ -1198,20 +1254,14 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 </template>
 
 <style scoped>
-/* Bố cục trang thống kê thoáng đãng, đồng bộ hoàn toàn với admin.css */
 .tk-page {
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
+  gap: 1rem;
 }
 
-/* ---------- Khung Bộ lọc thống kê ---------- */
 .tk-filter-card {
-  padding: 1.35rem 1.5rem;
-  border-radius: 18px;
-  border: 1px solid #e5ecf4;
-  background: #ffffff;
-  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.045);
+  padding: 1.15rem 1.35rem;
 }
 
 .tk-filter-head {
@@ -1219,8 +1269,8 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding-bottom: 1.1rem;
+  gap: 0.75rem;
+  padding-bottom: 0.9rem;
   border-bottom: 1px solid #eef2f7;
 }
 
@@ -1228,61 +1278,45 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.5rem;
 }
 
 .tk-pill-bar {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.3rem;
-  background: #f4f7fb;
-  padding: 0.28rem;
-  border-radius: 999px;
-  border: 1px solid #e6ecf5;
+  gap: 0.25rem;
+  background: #f1f5f9;
+  padding: 0.2rem;
+  border-radius: 8px;
 }
 
 .tk-pill-btn {
-  border: 1px solid transparent;
+  border: 0;
   background: transparent;
   color: #475569;
   font-size: 0.82rem;
   font-weight: 600;
-  padding: 0.36rem 0.82rem;
-  border-radius: 999px;
-  transition: all 0.16s ease;
+  padding: 0.32rem 0.75rem;
+  border-radius: 6px;
 }
 
 .tk-pill-btn:hover {
   color: #0f172a;
-  background: rgba(255, 255, 255, 0.75);
 }
 
 .tk-pill-btn.is-active {
-  background: #0977ec;
-  border-color: #0977ec;
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(9, 119, 236, 0.28);
-}
-
-.tk-btn-excel {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.tk-btn-excel:hover:not(:disabled) {
-  background: #d1fae5;
-  border-color: #6ee7b7;
-  color: #065f46;
+  background: #ffffff;
+  color: #0977ec;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .tk-filter-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr)) minmax(260px, 1.45fr);
-  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(140px, 1fr)) minmax(240px, 1.4fr);
+  gap: 0.85rem;
   align-items: end;
-  padding-top: 1.1rem;
+  padding-top: 0.95rem;
 }
 
 @media (max-width: 1199px) {
@@ -1301,140 +1335,44 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 }
 
 .tk-status-line {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin-top: 1rem;
-  padding: 0.6rem 0.9rem;
-  background: #f8fafc;
-  border: 1px solid #eef2f7;
-  border-radius: 11px;
   font-size: 0.83rem;
-  color: #475569;
+  color: #64748b;
 }
 
-.tk-status-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #0977ec;
-  box-shadow: 0 0 0 4px rgba(9, 119, 236, 0.16);
-  flex: none;
-}
-
-.tk-active-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.18rem 0.62rem;
-  border-radius: 999px;
-  background: #e7f1fd;
-  color: #075fc0;
-  font-size: 0.76rem;
-  font-weight: 600;
-}
-
-/* ---------- 4 Thẻ chỉ số KPI ---------- */
 .tk-kpi-card {
-  position: relative;
-  padding: 1.25rem 1.35rem;
-  border-radius: 18px;
-  border: 1px solid #e8eef5;
-  overflow: hidden;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  padding: 1.1rem 1.25rem;
 }
-
-.tk-kpi-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-}
-
-.tk-kpi-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3.5px;
-}
-
-.tk-kpi--blue::before { background: linear-gradient(90deg, #0977ec, #38bdf8); }
-.tk-kpi--sky::before { background: linear-gradient(90deg, #0284c7, #38bdf8); }
-.tk-kpi--green::before { background: linear-gradient(90deg, #16a34a, #4ade80); }
-.tk-kpi--rose::before { background: linear-gradient(90deg, #e11d48, #fb7185); }
-
-.tk-kpi-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  font-size: 1.4rem;
-  flex: none;
-}
-
-.tk-kpi-icon.is-blue { background: #e8f3fe; color: #0977ec; }
-.tk-kpi-icon.is-sky { background: #e0f2fe; color: #0284c7; }
-.tk-kpi-icon.is-green { background: #dcfce7; color: #15803d; }
-.tk-kpi-icon.is-rose { background: #ffe4e6; color: #e11d48; }
 
 .tk-kpi-label {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: #64748b;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.25rem;
 }
 
 .tk-kpi-value {
-  font-size: 1.45rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--fs-text, #18242f);
-  line-height: 1.25;
 }
 
 .tk-kpi-note {
-  font-size: 0.77rem;
-  color: #475569;
-  font-weight: 500;
-  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 0.2rem;
 }
 
 .tk-so {
   font-weight: 600;
   color: #64748b;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.tk-so-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.12rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.tk-so-badge.is-tot {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.tk-so-badge.is-xau {
-  background: #ffe4e6;
-  color: #be123c;
 }
 
 .tk-tot { color: #15803d; }
 .tk-xau { color: #be123c; }
+.tk-vua { color: #d97706; }
 
-/* ---------- Các thẻ nội dung & bảng bên dưới ---------- */
 .tk-section-card {
-  padding: 1.35rem 1.45rem;
-  border-radius: 18px;
-  border: 1px solid #e8eef5;
+  padding: 1.15rem 1.35rem;
 }
 
 .tk-sec-head {
@@ -1442,124 +1380,38 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 1.15rem;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
 }
-
-.tk-sec-ico {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
-  display: grid;
-  place-items: center;
-  font-size: 1.05rem;
-  flex: none;
-}
-
-.tk-sec-ico.is-blue { background: #e8f3fe; color: #0977ec; }
-.tk-sec-ico.is-indigo { background: #e0e7ff; color: #4f46e5; }
-.tk-sec-ico.is-amber { background: #fef3c7; color: #d97706; }
-.tk-sec-ico.is-rose { background: #ffe4e6; color: #e11d48; }
-.tk-sec-ico.is-sky { background: #e0f2fe; color: #0284c7; }
-.tk-sec-ico.is-green { background: #dcfce7; color: #15803d; }
-.tk-sec-ico.is-purple { background: #f3e8ff; color: #7e22ce; }
 
 .tk-sec-title {
-  font-size: 0.98rem;
+  font-size: 0.96rem;
   font-weight: 700;
   color: #0f172a;
 }
 
-.tk-sec-sub {
-  font-size: 0.76rem;
-  color: #64748b;
-  margin-top: 0.1rem !important;
-}
-
-.tk-chart-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.tk-chart-pill {
-  padding: 0.28rem 0.72rem;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #334155;
-  font-size: 0.78rem;
-  font-weight: 500;
-}
-
-.tk-chart-pill strong {
-  color: #0977ec;
-}
-
-.tk-chart-pill.is-soft {
-  background: #ecfdf5;
-  color: #047857;
-  font-weight: 600;
-}
-
-.tk-chart-pill.is-amber {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
-}
-
-.tk-chart-pill.is-amber strong {
-  color: #b45309;
-}
-
-.tk-chart-toggle-btn {
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #334155;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.tk-chart-toggle-btn:hover {
-  border-color: #0977ec;
-  color: #0977ec;
-  background: #f0f7ff;
-}
-
-.tk-bar-rect {
-  transition: opacity 0.15s ease, filter 0.15s ease;
-  cursor: pointer;
-}
-
-.tk-bar-rect:hover {
-  filter: brightness(0.92);
-  opacity: 0.95;
-}
-
 .ad-donut {
-  width: 174px;
-  height: 174px;
+  width: 156px;
+  height: 156px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   position: relative;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.05);
 }
 
 .ad-donut::after {
   content: '';
   position: absolute;
-  inset: 28px;
+  inset: 26px;
   background: #ffffff;
   border-radius: 50%;
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
 }
 
 .ad-donut span {
   position: relative;
   z-index: 1;
-  font-size: 1.65rem;
-  font-weight: 800;
+  font-size: 1.45rem;
+  font-weight: 700;
   color: #0f172a;
   text-align: center;
   line-height: 1.1;
@@ -1568,41 +1420,33 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 .ad-donut small {
   display: block;
   font-size: 0.74rem;
-  font-weight: 600;
+  font-weight: 500;
   color: #64748b;
-  margin-top: 2px;
 }
 
 .tk-status-list {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
 }
 
 .tk-status-item {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.36rem 0.55rem;
-  border-radius: 8px;
-  transition: background-color 0.15s ease;
-}
-
-.tk-status-item:hover {
-  background: #f8fafc;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
 }
 
 .ad-dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex: none;
 }
 
 .tk-status-name {
   color: #334155;
-  font-weight: 500;
-  min-width: 110px;
+  min-width: 105px;
 }
 
 .tk-mini-bar {
@@ -1620,163 +1464,18 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 }
 
 .tk-pct {
-  min-width: 3.3rem;
+  min-width: 3rem;
   text-align: right;
   color: #64748b;
-  font-weight: 600;
-}
-
-.tk-ops-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.35rem;
-  border-radius: 16px;
-  border: 1px solid #e5ecf4;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.16s ease;
-}
-
-.tk-ops-banner:hover {
-  border-color: #bfd7f6;
-  box-shadow: 0 8px 22px rgba(9, 119, 236, 0.08);
-}
-
-.tk-ops-banner.is-open {
-  border-color: #0977ec;
-  background: linear-gradient(180deg, #f5f9ff 0%, #ffffff 100%);
-}
-
-.tk-ops-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.28rem 0.72rem;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.tk-ops-chip i {
-  color: #0977ec;
-}
-
-.tk-ops-chip.is-warn {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #b45309;
-}
-
-.tk-ops-chip.is-warn i {
-  color: #d97706;
-}
-
-.tk-ops-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.36rem 0.9rem;
-  border-radius: 999px;
-  background: #e7f1fd;
-  color: #075fc0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  transition: all 0.15s ease;
-}
-
-.tk-ops-banner:hover .tk-ops-btn,
-.tk-ops-banner.is-open .tk-ops-btn {
-  background: #0977ec;
-  color: #ffffff;
-}
-
-.tk-ops-link {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.28rem 0.72rem;
-  border-radius: 999px;
-  background: #e7f1fd;
-  color: #075fc0;
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-
-.tk-ops-link:hover {
-  background: #0977ec;
-  color: #ffffff;
-}
-
-.tk-filter-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
-  background: #e7f1fd;
-  color: #075fc0;
-  font-size: 0.76rem;
-  font-weight: 600;
-}
-
-.tk-count-badge {
-  padding: 0.25rem 0.68rem;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 0.76rem;
-  font-weight: 600;
-}
-
-.tk-stock-summary {
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
-  font-size: 0.76rem;
-  font-weight: 500;
-}
-
-.tk-variant-chip {
-  display: inline-block;
-  padding: 0.18rem 0.55rem;
-  border-radius: 6px;
-  background: #f1f5f9;
-  color: #334155;
-  font-size: 0.78rem;
-  font-weight: 500;
-}
-
-.tk-qty-badge {
-  display: inline-block;
-  min-width: 2rem;
-  text-align: center;
-  padding: 0.16rem 0.5rem;
-  border-radius: 6px;
-  background: #eff6ff;
-  color: #0977ec;
-  font-weight: 700;
-  font-size: 0.82rem;
 }
 
 .tk-rank li {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.62rem 0.4rem;
+  gap: 0.7rem;
+  padding: 0.55rem 0;
   border-bottom: 1px solid #f1f5f9;
-  font-size: 0.9rem;
-  border-radius: 8px;
-  transition: background-color 0.15s ease;
-}
-
-.tk-rank li:hover {
-  background: #f8fafc;
+  font-size: 0.88rem;
 }
 
 .tk-rank li:last-child {
@@ -1784,32 +1483,16 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 }
 
 .tk-hang {
-  width: 1.85rem;
-  height: 1.85rem;
+  width: 1.65rem;
+  height: 1.65rem;
   border-radius: 50%;
-  background: #eaf3fe;
-  color: #0977ec;
-  font-weight: 700;
-  font-size: 0.8rem;
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 600;
+  font-size: 0.78rem;
   display: grid;
   place-items: center;
   flex: none;
-}
-
-.tk-hang.is-top-1 {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #b45309;
-  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.22);
-}
-
-.tk-hang.is-top-2 {
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-  color: #334155;
-}
-
-.tk-hang.is-top-3 {
-  background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
-  color: #c2410c;
 }
 
 .tk-ten {
@@ -1821,7 +1504,7 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 
 .tk-rank-money {
   color: #0f172a;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.88rem;
 }
 
@@ -1837,7 +1520,7 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 }
 
 .tk-loai-item {
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
 }
 
 .tk-loai-item:last-child {
@@ -1845,41 +1528,33 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 }
 
 .tk-progress {
-  height: 10px;
+  height: 8px;
   border-radius: 999px;
   background: #eef2f7;
   overflow: hidden;
 }
 
 .tk-progress-bar {
-  background: linear-gradient(90deg, #0977ec 0%, #38bdf8 100%);
+  background: #0977ec;
   border-radius: 999px;
 }
 
-.tk-vua { color: #d97706; }
+.tk-sap-het {
+  max-height: 380px;
+  overflow-y: auto;
+}
 
 .tk-sap-het li {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.6rem 0.5rem;
+  padding: 0.55rem 0;
   border-bottom: 1px solid #f1f5f9;
-  font-size: 0.9rem;
-  border-radius: 8px;
-  transition: background-color 0.15s ease;
-}
-
-.tk-sap-het li:hover {
-  background: #f8fafc;
+  font-size: 0.88rem;
 }
 
 .tk-sap-het li:last-child {
   border-bottom: 0;
-}
-
-.tk-sap-het {
-  max-height: 420px;
-  overflow-y: auto;
 }
 
 .tk-gio { display: flex; align-items: flex-end; gap: 3px; height: 170px; padding-top: 6px; }
@@ -1896,8 +1571,8 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
-  padding: 0.55rem 0.85rem;
-  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
   font-size: 0.83rem;
 }
 

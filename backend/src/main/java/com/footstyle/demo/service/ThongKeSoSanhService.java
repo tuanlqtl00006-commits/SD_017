@@ -11,7 +11,9 @@ import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.NhanVienRepository;
 import com.footstyle.demo.security.NguoiDung;
 import com.footstyle.demo.security.XacThuc;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -25,6 +27,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -47,9 +51,10 @@ public class ThongKeSoSanhService {
     private static final Pattern KY_THANG = Pattern.compile("(\\d{4})-(\\d{1,2})");
     private static final Pattern KY_QUY = Pattern.compile("(\\d{4})-[Qq]([1-4])");
     private static final Pattern KY_NAM = Pattern.compile("(\\d{4})");
+    private static final Pattern KY_TUY_CHON = Pattern.compile("(\\d{4}-\\d{2}-\\d{2})[_~](\\d{4}-\\d{2}-\\d{2})");
     static final int SO_NAM_XU_HUONG = 5;
 
-    public enum Kieu { NGAY, THANG, QUY, NAM }
+    public enum Kieu { NGAY, THANG, QUY, NAM, TUY_CHON }
 
     /** Một kỳ thống kê: nhãn hiển thị + khoảng ngày (tính cả 2 đầu). */
     public record Ky(String ma, String nhan, LocalDate tu, LocalDate den) {
@@ -140,6 +145,26 @@ public class ThongKeSoSanhService {
                 }
                 return quy(nam, quy);
             }
+            case TUY_CHON -> {
+                LocalDate tu = homNay.withDayOfMonth(1);
+                LocalDate den = homNay;
+                if (!s.isEmpty()) {
+                    Matcher m = KY_TUY_CHON.matcher(s);
+                    if (!m.matches()) throw ApiException.badRequest("Khoảng ngày không hợp lệ (dạng 2026-10-01_2026-10-31).");
+                    try {
+                        tu = LocalDate.parse(m.group(1));
+                        den = LocalDate.parse(m.group(2));
+                    } catch (Exception ex) {
+                        throw ApiException.badRequest("Khoảng ngày không hợp lệ.");
+                    }
+                    if (tu.isAfter(den)) {
+                        LocalDate tmp = tu;
+                        tu = den;
+                        den = tmp;
+                    }
+                }
+                return tuyChon(tu, den);
+            }
             default -> {
                 int nam = homNay.getYear();
                 if (!s.isEmpty()) {
@@ -174,6 +199,13 @@ public class ThongKeSoSanhService {
         return new Ky(String.valueOf(nam), "Năm " + nam, LocalDate.of(nam, 1, 1), LocalDate.of(nam, 12, 31));
     }
 
+    static Ky tuyChon(LocalDate tu, LocalDate den) {
+        String nhan = String.format("%02d/%02d/%d - %02d/%02d/%d",
+                tu.getDayOfMonth(), tu.getMonthValue(), tu.getYear(),
+                den.getDayOfMonth(), den.getMonthValue(), den.getYear());
+        return new Ky(tu + "_" + den, nhan, tu, den);
+    }
+
     static Ky kyTruoc(Kieu kieu, Ky k) {
         return switch (kieu) {
             case NGAY -> ngay(k.tu().minusDays(1));
@@ -183,6 +215,11 @@ public class ThongKeSoSanhService {
                 yield quy(t.getYear(), (t.getMonthValue() - 1) / 3 + 1);
             }
             case NAM -> nam(k.tu().getYear() - 1);
+            case TUY_CHON -> {
+                long soNgay = java.time.temporal.ChronoUnit.DAYS.between(k.tu(), k.den()) + 1;
+                LocalDate denTr = k.tu().minusDays(1);
+                yield tuyChon(denTr.minusDays(Math.max(0, soNgay - 1)), denTr);
+            }
         };
     }
 
@@ -192,6 +229,7 @@ public class ThongKeSoSanhService {
             case THANG -> thang(YearMonth.from(k.tu()).minusYears(1));
             case QUY -> quy(k.tu().getYear() - 1, (k.tu().getMonthValue() - 1) / 3 + 1);
             case NAM -> nam(k.tu().getYear() - 1);
+            case TUY_CHON -> tuyChon(k.tu().minusYears(1), k.den().minusYears(1));
         };
     }
 
@@ -237,9 +275,29 @@ public class ThongKeSoSanhService {
             if (Integer.valueOf(HoaDon.DA_HUY).equals(h.getTrangThai())) huy++;
         }
         long sanPham = 0;
+        Map<Integer, Map<String, Object>> spTrongKyMap = new LinkedHashMap<>();
         for (HoaDonChiTiet ct : chiTietHoanThanh) {
             if (ct.getHoaDon() == null || ct.getHoaDon().getNgayTao() == null || !trongKy(ct.getHoaDon(), k)) continue;
-            sanPham += ct.getSoLuong() == null ? 0 : ct.getSoLuong();
+            long sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
+            sanPham += sl;
+            if (ct.getSanPhamChiTiet() != null && ct.getSanPhamChiTiet().getSanPham() != null) {
+                SanPham sp = ct.getSanPhamChiTiet().getSanPham();
+                String tenTh = sp.getThuongHieu() != null && sp.getThuongHieu().getTen() != null
+                        ? sp.getThuongHieu().getTen().trim()
+                        : "";
+                Map<String, Object> spItem = spTrongKyMap.computeIfAbsent(sp.getId(), id -> {
+                    Map<String, Object> x = new LinkedHashMap<>();
+                    x.put("idSanPham", sp.getId());
+                    x.put("maSanPham", sp.getMaSanPham());
+                    x.put("tenSanPham", sp.getTenSanPham());
+                    x.put("thuongHieu", tenTh);
+                    x.put("soLuong", 0L);
+                    x.put("doanhThu", 0L);
+                    return x;
+                });
+                spItem.put("soLuong", (Long) spItem.get("soLuong") + sl);
+                spItem.put("doanhThu", (Long) spItem.get("doanhThu") + (ct.getThanhTien() == null ? 0 : ct.getThanhTien().longValue()));
+            }
         }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("ky", kyDto(k));
@@ -252,6 +310,7 @@ public class ThongKeSoSanhService {
         m.put("giaTriTrungBinh", hoanThanh == 0 ? 0 : Math.round((double) thucTe / hoanThanh));
         m.put("soSanPhamBan", sanPham);
         m.put("soKhachMua", khach.size());
+        m.put("sanPhamTrongKy", new ArrayList<>(spTrongKyMap.values()));
         return m;
     }
 
@@ -310,6 +369,16 @@ public class ThongKeSoSanhService {
         kq.put("xuHuong", xuHuong(kieu, ky, hoaDons));
         kq.put("chiTietKy", chiTietKy(kieu, ky, hoaDons));
         kq.put("sanPham", sanPham(ky, truoc, chiTiets));
+        Set<String> dsThuongHieu = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (HoaDonChiTiet ct : chiTiets) {
+            if (ct.getSanPhamChiTiet() != null && ct.getSanPhamChiTiet().getSanPham() != null
+                    && ct.getSanPhamChiTiet().getSanPham().getThuongHieu() != null
+                    && ct.getSanPhamChiTiet().getSanPham().getThuongHieu().getTen() != null) {
+                String tenTh = ct.getSanPhamChiTiet().getSanPham().getThuongHieu().getTen().trim();
+                if (!tenTh.isEmpty()) dsThuongHieu.add(tenTh);
+            }
+        }
+        kq.put("dsThuongHieu", new ArrayList<>(dsThuongHieu));
         kq.put("phanTich", taoPhanTich(kieu, kq));
         kq.put("nguoiNhanBaoCao", dsNguoiNhanDangLamViec());
         kq.put("emailNgungHoatDong", dsEmailNgungHoatDong());
@@ -457,6 +526,15 @@ public class ThongKeSoSanhService {
             case NAM -> {
                 for (int y = nam - (SO_NAM_XU_HUONG - 1); y <= nam; y++) cap.add(new Ky[] {nam(y), null});
             }
+            case TUY_CHON -> {
+                long soNgay = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(ky.tu(), ky.den()) + 1);
+                for (int i = 3; i >= 0; i--) {
+                    LocalDate denI = ky.den().minusDays(i * soNgay);
+                    LocalDate tuI = denI.minusDays(soNgay - 1);
+                    Ky kI = tuyChon(tuI, denI);
+                    cap.add(new Ky[] {kI, tuyChon(tuI.minusYears(1), denI.minusYears(1))});
+                }
+            }
         }
         List<Map<String, Object>> ds = new ArrayList<>();
         Long truoc = null;
@@ -550,10 +628,15 @@ public class ThongKeSoSanhService {
             boolean kt = trongKy(ct.getHoaDon(), truoc);
             if (!nay && !kt) continue;
             SanPham sp = ct.getSanPhamChiTiet().getSanPham();
+            String tenTh = sp.getThuongHieu() != null && sp.getThuongHieu().getTen() != null
+                    ? sp.getThuongHieu().getTen().trim()
+                    : "";
             Map<String, Object> m = theoSp.computeIfAbsent(sp.getId(), k -> {
                 Map<String, Object> x = new LinkedHashMap<>();
+                x.put("idSanPham", sp.getId());
                 x.put("maSanPham", sp.getMaSanPham());
                 x.put("tenSanPham", sp.getTenSanPham());
+                x.put("thuongHieu", tenTh);
                 x.put("soLuong", 0L);
                 x.put("doanhThu", 0L);
                 x.put("soLuongKyTruoc", 0L);
@@ -737,7 +820,6 @@ public class ThongKeSoSanhService {
         Map<String, Object> a = (Map<String, Object>) d.get("hienTai");
         Map<String, Object> kt = (Map<String, Object>) d.get("kyTruoc");
         Map<String, Object> ck = (Map<String, Object>) d.get("cungKyNamTruoc");
-        List<String> phanTich = (List<String>) d.get("phanTich");
         String nhanKy = String.valueOf(ky.get("nhan"));
         String tieuDeTuyChon = (String) d.get("tieuDeTuyChon");
         String tieuDe = (tieuDeTuyChon != null && !tieuDeTuyChon.isBlank())
@@ -770,18 +852,6 @@ public class ThongKeSoSanhService {
                     .append("<b style=\"color:#b45309;display:block;margin-bottom:4px\">Ghi chú &amp; Đề xuất từ người gửi:</b>")
                     .append("<div style=\"line-height:1.5;color:#334155\">").append(esc(ghiChuNguoiGui)).append("</div></div>");
             chu.append("GHI CHÚ TỪ NGƯỜI GỬI:\n").append(ghiChuNguoiGui).append("\n\n");
-        }
-        if (phanTich != null && !phanTich.isEmpty()) {
-            html.append("<div style=\"background:#f8fafc;border:1px solid #dbeafe;border-left:4px solid #0977ec;padding:12px 16px;border-radius:8px;margin-bottom:16px\">")
-                    .append("<b style=\"color:#0977ec;display:block;margin-bottom:6px\">Nhận xét &amp; Phân tích tổng hợp:</b>")
-                    .append("<ul style=\"margin:0;padding-left:18px;line-height:1.55\">");
-            chu.append("NHẬN XÉT & PHÂN TÍCH:\n");
-            for (String dong : phanTich) {
-                html.append("<li>").append(esc(dong)).append("</li>");
-                chu.append("* ").append(dong).append("\n");
-            }
-            html.append("</ul></div>");
-            chu.append("\n");
         }
 
         html.append("<table cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse:collapse;border:1px solid #e3eaf3\">")
@@ -818,11 +888,212 @@ public class ThongKeSoSanhService {
             }
             html.append("</table>");
         }
-        html.append("<p style=\"color:#7b8794;margin-top:20px\">Thư gửi từ hệ thống FootStyle (tự động gửi định kỳ hằng ngày lúc 21:00 và cuối mỗi tháng). Xem chi tiết tại trang Thống kê &gt; So sánh.</p></div>");
+        html.append("<p style=\"color:#7b8794;margin-top:20px\">Thư gửi từ hệ thống FootStyle (kèm tệp Excel báo cáo chi tiết đính kèm). Xem chi tiết tại trang Thống kê &gt; So sánh.</p></div>");
         Map<String, byte[]> anh = new LinkedHashMap<>();
         anh.put("bieu-do-xu-huong", anhXu);
         anh.put("bieu-do-chi-tiet", anhCt);
-        return mailService.guiBaoCao(den, tieuDe, chu.toString(), html.toString(), anh);
+        String maKy = String.valueOf(ky.get("ma")).replaceAll("[^A-Za-z0-9_-]", "_");
+        String tenFileXlsx = "Bao-cao-thong-ke_" + String.valueOf(d.get("kieu")).toLowerCase(Locale.ROOT) + "_" + maKy + ".xlsx";
+        byte[] fileXlsx = taoFileExcelBaoCao(d);
+        return mailService.guiBaoCao(den, tieuDe, chu.toString(), html.toString(), anh, tenFileXlsx, fileXlsx);
+    }
+
+    /** Tạo tệp Excel (.xlsx) chuyên nghiệp nhiều sheet đính kèm theo email báo cáo thống kê. */
+    @SuppressWarnings("unchecked")
+    static byte[] taoFileExcelBaoCao(Map<String, Object> d) throws Exception {
+        Map<String, Object> ky = (Map<String, Object>) d.get("ky");
+        Map<String, Object> a = (Map<String, Object>) d.get("hienTai");
+        Map<String, Object> kt = (Map<String, Object>) d.get("kyTruoc");
+        Map<String, Object> ck = (Map<String, Object>) d.get("cungKyNamTruoc");
+        String nhanKy = String.valueOf(ky.get("nhan"));
+        String nhanKt = String.valueOf(((Map<String, Object>) kt.get("ky")).get("nhan"));
+        String nhanCk = ck != null ? String.valueOf(((Map<String, Object>) ck.get("ky")).get("nhan")) : null;
+        String phuDe = "Kỳ báo cáo: " + nhanKy + " (" + ky.get("tuNgay") + " – " + ky.get("denNgay") + ") | Đơn vị: FootStyle";
+
+        // Sheet 1: Tổng hợp chỉ số
+        List<String> h1 = new ArrayList<>(List.of("STT", "Chỉ số thống kê", nhanKy, nhanKt, "Chênh lệch kỳ trước", "±% kỳ trước"));
+        if (ck != null) h1.addAll(List.of(nhanCk, "Chênh lệch cùng kỳ", "±% cùng kỳ"));
+        List<List<Object>> r1 = new ArrayList<>();
+        int stt = 1;
+        for (String k : CHI_SO_SO_SANH) {
+            long va = ((Number) a.get(k)).longValue();
+            long vb = ((Number) kt.get(k)).longValue();
+            List<Object> row = new ArrayList<>(List.of(stt++, TEN_CHI_SO.get(k), va, vb, va - vb, phanTram(tangTruong(va, vb))));
+            if (ck != null) {
+                long vc = ((Number) ck.get(k)).longValue();
+                row.addAll(List.of(vc, va - vc, phanTram(tangTruong(va, vc))));
+            }
+            r1.add(row);
+        }
+
+        // Sheet 2: Xu hướng chuỗi kỳ
+        List<String> h2 = List.of("STT", "Kỳ", "Số đơn hoàn thành", "Doanh thu thực tế (₫)", "Cùng kỳ năm trước (₫)", "Chênh lệch (₫)", "Tăng trưởng (±%)");
+        List<List<Object>> r2 = new ArrayList<>();
+        List<Map<String, Object>> xu = (List<Map<String, Object>>) d.getOrDefault("xuHuong", List.of());
+        int idx2 = 1;
+        for (Map<String, Object> x : xu) {
+            long dt = ((Number) x.get("doanhThu")).longValue();
+            Object ntObj = x.get("doanhThuNamTruoc");
+            Long nt = ntObj instanceof Number n ? n.longValue() : null;
+            r2.add(List.of(
+                    idx2++,
+                    String.valueOf(x.get("nhan")),
+                    ((Number) x.get("soDon")).intValue(),
+                    dt,
+                    nt != null ? nt : "—",
+                    nt != null ? dt - nt : "—",
+                    phanTram((Double) x.get("tangTruong"))
+            ));
+        }
+
+        // Sheet 3: Chi tiết trong kỳ
+        List<String> h3 = List.of("STT", "Mốc thời gian", "Số đơn hoàn thành", "Doanh thu thực tế (₫)", "Doanh thu dự kiến (₫)", "Cùng kỳ năm trước (₫)", "Chênh lệch (₫)");
+        List<List<Object>> r3 = new ArrayList<>();
+        List<Map<String, Object>> ct = (List<Map<String, Object>>) d.getOrDefault("chiTietKy", List.of());
+        int idx3 = 1;
+        for (Map<String, Object> x : ct) {
+            long dt = ((Number) x.get("doanhThu")).longValue();
+            long dk = ((Number) x.get("doanhThuDuKien")).longValue();
+            long nt = ((Number) x.get("doanhThuNamTruoc")).longValue();
+            r3.add(List.of(idx3++, String.valueOf(x.get("nhan")), ((Number) x.get("soDon")).intValue(), dt, dk, nt, dt - nt));
+        }
+
+        // Sheet 4: Sản phẩm bán chạy
+        List<String> h4 = List.of("Hạng", "Mã SP", "Tên sản phẩm", "SL kỳ này", "SL kỳ trước", "Chênh lệch SL", "Tăng trưởng (±%)", "Doanh thu kỳ này (₫)");
+        List<List<Object>> r4 = new ArrayList<>();
+        List<Map<String, Object>> sps = (List<Map<String, Object>>) d.getOrDefault("sanPham", List.of());
+        int idx4 = 1;
+        for (Map<String, Object> sp : sps) {
+            long sl = ((Number) sp.get("soLuong")).longValue();
+            long slKt = ((Number) sp.get("soLuongKyTruoc")).longValue();
+            long dt = ((Number) sp.get("doanhThu")).longValue();
+            r4.add(List.of(idx4++, String.valueOf(sp.get("maSanPham")), String.valueOf(sp.get("tenSanPham")),
+                    sl, slKt, sl - slKt, phanTram((Double) sp.get("tangTruong")), dt));
+        }
+
+        Map<String, String> files = new LinkedHashMap<>();
+        files.put("[Content_Types].xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                        + "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
+                        + "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
+                        + "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
+                        + "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>"
+                        + "<Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>"
+                        + "<Override PartName=\"/xl/worksheets/sheet2.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>"
+                        + "<Override PartName=\"/xl/worksheets/sheet3.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>"
+                        + "<Override PartName=\"/xl/worksheets/sheet4.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>"
+                        + "<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>"
+                        + "</Types>");
+        files.put("_rels/.rels",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                        + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+                        + "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>"
+                        + "</Relationships>");
+        files.put("xl/workbook.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                        + "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
+                        + "<sheets>"
+                        + "<sheet name=\"Tổng hợp\" sheetId=\"1\" r:id=\"rId1\"/>"
+                        + "<sheet name=\"Xu hướng\" sheetId=\"2\" r:id=\"rId2\"/>"
+                        + "<sheet name=\"Chi tiết trong kỳ\" sheetId=\"3\" r:id=\"rId3\"/>"
+                        + "<sheet name=\"Sản phẩm bán chạy\" sheetId=\"4\" r:id=\"rId4\"/>"
+                        + "</sheets></workbook>");
+        files.put("xl/_rels/workbook.xml.rels",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                        + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+                        + "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>"
+                        + "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet2.xml\"/>"
+                        + "<Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet3.xml\"/>"
+                        + "<Relationship Id=\"rId4\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet4.xml\"/>"
+                        + "<Relationship Id=\"rId5\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>"
+                        + "</Relationships>");
+        files.put("xl/styles.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                        + "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
+                        + "<fonts count=\"4\">"
+                        + "<font><sz val=\"11\"/><name val=\"Segoe UI\"/></font>"
+                        + "<font><b/><sz val=\"11\"/><color rgb=\"FFFFFFFF\"/><name val=\"Segoe UI\"/></font>"
+                        + "<font><b/><sz val=\"13\"/><color rgb=\"FF0F172A\"/><name val=\"Segoe UI\"/></font>"
+                        + "<font><i/><sz val=\"10\"/><color rgb=\"FF475569\"/><name val=\"Segoe UI\"/></font>"
+                        + "</fonts>"
+                        + "<fills count=\"3\">"
+                        + "<fill><patternFill patternType=\"none\"/></fill>"
+                        + "<fill><patternFill patternType=\"gray125\"/></fill>"
+                        + "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF1E3A8A\"/><bgColor indexed=\"64\"/></patternFill></fill>"
+                        + "</fills>"
+                        + "<borders count=\"2\">"
+                        + "<border><left/><right/><top/><bottom/><diagonal/></border>"
+                        + "<border><left style=\"thin\"/><right style=\"thin\"/><top style=\"thin\"/><bottom style=\"thin\"/><diagonal/></border>"
+                        + "</borders>"
+                        + "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
+                        + "<cellXfs count=\"5\">"
+                        + "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyBorder=\"1\"/>"
+                        + "<xf numFmtId=\"0\" fontId=\"1\" fillId=\"2\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\"/>"
+                        + "<xf numFmtId=\"3\" fontId=\"0\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyBorder=\"1\"/>"
+                        + "<xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/>"
+                        + "<xf numFmtId=\"0\" fontId=\"3\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/>"
+                        + "</cellXfs></styleSheet>");
+        files.put("xl/worksheets/sheet1.xml", taoSheetXml("I. BÁO CÁO ĐỐI CHIẾU CHỈ SỐ KINH DOANH — " + nhanKy, phuDe, h1, r1));
+        files.put("xl/worksheets/sheet2.xml", taoSheetXml("II. XU HƯỚNG DOANH THU CHUỖI KỲ", phuDe, h2, r2));
+        files.put("xl/worksheets/sheet3.xml", taoSheetXml("III. CHI TIẾT DOANH THU TRONG KỲ — " + nhanKy, phuDe, h3, r3));
+        files.put("xl/worksheets/sheet4.xml", taoSheetXml("IV. TOP SẢN PHẨM BÁN CHẠY TRONG KỲ", phuDe, h4, r4));
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(bos, StandardCharsets.UTF_8)) {
+            for (Map.Entry<String, String> entry : files.entrySet()) {
+                zos.putNextEntry(new ZipEntry(entry.getKey()));
+                zos.write(entry.getValue().getBytes(StandardCharsets.UTF_8));
+                zos.closeEntry();
+            }
+        }
+        return bos.toByteArray();
+    }
+
+    private static String taoSheetXml(String tieuDe, String phuDe, List<String> headers, List<List<Object>> rows) {
+        StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>");
+        sb.append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">");
+        sb.append("<cols>");
+        for (int i = 0; i < headers.size(); i++) {
+            int w = i == 0 ? 8 : i == 1 ? 30 : 20;
+            sb.append("<col min=\"").append(i + 1).append("\" max=\"").append(i + 1).append("\" width=\"").append(w).append("\" customWidth=\"1\"/>");
+        }
+        sb.append("</cols><sheetData>");
+        sb.append("<row r=\"1\" ht=\"24\" customHeight=\"1\"><c r=\"A1\" s=\"3\" t=\"inlineStr\"><is><t>").append(esc(tieuDe)).append("</t></is></c></row>");
+        sb.append("<row r=\"2\" ht=\"19\" customHeight=\"1\"><c r=\"A2\" s=\"4\" t=\"inlineStr\"><is><t>").append(esc(phuDe)).append("</t></is></c></row>");
+        sb.append("<row r=\"4\" ht=\"24\" customHeight=\"1\">");
+        for (int c = 0; c < headers.size(); c++) {
+            String ref = tenCotExcel(c) + "4";
+            sb.append("<c r=\"").append(ref).append("\" s=\"1\" t=\"inlineStr\"><is><t>").append(esc(headers.get(c))).append("</t></is></c>");
+        }
+        sb.append("</row>");
+        int rIdx = 5;
+        for (List<Object> row : rows) {
+            sb.append("<row r=\"").append(rIdx).append("\" ht=\"20\" customHeight=\"1\">");
+            for (int c = 0; c < row.size(); c++) {
+                String ref = tenCotExcel(c) + rIdx;
+                Object val = row.get(c);
+                if (val instanceof Number n) {
+                    sb.append("<c r=\"").append(ref).append("\" s=\"2\"><v>").append(n).append("</v></c>");
+                } else {
+                    sb.append("<c r=\"").append(ref).append("\" s=\"0\" t=\"inlineStr\"><is><t>").append(esc(String.valueOf(val))).append("</t></is></c>");
+                }
+            }
+            sb.append("</row>");
+            rIdx++;
+        }
+        sb.append("</sheetData></worksheet>");
+        return sb.toString();
+    }
+
+    private static String tenCotExcel(int idx) {
+        int n = idx + 1;
+        StringBuilder s = new StringBuilder();
+        while (n > 0) {
+            int rem = (n - 1) % 26;
+            s.insert(0, (char) ('A' + rem));
+            n = (n - 1) / 26;
+        }
+        return s.toString();
     }
 
     private static String esc(String s) {

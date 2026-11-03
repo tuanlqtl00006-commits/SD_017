@@ -195,4 +195,42 @@ describe('Thống kê so sánh', () => {
     )
     w.unmount()
   })
+
+  it('kiểm tra validate khoảng ngày tùy chọn (Từ ngày > Đến ngày, quá 366 ngày) và xóa kỳ so sánh', async () => {
+    const w = mount(ThongKeSoSanh, { attachTo: document.body })
+    await flushPromises()
+
+    // Xóa bớt 1 kỳ khi đang có 2 kỳ -> còn 1 kỳ và khóa nút xóa cuối cùng
+    const nutXoa = w.findAll('.ss-remove-period-btn')
+    expect(nutXoa).toHaveLength(2)
+    expect(nutXoa[0].attributes('disabled')).toBeUndefined()
+    await nutXoa[0].trigger('click')
+    await flushPromises()
+    const nutXoaConLai = w.findAll('.ss-remove-period-btn')
+    expect(nutXoaConLai).toHaveLength(1)
+    expect(nutXoaConLai[0].attributes('disabled')).toBeDefined()
+
+    // Chuyển sang Tùy chọn khoảng ngày
+    await w.findAll('button').find((b) => b.text() === 'Tùy chọn khoảng ngày').trigger('click')
+    await flushPromises()
+
+    const oNgay = w.findAll('.ss-period-date')
+    expect(oNgay.length).toBeGreaterThanOrEqual(4)
+
+    // Đặt Từ ngày > Đến ngày
+    await oNgay[0].setValue('2025-05-20')
+    await oNgay[1].setValue('2025-05-10')
+    await flushPromises()
+    expect(w.find('[data-test="ss-canh-bao-ky"]').exists()).toBe(true)
+    expect(w.find('[data-test="ss-canh-bao-ky"]').text()).toContain('không được lớn hơn')
+
+    // Đặt khoảng ngày vượt quá 366 ngày
+    await oNgay[0].setValue('2024-01-01')
+    await oNgay[1].setValue('2025-06-01')
+    await flushPromises()
+    expect(w.find('[data-test="ss-canh-bao-ky"]').exists()).toBe(true)
+    expect(w.find('[data-test="ss-canh-bao-ky"]').text()).toContain('tối đa 366 ngày')
+
+    w.unmount()
+  })
 })
