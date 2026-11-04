@@ -1,11 +1,14 @@
 <script setup>
 // Lịch sử giao ca. Quản lý xem mọi ca (lọc theo nhân viên), nhân viên chỉ xem ca của mình.
 // Chênh lệch tiền mặt tô màu (thiếu đỏ / thừa cam); bấm một dòng để xem chi tiết, các hóa đơn trong ca và in biên bản.
-import { computed, onMounted, reactive, ref } from 'vue'
+// Quản lý đóng ca hộ người đã về mà quên giao ca (cửa hàng một két tiền: ca đó chưa giao thì ca sau không vào được).
+// Danh sách tự làm mới ngầm mỗi 10 giây (nhận ca / giao ca / đóng hộ hiện ra ngay, không phải bấm Xem lại).
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import BaseModal from '../common/BaseModal.vue'
 import DateInput from '../common/DateInput.vue'
 import FilterCard from '../common/FilterCard.vue'
+import MoneyInput from '../common/MoneyInput.vue'
 import Select2 from '../common/Select2.vue'
 import api from '../../services/api'
 import { lichLamViecService } from '../../services/lichLamViecService'
@@ -29,23 +32,57 @@ const tong = computed(() => ({
   lech: ds.value.filter((g) => g.chenhLech !== null && Number(g.chenhLech) !== 0).length,
 }))
 
+// Bộ lọc đã áp dụng ở lần bấm Xem gần nhất: tự làm mới dùng bộ lọc này, không lấy ô đang gõ dở
+let locApDung = { ...loc }
+const capNhatLuc = ref('')
+const goiDs = () => lichLamViecService.lichSuGiaoCa({
+  tuNgay: locApDung.tuNgay || undefined,
+  denNgay: locApDung.denNgay || undefined,
+  idNhanVien: locApDung.idNhanVien || undefined,
+})
+function ghiGioCapNhat() {
+  const d = new Date()
+  capNhatLuc.value = [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':')
+}
+
 async function tai() {
   if (loc.tuNgay && loc.denNgay && loc.tuNgay > loc.denNgay) {
     toast.error('Từ ngày phải trước hoặc cùng ngày với Đến ngày.')
     return
   }
+  locApDung = { ...loc }
   dangTai.value = true
   try {
-    ds.value = await lichLamViecService.lichSuGiaoCa({
-      tuNgay: loc.tuNgay || undefined,
-      denNgay: loc.denNgay || undefined,
-      idNhanVien: loc.idNhanVien || undefined,
-    })
+    ds.value = await goiDs()
+    ghiGioCapNhat()
   } catch (e) {
     toast.error(e.message || 'Không tải được lịch sử giao ca.')
   } finally {
     dangTai.value = false
   }
+}
+
+/* ----- Tự làm mới ----- */
+const CHU_KY_LAM_MOI_MS = 10_000
+let henGio = null
+let dangLamMoi = false
+async function lamMoiNgam() {
+  // tab đang ẩn, đang tải, đang đóng ca hộ thì thôi; lỗi mạng tạm thời thì bỏ qua, lần sau thử lại
+  if (document.hidden || dangTai.value || dangLamMoi || dongHo.dangGui) return
+  dangLamMoi = true
+  try {
+    ds.value = await goiDs()
+    // đang xem chi tiết một ca chưa giao thì cập nhật số liệu của ca đó (trừ lúc quản lý đang nhập đóng ca hộ)
+    if (chiTiet.value?.dangTrongCa && !dongHo.mo) chiTiet.value = await lichLamViecService.chiTietGiaoCa(chiTiet.value.id)
+    ghiGioCapNhat()
+  } catch {
+    // giữ nguyên danh sách đang hiện
+  } finally {
+    dangLamMoi = false
+  }
+}
+const khiTabHienLai = () => {
+  if (!document.hidden) lamMoiNgam()
 }
 onMounted(async () => {
   if (auth.laQuanLy.value) {
@@ -56,6 +93,12 @@ onMounted(async () => {
     }
   }
   tai()
+  henGio = setInterval(lamMoiNgam, CHU_KY_LAM_MOI_MS)
+  document.addEventListener('visibilitychange', khiTabHienLai)
+})
+onBeforeUnmount(() => {
+  clearInterval(henGio)
+  document.removeEventListener('visibilitychange', khiTabHienLai)
 })
 function datLai() {
   Object.assign(loc, { tuNgay: congNgayIso(todayIso(), -29), denNgay: todayIso(), idNhanVien: '' })
@@ -64,12 +107,71 @@ function datLai() {
 
 const chiTiet = ref(null)
 async function moChiTiet(g) {
+  dongHo.mo = false
   try {
     chiTiet.value = await lichLamViecService.chiTietGiaoCa(g.id)
   } catch (e) {
     toast.error(e.message || 'Không tải được chi tiết ca.')
   }
 }
+/* ----- Quản lý đóng ca hộ ----- */
+const dongHo = reactive({ mo: false, tienMatThucTe: '', tienBanGiao: '', ghiChu: '', loi: '', soHoaDonCho: 0, dangGui: false })
+const coTheDongHo = computed(() => auth.laQuanLy.value && chiTiet.value?.dangTrongCa && chiTiet.value.idNhanVien !== auth.trangThai.nguoiDung?.id)
+function moDongHo() {
+  // Điền sẵn số hệ thống tính; quản lý đếm két rồi sửa lại nếu khác
+  Object.assign(dongHo, {
+    mo: true,
+    tienMatThucTe: Number(chiTiet.value.tongKet?.tienMatHeThong ?? 0),
+    tienBanGiao: Number(chiTiet.value.tienDauCa ?? 0),
+    ghiChu: '',
+    loi: '',
+    soHoaDonCho: 0,
+  })
+}
+async function taiLaiChiTiet() {
+  chiTiet.value = await lichLamViecService.chiTietGiaoCa(chiTiet.value.id)
+  tai()
+}
+async function guiDongHo() {
+  if (dongHo.dangGui) return
+  dongHo.loi = ''
+  if (dongHo.tienMatThucTe === '' || dongHo.tienBanGiao === '') {
+    dongHo.loi = 'Vui lòng nhập tiền mặt thực tế và tiền để lại cho ca sau.'
+    return
+  }
+  if (Number(dongHo.tienBanGiao) > Number(dongHo.tienMatThucTe)) {
+    dongHo.loi = 'Tiền để lại cho ca sau không được lớn hơn tiền mặt thực tế.'
+    return
+  }
+  dongHo.dangGui = true
+  try {
+    await api.post(`/giao-ca/${chiTiet.value.id}/dong-ho`, {
+      tienMatThucTe: Number(dongHo.tienMatThucTe),
+      tienBanGiao: Number(dongHo.tienBanGiao),
+      ghiChu: dongHo.ghiChu.trim() || null,
+    })
+    toast.success(`Đã đóng ca hộ ${chiTiet.value.maGiaoCa}. Người ca sau có thể vào ca.`)
+    dongHo.mo = false
+    await taiLaiChiTiet()
+  } catch (e) {
+    if (e.code === 'CON_HOA_DON_CHO') dongHo.soHoaDonCho = Number(e.chiTiet?.soHoaDonCho) || 1
+    dongHo.loi = e.loiTheoTruong ? Object.values(e.loiTheoTruong).join(' ') : e.message || 'Không đóng ca hộ được.'
+  } finally {
+    dongHo.dangGui = false
+  }
+}
+async function huyHoaDonCho() {
+  try {
+    const kq = (await api.post(`/giao-ca/${chiTiet.value.id}/huy-hoa-don-cho`)).data
+    toast.success(`Đã hủy ${kq.soHoaDonDaHuy} hóa đơn chờ, trả hàng về kho.`)
+    dongHo.soHoaDonCho = 0
+    dongHo.loi = ''
+    await taiLaiChiTiet()
+  } catch (e) {
+    toast.error(e.message || 'Không hủy được hóa đơn chờ.')
+  }
+}
+
 function inBienBan() {
   if (!inBienBanGiaoCa(chiTiet.value)) toast.error('Trình duyệt chặn cửa sổ in. Vui lòng cho phép cửa sổ bật lên rồi thử lại.')
 }
@@ -104,7 +206,10 @@ function inBienBan() {
           <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-arrow-left-right"></i></span>
           <h2 class="ad-card-title">Lịch sử giao ca</h2>
         </div>
-        <span class="ad-count">{{ tong.soCa }} ca · doanh thu {{ formatMoney(tong.doanhThu) }} · {{ tong.lech }} ca lệch tiền</span>
+        <span class="ad-count">
+          {{ tong.soCa }} ca · doanh thu {{ formatMoney(tong.doanhThu) }} · {{ tong.lech }} ca lệch tiền
+          <small v-if="capNhatLuc" class="gcl-tu-cap-nhat" data-testid="gcl-cap-nhat-luc"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Tự cập nhật · lúc {{ capNhatLuc }}</small>
+        </span>
       </header>
       <div class="ad-table-wrap">
         <div class="ad-table-scroll">
@@ -191,8 +296,40 @@ function inBienBan() {
           </tr>
         </tbody>
       </table>
+      <!-- Quản lý đóng ca hộ: đếm két và nhập như khi giao ca -->
+      <form v-if="dongHo.mo && coTheDongHo" class="gcl-dong-ho" novalidate data-testid="gcl-dong-ho" @submit.prevent="guiDongHo">
+        <h3 class="gcl-tieu-de mt-0">Đóng ca hộ {{ chiTiet.maGiaoCa }}</h3>
+        <p class="ad-hint mb-2">Hệ thống tính tiền mặt trong két là <b>{{ formatMoney(chiTiet.tongKet?.tienMatHeThong ?? 0) }}</b>. Đếm lại két rồi nhập số thực tế.</p>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="ad-label" for="gcl-tien-thuc-te">Tiền mặt thực tế <span class="ad-required">*</span></label>
+            <MoneyInput id="gcl-tien-thuc-te" v-model="dongHo.tienMatThucTe" aria-label="Tiền mặt thực tế" placeholder="Tiền đếm được trong két" />
+          </div>
+          <div class="col-md-6">
+            <label class="ad-label" for="gcl-ban-giao">Để lại cho ca sau <span class="ad-required">*</span></label>
+            <MoneyInput id="gcl-ban-giao" v-model="dongHo.tienBanGiao" aria-label="Tiền để lại cho ca sau" placeholder="Không để lại thì nhập 0" />
+          </div>
+          <div class="col-12">
+            <label class="ad-label" for="gcl-ghi-chu">Ghi chú</label>
+            <input id="gcl-ghi-chu" v-model="dongHo.ghiChu" type="text" class="form-control ad-control" maxlength="400" placeholder="Bắt buộc khi tiền mặt lệch so với hệ thống" />
+          </div>
+        </div>
+        <div v-if="dongHo.loi" class="ad-error mt-2" role="alert">
+          {{ dongHo.loi }}
+          <button v-if="dongHo.soHoaDonCho" type="button" class="ad-btn ad-btn-sm ms-2" data-testid="gcl-huy-hd-cho" @click="huyHoaDonCho">
+            Hủy {{ dongHo.soHoaDonCho }} hóa đơn chờ (trả hàng về kho)
+          </button>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-2">
+          <button type="button" class="ad-btn" @click="dongHo.mo = false">Thôi</button>
+          <button type="submit" class="ad-btn ad-btn-danger" :disabled="dongHo.dangGui">Xác nhận đóng ca hộ</button>
+        </div>
+      </form>
       <template #footer>
         <button type="button" class="ad-btn" @click="chiTiet = null">Đóng</button>
+        <button v-if="coTheDongHo && !dongHo.mo" type="button" class="ad-btn ad-btn-danger" data-testid="gcl-mo-dong-ho" @click="moDongHo">
+          <i class="bi bi-lock" aria-hidden="true"></i> Đóng ca hộ
+        </button>
         <button v-if="!chiTiet.dangTrongCa" type="button" class="ad-btn ad-btn-primary" @click="inBienBan"><i class="bi bi-printer" aria-hidden="true"></i> In biên bản</button>
       </template>
     </BaseModal>
@@ -200,6 +337,18 @@ function inBienBan() {
 </template>
 
 <style scoped>
+.gcl-tu-cap-nhat {
+  margin-left: 0.5rem;
+  color: #15803d;
+  white-space: nowrap;
+}
+.gcl-dong-ho {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff5f5;
+}
 .gcl-dong {
   cursor: pointer;
 }

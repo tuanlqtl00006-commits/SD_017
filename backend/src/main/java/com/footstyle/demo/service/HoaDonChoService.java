@@ -92,7 +92,7 @@ public class HoaDonChoService {
     @Transactional
     public Map<String, Object> tao() {
         NguoiDung nd = XacThuc.nhanVien();
-        GiaoCa ca = giaoCaService.caDangMoBatBuoc(nd.id());
+        GiaoCa ca = giaoCaService.caBanHang(nd);
         int dangCo = hoaDonRepo.findByNhanVien_IdAndLoaiDonAndTrangThaiOrderByNgayTaoAscIdAsc(nd.id(), HoaDon.TAI_QUAY, HoaDon.CHO_XAC_NHAN).size();
         if (dangCo >= SO_HOA_DON_CHO_TOI_DA) {
             throw ApiException.conflict("Tối đa " + SO_HOA_DON_CHO_TOI_DA + " hóa đơn chờ. Vui lòng thanh toán hoặc hủy bớt.");
@@ -110,7 +110,7 @@ public class HoaDonChoService {
         h.setThanhTien(BigDecimal.ZERO);
         h.setNgayTao(luc);
         h.setNgayCapNhat(luc);
-        h.setIdGiaoCa(ca.getId());
+        h.setIdGiaoCa(ca == null ? null : ca.getId());
         try {
             h = hoaDonRepo.saveAndFlush(h);
         } catch (DataIntegrityViolationException e) {
@@ -245,12 +245,29 @@ public class HoaDonChoService {
     @Transactional
     public void huy(Integer id) {
         HoaDon h = cuaToi(id);
+        huyVaTraKho(h, XacThuc.nhanVien(), "Hủy hóa đơn chờ tại quầy");
+    }
+
+    /** Quản lý đóng ca hộ: hủy mọi hóa đơn chờ của ca đó, trả hàng về kho. Trả về số hóa đơn đã hủy. */
+    @Transactional
+    public Map<String, Object> huyHoaDonChoCuaCa(Integer idGiaoCa) {
+        NguoiDung nd = XacThuc.nhanVien();
+        if (!nd.laQuanLy()) throw new ApiException(HttpStatus.FORBIDDEN, "Chỉ quản lý được hủy hóa đơn chờ của ca khác.");
+        int dem = 0;
+        for (HoaDon h : hoaDonRepo.findByIdGiaoCaOrderByNgayTaoAsc(idGiaoCa)) {
+            if (!laHoaDonCho(h)) continue;
+            huyVaTraKho(h, nd, "Quản lý hủy hóa đơn chờ khi đóng ca hộ");
+            dem++;
+        }
+        return Map.of("soHoaDonDaHuy", dem);
+    }
+
+    private void huyVaTraKho(HoaDon h, NguoiDung nd, String lyDo) {
         List<HoaDonChiTiet> dong = chiTietRepo.findByHoaDon_IdOrderByIdAsc(h.getId());
         for (HoaDonChiTiet ct : dong) {
             int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
             if (sl > 0) spctRepo.congTonKho(ct.getSanPhamChiTiet().getId(), sl);
         }
-        NguoiDung nd = XacThuc.nhanVien();
         LocalDateTime luc = bayGio();
         if (dong.isEmpty()) {
             lichSuRepo.deleteAll(lichSuRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(h.getId()));
@@ -263,7 +280,7 @@ public class HoaDonChoService {
         LichSuHoaDon ls = new LichSuHoaDon();
         ls.setHoaDon(h);
         ls.setHanhDong("Đã hủy");
-        ls.setMoTa("Hủy hóa đơn chờ tại quầy, đã trả " + dong.stream().mapToInt(HoaDonChiTiet::getSoLuong).sum() + " sản phẩm về kho");
+        ls.setMoTa(lyDo + ", đã trả " + dong.stream().mapToInt(HoaDonChiTiet::getSoLuong).sum() + " sản phẩm về kho");
         ls.setNguoiThaoTac(nd.hoTen());
         ls.setThoiGian(luc);
         lichSuRepo.save(ls);

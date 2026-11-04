@@ -338,7 +338,7 @@ public class BanHangService {
     @Transactional
     public Map<String, Object> thanhToan(ThanhToanRequest req) {
         NguoiDung nd = XacThuc.nhanVien();
-        GiaoCa ca = giaoCaService.caDangMoBatBuoc(nd.id());
+        GiaoCa ca = giaoCaService.caBanHang(nd);
         NhanVien nv = nhanVienRepo.findById(nd.id()).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhân viên."));
         if (req == null || req.items() == null || req.items().isEmpty()) throw ApiException.badRequest("Hóa đơn chưa có sản phẩm nào.");
         String ghiChu = req.ghiChu() == null ? null : req.ghiChu().trim();
@@ -436,7 +436,7 @@ public class BanHangService {
         hd.setGhiChu(ghiChu);
         hd.setNgayTao(luc);
         hd.setNgayCapNhat(luc);
-        hd.setIdGiaoCa(ca.getId());
+        hd.setIdGiaoCa(ca == null ? null : ca.getId());
         try {
             hd = hoaDonRepo.saveAndFlush(hd);
         } catch (DataIntegrityViolationException e) {
@@ -499,7 +499,7 @@ public class BanHangService {
     @Transactional
     public Map<String, Object> thanhToanHoaDonCho(Integer idHoaDon, ThanhToanChoRequest req) {
         NguoiDung nd = XacThuc.nhanVien();
-        GiaoCa ca = giaoCaService.caDangMoBatBuoc(nd.id());
+        GiaoCa ca = giaoCaService.caBanHang(nd);
         HoaDon hd = idHoaDon == null ? null : hoaDonRepo.findById(idHoaDon).orElse(null);
         if (hd == null) throw ApiException.notFound("Không tìm thấy hóa đơn chờ.");
         if (hd.getNhanVien() == null || !hd.getNhanVien().getId().equals(nd.id())) {
@@ -614,7 +614,7 @@ public class BanHangService {
         hd.setDiaChiGiaoHang(diaChi);
         if (giao) hd.setDonViVanChuyen(DON_VI_VAN_CHUYEN);
         hd.setNgayCapNhat(luc);
-        hd.setIdGiaoCa(ca.getId());
+        hd.setIdGiaoCa(ca == null ? null : ca.getId());
         hd = hoaDonRepo.save(hd);
         String nguoi = hd.getNhanVien().getHoTen();
         if (giao) {
@@ -716,7 +716,7 @@ public class BanHangService {
         kq.put("tienMat", t.tienMat());
         kq.put("chuyenKhoan", t.chuyenKhoan());
         kq.put("tienThua", t.tienThua());
-        kq.put("maGiaoCa", ca.getMaGiaoCa());
+        kq.put("maGiaoCa", ca == null ? null : ca.getMaGiaoCa());
         return kq;
     }
 

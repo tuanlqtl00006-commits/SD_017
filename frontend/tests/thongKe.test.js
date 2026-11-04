@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, DOMWrapper } from '@vue/test-utils'
 
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn() } }))
 vi.mock('vue-router', () => ({
@@ -236,6 +236,7 @@ describe('Trang Thống kê', () => {
     const k = kpiText(w)
     expect(k[0]).toContain('1.000.000')
     expect(k[1]).toContain('1.470.000')
+    expect(k[1]).not.toContain('Còn 470.000') // cô review 04/11: bỏ dòng chữ nhỏ dưới thẻ
     expect(k[2]).toMatch(/Đơn hoàn thành\s*1\/3/)
     await w.findAll('button').find((b) => b.text() === 'Hôm nay').trigger('click')
     expect(kpiText(w)[2]).toMatch(/Đơn hoàn thành\s*1\/2/)
@@ -340,6 +341,47 @@ describe('Trang Thống kê', () => {
     await w.get('[data-test="tk-dat-lai"]').trigger('click')
     expect(w.findAll('[data-test="tk-ban-chay"] tbody tr')).toHaveLength(2)
     expect(w.text()).toContain('Doanh thu theo ngày')
+    w.unmount()
+  })
+
+  // Cô review 04/11 (00:00–00:55): bỏ chữ nhỏ dưới các thẻ; bấm thẻ đơn thì ra bảng danh sách đơn, lọc online / offline
+  it('thẻ chỉ còn tên + số liệu; bấm "Đơn hoàn thành" ra danh sách lọc được đơn online / tại quầy', async () => {
+    const w = await moTrang([
+      hd(1, ngay(1), 2000000, 6),
+      hd(2, ngay(2), 1000000, 6, { loaiDon: 'Trực tuyến', tenKhachHang: 'lê quốc tuấn' }),
+      hd(3, ngay(3), 500000, 0, { loaiDon: 'Trực tuyến' }),
+    ])
+    await w.get('#tk-tu').setValue(ngay(29))
+    const k = kpiText(w)
+    expect(k[0]).not.toContain('không gồm phí ship')
+    expect(k[2]).not.toContain('tổng đơn')
+    expect(k[3]).not.toContain('tổng đơn')
+    expect(w.find('.tk-kpi-note').exists()).toBe(false)
+
+    await w.get('[data-ds-don="hoanThanh"]').trigger('click')
+    const body = new DOMWrapper(document.body) // hộp thoại gắn vào <body>
+    const bang = () => body.get('[data-test="tk-ds-don"]')
+    expect(bang().findAll('tbody tr')).toHaveLength(2)
+    expect(body.get('[data-loai-don="Trực tuyến"]').text()).toContain('(1)')
+    expect(body.get('[data-loai-don="Tại quầy"]').text()).toContain('(1)')
+    await body.get('[data-loai-don="Trực tuyến"]').trigger('click')
+    expect(bang().findAll('tbody tr')).toHaveLength(1)
+    expect(bang().text()).toContain('HD02')
+    expect(bang().find('a').attributes('href')).toBe('/hoa-don/2')
+    await body.get('[data-loai-don="Tại quầy"]').trigger('click')
+    expect(bang().text()).toContain('HD01')
+    expect(bang().text()).not.toContain('HD02')
+    w.unmount()
+  })
+
+  it('bấm "Đơn đã hủy" chỉ ra đơn hủy; thẻ doanh thu không bấm được', async () => {
+    const w = await moTrang([hd(1, ngay(1), 2000000, 6), hd(3, ngay(3), 500000, 0, { loaiDon: 'Trực tuyến' })])
+    await w.get('#tk-tu').setValue(ngay(29))
+    expect(w.findAll('[data-test="tk-kpi"]')[0].attributes('data-ds-don')).toBeUndefined()
+    await w.get('[data-ds-don="huy"]').trigger('click')
+    const rows = new DOMWrapper(document.body).get('[data-test="tk-ds-don"]').findAll('tbody tr')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].text()).toContain('HD03')
     w.unmount()
   })
 })

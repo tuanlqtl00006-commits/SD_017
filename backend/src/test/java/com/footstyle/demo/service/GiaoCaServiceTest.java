@@ -64,13 +64,28 @@ class GiaoCaServiceTest {
     }
 
     @Test
-    void nhanCaSomHon15Phut_tuDong_ngoaiLich_chonCa_bao() {
+    void nhanCaSomHon15Phut_chonCa_baoGio_tuDongCungBiChan_vaVaoDuocKhiDenGio() {
         Integer idLich = m.lich(m.bao, m.sang, CaLamMau.HOM_NAY).getId();
         CaLamMau.dangNhap(m.bao);
         service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "06:30"));
         ApiException e = loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(tien(0), null, idLich, tien(0))));
         assertTrue(e.getLoiTheoTruong().get("idLichLamViec").contains("từ 06:45"));
-        assertEquals(true, nhanCa("06:30", 0, null).get("ngoaiLich"), "tự chọn theo giờ mà quá sớm thì ghi ngoài lịch");
+        // tự chọn theo giờ mà quá sớm: hôm nay có lịch nên không được vào "ngoài lịch"
+        ApiException tuDong = loi(() -> nhanCa("06:30", 0, null));
+        assertEquals("NGOAI_LICH_BI_CHAN", tuDong.getCode());
+        assertTrue(tuDong.getMessage().contains("Ca sáng 07:00 - 12:00") && tuDong.getMessage().contains("từ 15 phút trước"), tuDong.getMessage());
+        assertTrue(m.giaoCas.isEmpty());
+        assertEquals("Ca sáng", nhanCa("06:50", 0, null).get("tenCa"), "đến giờ thì vào được");
+    }
+
+    @Test
+    void coLichCaToi_dangNhapSang_khongVaoNgoaiLichDuoc() {
+        m.lich(m.anh, m.toi, CaLamMau.HOM_NAY);
+        CaLamMau.dangNhap(m.anh);
+        ApiException e = loi(() -> nhanCa("07:35", 0, null));
+        assertEquals("NGOAI_LICH_BI_CHAN", e.getCode());
+        assertTrue(e.getMessage().contains(m.toi.getTenCa()) && e.getMessage().contains("quản lý xếp thêm lịch"), e.getMessage());
+        assertEquals("Ca tối", nhanCa("17:00", 0, null).get("tenCa"));
     }
 
     @Test
@@ -203,15 +218,51 @@ class GiaoCaServiceTest {
     }
 
     @Test
-    void tienBanGiao_chiMotCaSauNhan_caMoCungLucKhongNhanLai() {
+    void motKetTien_caKhacDangMo_khongVaoCaDuoc_hienTaiBaoTruoc() {
         caTruocBanGiao(2_000_000);
         CaLamMau.dangNhap(m.bao);
         nhanCa("07:00", 2_000_000, null);
-        // người thứ hai vào ca khi tiền bàn giao đã có người nhận: không gợi ý, không bắt đối soát / ghi chú
+        // người thứ hai vào ca khi ca của Bảo chưa giao: bị chặn, trang Vào ca được báo trước
         CaLamMau.dangNhap(m.anh);
-        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "07:30"));
-        assertNull(service.hienTai().get("goiYTienDauCa"));
-        assertEquals("GC03", service.nhanCa(new GiaoCaService.NhanCaRequest(tien(500_000), null, null, null)).get("maGiaoCa"));
+        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "12:05"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> caKhac = (Map<String, Object>) service.hienTai().get("caKhacDangMo");
+        assertEquals("GC02", caKhac.get("maGiaoCa"));
+        ApiException e = loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(tien(2_000_000), null, null, tien(0))));
+        assertEquals("CA_KHAC_DANG_MO", e.getCode());
+        assertTrue(e.getMessage().contains("GC02") && e.getMessage().contains("Lê Quốc Bảo"), e.getMessage());
+        // Bảo giao ca xong thì Ánh vào được, nhận đúng tiền Bảo để lại
+        CaLamMau.dangNhap(m.bao);
+        service.ketCa(new GiaoCaService.KetCaRequest(tien(2_000_000), tien(2_000_000), null, null));
+        CaLamMau.dangNhap(m.anh);
+        assertNull(service.hienTai().get("caKhacDangMo"));
+        assertEquals(tien(2_000_000), service.hienTai().get("goiYTienDauCa"));
+        assertEquals("GC03", nhanCa("12:05", 2_000_000, null).get("maGiaoCa"));
+    }
+
+    @Test
+    void quanLyDongCaHo_nguoiDaVeQuenGiao_caSauVaoDuoc() {
+        CaLamMau.dangNhap(m.bao);
+        nhanCa("07:00", 1_000_000, null);
+        int id = m.giaoCas.get(0).getId();
+        GiaoCaService.KetCaRequest dem = new GiaoCaService.KetCaRequest(tien(1_000_000), tien(1_000_000), null, null);
+        // nhân viên khác không đóng hộ được
+        CaLamMau.dangNhap(m.anh);
+        assertEquals(HttpStatus.FORBIDDEN, loi(() -> service.dongCaHo(id, dem)).getStatus());
+        // quản lý đóng hộ: ghi rõ ai đóng hộ, ca chuyển sang đã giao
+        CaLamMau.dangNhap(m.quanLy);
+        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "13:00"));
+        Map<String, Object> xong = service.dongCaHo(id, dem);
+        assertEquals(false, xong.get("dangTrongCa"));
+        assertTrue(String.valueOf(xong.get("ghiChuKetCa")).startsWith("Quản lý " + m.quanLy.getHoTen() + " đóng ca hộ lúc 13:00"), String.valueOf(xong.get("ghiChuKetCa")));
+        assertEquals("CA_DA_GIAO", loi(() -> service.dongCaHo(id, dem)).getCode());
+        // không bàn giao cho chính người trong ca
+        CaLamMau.dangNhap(m.anh);
+        nhanCa("13:05", 1_000_000, null);
+        int idAnh = m.giaoCas.get(1).getId();
+        CaLamMau.dangNhap(m.quanLy);
+        ApiException e = loi(() -> service.dongCaHo(idAnh, new GiaoCaService.KetCaRequest(tien(1_000_000), tien(0), m.anh.getId(), null)));
+        assertTrue(e.getLoiTheoTruong().get("idNhanVienNhanBanGiao").contains("chính người trong ca"));
     }
 
     @Test
@@ -249,6 +300,7 @@ class GiaoCaServiceTest {
     void lichSu_nhanVienChiThayCaCuaMinh_quanLyThayHet() {
         CaLamMau.dangNhap(m.bao);
         nhanCa("07:00", 0, null);
+        service.ketCa(new GiaoCaService.KetCaRequest(tien(0), tien(0), null, null));
         CaLamMau.dangNhap(m.anh);
         nhanCa("12:00", 0, null);
         CaLamMau.dangNhap(m.bao);
@@ -260,6 +312,50 @@ class GiaoCaServiceTest {
         assertEquals(2, service.danhSach(null, null, null).size());
         assertEquals(1, service.danhSach(null, null, 4).size());
         assertEquals("NV04", service.chiTiet(idCuaAnh).get("maNhanVien"));
+    }
+
+    @Test
+    void caDaGiao_khongVaoLaiDuoc_duLaTuGiaoHayQuanLyDongHo() {
+        Integer idLich = m.lich(m.bao, m.sang, CaLamMau.HOM_NAY).getId();
+        CaLamMau.dangNhap(m.bao);
+        assertEquals(16, nhanCa("07:16", 1_000_000, null).get("soPhutDiMuon"));
+        service.ketCa(new GiaoCaService.KetCaRequest(tien(1_000_000), tien(1_000_000), null, null));
+        // tự giao rồi vào lại: cả chọn đúng ca lẫn tự chọn theo giờ đều bị chặn, không ghi thêm "muộn"
+        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "07:47"));
+        ApiException chon = loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(tien(1_000_000), null, idLich, tien(0))));
+        assertTrue(chon.getLoiTheoTruong().get("idLichLamViec").contains("đã giao rồi"));
+        ApiException tuDong = loi(() -> nhanCa("07:47", 1_000_000, null));
+        assertEquals("NGOAI_LICH_BI_CHAN", tuDong.getCode());
+        assertTrue(tuDong.getMessage().contains("đã giao rồi"), tuDong.getMessage());
+        assertEquals(1, m.giaoCas.size(), "không có ca mới nào được tạo");
+    }
+
+    @Test
+    void quanLyDongCaHo_nhanVienDangNhapLai_khongTuVaoLaiCaDo() {
+        m.lich(m.bao, m.sang, CaLamMau.HOM_NAY);
+        CaLamMau.dangNhap(m.bao);
+        nhanCa("07:16", 1_000_000, null);
+        int id = m.giaoCas.get(0).getId();
+        CaLamMau.dangNhap(m.quanLy);
+        service.dongCaHo(id, new GiaoCaService.KetCaRequest(tien(1_000_000), tien(1_000_000), null, null));
+        CaLamMau.dangNhap(m.bao);
+        ApiException e = loi(() -> nhanCa("08:00", 1_000_000, null));
+        assertEquals("NGOAI_LICH_BI_CHAN", e.getCode());
+        // trang Vào ca biết ca nào đã giao để khóa lại
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lich = (List<Map<String, Object>>) service.hienTai().get("lichHomNay");
+        assertEquals(true, lich.get(0).get("daGiao"));
+        // quản lý xếp thêm lịch (ca chiều) thì nhân viên nhận được ca đó
+        m.lich(m.bao, m.chieu, CaLamMau.HOM_NAY);
+        assertEquals("Ca chiều", nhanCa("12:00", 1_000_000, null).get("tenCa"));
+    }
+
+    @Test
+    void quanLyKhongVaoCa() {
+        CaLamMau.dangNhap(m.quanLy);
+        ApiException e = loi(() -> nhanCa("07:00", 0, null));
+        assertEquals(HttpStatus.FORBIDDEN, e.getStatus());
+        assertTrue(m.giaoCas.isEmpty());
     }
 
     @Test

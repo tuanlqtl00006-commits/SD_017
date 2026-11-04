@@ -11,6 +11,9 @@ public interface GiaoCaRepository extends JpaRepository<GiaoCa, Integer> {
     /** Ca đang mở (trang_thai = 1) của một nhân viên. */
     Optional<GiaoCa> findFirstByNhanVienIdAndTrangThai(Integer idNhanVien, Integer trangThai);
 
+    /** Ca đang mở lâu nhất của bất kỳ ai (cửa hàng một két tiền: chỉ một ca mở cùng lúc). */
+    Optional<GiaoCa> findFirstByTrangThaiOrderByThoiGianNhanCaAsc(Integer trangThai);
+
     /** Ca giao gần nhất (để gợi ý tiền đầu ca = tiền bàn giao của ca trước). */
     Optional<GiaoCa> findFirstByTrangThaiOrderByThoiGianKetCaDescIdDesc(Integer trangThai);
 

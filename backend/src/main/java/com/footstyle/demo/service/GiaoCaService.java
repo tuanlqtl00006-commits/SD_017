@@ -51,6 +51,7 @@ public class GiaoCaService {
     /** Nhận ca sớm hơn giờ bắt đầu tối đa bấy nhiêu phút vẫn tính là ca đó. */
     static final int PHUT_DEN_SOM = 15;
     private static final DateTimeFormatter NGAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter GIO_NGAY = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
 
     private final GiaoCaRepository giaoCaRepo;
     private final NhanVienRepository nhanVienRepo;
@@ -92,6 +93,8 @@ public class GiaoCaService {
         Optional<GiaoCa> mo = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA);
         kq.put("dangMo", mo.map(this::dto).orElse(null));
         kq.put("tongKet", mo.map(this::tongKet).orElse(null));
+        // Chưa vào ca mà đang có ca của người khác mở thì chưa vào ca được (trang Vào ca báo trước)
+        kq.put("caKhacDangMo", mo.isPresent() ? null : giaoCaRepo.findFirstByTrangThaiOrderByThoiGianNhanCaAsc(GiaoCa.DANG_TRONG_CA).map(this::dto).orElse(null));
         Optional<GiaoCa> truoc = caTruocChuaNhan();
         kq.put("goiYTienDauCa", truoc.map(g -> soTien(g.getTienBanGiao())).orElse(null));
         kq.put("nguoiBanGiao", truoc.map(g -> g.getNhanVien().getHoTen()).orElse(null));
@@ -106,6 +109,7 @@ public class GiaoCaService {
             m.put("tenCa", l.getCaLamViec().getTenCa());
             m.put("gioBatDau", l.getCaLamViec().getGioBatDau().format(LichLamViecService.GIO));
             m.put("gioKetThuc", l.getCaLamViec().getGioKetThuc().format(LichLamViecService.GIO));
+            m.put("daGiao", giaoCaRepo.existsByLichLamViecId(l.getId())); // đã giao (kể cả quản lý đóng hộ) thì không vào lại
             lich.add(m);
         }
         kq.put("lichHomNay", lich);
@@ -128,6 +132,19 @@ public class GiaoCaService {
         return gc;
     }
 
+    /**
+     * Ca gắn cho hóa đơn bán tại quầy. Quản lý có toàn quyền nên không bắt nhận ca / giao ca:
+     * tiền quản lý thu bỏ chung một két nên hóa đơn gắn vào ca đang mở trong hôm nay (để giao ca két vẫn khớp);
+     * không có ca nào mở thì hóa đơn không thuộc ca nào (null). Nhân viên vẫn bắt buộc như {@link #caDangMoBatBuoc}.
+     */
+    @Transactional(readOnly = true)
+    public GiaoCa caBanHang(NguoiDung nd) {
+        if (!nd.laQuanLy()) return caDangMoBatBuoc(nd.id());
+        return giaoCaRepo.findFirstByTrangThaiOrderByThoiGianNhanCaAsc(GiaoCa.DANG_TRONG_CA)
+                .filter(gc -> gc.getThoiGianNhanCa() == null || !gc.getThoiGianNhanCa().toLocalDate().isBefore(bayGio().toLocalDate()))
+                .orElse(null);
+    }
+
     /** Lần giao ca gần nhất mà tiền bàn giao chưa có ca nào nhận (cửa hàng một két tiền: mỗi lần bàn giao chỉ cho một ca sau). */
     private Optional<GiaoCa> caTruocChuaNhan() {
         Optional<GiaoCa> truoc = giaoCaRepo.findFirstByTrangThaiOrderByThoiGianKetCaDescIdDesc(GiaoCa.DA_GIAO_CA);
@@ -143,10 +160,21 @@ public class GiaoCaService {
     @Transactional
     public Map<String, Object> nhanCa(NhanCaRequest req) {
         NguoiDung nd = XacThuc.nhanVien();
+        if (nd.laQuanLy()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Quản lý không cần vào ca / giao ca. Ca làm việc chỉ dành cho nhân viên bán hàng.");
+        }
         Optional<GiaoCa> dangMo = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA);
         if (dangMo.isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "Bạn đang trong ca " + dangMo.get().getMaGiaoCa() + ", vui lòng giao ca trước khi nhận ca mới.",
                     "DANG_TRONG_CA", null);
+        }
+        // Cửa hàng một két tiền: ca trước phải giao (hoặc quản lý đóng ca hộ) thì ca sau mới vào được
+        Optional<GiaoCa> caKhac = giaoCaRepo.findFirstByTrangThaiOrderByThoiGianNhanCaAsc(GiaoCa.DANG_TRONG_CA);
+        if (caKhac.isPresent()) {
+            GiaoCa k = caKhac.get();
+            throw new ApiException(HttpStatus.CONFLICT, "Ca " + k.getMaGiaoCa() + " của " + k.getNhanVien().getHoTen() + " (nhận lúc "
+                    + k.getThoiGianNhanCa().format(GIO_NGAY) + ") chưa giao. Người ca trước giao ca, hoặc quản lý đóng ca hộ, rồi bạn mới vào ca được.",
+                    "CA_KHAC_DANG_MO", Map.of("idGiaoCa", k.getId(), "maGiaoCa", k.getMaGiaoCa()));
         }
         NhanVien nv = nhanVienRepo.findById(nd.id()).orElseThrow(() -> ApiException.notFound("Không tìm thấy nhân viên."));
         LocalDateTime now = bayGio();
@@ -176,6 +204,11 @@ public class GiaoCaService {
             if (lich == null || !lich.getNhanVien().getId().equals(nd.id()) || !lich.getNgayLam().equals(now.toLocalDate())) {
                 loi.them("idLichLamViec", "Ca được chọn không phải lịch làm hôm nay của bạn.");
                 lich = null;
+            } else if (giaoCaRepo.existsByLichLamViecId(lich.getId())) {
+                // Giao ca rồi (hoặc quản lý đóng hộ) thì không tự vào lại; làm thêm giờ thì quản lý xếp thêm lịch
+                loi.them("idLichLamViec", lich.getCaLamViec().getTenCa() + " hôm nay của bạn đã giao rồi, không vào lại được. "
+                        + "Cần làm thêm giờ thì nhờ quản lý xếp thêm lịch cho bạn.");
+                lich = null;
             } else {
                 // Chỉ nhận ca trong khoảng từ 15 phút trước giờ bắt đầu tới giờ kết thúc
                 CaLamViec ca = lich.getCaLamViec();
@@ -190,6 +223,7 @@ public class GiaoCaService {
         }
         loi.nemNeuCoLoi();
         if (lich == null) lich = chonLichTuDong(nd.id(), now);
+        if (lich == null) chanNgoaiLichNeuCoLich(nd.id());
 
         GiaoCa gc = new GiaoCa();
         gc.setMaGiaoCa(MaUtil.tiepTheo("GC", giaoCaRepo.findAllMaGiaoCa()));
@@ -209,6 +243,31 @@ public class GiaoCaService {
         return dto(gc);
     }
 
+    /**
+     * Hôm nay nhân viên có lịch làm mà không chọn được ca nào thì không cho vào "ngoài lịch":
+     * ca đã giao rồi, chưa tới giờ nhận (sớm nhất 15 phút trước giờ bắt đầu) hoặc đã hết giờ.
+     * Chỉ người hôm nay không có lịch (làm đột xuất) mới được ghi ca ngoài lịch.
+     */
+    private void chanNgoaiLichNeuCoLich(Integer idNhanVien) {
+        List<LichLamViec> ds = lichHomNay(idNhanVien);
+        if (ds.isEmpty()) return;
+        List<LichLamViec> chuaGiao = ds.stream().filter(l -> !giaoCaRepo.existsByLichLamViecId(l.getId())).toList();
+        String ngoaiLich = "Cần làm thêm giờ hoặc làm ngoài lịch thì nhờ quản lý xếp thêm lịch cho bạn.";
+        String msg;
+        if (chuaGiao.isEmpty()) {
+            msg = "Các ca trong lịch hôm nay của bạn (" + moTaCaLich(ds) + ") đã giao rồi, không vào lại được. " + ngoaiLich;
+        } else {
+            msg = "Hôm nay bạn có lịch " + moTaCaLich(chuaGiao) + ". Chỉ nhận ca được từ " + PHUT_DEN_SOM
+                    + " phút trước giờ bắt đầu tới hết giờ ca, nên lúc này chưa vào ca được. " + ngoaiLich;
+        }
+        throw new ApiException(HttpStatus.CONFLICT, msg, "NGOAI_LICH_BI_CHAN", null);
+    }
+
+    private static String moTaCaLich(List<LichLamViec> ds) {
+        return ds.stream().map(l -> l.getCaLamViec().getTenCa() + " " + l.getCaLamViec().getGioBatDau().format(LichLamViecService.GIO)
+                + " - " + l.getCaLamViec().getGioKetThuc().format(LichLamViecService.GIO)).collect(java.util.stream.Collectors.joining(", "));
+    }
+
     /** Lịch hôm nay của nhân viên, sắp theo giờ bắt đầu. */
     List<LichLamViec> lichHomNay(Integer idNhanVien) {
         List<LichLamViec> ds = new ArrayList<>(lichRepo.findByNhanVienIdAndNgayLam(idNhanVien, bayGio().toLocalDate()));
@@ -216,9 +275,10 @@ public class GiaoCaService {
         return ds;
     }
 
-    /** Ca trong lịch hôm nay đang diễn ra (cho phép nhận sớm 15 phút); không có thì null (nhận ca ngoài lịch). */
+    /** Ca chưa giao trong lịch hôm nay đang diễn ra (cho phép nhận sớm 15 phút); không có thì null. */
     LichLamViec chonLichTuDong(Integer idNhanVien, LocalDateTime now) {
         for (LichLamViec l : lichHomNay(idNhanVien)) {
+            if (giaoCaRepo.existsByLichLamViecId(l.getId())) continue; // ca này đã giao rồi
             CaLamViec ca = l.getCaLamViec();
             LocalDateTime bd = l.getNgayLam().atTime(ca.getGioBatDau());
             LocalDateTime kt = l.getNgayLam().atTime(ca.getGioKetThuc());
@@ -240,10 +300,32 @@ public class GiaoCaService {
         NguoiDung nd = XacThuc.nhanVien();
         GiaoCa gc = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA)
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "Bạn không có ca nào đang mở để giao.", "CHUA_NHAN_CA", null));
+        return ketCaCua(gc, req, null);
+    }
+
+    /**
+     * Quản lý đóng ca hộ khi người trong ca đã về mà quên giao ca: quản lý đếm két và nhập như khi giao ca.
+     * Hóa đơn chờ của ca đó phải hủy trước (POST /api/giao-ca/{id}/huy-hoa-don-cho).
+     */
+    @Transactional
+    public Map<String, Object> dongCaHo(Integer idGiaoCa, KetCaRequest req) {
+        NguoiDung nd = XacThuc.nhanVien();
+        if (!nd.laQuanLy()) throw new ApiException(HttpStatus.FORBIDDEN, "Chỉ quản lý được đóng ca hộ.");
+        GiaoCa gc = idGiaoCa == null ? null : giaoCaRepo.findById(idGiaoCa).orElse(null);
+        if (gc == null) throw ApiException.notFound("Không tìm thấy ca.");
+        if (!Integer.valueOf(GiaoCa.DANG_TRONG_CA).equals(gc.getTrangThai())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Ca " + gc.getMaGiaoCa() + " đã giao rồi. Vui lòng tải lại trang.", "CA_DA_GIAO", null);
+        }
+        return ketCaCua(gc, req, "Quản lý " + nd.hoTen() + " đóng ca hộ lúc " + bayGio().format(GIO_NGAY) + ".");
+    }
+
+    /** Giao ca gc (người trong ca tự giao, hoặc quản lý đóng hộ khi ghiChuDongHo khác null). */
+    private Map<String, Object> ketCaCua(GiaoCa gc, KetCaRequest req, String ghiChuDongHo) {
         long soCho = hoaDonRepo.findByIdGiaoCaOrderByNgayTaoAsc(gc.getId()).stream().filter(HoaDonChoService::laHoaDonCho).count();
         if (soCho > 0) {
             throw new ApiException(HttpStatus.CONFLICT, "Còn " + soCho + " hóa đơn chờ chưa thanh toán (đang giữ hàng trong kho). "
-                    + "Vui lòng thanh toán hoặc hủy trước khi giao ca.", "CON_HOA_DON_CHO", Map.of("soHoaDonCho", soCho));
+                    + (ghiChuDongHo == null ? "Vui lòng thanh toán hoặc hủy trước khi giao ca." : "Vui lòng hủy các hóa đơn chờ này trước khi đóng ca hộ."),
+                    "CON_HOA_DON_CHO", Map.of("soHoaDonCho", soCho));
         }
         Map<String, Object> tk = tongKet(gc);
         BigDecimal heThong = (BigDecimal) tk.get("tienMatHeThong");
@@ -269,8 +351,8 @@ public class GiaoCaService {
             nguoiNhan = nhanVienRepo.findById(idNhan).orElse(null);
             if (nguoiNhan == null || !Integer.valueOf(NhanVien.HOAT_DONG).equals(nguoiNhan.getTrangThai())) {
                 loi.them("idNhanVienNhanBanGiao", "Người nhận bàn giao không hợp lệ hoặc đã ngừng hoạt động.");
-            } else if (nguoiNhan.getId().equals(nd.id())) {
-                loi.them("idNhanVienNhanBanGiao", "Không được bàn giao cho chính mình.");
+            } else if (nguoiNhan.getId().equals(gc.getNhanVien().getId())) {
+                loi.them("idNhanVienNhanBanGiao", "Không được bàn giao cho chính người trong ca.");
             }
         }
         loi.nemNeuCoLoi();
@@ -285,7 +367,7 @@ public class GiaoCaService {
         gc.setChenhLech(chenhLech.setScale(0));
         gc.setTienBanGiao(banGiao.setScale(0));
         gc.setNhanVienNhanBanGiao(nguoiNhan);
-        gc.setGhiChuKetCa(ghiChu);
+        gc.setGhiChuKetCa(ghiChuDongHo == null ? ghiChu : ghiChu == null ? ghiChuDongHo : ghiChuDongHo + " " + ghiChu);
         gc.setTrangThai(GiaoCa.DA_GIAO_CA);
         return chiTietDto(giaoCaRepo.save(gc));
     }

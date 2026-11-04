@@ -2,6 +2,7 @@
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
+import { PHI_GIAO } from '../../utils/banHang'
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -166,8 +167,8 @@ function goToCheckout() {
               <span v-else class="fw-semibold">{{ formatMoney(cartStore.shippingFee) }}</span>
             </div>
 
-            <div class="alert alert-info py-2 px-3 small mb-3 border-0" v-if="cartStore.subTotal < 500000">
-              <i class="bi bi-info-circle me-1"></i> Mua thêm <strong>{{ formatMoney(500000 - cartStore.subTotal) }}</strong> để được <strong>Miễn phí vận chuyển</strong>!
+            <div class="alert alert-info py-2 px-3 small mb-3 border-0" v-if="cartStore.subTotal < PHI_GIAO.mienPhiTu">
+              <i class="bi bi-info-circle me-1"></i> Mua thêm <strong>{{ formatMoney(PHI_GIAO.mienPhiTu - cartStore.subTotal) }}</strong> để được <strong>Miễn phí vận chuyển</strong>!
             </div>
 
             <hr class="my-2" />

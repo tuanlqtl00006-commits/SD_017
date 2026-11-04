@@ -1,7 +1,7 @@
 <script setup>
 // Trang vào ca: nhân viên chưa vào ca thì chỉ ở trang này.
 // Nhập lại tiền mặt và chuyển khoản ca trước, khác hệ thống thì phải ghi lý do.
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MoneyInput from '../common/MoneyInput.vue'
 import { useAuth } from '../../composables/useAuth'
@@ -57,7 +57,12 @@ function trangTiepTheo() {
   return q && !q.startsWith('/vao-ca') ? q : auth.trangChu()
 }
 
-// Ca cần nhận hôm nay: ca đầu tiên trong lịch chưa kết thúc; nhận được từ 15 phút trước giờ bắt đầu
+// Ca đã giao (kể cả quản lý đóng hộ) thì không vào lại; hết ca trong lịch thì phải nhờ quản lý xếp thêm lịch
+const lichChuaGiao = computed(() => trangThai.lichHomNay.filter((l) => !l.daGiao))
+const hetCaTrongLich = computed(() => trangThai.lichHomNay.length > 0 && lichChuaGiao.value.length === 0)
+const loiChanCa = ref('') // câu báo của máy chủ khi bị chặn (ngoài lịch / ca đã giao), giữ trên màn hình
+
+// Ca cần nhận hôm nay: ca đầu tiên trong lịch chưa giao và chưa kết thúc; nhận được từ 15 phút trước giờ bắt đầu
 const PHUT_NHAN_SOM = 15
 const phut = (hhmm) => {
   const [h, m] = String(hhmm).split(':').map(Number)
@@ -66,7 +71,7 @@ const phut = (hhmm) => {
 const gio = (p) => `${String(Math.floor(p / 60)).padStart(2, '0')}:${String(p % 60).padStart(2, '0')}`
 const bayGioPhut = ref(0)
 const caCanNhan = computed(() => {
-  const ca = [...trangThai.lichHomNay].sort((a, b) => phut(a.gioBatDau) - phut(b.gioBatDau)).find((l) => phut(l.gioKetThuc) > bayGioPhut.value)
+  const ca = [...lichChuaGiao.value].sort((a, b) => phut(a.gioBatDau) - phut(b.gioBatDau)).find((l) => phut(l.gioKetThuc) > bayGioPhut.value)
   if (!ca) return null
   const tu = Math.max(0, phut(ca.gioBatDau) - PHUT_NHAN_SOM)
   return { ...ca, nhanTu: gio(tu), chuaDenGio: bayGioPhut.value < tu }
@@ -90,6 +95,25 @@ onMounted(async () => {
   }
 })
 
+// Đang chờ người ca trước giao ca: tự kiểm tra lại mỗi 10 giây, giao xong thì điền sẵn tiền bàn giao và vào ca được ngay
+const CHU_KY_KIEM_TRA_MS = 10_000
+let henGio = null
+onMounted(() => {
+  henGio = setInterval(() => {
+    if (!document.hidden && trangThai.caKhacDangMo && !dangGui.value) taiLai()
+  }, CHU_KY_KIEM_TRA_MS)
+})
+onBeforeUnmount(() => clearInterval(henGio))
+watch(
+  () => trangThai.caKhacDangMo,
+  (moi, cu) => {
+    if (!cu || moi) return
+    f.tienDauCa = Number(trangThai.goiYTienDauCa ?? 0)
+    f.chuyenKhoanCaTruoc = Number(trangThai.chuyenKhoanCaTruoc ?? 0)
+    toast.success(`Ca ${cu.maGiaoCa} đã giao. Bạn vào ca được rồi, vui lòng đếm két và kiểm tra tiền bàn giao.`)
+  },
+)
+
 async function batDauCa() {
   if (dangGui.value) return
   if (!batDauGui()) {
@@ -97,6 +121,7 @@ async function batDauCa() {
     return
   }
   dangGui.value = true
+  loiChanCa.value = ''
   try {
     const gc = await nhanCa({
       tienDauCa: Number(f.tienDauCa),
@@ -110,6 +135,16 @@ async function batDauCa() {
     if (e.code === 'DANG_TRONG_CA') {
       await taiLai()
       router.replace(trangTiepTheo())
+      return
+    }
+    if (e.code === 'CA_KHAC_DANG_MO') {
+      await taiLai()
+      toast.error(e.message)
+      return
+    }
+    if (e.code === 'NGOAI_LICH_BI_CHAN') {
+      loiChanCa.value = e.message
+      await taiLai()
       return
     }
     if (datLoiMayChu(e)) focusLoiDau('#vc-form')
@@ -161,6 +196,17 @@ function dangXuat() {
             </span>
           </div>
 
+          <!-- Cửa hàng một két tiền: ca của người khác chưa giao thì chưa vào ca được -->
+          <div v-if="trangThai.caKhacDangMo" class="vc-ca-khac" role="alert" data-testid="vc-ca-khac">
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <div>
+              Ca <b>{{ trangThai.caKhacDangMo.maGiaoCa }}</b> của <b>{{ trangThai.caKhacDangMo.tenNhanVien }}</b>
+              (nhận lúc {{ formatNgayGio(trangThai.caKhacDangMo.thoiGianNhanCa) }}) chưa giao.
+              Người ca trước cần giao ca, hoặc nhờ quản lý <b>đóng ca hộ</b>, rồi bạn mới vào ca được.
+              <button type="button" class="ad-btn ad-btn-sm ms-1" @click="taiLai">Kiểm tra lại</button>
+            </div>
+          </div>
+
           <!-- Bàn giao từ ca trước -->
           <div class="vc-khoi">
             <div class="vc-khoi-dau">
@@ -183,16 +229,23 @@ function dangXuat() {
           <fieldset class="vc-khoi">
             <legend class="vc-khoi-ten"><i class="bi bi-calendar-week" aria-hidden="true"></i> Ca làm việc</legend>
             <p v-if="!trangThai.lichHomNay.length" class="ad-hint mb-0">Hôm nay bạn không có lịch làm. Ca sẽ được ghi là <b>ngoài lịch</b>.</p>
+            <p v-else-if="hetCaTrongLich" class="vc-het-ca" role="alert" data-testid="vc-het-ca">
+              Các ca trong lịch hôm nay của bạn đã giao rồi, không vào lại được. Cần làm thêm giờ thì nhờ quản lý xếp thêm lịch cho bạn.
+            </p>
             <div v-else class="vc-ca">
               <label class="vc-ca-muc">
                 <input v-model="f.idLichLamViec" type="radio" :value="null" class="form-check-input" />
                 <span>Tự chọn theo giờ hiện tại</span>
               </label>
-              <label v-for="l in trangThai.lichHomNay" :key="l.id" class="vc-ca-muc">
-                <input v-model="f.idLichLamViec" type="radio" :value="l.id" class="form-check-input" />
-                <span><b>{{ l.tenCa }}</b> {{ l.gioBatDau }} - {{ l.gioKetThuc }}</span>
+              <label v-for="l in trangThai.lichHomNay" :key="l.id" class="vc-ca-muc" :class="{ 'is-da-giao': l.daGiao }">
+                <input v-model="f.idLichLamViec" type="radio" :value="l.id" class="form-check-input" :disabled="l.daGiao" />
+                <span>
+                  <b>{{ l.tenCa }}</b> {{ l.gioBatDau }} - {{ l.gioKetThuc }}
+                  <small v-if="l.daGiao" class="text-muted" data-testid="vc-ca-da-giao"> · đã giao</small>
+                </span>
               </label>
             </div>
+            <p v-if="loi.idLichLamViec" class="ad-error mt-2" data-testid="vc-loi-ca">{{ loi.idLichLamViec }}</p>
           </fieldset>
 
           <div class="row g-3">
@@ -239,7 +292,8 @@ function dangXuat() {
             </div>
           </div>
 
-          <button type="submit" class="ad-btn ad-btn-primary vc-nut" :disabled="dangGui" data-testid="vc-bat-dau">
+          <p v-if="loiChanCa" class="vc-chan-ca" role="alert" data-testid="vc-chan-ca">{{ loiChanCa }}</p>
+          <button type="submit" class="ad-btn ad-btn-primary vc-nut" :disabled="dangGui || !!trangThai.caKhacDangMo || hetCaTrongLich" data-testid="vc-bat-dau">
             <span v-if="dangGui" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
             <i v-else class="bi bi-play-circle" aria-hidden="true"></i>
             {{ dangGui ? 'Đang vào ca…' : 'Bắt đầu ca làm việc' }}
@@ -251,6 +305,31 @@ function dangXuat() {
 </template>
 
 <style scoped>
+.vc-het-ca,
+.vc-chan-ca {
+  margin: 0.5rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.88rem;
+}
+.vc-ca-muc.is-da-giao {
+  opacity: 0.6;
+}
+.vc-ca-khac {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.9rem;
+}
 .vc-trang {
   min-height: 100vh;
   background: #f3f6fb;

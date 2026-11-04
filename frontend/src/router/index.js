@@ -182,30 +182,20 @@ const routes = [
         component: () => import('../components/giaoCa/GiaoCaLichSuPage.vue'),
         meta: { parent: 'Quản lý lịch làm', title: 'Lịch sử giao ca', roles: NV },
       },
-      {
-        path: 'lich-cua-toi',
-        name: 'lich-cua-toi',
-        component: () => import('../components/lichLamViec/LichCuaToiPage.vue'),
-        meta: { parent: 'Quản lý lịch làm', title: 'Lịch ca làm', roles: NV },
-      },
+      // Lịch ca làm (lịch của mình) đã gộp vào trang Lịch làm việc
+      { path: 'lich-cua-toi', redirect: { path: '/lich-lam-viec', query: { tab: 'cua-toi' } } },
       {
         path: 'lich-lam-viec',
         name: 'lich-lam-viec',
         component: () => import('../components/lichLamViec/LichLamViecPage.vue'),
-        meta: { parent: 'Quản lý lịch làm', title: 'Lịch làm việc', roles: QL },
+        meta: { parent: 'Quản lý lịch làm', title: 'Lịch làm việc', roles: NV },
       },
-      // ===== Trò chuyện: hỗ trợ khách (trợ lý ảo chuyển sang) + chat nội bộ nhân viên =====
+      // ===== Hỗ trợ trực tuyến: chat với khách (trợ lý ảo chuyển sang) =====
       {
         path: 'ho-tro-truc-tuyen',
         name: 'ho-tro-truc-tuyen',
         component: () => import('../components/chat/HoTroTrucTuyenPage.vue'),
-        meta: { parent: 'Trò chuyện', title: 'Hỗ trợ trực tuyến', roles: NV },
-      },
-      {
-        path: 'chat-noi-bo',
-        name: 'chat-noi-bo',
-        component: () => import('../components/chat/ChatNoiBoPage.vue'),
-        meta: { parent: 'Trò chuyện', title: 'Chat nội bộ', roles: NV },
+        meta: { title: 'Hỗ trợ trực tuyến', roles: NV },
       },
     ],
   },
@@ -398,6 +388,8 @@ export async function kiemTraTruyCap(to) {
     useToast().error('Tài khoản của bạn không có quyền vào trang này.')
     return auth.trangChu()
   }
+  // Quản lý không vào ca / giao ca
+  if (to.name === 'vao-ca' && auth.vaiTro.value === 'quan-ly') return auth.trangChu()
   // Nhân viên bắt buộc vào ca trước khi làm bất cứ việc gì (backend cũng chặn API bằng mã CHUA_NHAN_CA)
   if (auth.vaiTro.value === 'nhan-vien' && !to.meta?.khongCanVaoCa) {
     const giaoCa = useGiaoCa()

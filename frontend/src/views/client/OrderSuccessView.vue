@@ -58,7 +58,8 @@ async function saoChep(giaTri, nhan) {
 // Hỏi backend mỗi 4 giây xem ngân hàng đã báo tiền vào chưa
 async function kiemTraThanhToan() {
   try {
-    const d = (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: maHoaDon.value } })).data
+    // Tra cứu công khai bắt buộc SĐT đặt hàng (lấy từ đơn vừa lưu trên máy)
+    const d = (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: maHoaDon.value, sdt: donLuu.value?.sdtKhachHang } })).data
     if (d?.daThanhToanDu) {
       daThanhToan.value = true
       clearInterval(timer)

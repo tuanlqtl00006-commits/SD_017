@@ -1,18 +1,24 @@
 <script setup>
-// Xếp lịch làm việc theo tuần (quản lý): hàng là nhân viên, cột là ngày. Ngày đã qua chỉ xem.
+// Lịch làm việc. Quản lý: xếp lịch theo tuần (hàng là nhân viên, cột là ngày, ngày đã qua chỉ xem), ca làm việc, lịch ca làm của mình.
+// Nhân viên chỉ thấy tab Lịch ca làm (lịch của mình).
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import CaLamViecTab from './CaLamViecTab.vue'
+import LichCuaToiPage from './LichCuaToiPage.vue'
 import XepLichModal from './XepLichModal.vue'
 import LichImportModal from './LichImportModal.vue'
 import { lichLamViecService } from '../../services/lichLamViecService'
 import { useToast } from '../../composables/useToast'
+import { useAuth } from '../../composables/useAuth'
 import { formatDate, todayIso } from '../../utils/format'
 import { xuatLichTuan } from '../../utils/mauLichLamViec'
 import { congNgayIso, demTheoCa, gomLich, mauCa, ngayTrongTuan, nhanTuan, thu2CuaTuan } from '../../utils/lichTuan'
 
 const toast = useToast()
-const tab = ref('lich')
+const laQuanLy = useAuth().laQuanLy
+// ?tab=cua-toi (link cũ /lich-cua-toi) mở thẳng tab Lịch ca làm
+const tab = ref(!laQuanLy.value || useRoute().query.tab === 'cua-toi' ? 'cua-toi' : 'lich')
 const homNay = ref(todayIso())
 const thu2 = ref(thu2CuaTuan(homNay.value))
 const ngays = computed(() => ngayTrongTuan(thu2.value))
@@ -40,6 +46,7 @@ async function taiLich() {
   }
 }
 onMounted(async () => {
+  if (!laQuanLy.value) return // nhân viên không xếp lịch
   try {
     const [, nv] = await Promise.all([taiCa(), lichLamViecService.nhanVien()])
     nhanViens.value = nv
@@ -114,16 +121,20 @@ async function saoChep() {
 
 <template>
   <div class="ad-page">
-    <div class="ad-segment ll-tab" role="tablist" aria-label="Lịch làm việc">
+    <div v-if="laQuanLy" class="ad-segment ll-tab" role="tablist" aria-label="Lịch làm việc">
       <button type="button" class="ad-segment-item" :class="{ active: tab === 'lich' }" role="tab" :aria-selected="tab === 'lich'" @click="tab = 'lich'">
         <i class="bi bi-calendar-week" aria-hidden="true"></i> Lịch tuần
       </button>
       <button type="button" class="ad-segment-item" :class="{ active: tab === 'ca' }" role="tab" :aria-selected="tab === 'ca'" @click="tab = 'ca'">
         <i class="bi bi-clock" aria-hidden="true"></i> Ca làm việc
       </button>
+      <button type="button" class="ad-segment-item" :class="{ active: tab === 'cua-toi' }" role="tab" :aria-selected="tab === 'cua-toi'" data-testid="ll-tab-cua-toi" @click="tab = 'cua-toi'">
+        <i class="bi bi-calendar-check" aria-hidden="true"></i> Lịch ca làm
+      </button>
     </div>
 
-    <CaLamViecTab v-if="tab === 'ca'" :cas="cas" @doi="taiCa" />
+    <LichCuaToiPage v-if="tab === 'cua-toi'" />
+    <CaLamViecTab v-else-if="tab === 'ca'" :cas="cas" @doi="taiCa" />
 
     <section v-else class="ad-card">
       <header class="ad-list-head ll-dau">
@@ -240,7 +251,7 @@ async function saoChep() {
 <style scoped>
 .ll-tab {
   margin-bottom: 1rem;
-  max-width: 380px;
+  max-width: 520px;
 }
 .ll-tab .ad-segment-item {
   border: 0;

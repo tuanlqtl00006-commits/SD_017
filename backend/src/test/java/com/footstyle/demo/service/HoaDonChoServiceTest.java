@@ -1,6 +1,7 @@
 package com.footstyle.demo.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -247,6 +248,66 @@ class HoaDonChoServiceTest {
     }
 
     /* ---------- kiểm thử ---------- */
+
+    @Test
+    void quanLyHuyHoaDonChoCuaCa_khiDongCaHo_traHangVeKho() {
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
+        assertEquals(1, cau.getSoLuongTon());
+        // nhân viên không hủy được hóa đơn chờ của cả ca
+        assertEquals(HttpStatus.FORBIDDEN, loi(() -> service.huyHoaDonChoCuaCa(7)).getStatus());
+        CaLamMau.dangNhap(m.quanLy);
+        assertEquals(1, service.huyHoaDonChoCuaCa(7).get("soHoaDonDaHuy"));
+        assertEquals(2, cau.getSoLuongTon(), "hàng trả lại kho");
+        assertEquals(HoaDon.DA_HUY, m.hoaDons.stream().filter(h -> h.getId().equals(id)).findFirst().orElseThrow().getTrangThai());
+    }
+
+    @Test
+    void quanLy_khongCanNhanCa_banHangGanVaoCaDangMo_chungMotKet() {
+        // setUp đã mở ca GC07 của Bảo: tiền quản lý thu bỏ chung két nên hóa đơn gắn vào GC07
+        CaLamMau.dangNhap(m.quanLy);
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(250_000L, null, null));
+        HoaDon hd = m.hoaDons.stream().filter(h -> h.getId().equals(id)).findFirst().orElseThrow();
+        assertEquals(HoaDon.HOAN_THANH, hd.getTrangThai());
+        assertEquals(7, hd.getIdGiaoCa());
+        assertEquals("GC07", kq.get("maGiaoCa"));
+    }
+
+    @Test
+    void quanLy_khongCoCaNaoMo_vanBanDuoc_hoaDonKhongGanCa() {
+        m.giaoCas.clear();
+        CaLamMau.dangNhap(m.quanLy);
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(250_000L, null, null));
+        assertNull(m.hoaDons.stream().filter(h -> h.getId().equals(id)).findFirst().orElseThrow().getIdGiaoCa());
+        assertNull(kq.get("maGiaoCa"));
+    }
+
+    @Test
+    void quanLy_caCuHomTruocChuaGiao_khongBiChan_khongGanVaoCaCu() {
+        m.giaoCas.clear();
+        GiaoCa cu = new GiaoCa();
+        cu.setId(8);
+        cu.setMaGiaoCa("GC08");
+        cu.setNhanVien(m.quanLy);
+        cu.setThoiGianNhanCa(LUC.minusDays(1));
+        cu.setTienDauCa(BigDecimal.ZERO);
+        cu.setTrangThai(GiaoCa.DANG_TRONG_CA);
+        m.giaoCas.add(cu);
+        CaLamMau.dangNhap(m.quanLy);
+        Integer id = taoHoaDon();
+        assertNull(m.hoaDons.stream().filter(h -> h.getId().equals(id)).findFirst().orElseThrow().getIdGiaoCa());
+    }
+
+    @Test
+    void nhanVien_chuaNhanCa_vanBiChan() {
+        CaLamMau.dangNhap(m.anh);
+        ApiException e = loi(this::taoHoaDon);
+        assertEquals("CHUA_NHAN_CA", e.getCode());
+    }
 
     @Test
     void themSanPham_truKhoNgay_taoChiTiet_congDonCungGia() {

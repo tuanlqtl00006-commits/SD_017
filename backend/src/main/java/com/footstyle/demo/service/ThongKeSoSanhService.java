@@ -180,7 +180,7 @@ public class ThongKeSoSanhService {
     static Ky ngay(LocalDate d) {
         return new Ky(
                 d.toString(),
-                String.format("Ngày %02d/%02d/%d", d.getDayOfMonth(), d.getMonthValue(), d.getYear()),
+                String.format(Locale.ROOT, "Ngày %02d/%02d/%d", d.getDayOfMonth(), d.getMonthValue(), d.getYear()),
                 d,
                 d
         );
@@ -200,7 +200,7 @@ public class ThongKeSoSanhService {
     }
 
     static Ky tuyChon(LocalDate tu, LocalDate den) {
-        String nhan = String.format("%02d/%02d/%d - %02d/%02d/%d",
+        String nhan = String.format(Locale.ROOT, "%02d/%02d/%d - %02d/%02d/%d",
                 tu.getDayOfMonth(), tu.getMonthValue(), tu.getYear(),
                 den.getDayOfMonth(), den.getMonthValue(), den.getYear());
         return new Ky(tu + "_" + den, nhan, tu, den);

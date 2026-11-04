@@ -221,16 +221,17 @@ describe('Kiểm tra truy cập trang', () => {
 
 describe('Trang ca làm việc có trong router với đúng quyền', () => {
   const quyen = (path) => router.resolve(path).meta
-  it('nhân viên: lịch của mình, lịch sử giao ca; chỉ quản lý xếp lịch', () => {
-    for (const p of ['/lich-cua-toi', '/giao-ca']) {
+  it('Lịch làm việc, Lịch sử giao ca cho cả nhân viên; link cũ /lich-cua-toi chuyển sang tab Lịch ca làm', () => {
+    for (const p of ['/lich-lam-viec', '/giao-ca']) {
       expect(router.resolve(p).name, p).not.toBeUndefined()
       expect(quyen(p).roles, p).toEqual(['nhan-vien', 'quan-ly'])
     }
-    expect(quyen('/lich-lam-viec').roles).toEqual(['quan-ly'])
+    const cu = router.resolve('/lich-cua-toi').matched.at(-1)
+    expect(cu.redirect).toEqual({ path: '/lich-lam-viec', query: { tab: 'cua-toi' } })
   })
 
-  it('có trang chat nội bộ, hỗ trợ khách (nhân viên) và trang chat công khai của khách (/ho-tro)', () => {
-    expect(router.resolve('/chat-noi-bo').name).toBe('chat-noi-bo')
+  it('có trang hỗ trợ khách (nhân viên) và trang chat công khai của khách (/ho-tro); đã bỏ chat nội bộ', () => {
+    expect(router.resolve('/chat-noi-bo').name).not.toBe('chat-noi-bo')
     expect(router.resolve('/ho-tro-truc-tuyen').name).toBe('ho-tro-truc-tuyen')
     expect(router.resolve('/ho-tro').meta.congKhai).toBe(true)
   })

@@ -70,6 +70,15 @@ const luaChonNhanVien = computed(() => [
 const tk = computed(() => trangThai.tongKet || {})
 const chenhLech = computed(() => tinhChenhLech(kc.tienMatThucTe, tk.value.tienMatHeThong))
 const moTaCl = computed(() => moTaChenhLech(chenhLech.value))
+// Nút tự điền: tiền mặt thực tế = số hệ thống tính, để lại cho ca sau = tiền đầu ca (không quá tiền thực tế).
+// Nhân viên vẫn phải đếm két đối chiếu; lệch thì sửa số và ghi lý do.
+function tuDienTheoHeThong() {
+  const thucTe = Number(tk.value.tienMatHeThong || 0)
+  kc.tienMatThucTe = thucTe
+  kc.tienBanGiao = Math.min(Number(tk.value.tienDauCa || 0), thucTe)
+  loiKet.sua('tienMatThucTe')
+  loiKet.sua('tienBanGiao')
+}
 const daLam = computed(() => (trangThai.dangMo ? thoiLuong(trangThai.dangMo.thoiGianNhanCa, bayGio.value) : ''))
 // Hóa đơn chờ (lưu ở CSDL, đang giữ hàng trong kho): còn thì backend không cho giao ca
 const hoaDonCho = ref(0)
@@ -203,7 +212,12 @@ const tieuDe = computed(() => {
       </div>
 
       <form id="gc-ket-form" novalidate class="gc-ket" @submit.prevent="moXacNhan">
-        <h3 class="gc-tieu-de-nho">Giao ca</h3>
+        <div class="gc-ket-dau">
+          <h3 class="gc-tieu-de-nho m-0">Giao ca</h3>
+          <button type="button" class="ad-btn ad-btn-sm" data-testid="gc-tu-dien" @click="tuDienTheoHeThong">
+            <i class="bi bi-magic" aria-hidden="true"></i> Tự điền theo hệ thống
+          </button>
+        </div>
         <div class="row g-3">
           <div class="col-md-6">
             <label class="ad-label" for="gc-thuc-te">Tiền mặt thực tế <span class="ad-required">*</span></label>
@@ -356,6 +370,14 @@ const tieuDe = computed(() => {
 .gc-ket {
   border-top: 1px solid var(--fs-line, #e6eaf0);
   padding-top: 1rem;
+}
+.gc-ket-dau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 .gc-tieu-de-nho {
   font-size: 1rem;

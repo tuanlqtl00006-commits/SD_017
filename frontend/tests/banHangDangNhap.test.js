@@ -508,8 +508,17 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await nutThem().trigger('click')
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
+    // Cô review 04/11: không còn combo box; hiện luôn phiếu tốt nhất đang áp dụng, đổi phiếu qua pop-up
+    expect(w.find('.bh-o-phieu').exists()).toBe(false)
+    const apDung = () => w.find('[data-testid="bh-phieu-ap-dung"]')
+    expect(apDung().text()).toContain('Đang áp dụng phiếu GIAM50K (giảm 50.000')
+    expect(apDung().text()).toContain('Tốt nhất')
+    // Không có nút "Đổi phiếu": bấm vào chính dòng phiếu (có mũi tên) để đổi / bỏ phiếu
     const the = w.find('#bh-phieu')
-    expect(the.text()).toContain('GIAM50K')
+    expect(the.text()).not.toContain('Đổi phiếu')
+    expect(the.attributes('role')).toBe('button')
+    expect(the.find('.bh-phieu-mui').exists()).toBe(true)
+    expect(w.find('button.bh-phieu-doi').exists()).toBe(false)
     expect(w.find('.bh-tien-giam').text()).toContain('-50.000')
     expect(w.find('[data-testid="bh-goi-y-ngan"]').text()).toContain('Mua thêm 1.139.000')
     await the.trigger('click')
@@ -522,9 +531,18 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await muc[0].trigger('click')
     await flushPromises()
     expect(body().find('.bh-phieu-ds').exists()).toBe(false)
-    expect(w.find('#bh-phieu').text()).toContain('Chọn phiếu (1 phiếu dùng được)')
+    expect(apDung().text()).toContain('Không dùng phiếu (1 phiếu dùng được)')
+    expect(w.find('#bh-phieu').text()).not.toContain('Chọn phiếu')
+    expect(w.find('#bh-phieu').attributes('role')).toBe('button') // bỏ phiếu rồi vẫn bấm vào dòng để chọn lại
     expect(w.find('.bh-tien-giam').text()).toContain('-0')
     expect(w.find('.bh-nut-tt').text()).toContain('3.861.000')
+    // chọn lại bằng bàn phím: Enter trên dòng phiếu mở pop-up
+    await w.find('#bh-phieu').trigger('keydown.enter')
+    await flushPromises()
+    expect(body().find('.bh-phieu-ds').exists()).toBe(true)
+    await body().findAll('.bh-phieu-muc')[1].trigger('click')
+    await flushPromises()
+    expect(apDung().text()).toContain('Đang áp dụng phiếu GIAM50K')
   })
 
   it('phiếu bị sửa mức giảm lúc đang chờ: gửi mức giảm đang hiện, máy chủ báo thì tải lại phiếu và hiện số tiền mới', async () => {

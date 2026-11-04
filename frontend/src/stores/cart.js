@@ -2,8 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 import { layPhien } from '../services/phien'
+import { PHI_GIAO } from '../utils/banHang'
 
 const KHOA_KHACH_VANG_LAI = 'footstyle_cart_khach'
+/** Phí giao đơn online dưới mức miễn phí (khớp máy chủ). */
+export const PHI_SHIP_ONLINE = 30000
 
 // Giỏ hàng lưu theo tài khoản; nếu khách thêm hàng khi chưa đăng nhập (footstyle_cart_khach) rồi mới đăng nhập/đăng ký thì tự gộp sang giỏ của tài khoản
 function khoaGioHang() {
@@ -107,8 +110,9 @@ export const useCartStore = defineStore('cart', () => {
 
   const shippingFee = computed(() => {
     if (subTotal.value === 0) return 0
-    // Miễn phí vận chuyển cho đơn hàng từ 500.000₫, dưới 500k thì phí 30.000₫
-    return subTotal.value >= 500000 ? 0 : 30000
+    // Cùng luật với máy chủ (CuaHangService.datHangOnline): đơn từ 1.000.000₫ miễn phí, dưới mức đó phí 30.000₫.
+    // Trước đây giỏ hàng miễn phí từ 500.000₫ nên khách thấy "Miễn phí" mà đơn lưu lại bị cộng 30.000₫ (review 04/11, đơn HD970).
+    return subTotal.value >= PHI_GIAO.mienPhiTu ? 0 : PHI_SHIP_ONLINE
   })
 
   const finalTotal = computed(() => {

@@ -15,6 +15,7 @@ import GiaoCaModal from '../giaoCa/GiaoCaModal.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import VanChuyenLogo from '../common/VanChuyenLogo.vue'
 import { useGiaoCa } from '../../composables/useGiaoCa'
+import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../composables/useToast'
 import { NGAN_HANG, PHUONG_THUC, daCauHinhNganHang } from '../../constants/thanhToan'
 import { formatMoney } from '../../utils/format'
@@ -29,6 +30,9 @@ const SO_HOA_DON_CHO_TOI_DA = 10
 const router = useRouter()
 const toast = useToast()
 const giaoCa = useGiaoCa()
+// Quản lý có toàn quyền: bán hàng không bắt nhận ca / giao ca; nhân viên phải vào ca trước
+const auth = useAuth()
+const canVaoCa = computed(() => !auth.laQuanLy.value && !giaoCa.dangTrongCa.value)
 
 /* ===================== Hóa đơn chờ (CSDL) ===================== */
 const dsCho = ref([]) // [{ id, maHoaDon, khach, items, tongTienHang, soLuong, coGiaDoi }]
@@ -93,7 +97,7 @@ async function themHoaDon() {
     toast.error(`Tối đa ${SO_HOA_DON_CHO_TOI_DA} hóa đơn chờ. Vui lòng thanh toán hoặc hủy bớt.`)
     return null
   }
-  if (!giaoCa.dangTrongCa.value) {
+  if (canVaoCa.value) {
     toast.error('Bạn chưa vào ca.')
     moCa.value = true
     return null
@@ -267,6 +271,8 @@ const moPhieu = ref(false)
 // Phiếu dùng được cho đơn, giảm nhiều nhất lên đầu (máy chủ đã xếp, sắp lại cho chắc)
 const phieuDung = computed(() => phieus.value.filter((p) => p.apDungDuoc).sort((a, b) => Number(b.soTienGiam) - Number(a.soTienGiam)))
 const soPhieuDung = computed(() => phieuDung.value.length)
+// Dòng phiếu bấm được (mở pop-up chọn / bỏ phiếu) khi đã có hàng và có phiếu dùng được hoặc đang áp một phiếu
+const coTheChonPhieu = computed(() => hd.value.gio.length > 0 && (soPhieuDung.value > 0 || !!hd.value.p.maPhieu))
 // Gợi ý mua thêm: phiếu chỉ còn thiếu đơn tối thiểu mà khi đủ sẽ giảm nhiều hơn phiếu tốt nhất hiện tại, thiếu ít nhất lên đầu
 const goiYMuaThem = computed(() => {
   const totNhat = Number(phieuDung.value[0]?.soTienGiam || 0)
@@ -473,7 +479,7 @@ onBeforeUnmount(() => {
 })
 
 const lyDoKhongThanhToan = computed(() => {
-  if (!giaoCa.dangTrongCa.value) return 'Bạn chưa vào ca.'
+  if (canVaoCa.value) return 'Bạn chưa vào ca.'
   if (!hd.value.gio.length) return 'Hóa đơn chưa có sản phẩm.'
   if (hd.value.coGiaDoi) return 'Có sản phẩm đã đổi giá. Báo khách rồi bấm "Cập nhật giá".'
   if (loiPhieu.value) return loiPhieu.value
@@ -488,7 +494,7 @@ function moXacNhan() {
   if (hd.value.p.giaoHang) daChamGiao.value = true
   if (lyDoKhongThanhToan.value) {
     toast.error(lyDoKhongThanhToan.value)
-    if (!giaoCa.dangTrongCa.value) moCa.value = true
+    if (canVaoCa.value) moCa.value = true
     return
   }
   xacNhan.value = true
@@ -603,10 +609,17 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 
 <template>
   <div class="ad-page bh">
-    <div v-if="giaoCa.trangThai.daTai && !giaoCa.dangTrongCa.value" class="bh-chua-ca" role="alert">
+    <div v-if="giaoCa.trangThai.daTai && canVaoCa" class="bh-chua-ca" role="alert">
       <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
       <span>Bạn chưa vào ca. Vui lòng <b>vào ca</b> (nhập tiền đầu ca) trước khi bán hàng.</span>
       <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="moCa = true">Vào ca</button>
+    </div>
+    <!-- Quá giờ kết thúc ca: nhắc giao ca để người ca sau vào được (cửa hàng một két tiền) -->
+    <div v-else-if="giaoCa.quaGioCa.value" class="bh-chua-ca bh-qua-gio" role="alert" data-testid="bh-qua-gio">
+      <i class="bi bi-alarm" aria-hidden="true"></i>
+      <span v-if="giaoCa.quaGioCa.value.caCu">Ca {{ giaoCa.trangThai.dangMo.maGiaoCa }} nhận từ hôm trước chưa giao. Vui lòng <b>giao ca</b> rồi vào ca mới.</span>
+      <span v-else>{{ giaoCa.quaGioCa.value.tenCa }} đã hết lúc {{ giaoCa.quaGioCa.value.ketThuc }} (quá {{ giaoCa.quaGioCa.value.phut }} phút). Vui lòng <b>giao ca</b> trước khi về để người ca sau vào ca được.</span>
+      <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="moCa = true">Giao ca</button>
     </div>
 
     <div class="bh-luoi">
@@ -782,22 +795,34 @@ const soLuongTab = (h) => tongSoLuong(h.items)
             </label>
           </div>
 
-          <!-- Phiếu giảm giá: tự áp phiếu giảm nhiều nhất; bấm ô để mở hộp thoại chọn phiếu -->
-          <div class="bh-dong-phieu">
-            <span id="bh-phieu-nhan" class="bh-nhan-dong">Phiếu giảm giá</span>
-            <button
-              id="bh-phieu"
-              type="button"
-              class="form-select ad-control bh-o-phieu"
-              :disabled="!hd.gio.length || (dangTaiPhieu && !phieus.length)"
-              aria-haspopup="dialog"
-              aria-labelledby="bh-phieu-nhan"
-              :title="phieuChon && giamPhieu ? phieuChon.ten : ''"
-              @click="moPhieu = true"
-            >
-              <template v-if="phieuChon && giamPhieu">{{ phieuChon.ma }}</template>
-              <span v-else class="text-muted">{{ !hd.gio.length ? 'Chưa có sản phẩm' : soPhieuDung ? `Chọn phiếu (${soPhieuDung} phiếu dùng được)` : 'Không có phiếu dùng được' }}</span>
-            </button>
+          <!-- Phiếu giảm giá (cô review 04/11): không còn ô dạng combo box. Hệ thống tự áp phiếu giảm nhiều nhất và hiện luôn
+               phiếu đang áp dụng thành một dòng giống dòng gợi ý "Mua thêm" bên dưới; muốn đổi / bỏ phiếu thì bấm vào chính dòng này
+               (có mũi tên ở cuối) để mở pop-up, không có nút riêng. -->
+          <div
+            id="bh-phieu"
+            class="bh-phieu-ap"
+            :class="{ 'is-trong': !(phieuChon && giamPhieu), 'is-bam-duoc': coTheChonPhieu }"
+            data-testid="bh-phieu-ap-dung"
+            :role="coTheChonPhieu ? 'button' : undefined"
+            :tabindex="coTheChonPhieu ? 0 : undefined"
+            :aria-haspopup="coTheChonPhieu ? 'dialog' : undefined"
+            :aria-label="coTheChonPhieu ? 'Chọn hoặc bỏ phiếu giảm giá' : undefined"
+            @click="coTheChonPhieu && (moPhieu = true)"
+            @keydown.enter.prevent="coTheChonPhieu && (moPhieu = true)"
+            @keydown.space.prevent="coTheChonPhieu && (moPhieu = true)"
+          >
+            <i class="bi bi-ticket-perforated" aria-hidden="true"></i>
+            <span class="bh-phieu-ap-chu" :title="phieuChon && giamPhieu ? phieuChon.ten : ''">
+              <template v-if="phieuChon && giamPhieu">
+                Đang áp dụng phiếu <b>{{ phieuChon.ma }}</b> (giảm <b>{{ formatMoney(giamPhieu) }}</b>)
+                <span v-if="phieuChon.ma === phieuDung[0]?.ma" class="bh-phieu-tot">Tốt nhất</span>
+              </template>
+              <template v-else-if="!hd.gio.length">Phiếu giảm giá: chưa có sản phẩm</template>
+              <template v-else-if="dangTaiPhieu && !phieus.length">Đang tìm phiếu giảm giá…</template>
+              <template v-else-if="soPhieuDung">Không dùng phiếu ({{ soPhieuDung }} phiếu dùng được)</template>
+              <template v-else>Không có phiếu dùng được cho đơn này</template>
+            </span>
+            <i v-if="coTheChonPhieu" class="bi bi-chevron-right bh-phieu-mui" aria-hidden="true"></i>
           </div>
           <p v-if="goiYMuaThem.length" class="bh-goi-y-ngan" data-testid="bh-goi-y-ngan">
             <i class="bi bi-lightbulb" aria-hidden="true"></i>
@@ -1053,6 +1078,11 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
 }
+.bh-qua-gio {
+  border: 1px solid #fdba74;
+  background: #fff7ed;
+  color: #9a3412;
+}
 .bh-chua-ca span {
   flex: 1;
 }
@@ -1190,18 +1220,66 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   font-size: 0.86rem;
   color: var(--fs-muted, #64748b);
 }
-.bh-o-phieu {
+/* Phiếu đang áp dụng: cùng kiểu với dòng gợi ý "Mua thêm" (cô: hai dòng trình bày giống nhau) */
+.bh-phieu-ap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #1e293b;
+  font-size: 0.85rem;
+}
+.bh-phieu-ap > .bi {
+  flex: none;
+  color: #16a34a;
+  font-size: 1rem;
+}
+.bh-phieu-ap.is-trong {
+  background: #f8fafc;
+  color: var(--fs-muted, #64748b);
+}
+.bh-phieu-ap.is-trong > .bi {
+  color: var(--fs-muted, #64748b);
+}
+.bh-phieu-ap-chu {
   flex: 1;
   min-width: 0;
-  text-align: left;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
 }
-.bh-o-phieu .text-muted {
-  font-weight: 400;
+.bh-phieu-ap-chu b {
+  color: #15803d;
+}
+.bh-phieu-tot {
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+/* Cả dòng bấm được để chọn / bỏ phiếu: mũi tên ở cuối, rê chuột thì đậm hơn */
+.bh-phieu-ap.is-bam-duoc {
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bh-phieu-ap.is-bam-duoc:hover {
+  box-shadow: inset 0 0 0 1px #86efac;
+}
+.bh-phieu-ap.is-trong.is-bam-duoc:hover {
+  box-shadow: inset 0 0 0 1px #cbd5e1;
+}
+.bh-phieu-ap.is-bam-duoc:focus-visible {
+  outline: 2px solid var(--fs-primary, #0977ec);
+  outline-offset: 2px;
+}
+.bh-phieu-mui {
+  flex: none;
+  color: #94a3b8;
+  font-size: 0.85rem;
 }
 .bh-phieu-giam {
   flex: none;

@@ -180,6 +180,8 @@ class CaLamMau {
             case "findById" -> giaoCas.stream().filter(g -> g.getId().equals(a[0])).findFirst();
             case "findFirstByNhanVienIdAndTrangThai" -> giaoCas.stream()
                     .filter(g -> g.getNhanVien().getId().equals(a[0]) && g.getTrangThai().equals(a[1])).findFirst();
+            case "findFirstByTrangThaiOrderByThoiGianNhanCaAsc" -> giaoCas.stream().filter(g -> g.getTrangThai().equals(a[0]))
+                    .min(Comparator.comparing(GiaoCa::getThoiGianNhanCa));
             case "findFirstByTrangThaiOrderByThoiGianKetCaDescIdDesc" -> giaoCas.stream().filter(g -> g.getTrangThai().equals(a[0]))
                     .max(Comparator.comparing(GiaoCa::getThoiGianKetCa).thenComparing(GiaoCa::getId));
             case "findByThoiGianNhanCaBetweenOrderByThoiGianNhanCaDesc" -> giaoCas.stream()
