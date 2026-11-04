@@ -1241,7 +1241,9 @@ function kiemTraMotEmail(e) {
 }
 
 function batEmail() {
-  email.value = emailTaiKhoanDangNhap.value || email.value || ''
+  if (!email.value.trim() && emailTaiKhoanDangNhap.value) {
+    email.value = emailTaiKhoanDangNhap.value
+  }
   loiEmail.value = ''
   moEmail.value = !moEmail.value
 }
@@ -1271,33 +1273,11 @@ async function guiEmail() {
     return
   }
 
-  if (emailTaiKhoanDangNhap.value) {
-    const emailChinh = emailTaiKhoanDangNhap.value.toLowerCase()
-    for (const item of dsEmail) {
-      if (item.toLowerCase() !== emailChinh) {
-        loiEmail.value = `Chỉ được gửi báo cáo về email của tài khoản đang đăng nhập (${emailTaiKhoanDangNhap.value}).`
-        return
-      }
-    }
-  }
-
   const setNgung = new Set(dsEmailNgungHoatDong.value)
   for (const item of dsEmail) {
     if (setNgung.has(item.toLowerCase())) {
       loiEmail.value = `Nhân viên có email ${item} đã ngừng làm việc tại cửa hàng, không được gửi báo cáo nội bộ.`
       return
-    }
-  }
-  if (dsNguoiNhanHopLe.value.length > 0) {
-    const setHopLe = new Set(
-      dsNguoiNhanHopLe.value.map((nv) => String(nv.email || '').trim().toLowerCase())
-    )
-    if (emailTaiKhoanDangNhap.value) setHopLe.add(emailTaiKhoanDangNhap.value.toLowerCase())
-    for (const item of dsEmail) {
-      if (!setHopLe.has(item.toLowerCase())) {
-        loiEmail.value = `Chỉ được gửi báo cáo cho Quản lý hoặc Nhân viên đang làm việc tại cửa hàng (${item} không thuộc nhân sự đang hoạt động).`
-        return
-      }
     }
   }
 
@@ -1384,11 +1364,21 @@ async function guiEmail() {
           id="ss-email-o"
           v-model="email"
           type="email"
+          list="ss-email-goi-y"
           class="form-control ss-filter-input ss-email-input"
           :class="{ 'is-invalid': loiEmail }"
-          placeholder="email@gmail.com"
+          placeholder="Nhập email nhận báo cáo (vd: email@gmail.com)"
           @input="loiEmail = ''"
         />
+        <datalist id="ss-email-goi-y">
+          <option
+            v-for="nv in dsNguoiNhanHopLe"
+            :key="nv.id || nv.email"
+            :value="nv.email"
+          >
+            {{ nv.hoTen }} ({{ nv.vaiTro }})
+          </option>
+        </datalist>
         <input
           id="ss-email-note"
           v-model="ghiChuEmail"

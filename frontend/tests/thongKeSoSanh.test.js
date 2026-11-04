@@ -161,36 +161,37 @@ describe('Thống kê so sánh', () => {
     w.unmount()
   })
 
-  it('tài khoản nào đang đăng nhập thì tự điền email của tài khoản đó và chỉ gửi về đúng email đó', async () => {
+  it('tự động điền sẵn email tài khoản đang đăng nhập nhưng vẫn cho phép gửi tới email bất kỳ (chỉ chặn nhân viên đã nghỉ việc)', async () => {
     api.get.mockResolvedValue({
       data: {
         ...DU_LIEU,
         emailNguoiDangNhap: 'long.nh@footstyle.vn',
+        emailNgungHoatDong: ['nghiviec@footstyle.vn'],
       },
     })
-    api.post.mockResolvedValue({ data: { daGui: true, giaLap: false, email: 'long.nh@footstyle.vn' } })
+    api.post.mockResolvedValue({ data: { daGui: true, giaLap: false, email: 'nguoikhac@gmail.com' } })
 
     const w = mount(ThongKeSoSanh, { attachTo: document.body })
     await flushPromises()
     await w.find('[data-test="ss-email"]').trigger('click')
 
-    // Tự động điền đúng email của tài khoản đang đăng nhập
+    // Tự động điền đúng email của tài khoản đang đăng nhập để tiện bấm gửi ngay
     expect(w.find('#ss-email-o').element.value).toBe('long.nh@footstyle.vn')
 
-    // Thử đổi sang email người khác -> chặn gửi
-    await w.find('#ss-email-o').setValue('nguoikhac@gmail.com')
+    // Chặn gửi cho nhân viên đã nghỉ việc
+    await w.find('#ss-email-o').setValue('nghiviec@footstyle.vn')
     await w.find('.ss-email').trigger('submit')
-    expect(w.text()).toContain('Chỉ được gửi báo cáo về email của tài khoản đang đăng nhập (long.nh@footstyle.vn).')
+    expect(w.text()).toContain('đã ngừng làm việc tại cửa hàng')
     expect(api.post).not.toHaveBeenCalled()
 
-    // Gửi đúng về email của tài khoản đang đăng nhập -> thành công
-    await w.find('#ss-email-o').setValue('long.nh@footstyle.vn')
+    // Cho phép nhập trực tiếp bất kỳ email Gmail nào mà không cần tạo nhân viên mới hay đăng nhập lại
+    await w.find('#ss-email-o').setValue('nguoikhac@gmail.com')
     await w.find('.ss-email').trigger('submit')
     await flushPromises()
     expect(api.post).toHaveBeenCalledWith(
       '/thong-ke/so-sanh/gui-email',
       expect.objectContaining({
-        email: 'long.nh@footstyle.vn',
+        email: 'nguoikhac@gmail.com',
       })
     )
     w.unmount()

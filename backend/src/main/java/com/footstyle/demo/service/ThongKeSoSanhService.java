@@ -681,30 +681,13 @@ public class ThongKeSoSanhService {
         }
         if (dsEmail.isEmpty()) throw ApiException.badRequest("Email nhận báo cáo không hợp lệ.");
 
-        String emailDangNhap = layEmailNguoiDangNhap();
-        if (emailDangNhap != null) {
-            for (String e : dsEmail) {
-                if (!e.equalsIgnoreCase(emailDangNhap)) {
-                    throw ApiException.badRequest("Chỉ được gửi báo cáo về email của tài khoản đang đăng nhập (" + emailDangNhap + ").");
-                }
-            }
-        }
-
-        // Kiểm tra email người nhận phải thuộc Quản lý hoặc Nhân viên đang làm việc tại cửa hàng
-        List<Map<String, Object>> dsDangLam = dsNguoiNhanDangLamViec();
+        // Chặn gửi báo cáo nội bộ tới nhân viên đã ngừng làm việc tại cửa hàng
         List<String> dsNgung = dsEmailNgungHoatDong();
-        if (!dsDangLam.isEmpty() || !dsNgung.isEmpty()) {
-            Set<String> emailHopLe = new HashSet<>();
-            for (Map<String, Object> nv : dsDangLam) {
-                emailHopLe.add(String.valueOf(nv.get("email")).trim().toLowerCase(Locale.ROOT));
-            }
+        if (!dsNgung.isEmpty()) {
             for (String e : dsEmail) {
                 String lower = e.toLowerCase(Locale.ROOT);
                 if (dsNgung.contains(lower)) {
                     throw ApiException.badRequest("Nhân viên có email " + e + " đã ngừng làm việc tại cửa hàng, không được gửi báo cáo nội bộ.");
-                }
-                if (!emailHopLe.isEmpty() && !emailHopLe.contains(lower)) {
-                    throw ApiException.badRequest("Chỉ được gửi báo cáo cho Quản lý hoặc Nhân viên đang làm việc tại cửa hàng (" + e + " không thuộc nhân sự đang hoạt động).");
                 }
             }
         }
