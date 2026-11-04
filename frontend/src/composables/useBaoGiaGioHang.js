@@ -11,7 +11,7 @@ export function useBaoGiaGioHang(cart) {
     clearTimeout(hen)
     hen = setTimeout(() => cart.taiBaoGia(), 250)
   }
-  watch(() => [cart.items.map((i) => `${i.bienTheId}:${i.soLuong}`).join(','), cart.appliedVoucher?.ma || ''], hoi)
+  watch(() => [cart.items.map((i) => `${i.bienTheId}:${i.soLuong}`).join(','), cart.appliedVoucher?.ma || '', cart.tinhGiao || ''], hoi)
   onMounted(() => cart.taiBaoGia())
   onBeforeUnmount(() => clearTimeout(hen))
   useAutoRefresh(() => cart.taiBaoGia(), 3000, { chuKyMs: 30_000 })

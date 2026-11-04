@@ -57,12 +57,19 @@ beforeEach(() => {
 })
 
 describe('Thanh toán online', () => {
-  it('phí ship khớp máy chủ: đơn 960.000 ₫ (dưới 1 triệu) tính 30.000 ₫, không ghi "Miễn phí"', async () => {
+  it('phí ship theo tỉnh: Hà Nội miễn phí dù đơn nhỏ, tỉnh khác mất phí tùy tỉnh dù đơn lớn, chưa chọn tỉnh thì chưa tính', async () => {
     const { cart } = await moTrang({ tien: 480000, soLuong: 2 })
-    expect(cart.subTotal).toBe(960000)
-    expect(cart.shippingFee).toBe(30000)
-    cart.items[0].soLuong = 3 // 1.440.000 ₫
+    expect(cart.chuaCoTinh).toBe(true)
     expect(cart.shippingFee).toBe(0)
+    cart.tinhGiao = 'Thành phố Hà Nội'
+    expect(cart.shippingFee).toBe(0)
+    cart.tinhGiao = 'Thành phố Đà Nẵng'
+    expect(cart.chuaCoTinh).toBe(false)
+    expect(cart.shippingFee).toBe(40000)
+    cart.items[0].soLuong = 30 // 14.400.000 ₫: đơn lớn vẫn mất phí ship ở tỉnh khác
+    expect(cart.shippingFee).toBe(40000)
+    cart.tinhGiao = 'Tỉnh Phú Thọ'
+    expect(cart.shippingFee).toBe(25000)
   })
 
   it('khách chưa đăng nhập: chưa chọn Tỉnh/Thành, Phường/Xã thì không đặt được (đơn HD970 trong video)', async () => {
@@ -118,13 +125,13 @@ describe('Thanh toán online', () => {
     api.post.mockImplementation(async (url) => (url === '/cua-hang/tinh-tien'
       ? { data: {
         dong: [{ idSanPhamChiTiet: 52, conBan: true, giaGoc: 600000, donGia: 480000, soLuong: 2, soLuongTon: 9 }],
-        tongTienGoc: 1200000, tienGiamTheoDot: 240000, tongTien: 960000, maPhieu: null, soTienGiam: 0, loiPhieu: null, phiVanChuyen: 30000, thanhTien: 990000,
+        tongTienGoc: 1200000, tienGiamTheoDot: 240000, tongTien: 960000, maPhieu: null, soTienGiam: 0, loiPhieu: null, phiVanChuyen: null, thanhTien: 960000,
       } }
       : { data: {} }))
     const { w, cart } = await moTrang({ tien: 500000, soLuong: 2 }) // giá trong giỏ đã cũ (500.000)
     await new Promise((r) => setTimeout(r, 300))
     await flushPromises()
-    expect(api.post).toHaveBeenCalledWith('/cua-hang/tinh-tien', expect.objectContaining({ chiTiet: [{ idSanPhamChiTiet: 52, soLuong: 2 }] }))
+    expect(api.post).toHaveBeenCalledWith('/cua-hang/tinh-tien', expect.objectContaining({ chiTiet: [{ idSanPhamChiTiet: 52, soLuong: 2 }], tinhThanh: null }))
     expect(cart.items[0].giaBan).toBe(480000) // giá cập nhật theo cửa hàng
     expect(w.find('[data-testid="co-doi-gia"]').exists()).toBe(true)
     const dong = (k) => w.find(`[data-dong="${k}"]`).text().replace(/\s+/g, ' ')
@@ -132,9 +139,10 @@ describe('Thanh toán online', () => {
     expect(dong('giam-dot')).toContain('Giảm theo đợt')
     expect(dong('giam-dot')).toContain('-240.000')
     expect(dong('phieu')).toContain('Không dùng phiếu')
-    expect(dong('phi-van-chuyen')).toContain('30.000')
+    // phí giao tính theo tỉnh (commit của Phương Minh): chưa chọn tỉnh thì chưa tính
+    expect(dong('phi-van-chuyen')).toContain('Chọn Tỉnh/Thành phố để tính')
     expect(dong('tong-thanh-toan')).toContain('Tổng thanh toán')
-    expect(dong('tong-thanh-toan')).toContain('990.000')
+    expect(dong('tong-thanh-toan')).toContain('960.000')
     expect(w.find('[data-testid="co-don-gia"]').text()).toContain('600.000')
   })
 })

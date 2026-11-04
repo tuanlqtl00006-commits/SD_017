@@ -27,7 +27,7 @@ const tien = computed(() =>
     giamPhieu: cartStore.discountAmount,
     maPhieu: cartStore.appliedVoucher?.ma,
     coGiaoHang: true,
-    phiVanChuyen: cartStore.shippingFee,
+    phiVanChuyen: cartStore.chuaCoTinh ? null : cartStore.shippingFee, // chưa chọn tỉnh: chưa tính phí giao
     tongThanhToan: cartStore.finalTotal,
   }),
 )
@@ -51,6 +51,9 @@ const form = ref({
   ghiChu: '',
   phuongThucThanhToan: 'COD', // COD hoặc QR
 })
+
+// Phí ship tính theo Tỉnh/Thành khách chọn (Hà Nội miễn phí, tỉnh khác tùy tỉnh)
+watch(() => form.value.tinhThanh, (tinh) => { cartStore.tinhGiao = tinh || '' }, { immediate: true })
 
 // Sổ địa chỉ đã lưu của khách đang đăng nhập (tự điền địa chỉ mặc định)
 const savedAddresses = ref([])
@@ -506,7 +509,8 @@ async function handleOrderSubmit() {
                 {{ d.nhan }}<template v-if="d.ma"> ({{ d.ma }})</template>
                 <VanChuyenLogo v-if="d.khoa === 'phi-van-chuyen'" ten="Giao Hàng Nhanh" />
               </span>
-              <span v-if="d.khoa === 'phi-van-chuyen' && d.so === 0" class="co-val co-green">Miễn phí</span>
+              <span v-if="d.khoa === 'phi-van-chuyen' && d.so === null" class="co-val text-muted small">Chọn Tỉnh/Thành phố để tính</span>
+              <span v-else-if="d.khoa === 'phi-van-chuyen' && d.so === 0" class="co-val co-green">Miễn phí</span>
               <span v-else-if="d.khoa === 'phieu' && !d.so" class="co-val text-muted">Không dùng phiếu</span>
               <span v-else class="co-val" :class="{ 'co-green': d.dau === '-' }">{{ d.dau === '-' ? '-' : '' }}{{ formatMoney(d.so) }}</span>
             </div>

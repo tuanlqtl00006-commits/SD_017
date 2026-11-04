@@ -188,7 +188,9 @@ public class HoaDonSuaService {
                 giam = PhieuApDung.soTienGiam(phieu, tienHang);
             }
         }
-        long phi = BanHangService.phiGiaoHang(tienHang);
+        // Phí theo tỉnh ghi ở cuối địa chỉ mới; không nhận ra tỉnh thì giữ phí cũ của đơn
+        Long phiTheoTinh = PhiVanChuyenTinh.phiTheoDiaChi(diaChi);
+        long phi = phiTheoTinh != null ? phiTheoTinh : phiCu;
         long thanhTien = Math.max(0, tienHang - giam + phi);
         boolean doiNguoiNhan = !hoTen.equals(gon(hd.getHoTenNguoiNhan())) || !sdt.equals(gon(hd.getSdtNguoiNhan())) || !diaChi.equals(gon(hd.getDiaChiGiaoHang()));
         if (doiNguoiNhan) moTa.add(0, "Giao tới: " + hoTen + " · " + sdt + " · " + diaChi);

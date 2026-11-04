@@ -136,7 +136,7 @@ class CuaHangServiceTest {
         Integer idBt = (Integer) bts.get(0).get("id");
         List<CuaHangService.DatHangOnlineRequest.ItemRequest> gio = List.of(new CuaHangService.DatHangOnlineRequest.ItemRequest(idBt, 2));
 
-        Map<String, Object> xem = cuaHangService.tinhTien(new CuaHangService.TinhTienRequest(gio, null, null));
+        Map<String, Object> xem = cuaHangService.tinhTien(new CuaHangService.TinhTienRequest(gio, null, null, "Thành phố Hà Nội"));
         long tongGoc = ((Number) xem.get("tongTienGoc")).longValue();
         long giamDot = ((Number) xem.get("tienGiamTheoDot")).longValue();
         long tongTien = ((Number) xem.get("tongTien")).longValue();
@@ -150,8 +150,9 @@ class CuaHangServiceTest {
         assertEquals(((Number) xem.get("phiVanChuyen")).longValue(), ((Number) don.get("phiVanChuyen")).longValue());
         assertEquals(((Number) xem.get("thanhTien")).longValue(), ((Number) don.get("thanhTien")).longValue());
 
-        Map<String, Object> saiMa = cuaHangService.tinhTien(new CuaHangService.TinhTienRequest(gio, "KHONG-CO-MA-NAY", null));
+        Map<String, Object> saiMa = cuaHangService.tinhTien(new CuaHangService.TinhTienRequest(gio, "KHONG-CO-MA-NAY", null, null));
         assertEquals("Mã phiếu giảm giá không tồn tại.", saiMa.get("loiPhieu"));
         assertEquals(0L, ((Number) saiMa.get("soTienGiam")).longValue());
+        assertEquals(null, saiMa.get("phiVanChuyen"), "chưa chọn tỉnh thì chưa tính phí giao");
     }
 }

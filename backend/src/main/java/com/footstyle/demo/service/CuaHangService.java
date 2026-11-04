@@ -466,7 +466,8 @@ public class CuaHangService {
             }
         }
 
-        long phiVanChuyen = phiVanChuyenOnline(tongTien);
+        // Phí vận chuyển theo tỉnh nhận: Hà Nội miễn phí, tỉnh khác tùy tỉnh (xem PhiVanChuyenTinh)
+        long phiVanChuyen = phiVanChuyenOnline(req.tinhThanh());
         long thanhTien = Math.max(0L, tongTien - soTienGiam + phiVanChuyen);
 
         // Tạo hóa đơn
@@ -573,12 +574,14 @@ public class CuaHangService {
         return pt > 0 ? Math.round(giaGoc * (100.0 - pt) / 100.0) : giaGoc;
     }
 
-    /** Phí giao đơn online: đơn từ 1.000.000 ₫ miễn phí, dưới đó 30.000 ₫ (giỏ hàng / thanh toán hiện đúng số này). */
-    static long phiVanChuyenOnline(long tongTien) {
-        return tongTien >= 1_000_000L ? 0L : 30_000L;
+    /** Phí giao đơn online theo tỉnh nhận (PhiVanChuyenTinh: Hà Nội miễn phí, tỉnh khác tùy tỉnh). Dùng chung cho đặt hàng và tính tiền xem trước. */
+    static long phiVanChuyenOnline(String tinhThanh) {
+        return PhiVanChuyenTinh.phi(tinhThanh);
     }
 
-    public record TinhTienRequest(List<DatHangOnlineRequest.ItemRequest> chiTiet, String maPhieuGiamGia, Integer idKhachHang) {
+    /** tinhThanh: tỉnh nhận khách đang chọn ở trang thanh toán; trống (giỏ hàng chưa biết địa chỉ) thì chưa tính phí giao. */
+    public record TinhTienRequest(List<DatHangOnlineRequest.ItemRequest> chiTiet, String maPhieuGiamGia, Integer idKhachHang,
+                                  String tinhThanh) {
     }
 
     /**
@@ -637,7 +640,9 @@ public class CuaHangService {
                 }
             }
         }
-        long phi = phiVanChuyenOnline(tongTien);
+        // Chưa chọn tỉnh thì chưa tính được phí giao (null), tổng tạm chưa gồm phí
+        String tinh = req == null || req.tinhThanh() == null ? "" : req.tinhThanh().trim();
+        Long phi = tinh.isEmpty() ? null : phiVanChuyenOnline(tinh);
 
         Map<String, Object> kq = new LinkedHashMap<>();
         kq.put("dong", dong);
@@ -648,7 +653,7 @@ public class CuaHangService {
         kq.put("soTienGiam", soTienGiam);
         kq.put("loiPhieu", loiPhieu);
         kq.put("phiVanChuyen", phi);
-        kq.put("thanhTien", Math.max(0, tongTien - soTienGiam + phi));
+        kq.put("thanhTien", Math.max(0, tongTien - soTienGiam + (phi == null ? 0 : phi)));
         return kq;
     }
 

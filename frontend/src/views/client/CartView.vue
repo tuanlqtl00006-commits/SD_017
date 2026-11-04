@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
-import { PHI_GIAO } from '../../utils/banHang'
 import { dongTienDon } from '../../utils/tienDon'
 import { useBaoGiaGioHang } from '../../composables/useBaoGiaGioHang'
 
@@ -20,7 +19,7 @@ const tien = computed(() =>
     giamPhieu: cartStore.discountAmount,
     maPhieu: cartStore.appliedVoucher?.ma,
     coGiaoHang: true,
-    phiVanChuyen: cartStore.shippingFee,
+    phiVanChuyen: cartStore.chuaCoTinh ? null : cartStore.shippingFee, // giỏ hàng chưa biết tỉnh: phí tính theo địa chỉ
     tongThanhToan: cartStore.finalTotal,
   }),
 )
@@ -183,7 +182,8 @@ function goToCheckout() {
                 <span :class="d.dau === '-' && d.so > 0 ? 'text-success' : 'text-muted'">
                   {{ d.nhan }}<template v-if="d.ma"> ({{ d.ma }})</template>:
                 </span>
-                <span v-if="d.khoa === 'phi-van-chuyen' && d.so === 0" class="text-success fw-bold">Miễn phí</span>
+                <span v-if="d.khoa === 'phi-van-chuyen' && d.so === null" class="text-muted">Tính theo địa chỉ giao hàng</span>
+                <span v-else-if="d.khoa === 'phi-van-chuyen' && d.so === 0" class="text-success fw-bold">Miễn phí</span>
                 <span v-else-if="d.khoa === 'phieu' && !d.so" class="text-muted">Không dùng phiếu</span>
                 <span v-else class="fw-semibold" :class="{ 'text-success': d.dau === '-' }">
                   {{ d.dau === '-' ? '-' : '' }}{{ formatMoney(d.so) }}
@@ -192,8 +192,8 @@ function goToCheckout() {
             </template>
             <p v-if="cartStore.loiPhieu" class="text-danger small mb-2" data-testid="gio-loi-phieu">{{ cartStore.loiPhieu }}</p>
 
-            <div class="alert alert-info py-2 px-3 small mb-3 border-0" v-if="cartStore.subTotal < PHI_GIAO.mienPhiTu">
-              <i class="bi bi-info-circle me-1"></i> Mua thêm <strong>{{ formatMoney(PHI_GIAO.mienPhiTu - cartStore.subTotal) }}</strong> để được <strong>Miễn phí vận chuyển</strong>!
+            <div class="alert alert-info py-2 px-3 small mb-3 border-0">
+              <i class="bi bi-info-circle me-1"></i> <strong>Miễn phí vận chuyển</strong> cho đơn giao tại <strong>Hà Nội</strong>; tỉnh/thành khác tính phí theo từng tỉnh.
             </div>
 
             <hr class="my-2" />

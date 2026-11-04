@@ -2,13 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 import { layPhien } from '../services/phien'
-import { PHI_GIAO } from '../utils/banHang'
+import { phiVanChuyenTheoTinh } from '../utils/phiVanChuyenTinh'
 import { tienGiamTheoDotCuaDong } from '../utils/tienDon'
 import api from '../services/api'
 
 const KHOA_KHACH_VANG_LAI = 'footstyle_cart_khach'
-/** Phí giao đơn online dưới mức miễn phí (khớp máy chủ). */
-export const PHI_SHIP_ONLINE = 30000
 
 // Giỏ hàng lưu theo tài khoản; nếu khách thêm hàng khi chưa đăng nhập (footstyle_cart_khach) rồi mới đăng nhập/đăng ký thì tự gộp sang giỏ của tài khoản
 function khoaGioHang() {
@@ -88,9 +86,12 @@ export const useCartStore = defineStore('cart', () => {
    * taiBaoGia() hỏi máy chủ (POST /cua-hang/tinh-tien: cùng cách tính với lúc đặt hàng), cập nhật giá trong giỏ, và các số
    * tiền bên dưới lấy theo máy chủ. Báo giá chỉ dùng khi đúng với giỏ hiện tại (cùng món, cùng số lượng, cùng mã phiếu);
    * giỏ vừa đổi mà chưa có báo giá mới thì tạm dùng số tính trên máy. */
+  // Tỉnh/Thành khách chọn ở trang thanh toán (giỏ hàng chưa biết tỉnh thì chưa tính được phí ship)
+  const tinhGiao = ref('')
+
   const baoGia = ref(null)
   const khoaBaoGia = computed(() =>
-    JSON.stringify({ i: items.value.map((i) => [i.bienTheId, Number(i.soLuong) || 0]), v: appliedVoucher.value?.ma || '' }),
+    JSON.stringify({ i: items.value.map((i) => [i.bienTheId, Number(i.soLuong) || 0]), v: appliedVoucher.value?.ma || '', t: tinhGiao.value || '' }),
   )
   const baoGiaHopLe = computed(() => (baoGia.value && baoGia.value.khoa === khoaBaoGia.value ? baoGia.value : null))
   let lanBaoGia = 0
@@ -107,6 +108,7 @@ export const useCartStore = defineStore('cart', () => {
         chiTiet: items.value.map((i) => ({ idSanPhamChiTiet: i.bienTheId, soLuong: Number(i.soLuong) || 0 })),
         maPhieuGiamGia: appliedVoucher.value?.ma || null,
         idKhachHang: nd?.vaiTro === 'KHACH_HANG' ? (nd.id ?? null) : null,
+        tinhThanh: tinhGiao.value || null,
       })
       // lần hỏi cũ về chậm, hoặc giỏ đã đổi trong lúc chờ: bỏ, không đè số mới
       if (lan !== lanBaoGia || khoa !== khoaBaoGia.value || !data) return null
@@ -168,12 +170,16 @@ export const useCartStore = defineStore('cart', () => {
     return Math.min(giam, subTotal.value)
   })
 
+  const chuaCoTinh = computed(() => phiVanChuyenTheoTinh(tinhGiao.value) === null)
+
   const shippingFee = computed(() => {
     if (subTotal.value === 0) return 0
-    if (baoGiaHopLe.value) return Number(baoGiaHopLe.value.phiVanChuyen) || 0
-    // Cùng luật với máy chủ (CuaHangService.datHangOnline): đơn từ 1.000.000₫ miễn phí, dưới mức đó phí 30.000₫.
-    // Trước đây giỏ hàng miễn phí từ 500.000₫ nên khách thấy "Miễn phí" mà đơn lưu lại bị cộng 30.000₫ (review 04/11, đơn HD970).
-    return subTotal.value >= PHI_GIAO.mienPhiTu ? 0 : PHI_SHIP_ONLINE
+    // Số máy chủ tính (cùng tỉnh đang chọn) nếu có; không thì cùng luật với máy chủ (CuaHangService.datHangOnline):
+    // Hà Nội miễn phí, tỉnh khác mất phí tùy tỉnh (không còn mốc miễn phí theo giá trị đơn).
+    // Chưa chọn tỉnh thì chưa tính phí (0), giao diện hiện "chọn Tỉnh/Thành để tính".
+    const pvc = baoGiaHopLe.value?.phiVanChuyen
+    if (pvc !== null && pvc !== undefined) return Number(pvc) || 0
+    return phiVanChuyenTheoTinh(tinhGiao.value) ?? 0
   })
 
   const finalTotal = computed(() => {
@@ -231,6 +237,7 @@ export const useCartStore = defineStore('cart', () => {
   function clearCart() {
     items.value = []
     appliedVoucher.value = null
+    tinhGiao.value = ''
     saveToStorage(items.value)
   }
 
@@ -260,6 +267,8 @@ export const useCartStore = defineStore('cart', () => {
     baoGia: baoGiaHopLe,
     taiBaoGia,
     discountAmount,
+    tinhGiao,
+    chuaCoTinh,
     shippingFee,
     finalTotal,
     addItem,

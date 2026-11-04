@@ -312,7 +312,7 @@ async function chonKhach(k) {
 
 /* ===================== Giao hàng ===================== */
 // Phí giao theo tỉnh nhận: chưa chọn tỉnh thì null (chưa tính), đổi tỉnh là tính lại
-const phiShipTheoTinh = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(tienHang.value, hd.value.p.nguoiNhan.tinhThanh) : 0))
+const phiShipTheoTinh = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(hd.value.p.nguoiNhan.tinhThanh) : 0))
 const phiShip = computed(() => phiShipTheoTinh.value ?? 0)
 const loiGiao = computed(() => {
   if (!hd.value.p.giaoHang) return {}
