@@ -127,4 +127,31 @@ class CuaHangServiceTest {
         assertNotNull(donHang.get("vietQrUrl"));
         assertTrue(((String) donHang.get("vietQrUrl")).contains("vietqr.io"));
     }
+
+    /** Review 05/11: giỏ hàng hiện số do máy chủ tính trước, phải khớp đúng số khi đặt hàng thật. */
+    @Test
+    void tinhTien_khopVoiDatHangThat_vaPhieuSaiChiBaoLoi() {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> bts = (List<Map<String, Object>>) cuaHangService.danhSachSanPham(null, null, null, null, null, null).get(0).get("bienThe");
+        Integer idBt = (Integer) bts.get(0).get("id");
+        List<CuaHangService.DatHangOnlineRequest.ItemRequest> gio = List.of(new CuaHangService.DatHangOnlineRequest.ItemRequest(idBt, 2));
+
+        Map<String, Object> xem = cuaHangService.tinhTien(new CuaHangService.TinhTienRequest(gio, null, null));
+        long tongGoc = ((Number) xem.get("tongTienGoc")).longValue();
+        long giamDot = ((Number) xem.get("tienGiamTheoDot")).longValue();
+        long tongTien = ((Number) xem.get("tongTien")).longValue();
+        assertEquals(tongGoc - giamDot, tongTien, "tổng theo giá gốc - giảm theo đợt = tiền hàng");
+        assertEquals(tongTien + ((Number) xem.get("phiVanChuyen")).longValue(), ((Number) xem.get("thanhTien")).longValue());
+
+        Map<String, Object> don = cuaHangService.datHangOnline(new CuaHangService.DatHangOnlineRequest(
+                "Khách Xem Giá", "0900000017", null, "12 Ngõ Thử", "Thành phố Hà Nội", "Phường Hà Đông", null,
+                null, 1, null, gio));
+        assertEquals(tongTien, ((Number) don.get("tongTien")).longValue());
+        assertEquals(((Number) xem.get("phiVanChuyen")).longValue(), ((Number) don.get("phiVanChuyen")).longValue());
+        assertEquals(((Number) xem.get("thanhTien")).longValue(), ((Number) don.get("thanhTien")).longValue());
+
+        Map<String, Object> saiMa = cuaHangService.tinhTien(new CuaHangService.TinhTienRequest(gio, "KHONG-CO-MA-NAY", null));
+        assertEquals("Mã phiếu giảm giá không tồn tại.", saiMa.get("loiPhieu"));
+        assertEquals(0L, ((Number) saiMa.get("soTienGiam")).longValue());
+    }
 }

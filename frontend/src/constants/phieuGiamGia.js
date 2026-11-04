@@ -12,18 +12,18 @@ export const LOAI_GIAM = {
 }
 
 export const TRANG_THAI = {
-  DANG_HOAT_DONG: { label: 'Đang hoạt động', cls: 'ad-pill-green' },
+  DANG_HOAT_DONG: { label: 'Đang diễn ra', cls: 'ad-pill-green' },
   SAP_DIEN_RA: { label: 'Sắp diễn ra', cls: 'ad-pill-amber' },
   DA_KET_THUC: { label: 'Đã kết thúc', cls: 'ad-pill-gray' },
-  NGUNG_HOAT_DONG: { label: 'Ngưng hoạt động', cls: 'ad-pill-red' },
+  NGUNG_HOAT_DONG: { label: 'Ngừng hoạt động', cls: 'ad-pill-red' },
 }
 
 /**
  * Trạng thái hiển thị được tính từ NGÀY GIỜ áp dụng và cờ hoatDong (công tắc bật/tắt):
- *  - công tắc đang tắt (kể cả phiếu đã quá giờ kết thúc) -> "Ngưng hoạt động"
+ *  - công tắc đang tắt (kể cả phiếu đã quá giờ kết thúc) -> "Ngừng hoạt động"
  *  - công tắc bật, quá giờ kết thúc                       -> "Đã kết thúc"
  *  - chưa tới giờ bắt đầu                                 -> "Sắp diễn ra"
- *  - đang trong khoảng ngày giờ                           -> "Đang hoạt động"
+ *  - đang trong khoảng ngày giờ                           -> "Đang diễn ra"
  * Thời điểm so sánh `bayGio` là 'yyyy-MM-ddTHH:mm:ss' (hoặc chỉ ngày: tính từ 00:00). Phiếu cũ lưu theo ngày vẫn chạy đúng
  * (bắt đầu 00:00, kết thúc hết ngày 23:59:59).
  */

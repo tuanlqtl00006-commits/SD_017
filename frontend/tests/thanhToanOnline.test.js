@@ -71,7 +71,7 @@ describe('Thanh toán online', () => {
     await w.find('input[placeholder="Ví dụ: 0912345678"]').setValue('0379998734')
     await w.find('input[placeholder="Ví dụ: Số 20 ngõ 56 Phố Nhổn"]').setValue('s23sssss')
     await datHang(w)
-    expect(api.post).not.toHaveBeenCalled()
+    expect(api.post.mock.calls.some((c) => c[0] === '/cua-hang/dat-hang')).toBe(false)
     expect(w.text()).toContain('Vui lòng chọn Tỉnh/Thành phố.')
     expect(w.text()).toContain('Vui lòng chọn Phường/Xã.')
   })
@@ -111,5 +111,30 @@ describe('Thanh toán online', () => {
     await flushPromises()
     expect(gon().text()).toContain('Giao đến địa chỉ mới')
     expect(w.find('#ck-dc-tinh').exists()).toBe(true)
+  })
+
+  // Review 05/11: đồng bộ phần tiền - giỏ hàng lưu giá cũ trên máy, số trên trang thanh toán phải lấy theo máy chủ
+  it('dùng số máy chủ tính: cập nhật giá cũ trong giỏ, có dòng giảm theo đợt, giá gạch, các dòng cộng trừ ra đúng tổng', async () => {
+    api.post.mockImplementation(async (url) => (url === '/cua-hang/tinh-tien'
+      ? { data: {
+        dong: [{ idSanPhamChiTiet: 52, conBan: true, giaGoc: 600000, donGia: 480000, soLuong: 2, soLuongTon: 9 }],
+        tongTienGoc: 1200000, tienGiamTheoDot: 240000, tongTien: 960000, maPhieu: null, soTienGiam: 0, loiPhieu: null, phiVanChuyen: 30000, thanhTien: 990000,
+      } }
+      : { data: {} }))
+    const { w, cart } = await moTrang({ tien: 500000, soLuong: 2 }) // giá trong giỏ đã cũ (500.000)
+    await new Promise((r) => setTimeout(r, 300))
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledWith('/cua-hang/tinh-tien', expect.objectContaining({ chiTiet: [{ idSanPhamChiTiet: 52, soLuong: 2 }] }))
+    expect(cart.items[0].giaBan).toBe(480000) // giá cập nhật theo cửa hàng
+    expect(w.find('[data-testid="co-doi-gia"]').exists()).toBe(true)
+    const dong = (k) => w.find(`[data-dong="${k}"]`).text().replace(/\s+/g, ' ')
+    expect(dong('tong-tien-hang')).toContain('1.200.000')
+    expect(dong('giam-dot')).toContain('Giảm theo đợt')
+    expect(dong('giam-dot')).toContain('-240.000')
+    expect(dong('phieu')).toContain('Không dùng phiếu')
+    expect(dong('phi-van-chuyen')).toContain('30.000')
+    expect(dong('tong-thanh-toan')).toContain('Tổng thanh toán')
+    expect(dong('tong-thanh-toan')).toContain('990.000')
+    expect(w.find('[data-testid="co-don-gia"]').text()).toContain('600.000')
   })
 })

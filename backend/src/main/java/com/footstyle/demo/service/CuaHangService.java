@@ -429,9 +429,7 @@ public class CuaHangService {
 
             // Theo yêu cầu của cô: CHƯA trừ tồn kho lúc khách đặt; trừ khi nhân viên chuyển đơn Chờ xác nhận -> Đã xác nhận (HoaDonService)
 
-            long giaGoc = spct.getGiaBan() == null ? 0 : spct.getGiaBan();
-            double pt = giamMap.getOrDefault(spct.getId().longValue(), 0.0);
-            long giaBan = pt > 0 ? Math.round(giaGoc * (100.0 - pt) / 100.0) : giaGoc;
+            long giaBan = giaBanOnline(spct, giamMap);
             long thanhTienMon = giaBan * item.soLuong();
             tongTien += thanhTienMon;
 
@@ -468,8 +466,7 @@ public class CuaHangService {
             }
         }
 
-        // Phí vận chuyển: >= 1.000.000đ freeship, ngược lại 30.000đ
-        long phiVanChuyen = tongTien >= 1_000_000L ? 0L : 30_000L;
+        long phiVanChuyen = phiVanChuyenOnline(tongTien);
         long thanhTien = Math.max(0L, tongTien - soTienGiam + phiVanChuyen);
 
         // Tạo hóa đơn
@@ -567,6 +564,94 @@ public class CuaHangService {
         return res;
     }
 
+    /* ===================== Tính tiền giỏ hàng (xem trước) ===================== */
+
+    /** Giá bán online của biến thể lúc này: giá niêm yết trừ % đợt đang chạy. Dùng chung cho đặt hàng và tính tiền xem trước. */
+    static long giaBanOnline(SanPhamChiTiet spct, Map<Long, Double> giamMap) {
+        long giaGoc = spct.getGiaBan() == null ? 0 : spct.getGiaBan();
+        double pt = giamMap.getOrDefault(spct.getId().longValue(), 0.0);
+        return pt > 0 ? Math.round(giaGoc * (100.0 - pt) / 100.0) : giaGoc;
+    }
+
+    /** Phí giao đơn online: đơn từ 1.000.000 ₫ miễn phí, dưới đó 30.000 ₫ (giỏ hàng / thanh toán hiện đúng số này). */
+    static long phiVanChuyenOnline(long tongTien) {
+        return tongTien >= 1_000_000L ? 0L : 30_000L;
+    }
+
+    public record TinhTienRequest(List<DatHangOnlineRequest.ItemRequest> chiTiet, String maPhieuGiamGia, Integer idKhachHang) {
+    }
+
+    /**
+     * Tính tiền giỏ hàng như lúc đặt hàng (review 05/11: giỏ hàng lưu giá trên trình duyệt nên có thể đã cũ - đợt giảm giá hết hạn,
+     * giá đổi - làm số trên trang thanh toán lệch với số máy chủ thu). Cùng giá bán, cùng phiếu, cùng phí giao với datHangOnline;
+     * không ghi gì vào CSDL, không báo lỗi khi hết hàng / phiếu không dùng được mà trả lý do để giao diện hiện.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> tinhTien(TinhTienRequest req) {
+        Map<Long, Double> giamMap = giamGiaService.phanTramTheoBienThe(bayGio());
+        long tongGoc = 0;
+        long tongTien = 0;
+        List<Map<String, Object>> dong = new ArrayList<>();
+        for (DatHangOnlineRequest.ItemRequest item : req == null || req.chiTiet() == null ? List.<DatHangOnlineRequest.ItemRequest>of() : req.chiTiet()) {
+            if (item == null || item.idSanPhamChiTiet() == null || item.soLuong() == null || item.soLuong() <= 0) continue;
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("idSanPhamChiTiet", item.idSanPhamChiTiet());
+            m.put("soLuong", item.soLuong());
+            SanPhamChiTiet spct = spctRepo.findById(item.idSanPhamChiTiet()).orElse(null);
+            if (spct == null) {
+                m.put("conBan", false);
+                dong.add(m);
+                continue;
+            }
+            long giaGoc = spct.getGiaBan() == null ? 0 : spct.getGiaBan();
+            long giaBan = giaBanOnline(spct, giamMap);
+            int ton = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
+            m.put("conBan", true);
+            m.put("maSpct", spct.getMaSpct());
+            m.put("giaGoc", giaGoc);
+            m.put("donGia", giaBan);
+            m.put("phanTramGiam", giamMap.getOrDefault(spct.getId().longValue(), 0.0));
+            m.put("thanhTien", giaBan * item.soLuong());
+            m.put("soLuongTon", ton);
+            m.put("duHang", ton >= item.soLuong());
+            tongGoc += giaGoc * item.soLuong();
+            tongTien += giaBan * item.soLuong();
+            dong.add(m);
+        }
+
+        String maPhieu = null;
+        String loiPhieu = null;
+        long soTienGiam = 0;
+        String ma = req == null || req.maPhieuGiamGia() == null ? "" : req.maPhieuGiamGia().trim();
+        if (!ma.isEmpty()) {
+            PhieuGiamGia p = phieuRepo.findFirstByMaPhieuIgnoreCase(ma).orElse(null);
+            if (p == null) {
+                loiPhieu = "Mã phiếu giảm giá không tồn tại.";
+            } else {
+                String lyDo = lyDoPhieuKhongDung(p, tongTien, req.idKhachHang());
+                if (lyDo != null) {
+                    loiPhieu = "Không áp dụng được mã " + p.getMaPhieu() + ": " + lyDo;
+                } else {
+                    maPhieu = p.getMaPhieu();
+                    soTienGiam = PhieuApDung.soTienGiam(p, tongTien);
+                }
+            }
+        }
+        long phi = phiVanChuyenOnline(tongTien);
+
+        Map<String, Object> kq = new LinkedHashMap<>();
+        kq.put("dong", dong);
+        kq.put("tongTienGoc", tongGoc);
+        kq.put("tienGiamTheoDot", Math.max(0, tongGoc - tongTien));
+        kq.put("tongTien", tongTien);
+        kq.put("maPhieu", maPhieu);
+        kq.put("soTienGiam", soTienGiam);
+        kq.put("loiPhieu", loiPhieu);
+        kq.put("phiVanChuyen", phi);
+        kq.put("thanhTien", Math.max(0, tongTien - soTienGiam + phi));
+        return kq;
+    }
+
     /**
      * Tra cứu đơn của CHÍNH khách đang đăng nhập: đơn không thuộc khách này thì báo "không tìm thấy"
      * (không cho biết đơn người khác có tồn tại hay không).
@@ -625,6 +710,7 @@ public class CuaHangService {
             SanPhamChiTiet bt = c.getSanPhamChiTiet();
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("idSanPham", bt != null && bt.getSanPham() != null ? bt.getSanPham().getId() : null);
+            m.put("maSpct", bt != null ? bt.getMaSpct() : null);
             m.put("tenSanPham", bt != null && bt.getSanPham() != null ? bt.getSanPham().getTenSanPham() : "");
             m.put("mauSac", bt != null && bt.getMauSac() != null ? bt.getMauSac().getTen() : "");
             m.put("trongLuong", bt != null && bt.getTrongLuong() != null ? bt.getTrongLuong().getTen() : "");

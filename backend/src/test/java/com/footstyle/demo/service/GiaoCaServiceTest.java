@@ -314,6 +314,30 @@ class GiaoCaServiceTest {
         assertEquals("NV04", service.chiTiet(idCuaAnh).get("maNhanVien"));
     }
 
+    /** Review: lịch sử giao ca cho biết nhân viên giữ ca đến hết rồi ca tiếp theo đến ai nhận. */
+    @Test
+    void lichSu_moiCaDaGiaoBietCaSauDoAiNhan() {
+        CaLamMau.dangNhap(m.bao);
+        nhanCa("07:00", 0, null);
+        service.ketCa(new GiaoCaService.KetCaRequest(tien(0), tien(0), null, null));
+        CaLamMau.dangNhap(m.anh);
+        nhanCa("12:00", 0, null);
+        CaLamMau.dangNhap(m.quanLy);
+        List<Map<String, Object>> ds = service.danhSach(null, null, null);
+        Map<String, Object> caAnh = ds.get(0);
+        Map<String, Object> caBao = ds.get(1);
+        assertEquals("NV03", caBao.get("maNhanVien"));
+        @SuppressWarnings("unchecked") Map<String, Object> sau = (Map<String, Object>) caBao.get("caSau");
+        assertEquals("NV04", sau.get("maNhanVien"), "ca của Bảo giao xong thì Anh nhận tiếp");
+        assertEquals(m.giaoCas.get(1).getMaGiaoCa(), sau.get("maGiaoCa"));
+        assertNull(caAnh.get("caSau"), "ca đang mở chưa có ai nhận tiếp");
+        // lọc riêng Bảo vẫn biết người nhận tiếp (ca của người khác)
+        @SuppressWarnings("unchecked") Map<String, Object> sauLoc = (Map<String, Object>) service.danhSach(null, null, 3).get(0).get("caSau");
+        assertEquals("NV04", sauLoc.get("maNhanVien"));
+        @SuppressWarnings("unchecked") Map<String, Object> sauChiTiet = (Map<String, Object>) service.chiTiet(m.giaoCas.get(0).getId()).get("caSau");
+        assertEquals("NV04", sauChiTiet.get("maNhanVien"));
+    }
+
     @Test
     void caDaGiao_khongVaoLaiDuoc_duLaTuGiaoHayQuanLyDongHo() {
         Integer idLich = m.lich(m.bao, m.sang, CaLamMau.HOM_NAY).getId();

@@ -30,11 +30,12 @@ public class HoaDonController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate denNgay,
             @RequestParam(required = false) Integer loaiDon,
             @RequestParam(required = false) Integer trangThai,
+            @RequestParam(required = false) String kenh,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size) {
 
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 2000), Sort.by("id").descending());
-        Page<HoaDonRequest> responsePage = hoaDonService.getDanhSachCoLoc(maHoaDon, tuNgay, denNgay, loaiDon, trangThai, pageable);
+        Page<HoaDonRequest> responsePage = hoaDonService.getDanhSachCoLoc(maHoaDon, tuNgay, denNgay, loaiDon, trangThai, kenh, pageable);
 
         Map<String, Object> responseMap = new HashMap<>();
         responseMap.put("content", responsePage.getContent());
@@ -50,8 +51,9 @@ public class HoaDonController {
             @RequestParam(required = false) String maHoaDon,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tuNgay,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate denNgay,
-            @RequestParam(required = false) Integer loaiDon) {
-        return hoaDonService.demTheoTrangThai(maHoaDon, tuNgay, denNgay, loaiDon);
+            @RequestParam(required = false) Integer loaiDon,
+            @RequestParam(required = false) String kenh) {
+        return hoaDonService.demTheoTrangThai(maHoaDon, tuNgay, denNgay, loaiDon, kenh);
     }
 
     /** Tra cứu nhanh hóa đơn theo mã (phục vụ quét mã QR / mã vạch). */

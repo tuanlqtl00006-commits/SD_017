@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 
 import { layPhien } from '../services/phien'
 import { PHI_GIAO } from '../utils/banHang'
+import { tienGiamTheoDotCuaDong } from '../utils/tienDon'
+import api from '../services/api'
 
 const KHOA_KHACH_VANG_LAI = 'footstyle_cart_khach'
 /** Phí giao đơn online dưới mức miễn phí (khớp máy chủ). */
@@ -81,16 +83,74 @@ export const useCartStore = defineStore('cart', () => {
   const items = ref(loadFromStorage())
   const appliedVoucher = ref(null) // { ma, ten, loaiGiam, giaTriGiam, giamToiDa, donToiThieu }
 
+  /* ----- Số do máy chủ tính (review 05/11) -----
+   * Giỏ lưu giá trên trình duyệt nên có thể đã cũ (đợt giảm giá hết hạn, giá đổi) và phiếu giảm giá đang tính ở cả 2 nơi.
+   * taiBaoGia() hỏi máy chủ (POST /cua-hang/tinh-tien: cùng cách tính với lúc đặt hàng), cập nhật giá trong giỏ, và các số
+   * tiền bên dưới lấy theo máy chủ. Báo giá chỉ dùng khi đúng với giỏ hiện tại (cùng món, cùng số lượng, cùng mã phiếu);
+   * giỏ vừa đổi mà chưa có báo giá mới thì tạm dùng số tính trên máy. */
+  const baoGia = ref(null)
+  const khoaBaoGia = computed(() =>
+    JSON.stringify({ i: items.value.map((i) => [i.bienTheId, Number(i.soLuong) || 0]), v: appliedVoucher.value?.ma || '' }),
+  )
+  const baoGiaHopLe = computed(() => (baoGia.value && baoGia.value.khoa === khoaBaoGia.value ? baoGia.value : null))
+  let lanBaoGia = 0
+  async function taiBaoGia() {
+    if (!items.value.length) {
+      baoGia.value = null
+      return null
+    }
+    const khoa = khoaBaoGia.value
+    const lan = ++lanBaoGia
+    const nd = layPhien()?.nguoiDung
+    try {
+      const { data } = await api.post('/cua-hang/tinh-tien', {
+        chiTiet: items.value.map((i) => ({ idSanPhamChiTiet: i.bienTheId, soLuong: Number(i.soLuong) || 0 })),
+        maPhieuGiamGia: appliedVoucher.value?.ma || null,
+        idKhachHang: nd?.vaiTro === 'KHACH_HANG' ? (nd.id ?? null) : null,
+      })
+      // lần hỏi cũ về chậm, hoặc giỏ đã đổi trong lúc chờ: bỏ, không đè số mới
+      if (lan !== lanBaoGia || khoa !== khoaBaoGia.value || !data) return null
+      let doiGia = false
+      for (const d of data.dong || []) {
+        const it = items.value.find((x) => x.bienTheId === d.idSanPhamChiTiet)
+        if (!it || !d.conBan) continue
+        if (Number(it.giaBan) !== Number(d.donGia) || Number(it.giaGoc) !== Number(d.giaGoc)) {
+          it.giaBan = Number(d.donGia) || 0
+          it.giaGoc = Number(d.giaGoc) || it.giaBan
+          doiGia = true
+        }
+        if (d.soLuongTon !== undefined) it.soLuongTon = d.soLuongTon
+      }
+      if (doiGia) saveToStorage(items.value)
+      baoGia.value = { ...data, khoa, doiGia }
+      return baoGia.value
+    } catch {
+      return null // mất kết nối: giữ số tính trên máy, máy chủ vẫn tính lại khi đặt hàng
+    }
+  }
+
   const totalCount = computed(() => {
     return items.value.reduce((sum, item) => sum + (Number(item.soLuong) || 0), 0)
   })
 
+  // Tiền hàng đã trừ giảm theo đợt (giá bán x số lượng)
   const subTotal = computed(() => {
+    if (baoGiaHopLe.value) return Number(baoGiaHopLe.value.tongTien) || 0
     return items.value.reduce((sum, item) => sum + (Number(item.giaBan) || 0) * (Number(item.soLuong) || 0), 0)
   })
 
+  // Tiền khách được giảm theo đợt giảm giá (giá gốc - giá bán)
+  const giamTheoDot = computed(() => {
+    if (baoGiaHopLe.value) return Number(baoGiaHopLe.value.tienGiamTheoDot) || 0
+    return tienGiamTheoDotCuaDong(items.value, { donGia: 'giaBan' })
+  })
+
+  // Phiếu không dùng được (máy chủ báo lý do)
+  const loiPhieu = computed(() => baoGiaHopLe.value?.loiPhieu || '')
+
   const discountAmount = computed(() => {
     if (!appliedVoucher.value) return 0
+    if (baoGiaHopLe.value) return Number(baoGiaHopLe.value.soTienGiam) || 0
     const v = appliedVoucher.value
     if (v.donToiThieu && subTotal.value < Number(v.donToiThieu)) {
       return 0
@@ -110,12 +170,14 @@ export const useCartStore = defineStore('cart', () => {
 
   const shippingFee = computed(() => {
     if (subTotal.value === 0) return 0
+    if (baoGiaHopLe.value) return Number(baoGiaHopLe.value.phiVanChuyen) || 0
     // Cùng luật với máy chủ (CuaHangService.datHangOnline): đơn từ 1.000.000₫ miễn phí, dưới mức đó phí 30.000₫.
     // Trước đây giỏ hàng miễn phí từ 500.000₫ nên khách thấy "Miễn phí" mà đơn lưu lại bị cộng 30.000₫ (review 04/11, đơn HD970).
     return subTotal.value >= PHI_GIAO.mienPhiTu ? 0 : PHI_SHIP_ONLINE
   })
 
   const finalTotal = computed(() => {
+    if (baoGiaHopLe.value) return Number(baoGiaHopLe.value.thanhTien) || 0
     return Math.max(0, subTotal.value - discountAmount.value + shippingFee.value)
   })
 
@@ -193,6 +255,10 @@ export const useCartStore = defineStore('cart', () => {
     appliedVoucher,
     totalCount,
     subTotal,
+    giamTheoDot,
+    loiPhieu,
+    baoGia: baoGiaHopLe,
+    taiBaoGia,
     discountAmount,
     shippingFee,
     finalTotal,

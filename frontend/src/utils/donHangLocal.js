@@ -79,6 +79,7 @@ export async function dongBoTrangThaiDon(ds, hoiBackend) {
           const items = chiTiet.map((c) => ({
             sanPhamId: c.idSanPham,
             sanPhamTen: c.tenSanPham || 'Sản phẩm',
+            maSpct: c.maSpct || '',
             mauSac: c.mauSac || '',
             trongLuong: c.trongLuong || '',
             chuVi: c.chuVi || '',

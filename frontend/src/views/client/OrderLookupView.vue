@@ -6,6 +6,7 @@ import api from '../../services/api'
 import HoaDonNoiDung from '../../components/hoaDon/HoaDonNoiDung.vue'
 import { docDonHang } from '../../utils/donHangLocal'
 import { loiSdt } from '../../utils/kiemTra'
+import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,7 +43,24 @@ watch(
   },
 )
 
+// Lần tra cứu thành công gần nhất: tự cập nhật trạng thái đơn đang xem (15 giây / lần, không cần bấm Tra cứu lại)
+let daTra = null
+let lanTra = 0
+async function taiLaiNgam() {
+  if (!daTra || loading.value) return
+  const lan = lanTra
+  try {
+    const kq = await traCuuBackend(daTra.code, daTra.so)
+    if (lan === lanTra && orderResult.value) orderResult.value = kq
+  } catch {
+    // lỗi tạm thời: giữ kết quả đang hiện
+  }
+}
+useAutoRefresh(taiLaiNgam, 3000, { chuKyMs: 15_000, coTheTai: () => !!orderResult.value })
+
 async function handleSearch() {
+  lanTra++
+  daTra = null
   const code = orderCode.value.trim()
   searchError.value = ''
   orderResult.value = null
@@ -66,6 +84,7 @@ async function handleSearch() {
   // Ưu tiên trạng thái THẬT từ backend (cửa hàng cập nhật khi xác nhận / giao hàng); chỉ khi mất kết nối máy chủ mới dùng bản lưu trên máy
   try {
     orderResult.value = await traCuuBackend(code, so)
+    daTra = { code, so }
   } catch (err) {
     const local = err?.status == null && so ? traCuuLocal(code, so) : null
     if (local) orderResult.value = local

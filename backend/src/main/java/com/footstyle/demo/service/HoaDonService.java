@@ -61,11 +61,37 @@ public class HoaDonService {
         this.mailService = mailService;
     }
 
+    /** Để tìm lại giá gốc lúc bán của dòng hóa đơn (xem giaGocLucBan). Nạp bằng setter; null (test) thì dùng giá hiện tại như cũ. */
+    private GiamGiaApDungService giamGiaApDungService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setGiamGiaApDungService(GiamGiaApDungService giamGiaApDungService) {
+        this.giamGiaApDungService = giamGiaApDungService;
+    }
+
     /* ===================== Danh sách ===================== */
+
+    /* ----- Kênh bán: tại quầy / online -----
+     * Cột loai_hoa_don chỉ cho biết đơn có giao hàng hay không: đơn bán tại quầy mà bật "Giao hàng" cũng là loại 2 (giao hàng)
+     * giống đơn khách đặt online. Không đổi SQL nên kênh bán lấy theo dòng lịch sử lúc tạo đơn: bán quầy ghi "...tại quầy"
+     * (HoaDonChoService / BanHangService), đặt online ghi "Đặt hàng trực tuyến" / "Khách đặt hàng online". */
+    public static final String KENH_TAI_QUAY = "TAI_QUAY";
+    public static final String KENH_ONLINE = "ONLINE";
+    static final String DAU_HIEU_TAI_QUAY = "tại quầy";
+
+    private static boolean taoTaiQuay(List<LichSuHoaDon> lichSu) {
+        return lichSu.stream().anyMatch(l -> l.getMoTa() != null && l.getMoTa().toLowerCase(java.util.Locale.ROOT).contains(DAU_HIEU_TAI_QUAY));
+    }
 
     /** Điều kiện lọc dùng chung cho danh sách và bộ đếm theo trạng thái (trangThai = null: không lọc theo trạng thái). */
     private Specification<HoaDon> boLoc(String maHoaDon, LocalDate tuNgay, LocalDate denNgay,
                                         Integer loaiDon, Integer trangThai) {
+        return boLoc(maHoaDon, tuNgay, denNgay, loaiDon, trangThai, null);
+    }
+
+    /** Như trên, thêm `kenh` = TAI_QUAY / ONLINE (null: cả hai). */
+    private Specification<HoaDon> boLoc(String maHoaDon, LocalDate tuNgay, LocalDate denNgay,
+                                        Integer loaiDon, Integer trangThai, String kenh) {
         if (tuNgay != null && denNgay != null && tuNgay.isAfter(denNgay)) {
             throw ApiException.badRequest("Từ ngày phải trước hoặc cùng ngày với Đến ngày.");
         }
@@ -88,6 +114,14 @@ public class HoaDonService {
             if (trangThai != null) {
                 predicates.add(cb.equal(root.get("trangThai"), trangThai));
             }
+            if (KENH_TAI_QUAY.equals(kenh) || KENH_ONLINE.equals(kenh)) {
+                // Đơn được tạo ở quầy: loại tại quầy, hoặc loại giao hàng có dòng lịch sử "...tại quầy"
+                var sq = query.subquery(Integer.class);
+                var l = sq.from(LichSuHoaDon.class);
+                sq.select(l.get("id")).where(cb.equal(l.get("hoaDon"), root), cb.like(l.get("moTa"), "%" + DAU_HIEU_TAI_QUAY + "%"));
+                var taiQuay = cb.or(cb.equal(root.get("loaiDon"), HoaDon.TAI_QUAY), cb.exists(sq));
+                predicates.add(KENH_TAI_QUAY.equals(kenh) ? taiQuay : cb.not(taiQuay));
+            }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
@@ -95,11 +129,16 @@ public class HoaDonService {
     /** Số hóa đơn theo từng trạng thái (đã áp các bộ lọc mã / ngày / loại đơn), để hiện số trên các tab. Khóa "tatCa" = tổng. */
     @Transactional(readOnly = true)
     public Map<String, Long> demTheoTrangThai(String maHoaDon, LocalDate tuNgay, LocalDate denNgay, Integer loaiDon) {
+        return demTheoTrangThai(maHoaDon, tuNgay, denNgay, loaiDon, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Long> demTheoTrangThai(String maHoaDon, LocalDate tuNgay, LocalDate denNgay, Integer loaiDon, String kenh) {
         Map<String, Long> ketQua = new LinkedHashMap<>();
-        ketQua.put("tatCa", hoaDonRepository.count(boLoc(maHoaDon, tuNgay, denNgay, loaiDon, null)));
+        ketQua.put("tatCa", hoaDonRepository.count(boLoc(maHoaDon, tuNgay, denNgay, loaiDon, null, kenh)));
         // Mã 0..8, gồm cả 7 (tab "Hoàn tiền", chưa có đơn nào) và 8 (Giao hàng thất bại) để tab nào cũng có số
         for (int tt = HoaDon.DA_HUY; tt <= HoaDon.GIAO_THAT_BAI; tt++) {
-            ketQua.put(String.valueOf(tt), hoaDonRepository.count(boLoc(maHoaDon, tuNgay, denNgay, loaiDon, tt)));
+            ketQua.put(String.valueOf(tt), hoaDonRepository.count(boLoc(maHoaDon, tuNgay, denNgay, loaiDon, tt, kenh)));
         }
         return ketQua;
     }
@@ -107,9 +146,20 @@ public class HoaDonService {
     @Transactional(readOnly = true)
     public Page<HoaDonRequest> getDanhSachCoLoc(String maHoaDon, LocalDate tuNgay, LocalDate denNgay,
                                                 Integer loaiDon, Integer trangThai, Pageable pageable) {
-        Specification<HoaDon> spec = boLoc(maHoaDon, tuNgay, denNgay, loaiDon, trangThai);
+        return getDanhSachCoLoc(maHoaDon, tuNgay, denNgay, loaiDon, trangThai, null, pageable);
+    }
 
-        return hoaDonRepository.findAll(spec, pageable).map(hd -> {
+    @Transactional(readOnly = true)
+    public Page<HoaDonRequest> getDanhSachCoLoc(String maHoaDon, LocalDate tuNgay, LocalDate denNgay,
+                                                Integer loaiDon, Integer trangThai, String kenh, Pageable pageable) {
+        Specification<HoaDon> spec = boLoc(maHoaDon, tuNgay, denNgay, loaiDon, trangThai, kenh);
+        Page<HoaDon> trang = hoaDonRepository.findAll(spec, pageable);
+        // Đơn giao hàng nhưng bán tại quầy (ít): một câu truy vấn cho cả trang, chỉ hỏi khi trang có đơn giao hàng
+        java.util.Set<Integer> giaoHangTaiQuay = trang.getContent().stream().anyMatch(h -> Integer.valueOf(HoaDon.GIAO_HANG).equals(h.getLoaiDon()))
+                ? new java.util.HashSet<>(lichSuHoaDonRepository.idDonGiaoHangBanTaiQuay("%" + DAU_HIEU_TAI_QUAY + "%"))
+                : java.util.Set.of();
+
+        return trang.map(hd -> {
             HoaDonRequest request = new HoaDonRequest();
             request.setId(hd.getId());
             request.setMaHoaDon(hd.getMaHoaDon());
@@ -122,7 +172,7 @@ public class HoaDonService {
             request.setDoanhThu(hd.getThanhTien() != null ? thanhTien(hd).subtract(phiVanChuyen(hd)).max(BigDecimal.ZERO) : hd.getTongTien());
             request.setNgayTao(hd.getNgayTao());
             request.setTrangThai(hd.getTrangThai());
-            request.setLoaiDon(tenLoaiDon(hd.getLoaiDon()));
+            request.setLoaiDon(tenKenh(hd.getLoaiDon(), giaoHangTaiQuay.contains(hd.getId())));
             return request;
         });
     }
@@ -167,7 +217,9 @@ public class HoaDonService {
         info.put("id", hd.getId());
         info.put("maHoaDon", hd.getMaHoaDon());
         info.put("loaiDon", hd.getLoaiDon() == null ? HoaDon.TAI_QUAY : hd.getLoaiDon());
-        info.put("tenLoaiDon", tenLoaiDon(hd.getLoaiDon()));
+        List<LichSuHoaDon> dsLichSu = lichSuHoaDonRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId());
+        // Tên kênh bán (đơn bán quầy có giao hàng vẫn là "Tại quầy"); loaiDon (số) vẫn quyết định luồng giao hàng
+        info.put("tenLoaiDon", tenKenh(hd.getLoaiDon(), taoTaiQuay(dsLichSu)));
         int trangThai = hd.getTrangThai() == null ? HoaDon.CHO_XAC_NHAN : hd.getTrangThai();
         info.put("trangThai", hd.getTrangThai());
         info.put("tenTrangThai", HoaDonLuongTrangThai.ten(hd.getTrangThai()));
@@ -183,7 +235,7 @@ public class HoaDonService {
         }
         info.put("chuyenDuoc", chuyenDuoc);
         // Case khó online: quản lý / nhân viên chỉ được sửa đơn MỘT lần, khi đơn giao hàng còn Chờ xác nhận (khách không tự sửa)
-        boolean daSua = lichSuHoaDonRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId()).stream()
+        boolean daSua = dsLichSu.stream()
                 .anyMatch(l -> HoaDonSuaService.HANH_DONG_SUA.equals(l.getHanhDong()));
         info.put("daChinhSua", daSua);
         info.put("duocChinhSua", !laTaiQuay(hd) && trangThai == HoaDon.CHO_XAC_NHAN && !daSua);
@@ -230,7 +282,17 @@ public class HoaDonService {
         giao.put("diaChi", laTaiQuay(hd) ? null : hd.getDiaChiGiaoHang());
         response.put("giaoHang", giao);
 
-        response.put("sanPham", danhSachSanPham(hd.getId()));
+        List<Map<String, Object>> dsSanPham = danhSachSanPham(hd);
+        response.put("sanPham", dsSanPham);
+        // Tiền khách đã được giảm theo đợt (tính một lần ở đây để mọi màn / bản in dùng chung một số).
+        // tongTien (tiền hàng ĐÃ trừ đợt) giữ nguyên nghĩa vì Thống kê dùng số này; tổng theo giá gốc = tongTien + tienGiamTheoDot.
+        long giamDot = 0;
+        for (Map<String, Object> sp : dsSanPham) {
+            long goc = ((BigDecimal) sp.get("giaGoc")).longValue();
+            long ban = ((BigDecimal) sp.get("donGia")).longValue();
+            giamDot += Math.max(0, goc - ban) * ((Integer) sp.get("soLuong"));
+        }
+        info.put("tienGiamTheoDot", BigDecimal.valueOf(giamDot));
 
         // Thanh toán
         List<Map<String, Object>> thanhToan = new ArrayList<>();
@@ -257,7 +319,7 @@ public class HoaDonService {
 
         // Lịch sử thao tác (cũ -> mới)
         List<Map<String, Object>> lichSu = new ArrayList<>();
-        for (LichSuHoaDon ls : lichSuHoaDonRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+        for (LichSuHoaDon ls : dsLichSu) {
             Map<String, Object> m = new HashMap<>();
             m.put("id", ls.getId());
             m.put("hanhDong", ls.getHanhDong());
@@ -294,7 +356,30 @@ public class HoaDonService {
         return getChiTietHoaDon(hd.getId());
     }
 
-    private List<Map<String, Object>> danhSachSanPham(Integer idHoaDon) {
+    /**
+     * Giá gốc LÚC BÁN của một dòng hóa đơn. Bảng chi tiết chỉ lưu đơn giá (không đổi SQL), còn giá niêm yết của sản phẩm có thể
+     * đã đổi sau khi bán; dùng thẳng giá hiện tại sẽ làm đơn cũ hiện "giảm theo đợt" sai (tăng giá thì hiện giảm ảo).
+     * 1. Giá hiện tại với một mức đợt có thể đã áp lúc bán ra đúng đơn giá (lệch tối đa 1 ₫ do làm tròn) -> giá chưa đổi: lấy giá hiện tại.
+     * 2. Giá hiện tại bằng đơn giá -> bán không giảm.
+     * 3. Lúc bán có đợt đang bật (mức đầu danh sách) -> tính ngược từ đơn giá.
+     * 4. Còn lại (không có đợt nào lúc bán, giá đã đổi) -> coi như không giảm theo đợt, không đoán.
+     */
+    static long giaGocLucBan(long donGia, long giaHienTai, List<Double> mucCoThe) {
+        for (double pt : mucCoThe) {
+            if (pt > 0 && Math.abs(PhieuApDung.giaSauDot(giaHienTai, pt) - donGia) <= 1) return giaHienTai;
+        }
+        if (giaHienTai == donGia) return donGia;
+        double pt = mucCoThe.isEmpty() ? 0 : mucCoThe.get(0);
+        if (pt > 0 && pt < 100) return Math.round(donGia * 100.0 / (100 - pt));
+        return donGia;
+    }
+
+    private List<Map<String, Object>> danhSachSanPham(HoaDon hd) {
+        Integer idHoaDon = hd.getId();
+        // Thời điểm có thể đã chốt giá: lúc tạo (đơn online) và lúc cập nhật gần nhất (đơn quầy chốt giá khi thanh toán)
+        List<java.time.LocalDateTime> lucBan = new ArrayList<>();
+        if (hd.getNgayTao() != null) lucBan.add(hd.getNgayTao());
+        if (hd.getNgayCapNhat() != null && !hd.getNgayCapNhat().equals(hd.getNgayTao())) lucBan.add(hd.getNgayCapNhat());
         // Ảnh của từng sản phẩm (1 câu truy vấn cho tất cả), gom theo sản phẩm. Mỗi dòng hóa đơn lấy ảnh theo MÀU của biến thể,
         // màu chưa có ảnh thì lấy ảnh chính chung của sản phẩm (xem AnhSanPham.anhCuaBienThe).
         Map<Integer, List<HinhAnhSanPham>> anhTheoSp = new HashMap<>();
@@ -310,7 +395,12 @@ public class HoaDonService {
 
             BigDecimal donGia = soTien(ct.getDonGia());
             int soLuong = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
-            BigDecimal giaGoc = spct != null && spct.getGiaBan() != null ? BigDecimal.valueOf(spct.getGiaBan()) : donGia;
+            BigDecimal giaHienTai = spct != null && spct.getGiaBan() != null ? BigDecimal.valueOf(spct.getGiaBan()) : donGia;
+            BigDecimal giaGoc = giaHienTai;
+            if (giamGiaApDungService != null && spct != null) {
+                List<Double> muc = giamGiaApDungService.mucGiamCoThe(spct.getId().longValue(), lucBan);
+                giaGoc = BigDecimal.valueOf(giaGocLucBan(donGia.longValue(), giaHienTai.longValue(), muc));
+            }
             int phanTramGiam = 0;
             if (giaGoc.signum() > 0 && giaGoc.compareTo(donGia) > 0) {
                 phanTramGiam = giaGoc.subtract(donGia).multiply(BigDecimal.valueOf(100))
@@ -619,6 +709,11 @@ public class HoaDonService {
 
     private static String tenLoaiDon(Integer loaiDon) {
         return Integer.valueOf(HoaDon.GIAO_HANG).equals(loaiDon) ? "Trực tuyến" : "Tại quầy";
+    }
+
+    /** Tên kênh bán: đơn giao hàng tạo ở quầy vẫn là "Tại quầy". */
+    private static String tenKenh(Integer loaiDon, boolean giaoHangTaoTaiQuay) {
+        return giaoHangTaoTaiQuay ? "Tại quầy" : tenLoaiDon(loaiDon);
     }
 
     /** "Chờ xác nhận" -> 1 ... để frontend vẽ dòng thời gian; hành động khác (vd ghi chú) trả null. */

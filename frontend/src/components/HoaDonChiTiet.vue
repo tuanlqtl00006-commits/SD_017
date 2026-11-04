@@ -9,6 +9,7 @@ import SuaDonModal from './hoaDon/SuaDonModal.vue'
 import { useToast } from '../composables/useToast'
 import { useAuth } from '../composables/useAuth'
 import { useChatChuaDoc } from '../composables/useChatChuaDoc'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { TT, laTrangThaiCuoi, nutChuyen, trangThaiOf } from '../constants/hoaDon'
 import { formatNgayGio } from '../utils/format'
 import { taoHtmlHoaDon } from '../utils/hoaDonIn'
@@ -36,11 +37,30 @@ async function load() {
   }
 }
 
+// Mỗi lần dữ liệu đổi (tải, đổi trạng thái, sửa đơn...) tăng số phiên: lần tải ngầm bắt đầu trước đó về sau thì bỏ, không đè số mới
+let phienDuLieu = 0
 function setData(d) {
   data.value = d
+  phienDuLieu++
 }
 
 onMounted(load)
+
+// Tự cập nhật 10 giây một lần (đơn vừa được người khác xác nhận / khách hủy... hiện ra không cần F5).
+// Không tải khi đang mở hộp thoại đổi trạng thái / sửa đơn / lịch sử / mã QR hoặc đang gửi thao tác.
+async function taiNgam() {
+  if (loading.value || !data.value) return
+  const phien = phienDuLieu
+  try {
+    const res = await api.get(`/hoa-don/${idHoaDon}`)
+    if (phien === phienDuLieu) setData(res.data)
+  } catch {
+    // lỗi tạm thời: giữ dữ liệu đang hiện
+  }
+}
+useAutoRefresh(taiNgam, 3000, {
+  coTheTai: () => !action.open && !action.saving && !moSuaDon.value && !showLichSu.value && !showQrModal.value && !dangXacNhanTt.value,
+})
 
 const hd = computed(() => data.value?.hoaDon ?? {})
 

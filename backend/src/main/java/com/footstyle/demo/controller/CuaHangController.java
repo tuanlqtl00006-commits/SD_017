@@ -52,6 +52,12 @@ public class CuaHangController {
         return service.datHangOnline(req);
     }
 
+    /** Tính tiền giỏ hàng như lúc đặt (giá đợt hiện tại, phiếu, phí giao) để giỏ hàng / thanh toán hiện đúng số máy chủ thu. */
+    @PostMapping("/tinh-tien")
+    public Map<String, Object> tinhTien(@RequestBody(required = false) CuaHangService.TinhTienRequest req) {
+        return service.tinhTien(req);
+    }
+
     @GetMapping("/tra-cuu")
     public Map<String, Object> traCuuDonHang(
             @RequestParam String maHoaDon,

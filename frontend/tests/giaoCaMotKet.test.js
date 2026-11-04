@@ -271,3 +271,30 @@ describe('Tự cập nhật nhanh', () => {
     expect(useToast().toasts.map((t) => t.message).join(' ')).toContain('đã giao. Bạn vào ca được rồi')
   })
 })
+
+// Review: lịch sử giao ca cho biết nhân viên giữ ca đến hết rồi ca tiếp theo đến ai nhận
+describe('Lịch sử giao ca: ca sau đến ai', () => {
+  it('ca đã giao hiện người nhận ca tiếp theo; ca đang mở ghi "Đang giữ ca"; chi tiết ca cũng có', async () => {
+    useAuth().trangThai.nguoiDung = { id: 1, hoTen: 'Nguyễn Hoàng Long', vaiTro: 'QUAN_LY' }
+    const caBao = {
+      id: 141, maGiaoCa: 'GC141', idNhanVien: 3, tenNhanVien: 'Lê Quốc Bảo', maNhanVien: 'NV03', dangTrongCa: false,
+      thoiGianNhanCa: '2026-11-04T07:16:40', thoiGianKetCa: '2026-11-04T12:00:00', tienDauCa: 1000000, hoaDons: [],
+      caSau: { id: 142, maGiaoCa: 'GC142', tenNhanVien: 'Phạm Minh Anh', maNhanVien: 'NV04', thoiGianNhanCa: '2026-11-04T12:05:00' },
+    }
+    const caAnh = { id: 142, maGiaoCa: 'GC142', idNhanVien: 4, tenNhanVien: 'Phạm Minh Anh', maNhanVien: 'NV04', dangTrongCa: true, thoiGianNhanCa: '2026-11-04T12:05:00', tienDauCa: 1000000, caSau: null }
+    api.get.mockImplementation(async (url) => {
+      if (url === '/giao-ca') return { data: [caAnh, caBao] }
+      if (url === '/giao-ca/141') return { data: caBao }
+      return { data: [] }
+    })
+    const w = ganVao(GiaoCaLichSuPage)
+    await flushPromises()
+    const o = w.findAll('[data-testid="gcl-ca-sau"]')
+    expect(o[0].text()).toBe('Đang giữ ca')
+    expect(o[1].text()).toContain('Phạm Minh Anh')
+    expect(o[1].text()).toContain('GC142')
+    await w.findAll('.gcl-dong')[1].trigger('click')
+    await flushPromises()
+    expect(body().text()).toContain('Phạm Minh Anh (NV04) · GC142')
+  })
+})

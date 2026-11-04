@@ -19,10 +19,11 @@ import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../composables/useToast'
 import { NGAN_HANG, PHUONG_THUC, daCauHinhNganHang } from '../../constants/thanhToan'
 import { formatMoney } from '../../utils/format'
+import { dongTienDon } from '../../utils/tienDon'
 import { formatPhanTram } from '../../utils/giamGia'
 import { loiSdt } from '../../utils/kiemTra'
 import { taoHtmlHoaDon } from '../../utils/hoaDonIn'
-import { PHI_GIAO, SO_LUONG_TOI_DA, chuoiVietQR, dangGiamTheoDot, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
+import { SO_LUONG_TOI_DA, chuoiVietQR, dangGiamTheoDot, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
 
 const DON_VI_VAN_CHUYEN = 'Giao Hàng Nhanh'
 
@@ -372,6 +373,19 @@ const tt = computed(() =>
     chuyenKhoan: hd.value.p.chuyenKhoan,
   }),
 )
+// Các dòng tiền cùng tên, cùng thứ tự với giỏ hàng / thanh toán online / chi tiết hóa đơn (utils/tienDon.js, review 05/11).
+// "Tổng tiền hàng" theo giá gốc rồi trừ giảm theo đợt, trừ phiếu, cộng phí giao = tổng thanh toán (số lưu trong hóa đơn không đổi).
+const tienDon = computed(() =>
+  dongTienDon({
+    tienHangSauDot: tienHang.value,
+    giamTheoDot: giamDot.value,
+    giamPhieu: giamPhieu.value,
+    maPhieu: phieuChon.value && giamPhieu.value ? phieuChon.value.ma : '',
+    coGiaoHang: hd.value.p.giaoHang,
+    phiVanChuyen: phiShipTheoTinh.value,
+    tongThanhToan: tt.value.phaiTra,
+  }),
+)
 const coQr = daCauHinhNganHang()
 const qrUrl = ref('')
 const noiDungCk = computed(() => `FOOTSTYLE ${hd.value.maHoaDon || ''}`.trim())
@@ -381,7 +395,7 @@ watch(
     qrUrl.value = ''
     if (!coQr || !ck || hd.value.p.phuongThuc === 'TIEN_MAT') return
     try {
-      qrUrl.value = await QRCode.toDataURL(chuoiVietQR({ bin: NGAN_HANG.bin, soTaiKhoan: NGAN_HANG.soTaiKhoan, soTien: ck, noiDung: noiDungCk.value }), { width: 220, margin: 1 })
+      qrUrl.value = await QRCode.toDataURL(chuoiVietQR({ bin: NGAN_HANG.bin, soTaiKhoan: NGAN_HANG.soTaiKhoan, soTien: ck, noiDung: noiDungCk.value }), { width: 360, margin: 1 })
     } catch {
       qrUrl.value = ''
     }
@@ -441,13 +455,40 @@ async function taoQrGiaLap() {
     const goc = laLocal && d.diaChiLan ? `${location.protocol}//${d.diaChiLan}${location.port ? `:${location.port}` : ''}` : location.origin
     const link = `${goc}/thanh-toan-gia-lap?ma=${encodeURIComponent(d.maHoaDon)}&quay=1`
     ckGiaLap.value = { ...d, link }
-    qrGiaLap.value = await QRCode.toDataURL(link, { width: 220, margin: 1 })
+    qrGiaLap.value = await QRCode.toDataURL(link, { width: 360, margin: 1 })
+    taiTkGiaLap()
     if (d.daNhan) daNhanCk(d)
     else hoiCk = setInterval(kiemTraCk, 3000)
   } catch {
     ckGiaLap.value = null
   }
 }
+// Tài khoản nhận tiền hiện cạnh mã QR giả lập (máy chủ cấu hình, mặc định là tài khoản mẫu), tải một lần
+const tkGiaLap = ref(null)
+async function taiTkGiaLap() {
+  if (tkGiaLap.value) return
+  try {
+    const d = (await api.get('/cua-hang/thong-tin-thanh-toan')).data
+    if (d?.soTaiKhoan) tkGiaLap.value = d
+  } catch {
+    // không tải được thì vẫn hiện số tiền và nội dung chuyển khoản
+  }
+}
+// Review: ô chuyển khoản ghi đủ thông tin (ngân hàng, số tài khoản, chủ tài khoản, số tiền, nội dung) cạnh mã QR to hơn
+const thongTinCk = computed(() => {
+  if (ckGiaLap.value) {
+    const tk = tkGiaLap.value
+    return {
+      nganHang: tk?.nganHang || '', soTaiKhoan: tk?.soTaiKhoan || '', chuTaiKhoan: tk?.tenChuTaiKhoan || '',
+      soTien: ckGiaLap.value.soTien, noiDung: ckGiaLap.value.maHoaDon,
+    }
+  }
+  return {
+    nganHang: NGAN_HANG.tenNganHang, soTaiKhoan: NGAN_HANG.soTaiKhoan, chuTaiKhoan: NGAN_HANG.chuTaiKhoan,
+    soTien: tt.value.chuyenKhoan, noiDung: noiDungCk.value,
+  }
+})
+const moQrTo = ref(false)
 async function kiemTraCk() {
   const id = hd.value.id
   if (!ckGiaLap.value || !id) return dungHoiCk()
@@ -631,11 +672,9 @@ const soLuongTab = (h) => tongSoLuong(h.items)
             <button type="button" class="ad-btn ad-btn-sm" data-testid="bh-them-hd" :disabled="dsCho.length >= SO_HOA_DON_CHO_TOI_DA" @click="themHoaDon">
               <i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm hóa đơn chờ
             </button>
-            <span class="bh-phim">F2: chọn sản phẩm · F9: thanh toán</span>
-            <span class="ad-count">{{ dsCho.length }}/{{ SO_HOA_DON_CHO_TOI_DA }} hóa đơn</span>
+            <!-- Review: bỏ bớt chữ hướng dẫn nhỏ (phím tắt F2 / F9 vẫn dùng được, ghi trong chú thích của nút) -->
           </div>
           <div class="bh-tabs" role="tablist" aria-label="Hóa đơn chờ">
-            <p v-if="daTaiCho && !dsCho.length" class="ad-hint m-0">Chưa có hóa đơn chờ. Chọn sản phẩm là tự tạo hóa đơn mới.</p>
             <div v-for="h in dsCho" :key="h.id" class="bh-tab" :class="{ active: h.id === dangChon }">
               <button type="button" role="tab" :aria-selected="h.id === dangChon" class="bh-tab-ten" @click="dangChon = h.id">
                 <i class="bi bi-receipt" aria-hidden="true"></i> {{ h.maHoaDon }}
@@ -659,7 +698,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                 <input ref="oMa" v-model="maQuet" type="text" class="form-control ad-control" placeholder="Quét / nhập mã sản phẩm" aria-label="Quét mã sản phẩm" autocomplete="off" />
               </form>
               <button type="button" class="ad-btn" title="Quét bằng camera" @click="moCamera = true"><i class="bi bi-camera" aria-hidden="true"></i></button>
-              <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-chon-sp" @click="moChonSp = true">
+              <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-chon-sp" title="Chọn sản phẩm (F2)" @click="moChonSp = true">
                 <i class="bi bi-plus-circle" aria-hidden="true"></i> Chọn sản phẩm
               </button>
             </div>
@@ -770,11 +809,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               <b v-if="phiShipTheoTinh === null" class="text-muted fw-normal">chọn Tỉnh/Thành phố để tính</b>
               <b v-else>{{ phiShip ? formatMoney(phiShip) : 'Miễn phí' }}</b>
             </span>
-            <small class="text-muted">
-              Nội thành Hà Nội {{ formatMoney(PHI_GIAO.noiThanh) }}, tỉnh khác {{ formatMoney(PHI_GIAO.tinhKhac) }}, đơn từ {{ formatMoney(PHI_GIAO.mienPhiTu) }} miễn phí
-            </small>
           </div>
-          <p class="ad-hint mb-0">Khách trả tiền tại quầy; thanh toán xong đơn chuyển sang <b>Chờ giao hàng</b> (chờ đơn vị vận chuyển đến lấy).</p>
         </section>
       </div>
 
@@ -830,15 +865,20 @@ const soLuongTab = (h) => tongSoLuong(h.items)
           </p>
           <p v-if="loiPhieu" class="ad-error mb-0">{{ loiPhieu }}</p>
 
+          <!-- Cùng các dòng với giỏ hàng / thanh toán online / chi tiết hóa đơn: Tổng tiền hàng (giá gốc) - đợt - phiếu + phí giao = tổng -->
           <dl class="bh-tong bh-tong-don">
-            <div><dt>Tổng tiền hàng ({{ tongSoLuong(hd.gio) }} sản phẩm):</dt><dd>{{ formatMoney(tienHang) }}</dd></div>
-            <div v-if="giamDot > 0" class="bh-dong-phu"><dt>Đã giảm theo đợt giảm giá</dt><dd>{{ formatMoney(giamDot) }}</dd></div>
-            <div v-if="hd.p.giaoHang" class="bh-dong-ship" data-testid="bh-phi-ship">
-              <dt><VanChuyenLogo :ten="DON_VI_VAN_CHUYEN" class="bh-ghn" /> Phí vận chuyển:</dt>
-              <dd>{{ phiShipTheoTinh === null ? 'Chưa tính phí' : phiShip ? formatMoney(phiShip) : 'Miễn phí' }}</dd>
+            <div v-for="d in tienDon.dong" :key="d.khoa" :data-dong="d.khoa" :class="{
+              'bh-dong-ship': d.khoa === 'phi-van-chuyen',
+              'bh-phai-tra': d.khoa === 'tong-thanh-toan',
+            }" :data-testid="d.khoa === 'phi-van-chuyen' ? 'bh-phi-ship' : undefined">
+              <dt>
+                <VanChuyenLogo v-if="d.khoa === 'phi-van-chuyen'" :ten="DON_VI_VAN_CHUYEN" class="bh-ghn" />
+                {{ d.nhan }}<template v-if="d.khoa === 'tong-tien-hang'"> ({{ tongSoLuong(hd.gio) }} sản phẩm)</template><template v-if="d.ma"> ({{ d.ma }})</template>:
+              </dt>
+              <dd v-if="d.khoa === 'phi-van-chuyen'">{{ d.so === null ? 'Chưa tính phí' : d.so ? formatMoney(d.so) : 'Miễn phí' }}</dd>
+              <dd v-else-if="d.khoa === 'phieu'" class="bh-tien-giam">{{ d.so ? `-${formatMoney(d.so)}` : 'Không dùng phiếu' }}</dd>
+              <dd v-else :class="{ 'bh-tien-giam-dot': d.dau === '-' }">{{ d.dau === '-' ? '-' : '' }}{{ formatMoney(d.so) }}</dd>
             </div>
-            <div><dt>Tiền giảm từ phiếu:</dt><dd class="bh-tien-giam">-{{ formatMoney(giamPhieu) }}</dd></div>
-            <div class="bh-phai-tra"><dt>Khách cần trả:</dt><dd>{{ formatMoney(tt.phaiTra) }}</dd></div>
           </dl>
 
           <fieldset class="bh-pt">
@@ -856,33 +896,48 @@ const soLuongTab = (h) => tongSoLuong(h.items)
           <div v-if="hd.p.phuongThuc !== 'CHUYEN_KHOAN'" class="mt-2">
             <label class="bh-nhan-muc" for="bh-tien-mat">Tiền mặt khách đưa</label>
             <MoneyInput id="bh-tien-mat" :model-value="hd.p.tienMat" aria-label="Tiền khách đưa" placeholder="Tự điền bằng số tiền khách cần trả" @update:model-value="nhapTienMat" />
-            <p class="ad-hint mb-0 mt-1">Điền sẵn đúng số tiền cần trả. Có thể sửa nếu khách đưa số tiền khác.</p>
           </div>
           <!-- QR chuyển khoản (giả lập) -->
-          <div v-if="hd.p.phuongThuc !== 'TIEN_MAT' && tt.chuyenKhoan > 0 && ckGiaLap" class="bh-qr" data-testid="bh-qr-gia-lap">
-            <img v-if="qrGiaLap" :src="qrGiaLap" :alt="`Mã QR chuyển khoản ${formatMoney(tt.chuyenKhoan)}`" width="150" height="150" />
-            <div>
-              <div class="fw-semibold">Quét mã để thanh toán</div>
-              <div class="small">Số tiền: <b>{{ formatMoney(ckGiaLap.soTien) }}</b></div>
-              <div class="small">Nội dung: <b>{{ ckGiaLap.maHoaDon }}</b></div>
-              <div v-if="ckGiaLap.daNhan" class="bh-ck-da-nhan"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Đã nhận tiền</div>
+          <!-- QR chuyển khoản: mã QR to ở trên, dưới là đủ thông tin chuyển khoản; bấm mã QR để phóng to cho khách quét -->
+          <div v-if="hd.p.phuongThuc !== 'TIEN_MAT' && tt.chuyenKhoan > 0 && (ckGiaLap || coQr)" class="bh-qr" :data-testid="ckGiaLap ? 'bh-qr-gia-lap' : 'bh-qr-vietqr'">
+            <button v-if="ckGiaLap ? qrGiaLap : qrUrl" type="button" class="bh-qr-anh" title="Bấm để phóng to mã QR" @click="moQrTo = true">
+              <img :src="ckGiaLap ? qrGiaLap : qrUrl" :alt="`Mã QR chuyển khoản ${formatMoney(thongTinCk.soTien)}`" width="210" height="210" />
+              <span class="bh-qr-phong"><i class="bi bi-arrows-fullscreen" aria-hidden="true"></i> Phóng to</span>
+            </button>
+            <p class="bh-qr-tieu-de">Quét mã để chuyển khoản</p>
+            <dl class="bh-qr-tt" data-testid="bh-qr-thong-tin">
+              <div v-if="thongTinCk.nganHang"><dt>Ngân hàng</dt><dd>{{ thongTinCk.nganHang }}</dd></div>
+              <div v-if="thongTinCk.soTaiKhoan"><dt>Số tài khoản</dt><dd class="bh-qr-stk">{{ thongTinCk.soTaiKhoan }}</dd></div>
+              <div v-if="thongTinCk.chuTaiKhoan"><dt>Chủ tài khoản</dt><dd>{{ thongTinCk.chuTaiKhoan }}</dd></div>
+              <div><dt>Số tiền</dt><dd class="bh-qr-tien">{{ formatMoney(thongTinCk.soTien) }}</dd></div>
+              <div><dt>Nội dung</dt><dd class="fw-bold">{{ thongTinCk.noiDung }}</dd></div>
+            </dl>
+            <template v-if="ckGiaLap">
+              <div v-if="ckGiaLap.daNhan" class="bh-ck-da-nhan"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Đã nhận tiền<template v-if="ckGiaLap.maGiaoDich"> · {{ ckGiaLap.maGiaoDich }}</template></div>
               <div v-else class="bh-ck-cho"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Đang chờ khách chuyển khoản</div>
-            </div>
-          </div>
-          <div v-else-if="hd.p.phuongThuc !== 'TIEN_MAT' && tt.chuyenKhoan > 0" class="bh-qr">
-            <img v-if="qrUrl" :src="qrUrl" :alt="`Mã QR chuyển khoản ${formatMoney(tt.chuyenKhoan)}`" width="150" height="150" />
-            <div>
-              <template v-if="coQr">
-                <div class="fw-semibold">{{ NGAN_HANG.tenNganHang || 'Ngân hàng' }} · {{ NGAN_HANG.soTaiKhoan }}</div>
-                <div class="small">{{ NGAN_HANG.chuTaiKhoan }}</div>
-                <div class="small">Số tiền: <b>{{ formatMoney(tt.chuyenKhoan) }}</b></div>
-                <div class="small">Nội dung: <b>{{ noiDungCk }}</b></div>
-              </template>
-              <div v-else class="small text-muted">Chưa cấu hình tài khoản nhận tiền nên không hiện mã QR (xem frontend/src/constants/thanhToan.js).</div>
+            </template>
+            <template v-else>
               <label class="ad-label mt-2" for="bh-ma-gd">Mã giao dịch</label>
               <input id="bh-ma-gd" v-model="hd.p.maGiaoDich" type="text" class="form-control ad-control" maxlength="100" placeholder="Mã giao dịch ngân hàng (nếu có)" />
-            </div>
+            </template>
           </div>
+          <div v-else-if="hd.p.phuongThuc !== 'TIEN_MAT' && tt.chuyenKhoan > 0" class="bh-qr">
+            <div class="small text-muted">Chưa cấu hình tài khoản nhận tiền nên không hiện mã QR (xem frontend/src/constants/thanhToan.js).</div>
+            <label class="ad-label mt-2" for="bh-ma-gd">Mã giao dịch</label>
+            <input id="bh-ma-gd" v-model="hd.p.maGiaoDich" type="text" class="form-control ad-control" maxlength="100" placeholder="Mã giao dịch ngân hàng (nếu có)" />
+          </div>
+          <BaseModal v-if="moQrTo && (ckGiaLap ? qrGiaLap : qrUrl)" title="Quét mã để chuyển khoản" size="md" @close="moQrTo = false">
+            <div class="bh-qr-to" data-testid="bh-qr-to">
+              <img :src="ckGiaLap ? qrGiaLap : qrUrl" :alt="`Mã QR chuyển khoản ${formatMoney(thongTinCk.soTien)}`" width="340" height="340" />
+              <dl class="bh-qr-tt">
+                <div v-if="thongTinCk.nganHang"><dt>Ngân hàng</dt><dd>{{ thongTinCk.nganHang }}</dd></div>
+                <div v-if="thongTinCk.soTaiKhoan"><dt>Số tài khoản</dt><dd class="bh-qr-stk">{{ thongTinCk.soTaiKhoan }}</dd></div>
+                <div v-if="thongTinCk.chuTaiKhoan"><dt>Chủ tài khoản</dt><dd>{{ thongTinCk.chuTaiKhoan }}</dd></div>
+                <div><dt>Số tiền</dt><dd class="bh-qr-tien">{{ formatMoney(thongTinCk.soTien) }}</dd></div>
+                <div><dt>Nội dung</dt><dd class="fw-bold">{{ thongTinCk.noiDung }}</dd></div>
+              </dl>
+            </div>
+          </BaseModal>
 
           <dl class="bh-tong mt-2">
             <div v-if="tt.conThieu > 0 && hd.p.tienMat" class="text-danger fw-semibold"><dt>Còn thiếu</dt><dd>{{ formatMoney(tt.conThieu) }}</dd></div>
@@ -893,7 +948,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 
           <!-- Hủy hóa đơn chờ bằng dấu X trên tab hóa đơn -->
           <div class="bh-nut-hang">
-            <button type="button" class="ad-btn ad-btn-primary bh-nut-tt" :disabled="dangGui" :title="lyDoKhongThanhToan" @click="moXacNhan">
+            <button type="button" class="ad-btn ad-btn-primary bh-nut-tt" :disabled="dangGui" :title="lyDoKhongThanhToan || 'Thanh toán (F9)'" @click="moXacNhan">
               <i class="bi bi-check2-circle" aria-hidden="true"></i> Thanh toán {{ formatMoney(tt.phaiTra) }}
             </button>
           </div>
@@ -1604,7 +1659,10 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   align-items: center;
   gap: 0.5rem;
 }
-.bh-tong-don .bh-dong-phu {
+.bh-tong-don .bh-tien-giam-dot {
+  color: #16a34a;
+}
+.bh-dong-phu {
   min-height: 2rem;
   font-size: 0.82rem;
 }
@@ -1652,12 +1710,100 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 }
 .bh-qr {
   display: flex;
-  gap: 0.75rem;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
   margin-top: 0.75rem;
-  padding: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid var(--fs-line-soft, #e8edf3);
   border-radius: 12px;
   background: var(--fs-surface, #f7f9fc);
+}
+.bh-qr-anh {
+  position: relative;
+  align-self: center;
+  padding: 6px;
+  border: 1px solid var(--fs-line, #dbe3ee);
+  border-radius: 12px;
+  background: #fff;
+  cursor: zoom-in;
+}
+.bh-qr-anh img {
+  display: block;
+  width: 210px;
+  height: 210px;
+}
+.bh-qr-phong {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.7);
+  color: #fff;
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.bh-qr-anh:hover .bh-qr-phong,
+.bh-qr-anh:focus-visible .bh-qr-phong {
+  opacity: 1;
+}
+.bh-qr-tieu-de {
+  margin: 0.25rem 0 0;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+.bh-qr-tt {
+  margin: 0;
+  font-size: 0.86rem;
+}
+.bh-qr-tt > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px dashed var(--fs-line, #dbe3ee);
+}
+.bh-qr-tt > div:last-child {
+  border-bottom: 0;
+}
+.bh-qr-tt dt {
+  font-weight: 400;
+  color: var(--fs-muted, #64748b);
+}
+.bh-qr-tt dd {
+  margin: 0;
+  text-align: right;
+  word-break: break-word;
+}
+.bh-qr-stk {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.bh-qr-tien {
+  font-weight: 800;
+  color: var(--fs-primary, #0977ec);
+}
+.bh-qr-to {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+.bh-qr-to img {
+  width: min(340px, 100%);
+  height: auto;
+  padding: 8px;
+  border: 1px solid var(--fs-line, #dbe3ee);
+  border-radius: 14px;
+  background: #fff;
+}
+.bh-qr-to .bh-qr-tt {
+  width: 100%;
+  max-width: 360px;
+  font-size: 0.95rem;
 }
 .bh-ck-cho,
 .bh-ck-da-nhan {

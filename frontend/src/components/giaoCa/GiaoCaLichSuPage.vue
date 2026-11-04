@@ -221,6 +221,7 @@ function inBienBan() {
                 <th>Ca theo lịch</th>
                 <th>Nhận ca</th>
                 <th>Giao ca</th>
+                <th>Giao cho (ca sau)</th>
                 <th class="text-end">Số HĐ</th>
                 <th class="text-end">Doanh thu</th>
                 <th class="text-end">Tiền đầu ca</th>
@@ -232,10 +233,10 @@ function inBienBan() {
             </thead>
             <tbody>
               <tr v-if="dangTai">
-                <td colspan="12"><div class="ad-empty">Đang tải dữ liệu…</div></td>
+                <td colspan="13"><div class="ad-empty">Đang tải dữ liệu…</div></td>
               </tr>
               <tr v-else-if="!ds.length">
-                <td colspan="12">
+                <td colspan="13">
                   <div class="ad-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
                     <strong>Chưa có ca nào trong khoảng ngày này</strong>
@@ -252,6 +253,15 @@ function inBienBan() {
                 </td>
                 <td class="ad-nowrap">{{ formatNgayGio(g.thoiGianNhanCa) }}</td>
                 <td class="ad-nowrap">{{ g.thoiGianKetCa ? formatNgayGio(g.thoiGianKetCa) : '—' }}</td>
+                <!-- Review: nhân viên giữ ca đến hết, xong ca tiếp theo đến ai nhận -->
+                <td class="ad-nowrap" data-testid="gcl-ca-sau">
+                  <template v-if="g.caSau">
+                    <i class="bi bi-arrow-right-short text-primary" aria-hidden="true"></i>{{ g.caSau.tenNhanVien }}
+                    <br /><small class="text-muted">{{ g.caSau.maGiaoCa }} · nhận {{ formatNgayGio(g.caSau.thoiGianNhanCa) }}</small>
+                  </template>
+                  <span v-else-if="g.dangTrongCa" class="text-muted">Đang giữ ca</span>
+                  <span v-else class="text-muted">Chưa có người nhận</span>
+                </td>
                 <td class="text-end">{{ g.soHoaDon ?? '—' }}</td>
                 <td class="text-end">{{ g.doanhThu !== null ? formatMoney(g.doanhThu) : '—' }}</td>
                 <td class="text-end">{{ formatMoney(g.tienDauCa) }}</td>
@@ -277,6 +287,13 @@ function inBienBan() {
         <div><dt>Tiền mặt / chuyển khoản thu</dt><dd>{{ formatMoney(chiTiet.tienMatThu ?? chiTiet.tongKet?.tienMat ?? 0) }} / {{ formatMoney(chiTiet.chuyenKhoanThu ?? chiTiet.tongKet?.chuyenKhoan ?? 0) }}</dd></div>
         <div><dt>Tiền mặt hệ thống / thực tế</dt><dd>{{ formatMoney(chiTiet.tienMatHeThong ?? chiTiet.tongKet?.tienMatHeThong ?? 0) }} / {{ chiTiet.tienMatThucTe !== null ? formatMoney(chiTiet.tienMatThucTe) : '—' }}</dd></div>
         <div><dt>Chênh lệch</dt><dd :class="`gcl-cl is-${moTaChenhLech(chiTiet.chenhLech).kieu}`">{{ moTaChenhLech(chiTiet.chenhLech).nhan }}</dd></div>
+        <div>
+          <dt>Ca sau</dt>
+          <dd>
+            <template v-if="chiTiet.caSau">{{ chiTiet.caSau.tenNhanVien }} ({{ chiTiet.caSau.maNhanVien }}) · {{ chiTiet.caSau.maGiaoCa }}, nhận {{ formatNgayGio(chiTiet.caSau.thoiGianNhanCa) }}</template>
+            <template v-else>{{ chiTiet.dangTrongCa ? 'Đang giữ ca' : 'Chưa có người nhận' }}</template>
+          </dd>
+        </div>
         <div><dt>Bàn giao cho ca sau</dt><dd>{{ chiTiet.tienBanGiao !== null ? formatMoney(chiTiet.tienBanGiao) : '—' }}{{ chiTiet.tenNguoiNhanBanGiao ? ` · ${chiTiet.tenNguoiNhanBanGiao}` : '' }}</dd></div>
         <div class="ad-dl-full"><dt>Ghi chú</dt><dd>{{ [chiTiet.ghiChuNhanCa, chiTiet.ghiChuKetCa].filter(Boolean).join(' · ') || '—' }}</dd></div>
       </dl>

@@ -8,6 +8,7 @@
 import { TT, trangThaiOf } from '../constants/hoaDon'
 import { formatMoney, formatNgayGio } from './format'
 import { nhanDienVanChuyen } from './vanChuyen'
+import { NHAN_TIEN, dongTienDon, tienGiamTheoDotCuaDong } from './tienDon'
 
 /** Thoát ký tự HTML: dữ liệu khách nhập (tên, địa chỉ, ghi chú...) không được chèn được thẻ vào bản in. */
 export const esc = (v) =>
@@ -33,14 +34,35 @@ export function moTaMucGiam(hd) {
   return p ? `${p.giam}${p.toiDa ? ` (tối đa ${p.toiDa})` : ''}` : ''
 }
 
-/** Nhãn dòng giảm giá trên bản in, chữ thuần: "Giảm giá (mã VCH7QX2YN – giảm 10%, tối đa 100.000 ₫)" (không lồng ngoặc trong ngoặc). */
+/** Nhãn dòng phiếu trên bản in, chữ thuần: "Phiếu giảm giá (mã VCH7QX2YN – giảm 10%, tối đa 100.000 ₫)" (không lồng ngoặc trong ngoặc). */
 export function nhanGiamGia(hd) {
-  if (!hd?.maPhieuGiamGia) return 'Giảm giá'
+  if (!hd?.maPhieuGiamGia) return NHAN_TIEN.phieu
   const p = phanMucGiam(hd)
-  return `Giảm giá (mã ${hd.maPhieuGiamGia}${p ? ` – ${p.giam}${p.toiDa ? `, tối đa ${p.toiDa}` : ''}` : ''})`
+  return `${NHAN_TIEN.phieu} (mã ${hd.maPhieuGiamGia}${p ? ` – ${p.giam}${p.toiDa ? `, tối đa ${p.toiDa}` : ''}` : ''})`
 }
 
 const thongSo = (x) => [x.trongLuong, x.chuVi].filter(Boolean).join(' · ') || '—'
+
+/** Các dòng tiền trên bản in: cùng tên, cùng thứ tự với màn hình (utils/tienDon.js). */
+function dongTienIn(hd, laGiaoHang, sanPham) {
+  const t = dongTienDon({
+    tienHangSauDot: hd.tongTien,
+    giamTheoDot: hd.tienGiamTheoDot ?? tienGiamTheoDotCuaDong(sanPham),
+    giamPhieu: hd.soTienGiam,
+    maPhieu: hd.maPhieuGiamGia,
+    coGiaoHang: laGiaoHang,
+    phiVanChuyen: hd.phiVanChuyen,
+    tongThanhToan: hd.thanhTien,
+  })
+  return t.dong
+    .map((d) => {
+      if (d.khoa === 'tong-thanh-toan') return `<div class="t"><span>${esc(d.nhan)}</span><span>${esc(money(d.so))}</span></div>`
+      if (d.khoa === 'phieu') return `<div><span>${esc(nhanGiamGia(hd))}</span><span>${d.so ? `- ${esc(money(d.so))}` : 'Không dùng phiếu'}</span></div>`
+      if (d.khoa === 'phi-van-chuyen') return `<div><span>${esc(d.nhan)}</span><span>${d.so ? esc(money(d.so)) : 'Miễn phí'}</span></div>`
+      return `<div><span>${esc(d.nhan)}</span><span>${d.dau === '-' ? '- ' : ''}${esc(money(d.so))}</span></div>`
+    })
+    .join('\n        ')
+}
 
 /**
  * Logo đơn vị vận chuyển cho bản in: có file logo thì in logo (chưa có file / lỗi tải thì tự đổi sang nhãn chữ),
@@ -165,10 +187,7 @@ export function taoHtmlHoaDon({ hd = {}, khach = {}, giao = {}, sanPham = [], da
     <div class="sec">
       <h2>Tổng tiền</h2>
       <div class="sum">
-        <div><span>Tổng tiền hàng</span><span>${esc(money(hd.tongTien))}</span></div>
-        <div><span>${esc(nhanGiamGia(hd))}</span><span>- ${esc(money(hd.soTienGiam))}</span></div>
-        ${laGiaoHang ? `<div><span>Phí vận chuyển</span><span>${esc(money(hd.phiVanChuyen))}</span></div>` : ''}
-        <div class="t"><span>Tổng thanh toán</span><span>${esc(money(hd.thanhTien))}</span></div>
+        ${dongTienIn(hd, laGiaoHang, sanPham)}
         <div><span>Đã thanh toán</span><span>${esc(money(daThanhToan))}</span></div>
         ${hd.trangThai !== TT.DA_HUY && conPhaiTra > 0 ? `<div class="no"><span>Còn phải trả</span><span>${esc(money(conPhaiTra))}</span></div>` : ''}
       </div>

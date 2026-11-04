@@ -10,11 +10,28 @@ import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
 import VoucherPanel from '../../components/shop/VoucherPanel.vue'
 import VanChuyenLogo from '../../components/common/VanChuyenLogo.vue'
 import { formatMoney } from '../../utils/format'
+import { dongTienDon } from '../../utils/tienDon'
+import { useBaoGiaGioHang } from '../../composables/useBaoGiaGioHang'
 import api from '../../services/api'
 
 const route = useRoute()
 const router = useRouter()
 const cartStore = useCartStore()
+// Giá trong giỏ cập nhật theo cửa hàng, số tiền lấy theo máy chủ (cùng cách tính với lúc đặt hàng) - review 05/11
+useBaoGiaGioHang(cartStore)
+// Các dòng tiền cùng tên, cùng thứ tự với giỏ hàng, bán quầy, chi tiết hóa đơn (utils/tienDon.js)
+const tien = computed(() =>
+  dongTienDon({
+    tienHangSauDot: cartStore.subTotal,
+    giamTheoDot: cartStore.giamTheoDot,
+    giamPhieu: cartStore.discountAmount,
+    maPhieu: cartStore.appliedVoucher?.ma,
+    coGiaoHang: true,
+    phiVanChuyen: cartStore.shippingFee,
+    tongThanhToan: cartStore.finalTotal,
+  }),
+)
+const coGiamDot = (item) => Number(item.giaGoc) > Number(item.giaBan)
 const auth = useAuth()
 
 // Khách vãng lai (chưa đăng nhập/đăng ký) vẫn được mua hàng; đăng nhập chỉ để tự điền thông tin và dùng sổ địa chỉ
@@ -469,7 +486,9 @@ async function handleOrderSubmit() {
                     <span v-if="item.trongLuong">Trọng lượng: {{ item.trongLuong }}</span>
                     <span v-if="item.chuVi">Cán: {{ item.chuVi }}</span>
                   </div>
-                  <div v-if="item.soLuong > 1" class="co-item-unit">{{ formatMoney(item.giaBan) }} x {{ item.soLuong }}</div>
+                  <div class="co-item-unit" data-testid="co-don-gia">
+                    <s v-if="coGiamDot(item)" class="me-1">{{ formatMoney(item.giaGoc) }}</s>{{ formatMoney(item.giaBan) }} x {{ item.soLuong }}
+                  </div>
                 </div>
                 <div class="co-item-total">{{ formatMoney(item.giaBan * item.soLuong) }}</div>
               </div>
@@ -478,24 +497,24 @@ async function handleOrderSubmit() {
             <!-- Mã giảm giá: gợi ý mã tốt nhất + nhập / chọn mã -->
             <VoucherPanel />
 
-            <!-- Chi phí -->
-            <div class="co-row">
-              <span>Tạm tính</span>
-              <span class="co-val">{{ formatMoney(cartStore.subTotal) }}</span>
+            <!-- Chi phí: cùng các dòng với giỏ hàng / bán quầy / chi tiết hóa đơn -->
+            <p v-if="cartStore.baoGia?.doiGia" class="co-doi-gia" data-testid="co-doi-gia">
+              <i class="bi bi-arrow-repeat"></i> Giá một số sản phẩm vừa được cập nhật theo cửa hàng.
+            </p>
+            <div v-for="d in tien.dong.slice(0, -1)" :key="d.khoa" class="co-row" :data-dong="d.khoa">
+              <span :class="{ 'co-green': d.dau === '-' && d.so > 0, 'co-ship': d.khoa === 'phi-van-chuyen' }">
+                {{ d.nhan }}<template v-if="d.ma"> ({{ d.ma }})</template>
+                <VanChuyenLogo v-if="d.khoa === 'phi-van-chuyen'" ten="Giao Hàng Nhanh" />
+              </span>
+              <span v-if="d.khoa === 'phi-van-chuyen' && d.so === 0" class="co-val co-green">Miễn phí</span>
+              <span v-else-if="d.khoa === 'phieu' && !d.so" class="co-val text-muted">Không dùng phiếu</span>
+              <span v-else class="co-val" :class="{ 'co-green': d.dau === '-' }">{{ d.dau === '-' ? '-' : '' }}{{ formatMoney(d.so) }}</span>
             </div>
-            <div v-if="cartStore.discountAmount > 0" class="co-row">
-              <span class="co-green">Giảm giá voucher<template v-if="cartStore.appliedVoucher"> ({{ cartStore.appliedVoucher.ma }})</template></span>
-              <span class="co-val co-green">-{{ formatMoney(cartStore.discountAmount) }}</span>
-            </div>
-            <div class="co-row">
-              <span class="co-ship">Phí vận chuyển <VanChuyenLogo ten="Giao Hàng Nhanh" /></span>
-              <span v-if="cartStore.shippingFee === 0" class="co-val co-green">Miễn phí</span>
-              <span v-else class="co-val">{{ formatMoney(cartStore.shippingFee) }}</span>
-            </div>
+            <p v-if="cartStore.loiPhieu" class="text-danger small mb-2" data-testid="co-loi-phieu">{{ cartStore.loiPhieu }}</p>
 
-            <div class="co-total">
-              <span>Tổng cộng</span>
-              <span class="co-total-val">{{ formatMoney(cartStore.finalTotal) }}</span>
+            <div class="co-total" data-dong="tong-thanh-toan">
+              <span>{{ tien.dong.at(-1).nhan }}</span>
+              <span class="co-total-val">{{ formatMoney(tien.tong) }}</span>
             </div>
 
             <div v-if="submitError" class="alert alert-danger py-2 small mb-3">{{ submitError }}</div>
@@ -518,6 +537,14 @@ async function handleOrderSubmit() {
 </template>
 
 <style scoped>
+.co-doi-gia {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.82rem;
+}
 .dc-gon {
   display: flex;
   align-items: center;

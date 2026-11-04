@@ -126,11 +126,11 @@ describe('Mô tả mức giảm của phiếu trên hóa đơn', () => {
     expect(moTaMucGiam({ maPhieuGiamGia: 'X', loaiPhieuGiamGia: 1, giaTriPhieuGiamGia: 0 })).toBe('')
   })
   it('nhãn dòng giảm giá ghi mã + mức giảm', () => {
-    expect(nhanGiamGia({ maPhieuGiamGia: 'VCH7QX2YN', loaiPhieuGiamGia: 1, giaTriPhieuGiamGia: 10 })).toBe('Giảm giá (mã VCH7QX2YN – giảm 10%)')
-    expect(nhanGiamGia({ maPhieuGiamGia: 'VCH7QX2YN' })).toBe('Giảm giá (mã VCH7QX2YN)')
-    expect(nhanGiamGia({ maPhieuGiamGia: 'VCH7QX2YN', loaiPhieuGiamGia: 1, giaTriPhieuGiamGia: 10, giamToiDaPhieuGiamGia: 100000 })).toBe('Giảm giá (mã VCH7QX2YN – giảm 10%, tối đa 100.000 ₫)')
-    expect(nhanGiamGia({ maPhieuGiamGia: 'VCHTT50KH', loaiPhieuGiamGia: 2, giaTriPhieuGiamGia: 50000 })).toBe('Giảm giá (mã VCHTT50KH – giảm 50.000 ₫)')
-    expect(nhanGiamGia({})).toBe('Giảm giá')
+    expect(nhanGiamGia({ maPhieuGiamGia: 'VCH7QX2YN', loaiPhieuGiamGia: 1, giaTriPhieuGiamGia: 10 })).toBe('Phiếu giảm giá (mã VCH7QX2YN – giảm 10%)')
+    expect(nhanGiamGia({ maPhieuGiamGia: 'VCH7QX2YN' })).toBe('Phiếu giảm giá (mã VCH7QX2YN)')
+    expect(nhanGiamGia({ maPhieuGiamGia: 'VCH7QX2YN', loaiPhieuGiamGia: 1, giaTriPhieuGiamGia: 10, giamToiDaPhieuGiamGia: 100000 })).toBe('Phiếu giảm giá (mã VCH7QX2YN – giảm 10%, tối đa 100.000 ₫)')
+    expect(nhanGiamGia({ maPhieuGiamGia: 'VCHTT50KH', loaiPhieuGiamGia: 2, giaTriPhieuGiamGia: 50000 })).toBe('Phiếu giảm giá (mã VCHTT50KH – giảm 50.000 ₫)')
+    expect(nhanGiamGia({})).toBe('Phiếu giảm giá')
   })
 })
 
@@ -179,15 +179,15 @@ describe('Bản in hóa đơn (PDF)', () => {
 
   it('ghi mã phiếu đã dùng và giảm bao nhiêu % (cô: "sử dụng mã nào, giảm bao nhiêu phần trăm in vào đây")', () => {
     const html = taoHtmlHoaDon(GIAO_HANG)
-    expect(html).toContain('Giảm giá (mã VCH7QX2YN – giảm 10%, tối đa 200.000 ₫)')
+    expect(html).toContain('Phiếu giảm giá (mã VCH7QX2YN – giảm 10%, tối đa 200.000 ₫)')
     expect(html).toContain('- 100.000 ₫')
   })
 
-  it('phiếu giảm theo số tiền thì ghi số tiền; không dùng phiếu thì chỉ ghi "Giảm giá"', () => {
+  it('phiếu giảm theo số tiền thì ghi số tiền; không dùng phiếu thì ghi "Phiếu giảm giá" + "Không dùng phiếu" (review 05/11: cùng tên với màn hình)', () => {
     const soTien = taoHtmlHoaDon({ ...GIAO_HANG, hd: { ...GIAO_HANG.hd, loaiPhieuGiamGia: 2, giaTriPhieuGiamGia: 50000, giamToiDaPhieuGiamGia: null, soTienGiam: 50000 } })
-    expect(soTien).toContain('Giảm giá (mã VCH7QX2YN – giảm 50.000 ₫)')
+    expect(soTien).toContain('Phiếu giảm giá (mã VCH7QX2YN – giảm 50.000 ₫)')
     const khong = taoHtmlHoaDon(TAI_QUAY)
-    expect(khong).toContain('<span>Giảm giá</span>')
+    expect(khong).toContain('<span>Phiếu giảm giá</span><span>Không dùng phiếu</span>')
     expect(khong).not.toContain('(mã ')
   })
 

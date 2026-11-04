@@ -11,6 +11,7 @@ import { formatGio, formatMoney, formatNgay, formatNgayGio } from '../../utils/f
 import { moTaMucGiam } from '../../utils/hoaDonIn'
 import { normalizeText } from '../../utils/text'
 import { nhanDienVanChuyen } from '../../utils/vanChuyen'
+import { dongTienDon, tienGiamTheoDotCuaDong } from '../../utils/tienDon'
 
 const props = defineProps({
   data: { type: Object, required: true },
@@ -43,6 +44,21 @@ const hienThiGiamGia = computed(() => {
   if (pt > 0) return `-${pt}% (- ${money(hd.value.soTienGiam)})`
   return `- ${money(hd.value.soTienGiam)}`
 })
+
+// Các dòng tiền cùng tên, cùng thứ tự với bán quầy / giỏ hàng / thanh toán online / bản in (utils/tienDon.js, review 05/11).
+// Tiền giảm theo đợt do máy chủ tính theo giá gốc LÚC BÁN (hoaDon.tienGiamTheoDot); thiếu (dữ liệu gọn của khách) thì tính từ các dòng.
+const tienDon = computed(() =>
+  dongTienDon({
+    tienHangSauDot: hd.value.tongTien,
+    giamTheoDot: hd.value.tienGiamTheoDot ?? tienGiamTheoDotCuaDong(sanPham.value),
+    giamPhieu: hd.value.soTienGiam,
+    maPhieu: hd.value.maPhieuGiamGia,
+    coGiaoHang: laGiaoHang.value,
+    phiVanChuyen: hd.value.phiVanChuyen,
+    tongThanhToan: hd.value.thanhTien,
+  }),
+)
+const dongTien = (khoa) => tienDon.value.dong.find((d) => d.khoa === khoa)
 
 const dvVanChuyen = computed(() => nhanDienVanChuyen(hd.value.donViVanChuyen))
 const logoSummaryError = ref(false)
@@ -221,13 +237,18 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
           </div>
         </div>
         <div class="hd-summary">
-          <div class="hd-summary-row">
-            <span class="hd-summary-label">Tổng Tiền Hàng</span>
-            <span class="hd-summary-value">{{ money(hd.tongTien) }}</span>
+          <!-- Tổng tiền hàng (giá gốc) - Giảm theo đợt - Phiếu giảm giá + Phí vận chuyển = Tổng thanh toán -->
+          <div class="hd-summary-row" data-dong="tong-tien-hang">
+            <span class="hd-summary-label">{{ dongTien('tong-tien-hang').nhan }}</span>
+            <span class="hd-summary-value">{{ money(dongTien('tong-tien-hang').so) }}</span>
+          </div>
+          <div v-if="dongTien('giam-dot')" class="hd-summary-row" data-dong="giam-dot">
+            <span class="hd-summary-label">{{ dongTien('giam-dot').nhan }}</span>
+            <span class="hd-summary-discount">- {{ money(dongTien('giam-dot').so) }}</span>
           </div>
           <div class="hd-summary-row" data-dong="giam-gia">
             <div class="hd-summary-left">
-              <span class="hd-summary-label">Phiếu Giảm Giá</span>
+              <span class="hd-summary-label">{{ dongTien('phieu').nhan }}</span>
               <span v-if="hd.maPhieuGiamGia" class="hd-summary-code hd-voucher hd-phieu" :title="hd.tenPhieuGiamGia">
                 {{ hd.maPhieuGiamGia }}
                 <span v-if="moTaGiam" class="visually-hidden">{{ moTaGiam }}</span>
@@ -239,9 +260,9 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
             <span v-else class="text-muted">Không dùng phiếu</span>
           </div>
           <!-- Đơn tại quầy không có vận chuyển nên không có dòng phí vận chuyển -->
-          <div v-if="laGiaoHang" class="hd-summary-row" data-dong="phi-van-chuyen">
+          <div v-if="dongTien('phi-van-chuyen')" class="hd-summary-row" data-dong="phi-van-chuyen">
             <div class="hd-summary-left">
-              <span class="hd-summary-label">Phí Vận Chuyển</span>
+              <span class="hd-summary-label">{{ dongTien('phi-van-chuyen').nhan }}</span>
               <span v-if="dvVanChuyen" class="hd-summary-vc">
                 <img
                   v-if="dvVanChuyen.logo && !logoSummaryError"
@@ -253,11 +274,11 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
                 <span v-else class="hd-summary-vc-badge">{{ dvVanChuyen.ma || dvVanChuyen.ten }}</span>
               </span>
             </div>
-            <span class="hd-summary-value">{{ hd.phiVanChuyen > 0 ? '+ ' + money(hd.phiVanChuyen) : '0 ₫' }}</span>
+            <span class="hd-summary-value">{{ dongTien('phi-van-chuyen').so > 0 ? '+ ' + money(dongTien('phi-van-chuyen').so) : 'Miễn phí' }}</span>
           </div>
           <div class="hd-summary-divider"></div>
-          <div class="hd-summary-total">
-            <span class="hd-total-label">Tổng Tiền</span>
+          <div class="hd-summary-total" data-dong="tong-thanh-toan">
+            <span class="hd-total-label">{{ dongTien('tong-thanh-toan').nhan }}</span>
             <span class="hd-total-amount">{{ money(hd.thanhTien) }}</span>
           </div>
           <!-- Còn phải trả (hỗ trợ kiểm tra tự động) -->

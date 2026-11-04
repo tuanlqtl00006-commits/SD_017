@@ -424,7 +424,39 @@ public class GiaoCaService {
         LocalDateTime b = den.plusDays(1).atStartOfDay().minusNanos(1);
         List<GiaoCa> ds = loc == null ? giaoCaRepo.findByThoiGianNhanCaBetweenOrderByThoiGianNhanCaDesc(a, b)
                 : giaoCaRepo.findByNhanVienIdAndThoiGianNhanCaBetweenOrderByThoiGianNhanCaDesc(loc, a, b);
-        return ds.stream().map(this::dto).toList();
+        // Mọi ca nhận từ đầu khoảng trở đi (kể cả của người khác / sau khoảng lọc) để tìm ca nối tiếp; một câu truy vấn cho cả danh sách
+        List<GiaoCa> tangDan = ds.isEmpty() ? List.of() : caNhanTuLuc(a);
+        return ds.stream().map(g -> {
+            Map<String, Object> m = dto(g);
+            m.put("caSau", caSau(g, tangDan));
+            return m;
+        }).toList();
+    }
+
+    /** Các ca nhận từ thời điểm `luc` trở đi, xếp theo giờ nhận tăng dần. */
+    private List<GiaoCa> caNhanTuLuc(LocalDateTime luc) {
+        List<GiaoCa> ds = new ArrayList<>(giaoCaRepo.findByThoiGianNhanCaBetweenOrderByThoiGianNhanCaDesc(luc, bayGio().plusYears(1)));
+        ds.sort(Comparator.comparing(GiaoCa::getThoiGianNhanCa).thenComparing(GiaoCa::getId));
+        return ds;
+    }
+
+    /**
+     * Ca nối tiếp (review: "nhân viên nhận ca đến hết, xong rồi tiếp tục đến ai"): cửa hàng một két tiền nên ca sau là ca nhận
+     * sớm nhất kể từ lúc ca này giao. Ca chưa giao, hoặc chưa có ai nhận tiếp thì null.
+     */
+    private static Map<String, Object> caSau(GiaoCa gc, List<GiaoCa> tangDan) {
+        if (gc.getThoiGianKetCa() == null) return null;
+        for (GiaoCa g : tangDan) {
+            if (g.getId().equals(gc.getId()) || g.getThoiGianNhanCa().isBefore(gc.getThoiGianKetCa())) continue;
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", g.getId());
+            m.put("maGiaoCa", g.getMaGiaoCa());
+            m.put("tenNhanVien", g.getNhanVien().getHoTen());
+            m.put("maNhanVien", g.getNhanVien().getMaNhanVien());
+            m.put("thoiGianNhanCa", g.getThoiGianNhanCa());
+            return m;
+        }
+        return null;
     }
 
     @Transactional(readOnly = true)
@@ -458,6 +490,7 @@ public class GiaoCaService {
     Map<String, Object> chiTietDto(GiaoCa gc) {
         Map<String, Object> m = dto(gc);
         if (Integer.valueOf(GiaoCa.DANG_TRONG_CA).equals(gc.getTrangThai())) m.put("tongKet", tongKet(gc));
+        m.put("caSau", gc.getThoiGianKetCa() == null ? null : caSau(gc, caNhanTuLuc(gc.getThoiGianKetCa())));
         Map<Integer, String> tenPt = new HashMap<>();
         for (PhuongThucThanhToan pt : phuongThucRepo.findAll()) tenPt.put(pt.getId(), pt.getTenPhuongThuc());
         List<Map<String, Object>> hds = new ArrayList<>();

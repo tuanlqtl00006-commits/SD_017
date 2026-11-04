@@ -411,7 +411,7 @@ describe('Chuyển sang "Đã xác nhận" thì tự mở bản in hóa đơn (P
     const html = cuaSo.document.write.mock.calls[0][0]
     expect(html).not.toContain('Lịch sử thanh toán')
     expect(html).not.toContain('Chuyển khoản')
-    expect(html).toContain('Giảm giá (mã VCH7QX2YN – giảm 10%, tối đa 200.000 ₫)')
+    expect(html).toContain('Phiếu giảm giá (mã VCH7QX2YN – giảm 10%, tối đa 200.000 ₫)')
     expect(html).toContain('<span>Phí vận chuyển</span><span>30.000 ₫</span>')
     expect(html).toContain('/van-chuyen/ghn.png')
     expect(html).toContain('class="qr"')

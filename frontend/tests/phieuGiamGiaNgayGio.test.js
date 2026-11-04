@@ -228,14 +228,14 @@ describe('Danh sách phiếu: cột ngày giờ + trạng thái đổi theo gi�
     w.unmount()
   })
 
-  it('10:00 ngày 15/10: phiếu 08:00-09:30 đã kết thúc, 09:00-11:00 đang hoạt động, 11:00-12:00 sắp diễn ra', async () => {
+  it('10:00 ngày 15/10: phiếu 08:00-09:30 đã kết thúc, 09:00-11:00 đang diễn ra, 11:00-12:00 sắp diễn ra', async () => {
     const w = await montarDanhSach([
       phieu({ id: 1, ma: 'VCHXONG01', ngayBatDau: '2026-10-15T08:00:00', ngayKetThuc: '2026-10-15T09:30:59' }),
       phieu({ id: 2, ma: 'VCHDANG02', ngayBatDau: '2026-10-15T09:00:00', ngayKetThuc: '2026-10-15T11:00:59' }),
       phieu({ id: 3, ma: 'VCHSAPD03', ngayBatDau: '2026-10-15T11:00:00', ngayKetThuc: '2026-10-15T12:00:59' }),
     ])
     expect(dong(w, 'VCHXONG01').text()).toContain('Đã kết thúc')
-    expect(dong(w, 'VCHDANG02').text()).toContain('Đang hoạt động')
+    expect(dong(w, 'VCHDANG02').text()).toContain('Đang diễn ra')
     expect(dong(w, 'VCHSAPD03').text()).toContain('Sắp diễn ra')
     // phiếu đã kết thúc: công tắc tắt + khóa
     const sw = dong(w, 'VCHXONG01').get('button[role="switch"]')
@@ -249,7 +249,7 @@ describe('Danh sách phiếu: cột ngày giờ + trạng thái đổi theo gi�
     vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
     vi.setSystemTime(new Date(2026, 9, 15, 10, 59, 40))
     const w = await montarDanhSach([phieu({ id: 2, ma: 'VCHDANG02', ngayBatDau: '2026-10-15T09:00:00', ngayKetThuc: '2026-10-15T11:00:59' })])
-    expect(dong(w, 'VCHDANG02').text()).toContain('Đang hoạt động')
+    expect(dong(w, 'VCHDANG02').text()).toContain('Đang diễn ra')
     vi.setSystemTime(new Date(2026, 9, 15, 11, 1, 5))
     vi.advanceTimersByTime(30000)
     await flushPromises()

@@ -64,20 +64,25 @@ const TRANG_THAI = Object.fromEntries(
   Object.entries(MAU_TRANG_THAI).map(([ma, color]) => [ma, { label: TRANG_THAI_HOA_DON[ma].label, color }]),
 )
 
-async function load() {
+// ngam = true: tải ngầm (tự cập nhật), lỗi thì giữ số đang hiện, không báo; lần tải cũ về chậm không đè lần mới
+let lanTaiHd = 0
+async function load(ngam = false) {
+  const lan = ++lanTaiHd
   taiGd3()
   try {
     const res = await api.get('/hoa-don', { params: { page: 0, size: 2000 } })
+    if (lan !== lanTaiHd) return
     hoaDon.value = (res?.data?.content ?? []).filter((h) => !laHoaDonCho(h))
     homNay.value = todayIso()
   } catch (e) {
-    toast.error(e.message || 'Không tải được dữ liệu thống kê.')
+    if (!ngam) toast.error(e.message || 'Không tải được dữ liệu thống kê.')
   } finally {
-    loading.value = false
+    if (lan === lanTaiHd) loading.value = false
   }
 }
-onMounted(load)
-useAutoRefresh(load)
+onMounted(() => load())
+// Thống kê tải nhiều đơn nên tự cập nhật 30 giây một lần (vẫn tải lại ngay khi quay lại tab)
+useAutoRefresh(() => load(true), 3000, { chuKyMs: 30_000 })
 
 function chonMoc(m) {
   mocChon.value = m.ma
