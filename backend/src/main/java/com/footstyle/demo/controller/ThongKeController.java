@@ -38,7 +38,9 @@ public class ThongKeController {
         return soSanh.soSanh(kieu, ky);
     }
 
-    public record GuiEmailRequest(String kieu, String ky, String email, String tieuDe, String ghiChu, java.util.List<String> dsKy) {
+    public record GuiEmailRequest(String kieu, String ky, String email, String tieuDe, String ghiChu,
+                                  java.util.List<String> dsKy, String thuongHieu, String tuKhoaSp,
+                                  String xuHuongSp, String sapXepSp, String sapXepKy) {
     }
 
     public record LichTuDongRequest(String email, Boolean hangNgay, Boolean hangThang, Boolean hangNam) {
@@ -48,7 +50,8 @@ public class ThongKeController {
     @PostMapping("/so-sanh/gui-email")
     public Map<String, Object> guiEmail(@RequestBody(required = false) GuiEmailRequest req) {
         if (req == null) return soSanh.guiEmail(null, null, null);
-        return soSanh.guiEmail(req.kieu(), req.ky(), req.email(), req.tieuDe(), req.ghiChu(), req.dsKy());
+        return soSanh.guiEmail(req.kieu(), req.ky(), req.email(), req.tieuDe(), req.ghiChu(),
+                req.dsKy(), req.thuongHieu(), req.tuKhoaSp(), req.xuHuongSp(), req.sapXepSp(), req.sapXepKy());
     }
 
     /** Lấy cấu hình lịch gửi báo cáo tự động. */

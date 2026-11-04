@@ -878,11 +878,6 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         <section class="ad-card tk-kpi-card h-100 mb-0" data-test="tk-kpi">
           <div class="tk-kpi-label">{{ k.label }}</div>
           <div class="tk-kpi-value">{{ loading ? '…' : k.value }}</div>
-          <div class="tk-kpi-note">{{ k.note }}</div>
-          <div v-if="!loading && k.so" class="tk-so small mt-2" :class="k.so.huong && `tk-${k.so.huong}`">
-            <span>{{ k.so.text }}</span>
-            <span v-if="k.so.huong" class="text-muted fw-normal ms-1">so với kỳ trước</span>
-          </div>
         </section>
       </div>
     </div>

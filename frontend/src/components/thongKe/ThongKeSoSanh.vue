@@ -1293,11 +1293,20 @@ async function guiEmail() {
   dangGui.value = true
   try {
     const emailChuan = dsEmail.join(', ')
+    const dsMaKy = cacKyDoiChieu.value.map((k) => k.ma).filter(Boolean)
+    const thChon = (thuongHieuLoc.value || thuongHieuSpBang.value || '').trim()
+    const kwChon = (tuKhoaSpLoc.value || timSpBang.value || '').trim()
     const payload = {
       kieu: kieu.value,
       ky: ky.value,
       email: emailChuan,
+      dsKy: dsMaKy,
     }
+    if (thChon) payload.thuongHieu = thChon
+    if (kwChon) payload.tuKhoaSp = kwChon
+    if (xuHuongSpBang.value && xuHuongSpBang.value !== 'TAT_CA') payload.xuHuongSp = xuHuongSpBang.value
+    if (sapXepSpBang.value && sapXepSpBang.value !== 'SL_GIAM') payload.sapXepSp = sapXepSpBang.value
+    if (sapXepKy.value && sapXepKy.value !== 'THOI_GIAN_TANG') payload.sapXepKy = sapXepKy.value
     if (gc) payload.ghiChu = gc
     const res = (await api.post('/thong-ke/so-sanh/gui-email', payload)).data
     toast.success(

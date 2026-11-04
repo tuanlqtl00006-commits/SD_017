@@ -156,5 +156,13 @@ class ThongKeSoSanhServiceTest {
         byte[] png = anh.get("bieu-do-xu-huong");
         assertTrue(png.length > 1000 && png[1] == 'P' && png[2] == 'N' && png[3] == 'G');
         assertThrows(ApiException.class, () -> service.guiEmail("THANG", null, "khong-phai-email"));
+
+        // Kiểm tra gửi email theo đúng bộ lọc các kỳ đối chiếu + từ khóa sản phẩm
+        Map<String, Object> kqLoc = service.guiEmail("THANG", "2026-10", "ql1@gmail.com ql2@gmail.com",
+                null, "Ghi chú đối chiếu", List.of("2026-09", "2026-10"), null, "Astrox");
+        assertEquals(2, kqLoc.get("soNguoiNhan"));
+        String htmlLoc = String.valueOf(thuDaGui.get("html"));
+        assertTrue(htmlLoc.contains("Các kỳ đối chiếu: Tháng 9/2026, Tháng 10/2026"));
+        assertTrue(htmlLoc.contains("Từ khóa SP: Astrox"));
     }
 }

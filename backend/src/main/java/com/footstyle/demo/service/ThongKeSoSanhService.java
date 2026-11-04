@@ -662,14 +662,27 @@ public class ThongKeSoSanhService {
 
     /** Gửi báo cáo so sánh tới email (quản lý bấm "Gửi email"). Trả về { daGui, giaLap, email }. */
     public Map<String, Object> guiEmail(String kieu, String ky, String email) {
-        return guiEmail(kieu, ky, email, null, null, null);
+        return guiEmail(kieu, ky, email, null, null, null, null, null, null, null, null);
     }
 
-    /** Gửi báo cáo so sánh đầy đủ (hỗ trợ nhiều người nhận ngăn cách bởi dấu phẩy, tiêu đề tùy chọn, ghi chú người gửi và danh sách kỳ đối chiếu). */
+    /** Gửi báo cáo so sánh đầy đủ (hỗ trợ nhiều người nhận, tiêu đề tùy chọn, ghi chú người gửi và danh sách kỳ đối chiếu). */
     public Map<String, Object> guiEmail(String kieu, String ky, String email, String tieuDeTuyChon, String ghiChu, List<String> dsKy) {
+        return guiEmail(kieu, ky, email, tieuDeTuyChon, ghiChu, dsKy, null, null, null, null, null);
+    }
+
+    /** Gửi báo cáo so sánh khớp hoàn toàn với bộ lọc đang chọn trên giao diện (chế độ kỳ, danh sách kỳ, thương hiệu, từ khóa sản phẩm). */
+    public Map<String, Object> guiEmail(String kieu, String ky, String email, String tieuDeTuyChon, String ghiChu,
+                                        List<String> dsKy, String thuongHieu, String tuKhoaSp) {
+        return guiEmail(kieu, ky, email, tieuDeTuyChon, ghiChu, dsKy, thuongHieu, tuKhoaSp, null, null, null);
+    }
+
+    /** Gửi báo cáo so sánh khớp 100% với mọi bộ lọc và chế độ sắp xếp trên giao diện. */
+    public Map<String, Object> guiEmail(String kieu, String ky, String email, String tieuDeTuyChon, String ghiChu,
+                                        List<String> dsKy, String thuongHieu, String tuKhoaSp,
+                                        String xuHuongSp, String sapXepSp, String sapXepKy) {
         String raw = email == null ? "" : email.trim();
         if (raw.isEmpty()) throw ApiException.badRequest("Email nhận báo cáo không hợp lệ.");
-        String[] tach = raw.split("[,;]+");
+        String[] tach = raw.split("[,;\\s]+");
         List<String> dsEmail = new ArrayList<>();
         for (String item : tach) {
             String e = item.trim();
@@ -692,7 +705,7 @@ public class ThongKeSoSanhService {
             }
         }
 
-        Map<String, Object> d = new LinkedHashMap<>(soSanh(kieu, ky));
+        Map<String, Object> d = soSanhTheoBoLoc(kieu, ky, dsKy, thuongHieu, tuKhoaSp, xuHuongSp, sapXepSp, sapXepKy);
         if (tieuDeTuyChon != null && !tieuDeTuyChon.isBlank()) {
             d.put("tieuDeTuyChon", tieuDeTuyChon.trim());
         }
@@ -712,6 +725,279 @@ public class ThongKeSoSanhService {
         kq.put("soNguoiNhan", dsEmail.size());
         kq.put("daGui", that);
         kq.put("giaLap", !that);
+        return kq;
+    }
+
+    private static String boDauTiengViet(String s) {
+        if (s == null || s.isBlank()) return "";
+        String norm = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD);
+        return norm.replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+                .replace('đ', 'd').replace('Đ', 'D')
+                .toLowerCase(Locale.ROOT).trim();
+    }
+
+    private static boolean khopBoLocSanPham(HoaDonChiTiet ct, String thChuan, String kwKhongDau) {
+        if (ct == null || ct.getSanPhamChiTiet() == null || ct.getSanPhamChiTiet().getSanPham() == null) {
+            return false;
+        }
+        SanPham sp = ct.getSanPhamChiTiet().getSanPham();
+        String tenTh = sp.getThuongHieu() != null && sp.getThuongHieu().getTen() != null
+                ? sp.getThuongHieu().getTen().trim()
+                : "";
+        if (!thChuan.isEmpty() && !tenTh.equalsIgnoreCase(thChuan)) {
+            return false;
+        }
+        if (!kwKhongDau.isEmpty()) {
+            String gop = (sp.getMaSanPham() == null ? "" : sp.getMaSanPham()) + " "
+                    + (sp.getTenSanPham() == null ? "" : sp.getTenSanPham()) + " "
+                    + tenTh;
+            return boDauTiengViet(gop).contains(kwKhongDau);
+        }
+        return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void apDungLocSanPhamChoChiSo(Map<String, Object> cs) {
+        List<Map<String, Object>> spKhop = (List<Map<String, Object>>) cs.getOrDefault("sanPhamTrongKy", List.of());
+        long dtLoc = 0;
+        long slLoc = 0;
+        for (Map<String, Object> sp : spKhop) {
+            dtLoc += ((Number) sp.get("doanhThu")).longValue();
+            slLoc += ((Number) sp.get("soLuong")).longValue();
+        }
+        int hoanThanhGoc = ((Number) cs.get("soHoanThanh")).intValue();
+        int donLoc = dtLoc > 0 ? Math.max(1, Math.min(Math.max(1, hoanThanhGoc), spKhop.size())) : 0;
+        cs.put("doanhThuThucTe", dtLoc);
+        cs.put("doanhThuDuKien", dtLoc);
+        cs.put("soDon", donLoc);
+        cs.put("soHoanThanh", donLoc);
+        cs.put("soHuy", 0);
+        cs.put("giaTriTrungBinh", donLoc > 0 ? Math.round((double) dtLoc / donLoc) : 0L);
+        cs.put("soSanPhamBan", slLoc);
+    }
+
+    /** Tổng hợp sản phẩm đối chiếu qua tất cả các kỳ đã chọn, hỗ trợ lọc xu hướng và sắp xếp giống giao diện. */
+    @SuppressWarnings("unchecked")
+    static List<Map<String, Object>> sanPhamDoiChieu(List<Ky> dsKy, List<HoaDonChiTiet> chiTiets,
+                                                     String xuHuongLoc, String sapXepSp) {
+        if (dsKy == null || dsKy.isEmpty()) return List.of();
+        Ky kyCuoi = dsKy.get(dsKy.size() - 1);
+        Ky kyKeCuoi = dsKy.size() >= 2 ? dsKy.get(dsKy.size() - 2) : null;
+
+        Map<Integer, Map<String, Object>> theoSp = new LinkedHashMap<>();
+        for (HoaDonChiTiet ct : chiTiets) {
+            if (ct.getHoaDon() == null || ct.getHoaDon().getNgayTao() == null || ct.getSanPhamChiTiet() == null) continue;
+            SanPham sp = ct.getSanPhamChiTiet().getSanPham();
+            if (sp == null) continue;
+            List<Ky> kyKhop = new ArrayList<>();
+            for (Ky k : dsKy) {
+                if (trongKy(ct.getHoaDon(), k)) kyKhop.add(k);
+            }
+            if (kyKhop.isEmpty()) continue;
+
+            String tenTh = sp.getThuongHieu() != null && sp.getThuongHieu().getTen() != null
+                    ? sp.getThuongHieu().getTen().trim()
+                    : "FootStyle";
+            Map<String, Object> m = theoSp.computeIfAbsent(sp.getId(), id -> {
+                Map<String, Object> x = new LinkedHashMap<>();
+                x.put("idSanPham", sp.getId());
+                x.put("maSanPham", sp.getMaSanPham() == null ? "SP" : sp.getMaSanPham());
+                x.put("tenSanPham", sp.getTenSanPham() == null ? "Sản phẩm" : sp.getTenSanPham());
+                x.put("thuongHieu", tenTh.isEmpty() ? "FootStyle" : tenTh);
+                x.put("tongBan", 0L);
+                x.put("tongDoanhThu", 0L);
+                x.put("soLuong", 0L);
+                x.put("doanhThu", 0L);
+                x.put("soLuongKyTruoc", 0L);
+                x.put("theoKy", new LinkedHashMap<String, Long>());
+                return x;
+            });
+            long sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
+            long dt = ct.getThanhTien() == null ? 0 : ct.getThanhTien().longValue();
+            Map<String, Long> theoKyMap = (Map<String, Long>) m.get("theoKy");
+            for (Ky k : kyKhop) {
+                m.put("tongBan", (Long) m.get("tongBan") + sl);
+                m.put("tongDoanhThu", (Long) m.get("tongDoanhThu") + dt);
+                theoKyMap.put(k.ma(), theoKyMap.getOrDefault(k.ma(), 0L) + sl);
+                if (k.ma().equals(kyCuoi.ma())) {
+                    m.put("soLuong", (Long) m.get("soLuong") + sl);
+                    m.put("doanhThu", (Long) m.get("doanhThu") + dt);
+                }
+                if (kyKeCuoi != null && k.ma().equals(kyKeCuoi.ma())) {
+                    m.put("soLuongKyTruoc", (Long) m.get("soLuongKyTruoc") + sl);
+                }
+            }
+        }
+
+        List<Map<String, Object>> ds = new ArrayList<>();
+        for (Map<String, Object> item : theoSp.values()) {
+            long tongBan = (Long) item.get("tongBan");
+            if (tongBan <= 0) continue;
+            long slCuoi = (Long) item.get("soLuong");
+            long slDau = (Long) item.get("soLuongKyTruoc");
+            Double pct;
+            if (kyKeCuoi != null) {
+                pct = slDau == 0 ? (slCuoi > 0 ? 100.0 : 0.0) : tangTruong(slCuoi, slDau);
+            } else {
+                pct = slCuoi > 0 ? 100.0 : 0.0;
+            }
+            double numPct = pct == null ? 0.0 : pct;
+            String huong = numPct > 0 ? "TANG" : numPct < 0 ? "GIAM" : "ON_DINH";
+            String nhanXuHuong = numPct > 0
+                    ? "↑ Tăng (+" + String.valueOf(Math.abs(numPct)).replace('.', ',') + "%)"
+                    : numPct < 0
+                            ? "↓ Giảm (-" + String.valueOf(Math.abs(numPct)).replace('.', ',') + "%)"
+                            : "→ Ổn định (0%)";
+            item.put("tangTruong", pct);
+            item.put("huong", huong);
+            item.put("nhanXuHuong", nhanXuHuong);
+            if ((Long) item.get("doanhThu") == 0L) {
+                item.put("doanhThu", item.get("tongDoanhThu"));
+            }
+            if (xuHuongLoc != null && !xuHuongLoc.isBlank() && !"TAT_CA".equalsIgnoreCase(xuHuongLoc.trim())) {
+                if (!huong.equalsIgnoreCase(xuHuongLoc.trim())) continue;
+            }
+            ds.add(item);
+        }
+
+        String sx = sapXepSp == null ? "SL_GIAM" : sapXepSp.trim().toUpperCase(Locale.ROOT);
+        ds.sort((a, b) -> switch (sx) {
+            case "DT_GIAM" -> Long.compare((Long) b.get("tongDoanhThu"), (Long) a.get("tongDoanhThu"));
+            case "TANG_GIAM" -> Double.compare(
+                    b.get("tangTruong") == null ? 0.0 : (Double) b.get("tangTruong"),
+                    a.get("tangTruong") == null ? 0.0 : (Double) a.get("tangTruong"));
+            case "GIAM_MANH" -> Double.compare(
+                    a.get("tangTruong") == null ? 0.0 : (Double) a.get("tangTruong"),
+                    b.get("tangTruong") == null ? 0.0 : (Double) b.get("tangTruong"));
+            default -> Long.compare((Long) b.get("tongBan"), (Long) a.get("tongBan"));
+        });
+        return ds.size() > 20 ? ds.subList(0, 20) : ds;
+    }
+
+    private Map<String, Object> soSanhTheoBoLoc(String kieuChuoi, String kyChuoi, List<String> dsKyChuoi,
+                                                String thuongHieu, String tuKhoaSp,
+                                                String xuHuongSp, String sapXepSp, String sapXepKy) {
+        String th = thuongHieu == null ? "" : thuongHieu.trim();
+        String kwRaw = tuKhoaSp == null ? "" : tuKhoaSp.trim();
+        String kw = boDauTiengViet(kwRaw);
+        boolean coLocSp = !th.isEmpty() || !kw.isEmpty();
+        boolean coLocThem = (xuHuongSp != null && !xuHuongSp.isBlank() && !"TAT_CA".equalsIgnoreCase(xuHuongSp))
+                || (sapXepSp != null && !sapXepSp.isBlank() && !"SL_GIAM".equalsIgnoreCase(sapXepSp))
+                || (sapXepKy != null && !sapXepKy.isBlank() && !"THOI_GIAN_TANG".equalsIgnoreCase(sapXepKy));
+
+        List<String> dsMa = new ArrayList<>();
+        if (dsKyChuoi != null) {
+            for (String m : dsKyChuoi) {
+                if (m != null && !m.isBlank() && !dsMa.contains(m.trim())) {
+                    dsMa.add(m.trim());
+                }
+            }
+        }
+        if (dsMa.isEmpty() && !coLocSp && !coLocThem) {
+            return new LinkedHashMap<>(soSanh(kieuChuoi, kyChuoi));
+        }
+
+        Kieu kieu = docKieu(kieuChuoi);
+        List<Ky> dsKyChon = new ArrayList<>();
+        for (String ma : dsMa) {
+            dsKyChon.add(docKy(kieu, ma));
+        }
+        dsKyChon.sort((a, b) -> a.tu().compareTo(b.tu()));
+
+        Ky ky = !dsKyChon.isEmpty() ? dsKyChon.get(dsKyChon.size() - 1) : docKy(kieu, kyChuoi);
+        Ky truoc = dsKyChon.size() >= 2 ? dsKyChon.get(dsKyChon.size() - 2) : kyTruoc(kieu, ky);
+        Ky cungKy = cungKyNamTruoc(kieu, ky);
+        if (dsKyChon.isEmpty()) {
+            dsKyChon.add(truoc);
+            dsKyChon.add(ky);
+        } else if (dsKyChon.size() == 1) {
+            List<Ky> dayDu = new ArrayList<>();
+            dayDu.add(truoc);
+            dayDu.add(ky);
+            dsKyChon = dayDu;
+        }
+
+        int namDau = kieu == Kieu.NAM ? ky.tu().getYear() - (SO_NAM_XU_HUONG - 1) : ky.tu().getYear() - 1;
+        LocalDate tu = LocalDate.of(namDau, 1, 1).isBefore(truoc.tu()) ? LocalDate.of(namDau, 1, 1) : truoc.tu();
+        LocalDate den = LocalDate.of(ky.tu().getYear(), 12, 31).isAfter(ky.den())
+                ? LocalDate.of(ky.tu().getYear(), 12, 31)
+                : ky.den();
+        for (Ky item : dsKyChon) {
+            if (item.tu().isBefore(tu)) tu = item.tu();
+            if (item.den().isAfter(den)) den = item.den();
+        }
+
+        List<HoaDon> hoaDons = hoaDonRepo.findByNgayTaoBetween(tu.atStartOfDay(), den.atTime(LocalTime.MAX));
+        List<HoaDonChiTiet> chiTiets = chiTietRepo.findByHoaDon_TrangThaiAndHoaDon_NgayTaoBetween(
+                HoaDon.HOAN_THANH, tu.atStartOfDay(), den.atTime(LocalTime.MAX));
+        if (coLocSp) {
+            chiTiets = chiTiets.stream().filter(ct -> khopBoLocSanPham(ct, th, kw)).toList();
+        }
+
+        Map<String, Object> hienTai = chiSo(ky, hoaDons, chiTiets);
+        Map<String, Object> kt = chiSo(truoc, hoaDons, chiTiets);
+        Map<String, Object> ck = chiSo(cungKy, hoaDons, chiTiets);
+        if (coLocSp) {
+            apDungLocSanPhamChoChiSo(hienTai);
+            apDungLocSanPhamChoChiSo(kt);
+            apDungLocSanPhamChoChiSo(ck);
+        }
+
+        List<Map<String, Object>> cacKyDoiChieu = new ArrayList<>();
+        for (Ky item : dsKyChon) {
+            Map<String, Object> cs = chiSo(item, hoaDons, chiTiets);
+            if (coLocSp) apDungLocSanPhamChoChiSo(cs);
+            cacKyDoiChieu.add(cs);
+        }
+
+        List<HoaDon> hoaDonsChoBieuDo = hoaDons;
+        if (coLocSp) {
+            Map<Integer, HoaDon> mapHdLoc = new LinkedHashMap<>();
+            for (HoaDonChiTiet ct : chiTiets) {
+                if (ct.getHoaDon() == null || ct.getHoaDon().getId() == null) continue;
+                HoaDon goc = ct.getHoaDon();
+                long tienCt = ct.getThanhTien() == null ? 0L : ct.getThanhTien().longValue();
+                HoaDon banSao = mapHdLoc.computeIfAbsent(goc.getId(), id -> {
+                    HoaDon h = new HoaDon();
+                    h.setId(goc.getId());
+                    h.setMaHoaDon(goc.getMaHoaDon());
+                    h.setNgayTao(goc.getNgayTao());
+                    h.setTrangThai(HoaDon.HOAN_THANH);
+                    h.setLoaiDon(goc.getLoaiDon());
+                    h.setPhiVanChuyen(BigDecimal.ZERO);
+                    h.setThanhTien(BigDecimal.ZERO);
+                    h.setTongTien(BigDecimal.ZERO);
+                    return h;
+                });
+                BigDecimal moi = banSao.getThanhTien().add(BigDecimal.valueOf(tienCt));
+                banSao.setThanhTien(moi);
+                banSao.setTongTien(moi);
+            }
+            hoaDonsChoBieuDo = new ArrayList<>(mapHdLoc.values());
+        }
+
+        Map<String, Object> kq = new LinkedHashMap<>();
+        kq.put("kieu", kieu.name());
+        kq.put("ky", kyDto(ky));
+        kq.put("hienTai", hienTai);
+        kq.put("kyTruoc", kt);
+        kq.put("cungKyNamTruoc", kieu == Kieu.NAM ? null : ck);
+        kq.put("tangSoVoiKyTruoc", bangTang(hienTai, kt));
+        kq.put("tangSoVoiCungKy", kieu == Kieu.NAM ? null : bangTang(hienTai, ck));
+        kq.put("xuHuong", xuHuong(kieu, ky, hoaDonsChoBieuDo));
+        kq.put("chiTietKy", chiTietKy(kieu, ky, hoaDonsChoBieuDo));
+        kq.put("sanPham", sanPhamDoiChieu(dsKyChon, chiTiets, xuHuongSp, sapXepSp));
+        if (!cacKyDoiChieu.isEmpty()) {
+            kq.put("cacKyDoiChieu", cacKyDoiChieu);
+        }
+        if (!th.isEmpty()) kq.put("thuongHieuLoc", th);
+        if (!kwRaw.isEmpty()) kq.put("tuKhoaSpLoc", kwRaw);
+        if (xuHuongSp != null && !xuHuongSp.isBlank() && !"TAT_CA".equalsIgnoreCase(xuHuongSp)) {
+            kq.put("xuHuongSpLoc", xuHuongSp.trim());
+        }
+        if (sapXepKy != null && !sapXepKy.isBlank()) {
+            kq.put("sapXepKyLoc", sapXepKy.trim());
+        }
         return kq;
     }
 
@@ -810,24 +1096,85 @@ public class ThongKeSoSanhService {
                 : "[FootStyle] Báo cáo phân tích & so sánh doanh thu " + nhanKy;
         String ghiChuNguoiGui = (String) d.get("ghiChuNguoiGui");
 
+        String thLoc = (String) d.get("thuongHieuLoc");
+        String kwLoc = (String) d.get("tuKhoaSpLoc");
+        String xhSpLoc = (String) d.get("xuHuongSpLoc");
+        String sxKyLoc = (String) d.get("sapXepKyLoc");
+        List<Map<String, Object>> cacKyGoc = (List<Map<String, Object>>) d.get("cacKyDoiChieu");
+        List<Map<String, Object>> dsKy = (cacKyGoc != null && !cacKyGoc.isEmpty())
+                ? new ArrayList<>(cacKyGoc)
+                : List.of(kt, a);
+
         List<BieuDoPng.Cot> xu = new ArrayList<>();
-        for (Map<String, Object> p : (List<Map<String, Object>>) d.get("xuHuong")) {
-            Object b = p.get("doanhThuNamTruoc");
-            xu.add(new BieuDoPng.Cot(String.valueOf(p.get("nhan")), ((Number) p.get("doanhThu")).longValue(), b == null ? null : ((Number) b).longValue()));
+        if (cacKyGoc != null && !cacKyGoc.isEmpty()) {
+            for (Map<String, Object> item : dsKy) {
+                Map<String, Object> kMap = (Map<String, Object>) item.get("ky");
+                String tenK = kMap != null ? String.valueOf(kMap.get("nhan")) : "";
+                long dtTt = ((Number) item.get("doanhThuThucTe")).longValue();
+                long dtDk = ((Number) item.get("doanhThuDuKien")).longValue();
+                xu.add(new BieuDoPng.Cot(tenK, dtTt, dtDk));
+            }
+        } else {
+            for (Map<String, Object> p : (List<Map<String, Object>>) d.get("xuHuong")) {
+                Object b = p.get("doanhThuNamTruoc");
+                xu.add(new BieuDoPng.Cot(String.valueOf(p.get("nhan")), ((Number) p.get("doanhThu")).longValue(), b == null ? null : ((Number) b).longValue()));
+            }
         }
         boolean coNamTruoc = !"NAM".equals(d.get("kieu"));
-        byte[] anhXu = BieuDoPng.cotNhom("Doanh thu thực tế theo " + ("THANG".equals(d.get("kieu")) ? "tháng" : "QUY".equals(d.get("kieu")) ? "quý" : "năm"),
-                coNamTruoc ? "Năm nay" : "Doanh thu", coNamTruoc ? "Cùng kỳ năm trước" : null, xu);
+        byte[] anhXu = (cacKyGoc != null && !cacKyGoc.isEmpty())
+                ? BieuDoPng.cotNhom("Biểu đồ đối chiếu doanh thu qua các kỳ đã chọn", "Doanh thu thực tế", "Doanh thu dự kiến", xu)
+                : BieuDoPng.cotNhom("Doanh thu thực tế theo " + ("THANG".equals(d.get("kieu")) ? "tháng" : "QUY".equals(d.get("kieu")) ? "quý" : "năm"),
+                        coNamTruoc ? "Năm nay" : "Doanh thu", coNamTruoc ? "Cùng kỳ năm trước" : null, xu);
         List<BieuDoPng.Cot> ct = new ArrayList<>();
         for (Map<String, Object> p : (List<Map<String, Object>>) d.get("chiTietKy")) {
             ct.add(new BieuDoPng.Cot(String.valueOf(p.get("nhan")), ((Number) p.get("doanhThu")).longValue(), ((Number) p.get("doanhThuNamTruoc")).longValue()));
         }
         byte[] anhCt = BieuDoPng.cotNhom("Chi tiết " + nhanKy, nhanKy, "Cùng kỳ năm trước", ct);
 
+        long tongDtCacKy = 0;
+        long tongDtDkCacKy = 0;
+        long tongDonHtCacKy = 0;
+        long tongSpCacKy = 0;
+        List<Double> dsPct = new ArrayList<>();
+        for (int i = 0; i < dsKy.size(); i++) {
+            Map<String, Object> item = dsKy.get(i);
+            long dtI = ((Number) item.get("doanhThuThucTe")).longValue();
+            tongDtCacKy += dtI;
+            tongDtDkCacKy += ((Number) item.get("doanhThuDuKien")).longValue();
+            tongDonHtCacKy += ((Number) item.get("soHoanThanh")).longValue();
+            tongSpCacKy += ((Number) item.get("soSanPhamBan")).longValue();
+            if (i > 0) {
+                long dtTr = ((Number) dsKy.get(i - 1).get("doanhThuThucTe")).longValue();
+                Double p = dtTr == 0 ? (dtI > 0 ? 100.0 : 0.0) : tangTruong(dtI, dtTr);
+                if (p != null) dsPct.add(p);
+            }
+        }
+        long aovTb = tongDonHtCacKy > 0 ? Math.round((double) tongDtCacKy / tongDonHtCacKy) : 0;
+        double tangTb = dsPct.isEmpty() ? 0.0 : Math.round(dsPct.stream().mapToDouble(Double::doubleValue).average().orElse(0.0) * 10.0) / 10.0;
+
         StringBuilder html = new StringBuilder("<div style=\"font-family:Arial,sans-serif;color:#18242f;font-size:14px\">");
         html.append("<h2 style=\"margin:0 0 4px\">Báo cáo phân tích &amp; so sánh ").append(esc(nhanKy)).append("</h2>");
-        html.append("<p style=\"color:#5b6b80;margin:0 0 16px\">Từ ").append(ky.get("tuNgay")).append(" đến ").append(ky.get("denNgay"))
+        html.append("<p style=\"color:#5b6b80;margin:0 0 12px\">Từ ").append(ky.get("tuNgay")).append(" đến ").append(ky.get("denNgay"))
                 .append(". Doanh thu không gồm phí giao hàng; thực tế = đơn đã hoàn thành, dự kiến = mọi đơn chưa hủy.</p>");
+        if ((thLoc != null && !thLoc.isBlank()) || (kwLoc != null && !kwLoc.isBlank())
+                || (xhSpLoc != null && !xhSpLoc.isBlank()) || (cacKyGoc != null && cacKyGoc.size() >= 2)) {
+            List<String> moTaLoc = new ArrayList<>();
+            if (cacKyGoc != null && cacKyGoc.size() >= 2) {
+                List<String> tenCacKy = new ArrayList<>();
+                for (Map<String, Object> item : cacKyGoc) {
+                    Map<String, Object> kMap = (Map<String, Object>) item.get("ky");
+                    if (kMap != null && kMap.get("nhan") != null) tenCacKy.add(String.valueOf(kMap.get("nhan")));
+                }
+                if (!tenCacKy.isEmpty()) moTaLoc.add("Các kỳ đối chiếu: " + String.join(", ", tenCacKy));
+            }
+            if (thLoc != null && !thLoc.isBlank()) moTaLoc.add("Thương hiệu: " + thLoc);
+            if (kwLoc != null && !kwLoc.isBlank()) moTaLoc.add("Từ khóa SP: " + kwLoc);
+            if (xhSpLoc != null && !xhSpLoc.isBlank()) moTaLoc.add("Xu hướng SP: " + xhSpLoc);
+            if (!moTaLoc.isEmpty()) {
+                html.append("<p style=\"background:#f8fafc;border:1px solid #e2e8f0;padding:8px 12px;border-radius:6px;margin:0 0 14px;color:#334155;font-size:13px\"><b>Bộ lọc áp dụng:</b> ")
+                        .append(esc(String.join(" | ", moTaLoc))).append("</p>");
+            }
+        }
 
         StringBuilder chu = new StringBuilder("Báo cáo phân tích & so sánh " + nhanKy + "\n\n");
         if (ghiChuNguoiGui != null && !ghiChuNguoiGui.isBlank()) {
@@ -837,7 +1184,64 @@ public class ThongKeSoSanhService {
             chu.append("GHI CHÚ TỪ NGƯỜI GỬI:\n").append(ghiChuNguoiGui).append("\n\n");
         }
 
-        html.append("<table cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse:collapse;border:1px solid #e3eaf3\">")
+        // 4 thẻ KPI tổng hợp của các kỳ đang đối chiếu (khớp với 4 thẻ KPI trên giao diện So sánh)
+        html.append("<table cellpadding=\"10\" cellspacing=\"0\" style=\"border-collapse:collapse;border:1px solid #e3eaf3;margin-bottom:16px;width:100%;max-width:760px\">")
+                .append("<tr style=\"background:#f8fafc\">")
+                .append("<td style=\"border:1px solid #e3eaf3\"><div style=\"color:#64748b;font-size:12px\">Tổng doanh thu các kỳ</div><b style=\"font-size:16px;color:#0f172a\">").append(so(tongDtCacKy, true)).append("</b></td>")
+                .append("<td style=\"border:1px solid #e3eaf3\"><div style=\"color:#64748b;font-size:12px\">Tổng đơn hoàn thành</div><b style=\"font-size:16px;color:#0f172a\">").append(tongDonHtCacKy).append("</b></td>")
+                .append("<td style=\"border:1px solid #e3eaf3\"><div style=\"color:#64748b;font-size:12px\">AOV trung bình</div><b style=\"font-size:16px;color:#0f172a\">").append(so(aovTb, true)).append("</b></td>")
+                .append("<td style=\"border:1px solid #e3eaf3\"><div style=\"color:#64748b;font-size:12px\">Tăng trưởng bình quân</div><b style=\"font-size:16px;color:").append(tangTb >= 0 ? "#15803d" : "#be123c").append("\">").append(phanTram(tangTb)).append("</b></td>")
+                .append("</tr></table>");
+
+        // Bảng tổng hợp chỉ số kinh doanh theo kỳ (khớp với bảng trên giao diện So sánh)
+        List<Map<String, Object>> dsKyBang = new ArrayList<>(dsKy);
+        if ("THOI_GIAN_GIAM".equalsIgnoreCase(sxKyLoc)) {
+            java.util.Collections.reverse(dsKyBang);
+        } else if ("DT_GIAM".equalsIgnoreCase(sxKyLoc)) {
+            dsKyBang.sort((x, y) -> Long.compare(((Number) y.get("doanhThuThucTe")).longValue(), ((Number) x.get("doanhThuThucTe")).longValue()));
+        } else if ("DT_TANG".equalsIgnoreCase(sxKyLoc)) {
+            dsKyBang.sort((x, y) -> Long.compare(((Number) x.get("doanhThuThucTe")).longValue(), ((Number) y.get("doanhThuThucTe")).longValue()));
+        }
+        html.append("<h3 style=\"margin:16px 0 6px\">I. Bảng tổng hợp chỉ số kinh doanh theo kỳ</h3>")
+                .append("<table cellpadding=\"7\" cellspacing=\"0\" style=\"border-collapse:collapse;border:1px solid #e3eaf3;margin-bottom:16px\">")
+                .append("<tr style=\"background:#f3f6fb\"><th align=\"left\">Kỳ báo cáo</th><th align=\"center\">Khoảng ngày</th><th align=\"right\">Đơn hoàn thành</th><th align=\"right\">Sản phẩm bán</th><th align=\"right\">Doanh thu thực tế</th><th align=\"right\">Giá trị TB/đơn (AOV)</th><th align=\"right\">Chênh lệch kỳ trước</th><th align=\"right\">Tốc độ tăng trưởng</th><th align=\"right\">Tỷ trọng</th></tr>");
+        for (int i = 0; i < dsKyBang.size(); i++) {
+            Map<String, Object> item = dsKyBang.get(i);
+            Map<String, Object> kMap = (Map<String, Object>) item.get("ky");
+            String tenK = kMap != null ? String.valueOf(kMap.get("nhan")) : "";
+            String khoangK = kMap != null ? kMap.get("tuNgay") + " – " + kMap.get("denNgay") : "";
+            long dtI = ((Number) item.get("doanhThuThucTe")).longValue();
+            long donHt = ((Number) item.get("soHoanThanh")).longValue();
+            long spBan = ((Number) item.get("soSanPhamBan")).longValue();
+            long aovI = ((Number) item.get("giaTriTrungBinh")).longValue();
+            int idxGoc = dsKy.indexOf(item);
+            long dtTr = idxGoc > 0 ? ((Number) dsKy.get(idxGoc - 1).get("doanhThuThucTe")).longValue() : 0;
+            long chenh = idxGoc > 0 ? dtI - dtTr : dtI;
+            Double pctI = idxGoc > 0 ? (dtTr == 0 ? (dtI > 0 ? 100.0 : 0.0) : tangTruong(dtI, dtTr)) : (dtI > 0 ? 100.0 : 0.0);
+            double tyTrong = tongDtCacKy > 0 ? Math.round((dtI * 1000.0) / tongDtCacKy) / 10.0 : 0.0;
+            html.append("<tr style=\"border-top:1px solid #e3eaf3\"><td><b>").append(esc(tenK)).append("</b></td>")
+                    .append("<td align=\"center\" style=\"color:#64748b;font-size:12px\">").append(esc(khoangK)).append("</td>")
+                    .append("<td align=\"right\">").append(donHt).append("</td>")
+                    .append("<td align=\"right\">").append(spBan).append("</td>")
+                    .append("<td align=\"right\"><b>").append(so(dtI, true)).append("</b></td>")
+                    .append("<td align=\"right\">").append(so(aovI, true)).append("</td>")
+                    .append("<td align=\"right\">").append(chenh > 0 ? "+" + so(chenh, true) : so(chenh, true)).append("</td>")
+                    .append("<td align=\"right\">").append(phanTram(pctI)).append("</td>")
+                    .append("<td align=\"right\">").append(String.valueOf(tyTrong).replace('.', ',')).append("%</td></tr>");
+        }
+        html.append("<tr style=\"border-top:2px solid #cbd5e1;background:#f8fafc;font-weight:bold\">")
+                .append("<td>TỔNG CỘNG / TRUNG BÌNH</td><td align=\"center\">").append(dsKy.size()).append(" kỳ</td>")
+                .append("<td align=\"right\">").append(tongDonHtCacKy).append("</td>")
+                .append("<td align=\"right\">").append(tongSpCacKy).append("</td>")
+                .append("<td align=\"right\">").append(so(tongDtCacKy, true)).append("</td>")
+                .append("<td align=\"right\">").append(so(aovTb, true)).append("</td>")
+                .append("<td align=\"right\">—</td>")
+                .append("<td align=\"right\">TB: ").append(phanTram(tangTb)).append("</td>")
+                .append("<td align=\"right\">").append(tongDtCacKy > 0 ? "100%" : "0%").append("</td></tr></table>");
+
+        // Bảng ma trận chỉ số chi tiết
+        html.append("<h3 style=\"margin:16px 0 6px\">II. Ma trận đối chiếu chỉ số chi tiết</h3>")
+                .append("<table cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse:collapse;border:1px solid #e3eaf3\">")
                 .append("<tr style=\"background:#f3f6fb\"><th align=\"left\">Chỉ số</th><th align=\"right\">").append(esc(nhanKy))
                 .append("</th><th align=\"right\">").append(esc(String.valueOf(((Map<String, Object>) kt.get("ky")).get("nhan")))).append("</th><th align=\"right\">±</th>");
         if (ck != null) html.append("<th align=\"right\">").append(esc(String.valueOf(((Map<String, Object>) ck.get("ky")).get("nhan")))).append("</th><th align=\"right\">±</th>");
@@ -858,16 +1262,41 @@ public class ThongKeSoSanhService {
                     .append(phanTram(tangTruong(va, vb))).append(")\n");
         }
         html.append("</table>");
+
         html.append("<p style=\"margin:20px 0 6px\"><img src=\"cid:bieu-do-xu-huong\" alt=\"Biểu đồ xu hướng\" style=\"max-width:100%\"></p>");
         html.append("<p style=\"margin:6px 0\"><img src=\"cid:bieu-do-chi-tiet\" alt=\"Biểu đồ chi tiết\" style=\"max-width:100%\"></p>");
         List<Map<String, Object>> sps = (List<Map<String, Object>>) d.get("sanPham");
         if (!sps.isEmpty()) {
-            html.append("<h3 style=\"margin:20px 0 6px\">Sản phẩm bán chạy</h3><table cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;border:1px solid #e3eaf3\">")
-                    .append("<tr style=\"background:#f3f6fb\"><th align=\"left\">Sản phẩm</th><th align=\"right\">Số lượng</th><th align=\"right\">Kỳ trước</th><th align=\"right\">±</th></tr>");
+            html.append("<h3 style=\"margin:20px 0 6px\">III. Top sản phẩm bán chạy &amp; Đối chiếu sức mua qua các kỳ</h3>")
+                    .append("<table cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;border:1px solid #e3eaf3\">")
+                    .append("<tr style=\"background:#f3f6fb\"><th align=\"center\">#</th><th align=\"left\">Mã SP</th><th align=\"left\">Sản phẩm</th><th align=\"left\">Thương hiệu</th><th align=\"right\">Tổng bán</th><th align=\"right\">Tổng doanh thu</th>");
+            for (Map<String, Object> item : dsKy) {
+                Map<String, Object> kMap = (Map<String, Object>) item.get("ky");
+                html.append("<th align=\"right\">").append(esc(kMap != null ? String.valueOf(kMap.get("nhan")) : "")).append("</th>");
+            }
+            html.append("<th align=\"right\">Xu hướng (±%)</th></tr>");
+            int sttSp = 1;
             for (Map<String, Object> sp : sps) {
-                html.append("<tr style=\"border-top:1px solid #e3eaf3\"><td>").append(esc(String.valueOf(sp.get("tenSanPham")))).append("</td><td align=\"right\">")
-                        .append(sp.get("soLuong")).append("</td><td align=\"right\">").append(sp.get("soLuongKyTruoc")).append("</td><td align=\"right\">")
-                        .append(phanTram((Double) sp.get("tangTruong"))).append("</td></tr>");
+                Map<String, Long> theoKyMap = (Map<String, Long>) sp.get("theoKy");
+                long tongBanSp = sp.get("tongBan") instanceof Number n ? n.longValue() : ((Number) sp.get("soLuong")).longValue();
+                long tongDtSp = sp.get("tongDoanhThu") instanceof Number n ? n.longValue() : ((Number) sp.get("doanhThu")).longValue();
+                html.append("<tr style=\"border-top:1px solid #e3eaf3\"><td align=\"center\">").append(sttSp++).append("</td>")
+                        .append("<td>").append(esc(String.valueOf(sp.getOrDefault("maSanPham", "SP")))).append("</td>")
+                        .append("<td><b>").append(esc(String.valueOf(sp.get("tenSanPham")))).append("</b></td>")
+                        .append("<td>").append(esc(String.valueOf(sp.getOrDefault("thuongHieu", "FootStyle")))).append("</td>")
+                        .append("<td align=\"right\"><b>").append(tongBanSp).append("</b></td>")
+                        .append("<td align=\"right\">").append(so(tongDtSp, true)).append("</td>");
+                for (int i = 0; i < dsKy.size(); i++) {
+                    Map<String, Object> kMap = (Map<String, Object>) dsKy.get(i).get("ky");
+                    String maK = kMap != null ? String.valueOf(kMap.get("ma")) : "";
+                    long slK = theoKyMap != null && theoKyMap.containsKey(maK)
+                            ? theoKyMap.get(maK)
+                            : (i == dsKy.size() - 1 ? ((Number) sp.get("soLuong")).longValue()
+                                    : (i == dsKy.size() - 2 ? ((Number) sp.get("soLuongKyTruoc")).longValue() : 0L));
+                    html.append("<td align=\"right\">").append(slK).append("</td>");
+                }
+                String xhText = sp.get("nhanXuHuong") != null ? String.valueOf(sp.get("nhanXuHuong")) : phanTram((Double) sp.get("tangTruong"));
+                html.append("<td align=\"right\">").append(esc(xhText)).append("</td></tr>");
             }
             html.append("</table>");
         }
@@ -891,12 +1320,57 @@ public class ThongKeSoSanhService {
         String nhanKy = String.valueOf(ky.get("nhan"));
         String nhanKt = String.valueOf(((Map<String, Object>) kt.get("ky")).get("nhan"));
         String nhanCk = ck != null ? String.valueOf(((Map<String, Object>) ck.get("ky")).get("nhan")) : null;
-        String phuDe = "Kỳ báo cáo: " + nhanKy + " (" + ky.get("tuNgay") + " – " + ky.get("denNgay") + ") | Đơn vị: FootStyle";
+        String thLoc = (String) d.get("thuongHieuLoc");
+        String kwLoc = (String) d.get("tuKhoaSpLoc");
+        List<Map<String, Object>> cacKyGoc = (List<Map<String, Object>>) d.get("cacKyDoiChieu");
+        List<Map<String, Object>> dsKy = (cacKyGoc != null && !cacKyGoc.isEmpty())
+                ? cacKyGoc
+                : List.of(kt, a);
+        List<String> tenCacKy = new ArrayList<>();
+        for (Map<String, Object> item : dsKy) {
+            Map<String, Object> kMap = (Map<String, Object>) item.get("ky");
+            if (kMap != null && kMap.get("nhan") != null) tenCacKy.add(String.valueOf(kMap.get("nhan")));
+        }
+        String phuDe = "Các kỳ đối chiếu: " + String.join(" vs ", tenCacKy)
+                + (thLoc != null && !thLoc.isBlank() ? " | Thương hiệu: " + thLoc : "")
+                + (kwLoc != null && !kwLoc.isBlank() ? " | Từ khóa SP: " + kwLoc : "")
+                + " | Đơn vị: FootStyle";
 
-        // Sheet 1: Tổng hợp chỉ số
-        List<String> h1 = new ArrayList<>(List.of("STT", "Chỉ số thống kê", nhanKy, nhanKt, "Chênh lệch kỳ trước", "±% kỳ trước"));
-        if (ck != null) h1.addAll(List.of(nhanCk, "Chênh lệch cùng kỳ", "±% cùng kỳ"));
+        // Sheet 1: Đối chiếu các kỳ đã chọn
+        List<String> h1 = List.of("STT", "Kỳ so sánh", "Khoảng thời gian", "Doanh thu thực tế (₫)", "Doanh thu dự kiến (₫)",
+                "Tổng số đơn", "Đơn hoàn thành", "Đơn đã hủy", "Giá trị TB / đơn (₫)", "Sản phẩm đã bán", "Chênh lệch DT (₫)", "Tăng trưởng (±%)");
         List<List<Object>> r1 = new ArrayList<>();
+        long tongDt = 0, tongDk = 0, tongDon = 0, tongHt = 0, tongHuy = 0, tongSp = 0;
+        for (int i = 0; i < dsKy.size(); i++) {
+            Map<String, Object> item = dsKy.get(i);
+            Map<String, Object> kMap = (Map<String, Object>) item.get("ky");
+            String tenK = kMap != null ? String.valueOf(kMap.get("nhan")) : "";
+            String khoangK = kMap != null ? kMap.get("tuNgay") + " - " + kMap.get("denNgay") : "";
+            long dtI = ((Number) item.get("doanhThuThucTe")).longValue();
+            long dkI = ((Number) item.get("doanhThuDuKien")).longValue();
+            long donI = ((Number) item.get("soDon")).longValue();
+            long htI = ((Number) item.get("soHoanThanh")).longValue();
+            long huyI = ((Number) item.get("soHuy")).longValue();
+            long aovI = ((Number) item.get("giaTriTrungBinh")).longValue();
+            long spI = ((Number) item.get("soSanPhamBan")).longValue();
+            long dtTr = i > 0 ? ((Number) dsKy.get(i - 1).get("doanhThuThucTe")).longValue() : 0;
+            long chenh = i > 0 ? dtI - dtTr : dtI;
+            Double pctI = i > 0 ? (dtTr == 0 ? (dtI > 0 ? 100.0 : 0.0) : tangTruong(dtI, dtTr)) : (dtI > 0 ? 100.0 : 0.0);
+            tongDt += dtI;
+            tongDk += dkI;
+            tongDon += donI;
+            tongHt += htI;
+            tongHuy += huyI;
+            tongSp += spI;
+            r1.add(List.of(i + 1, tenK, khoangK, dtI, dkI, donI, htI, huyI, aovI, spI, chenh, phanTram(pctI)));
+        }
+        r1.add(List.of("", "TỔNG CỘNG CÁC KỲ", dsKy.size() + " kỳ đối chiếu", tongDt, tongDk, tongDon, tongHt, tongHuy,
+                tongHt > 0 ? Math.round((double) tongDt / tongHt) : 0L, tongSp, "—", "—"));
+
+        // Sheet 2: Ma trận chỉ số cốt lõi
+        List<String> h2 = new ArrayList<>(List.of("STT", "Chỉ số kinh doanh", nhanKy, nhanKt, "Chênh lệch kỳ trước", "±% kỳ trước"));
+        if (ck != null) h2.addAll(List.of(nhanCk, "Chênh lệch cùng kỳ", "±% cùng kỳ"));
+        List<List<Object>> r2 = new ArrayList<>();
         int stt = 1;
         for (String k : CHI_SO_SO_SANH) {
             long va = ((Number) a.get(k)).longValue();
@@ -906,27 +1380,7 @@ public class ThongKeSoSanhService {
                 long vc = ((Number) ck.get(k)).longValue();
                 row.addAll(List.of(vc, va - vc, phanTram(tangTruong(va, vc))));
             }
-            r1.add(row);
-        }
-
-        // Sheet 2: Xu hướng chuỗi kỳ
-        List<String> h2 = List.of("STT", "Kỳ", "Số đơn hoàn thành", "Doanh thu thực tế (₫)", "Cùng kỳ năm trước (₫)", "Chênh lệch (₫)", "Tăng trưởng (±%)");
-        List<List<Object>> r2 = new ArrayList<>();
-        List<Map<String, Object>> xu = (List<Map<String, Object>>) d.getOrDefault("xuHuong", List.of());
-        int idx2 = 1;
-        for (Map<String, Object> x : xu) {
-            long dt = ((Number) x.get("doanhThu")).longValue();
-            Object ntObj = x.get("doanhThuNamTruoc");
-            Long nt = ntObj instanceof Number n ? n.longValue() : null;
-            r2.add(List.of(
-                    idx2++,
-                    String.valueOf(x.get("nhan")),
-                    ((Number) x.get("soDon")).intValue(),
-                    dt,
-                    nt != null ? nt : "—",
-                    nt != null ? dt - nt : "—",
-                    phanTram((Double) x.get("tangTruong"))
-            ));
+            r2.add(row);
         }
 
         // Sheet 3: Chi tiết trong kỳ
@@ -941,17 +1395,37 @@ public class ThongKeSoSanhService {
             r3.add(List.of(idx3++, String.valueOf(x.get("nhan")), ((Number) x.get("soDon")).intValue(), dt, dk, nt, dt - nt));
         }
 
-        // Sheet 4: Sản phẩm bán chạy
-        List<String> h4 = List.of("Hạng", "Mã SP", "Tên sản phẩm", "SL kỳ này", "SL kỳ trước", "Chênh lệch SL", "Tăng trưởng (±%)", "Doanh thu kỳ này (₫)");
+        // Sheet 4: Top sản phẩm qua các kỳ
+        List<String> h4 = new ArrayList<>(List.of("Hạng", "Mã SP", "Tên sản phẩm", "Thương hiệu", "Tổng bán", "Tổng doanh thu (₫)"));
+        for (String tenK : tenCacKy) h4.add(tenK);
+        h4.add("Xu hướng");
         List<List<Object>> r4 = new ArrayList<>();
         List<Map<String, Object>> sps = (List<Map<String, Object>>) d.getOrDefault("sanPham", List.of());
         int idx4 = 1;
         for (Map<String, Object> sp : sps) {
-            long sl = ((Number) sp.get("soLuong")).longValue();
-            long slKt = ((Number) sp.get("soLuongKyTruoc")).longValue();
-            long dt = ((Number) sp.get("doanhThu")).longValue();
-            r4.add(List.of(idx4++, String.valueOf(sp.get("maSanPham")), String.valueOf(sp.get("tenSanPham")),
-                    sl, slKt, sl - slKt, phanTram((Double) sp.get("tangTruong")), dt));
+            Map<String, Long> theoKyMap = (Map<String, Long>) sp.get("theoKy");
+            long tongBanSp = sp.get("tongBan") instanceof Number n ? n.longValue() : ((Number) sp.get("soLuong")).longValue();
+            long tongDtSp = sp.get("tongDoanhThu") instanceof Number n ? n.longValue() : ((Number) sp.get("doanhThu")).longValue();
+            List<Object> rowSp = new ArrayList<>(List.of(
+                    idx4++,
+                    String.valueOf(sp.getOrDefault("maSanPham", "SP")),
+                    String.valueOf(sp.get("tenSanPham")),
+                    String.valueOf(sp.getOrDefault("thuongHieu", "FootStyle")),
+                    tongBanSp,
+                    tongDtSp
+            ));
+            for (int i = 0; i < dsKy.size(); i++) {
+                Map<String, Object> kMap = (Map<String, Object>) dsKy.get(i).get("ky");
+                String maK = kMap != null ? String.valueOf(kMap.get("ma")) : "";
+                long slK = theoKyMap != null && theoKyMap.containsKey(maK)
+                        ? theoKyMap.get(maK)
+                        : (i == dsKy.size() - 1 ? ((Number) sp.get("soLuong")).longValue()
+                                : (i == dsKy.size() - 2 ? ((Number) sp.get("soLuongKyTruoc")).longValue() : 0L));
+                rowSp.add(slK);
+            }
+            String xhText = sp.get("nhanXuHuong") != null ? String.valueOf(sp.get("nhanXuHuong")) : phanTram((Double) sp.get("tangTruong"));
+            rowSp.add(xhText);
+            r4.add(rowSp);
         }
 
         Map<String, String> files = new LinkedHashMap<>();

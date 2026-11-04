@@ -180,17 +180,17 @@ describe('Trang Thống kê', () => {
     w.unmount()
   })
 
-  it('so sánh với kỳ trước: tăng thì ▲ xanh, đơn hủy tăng thì tô đỏ', async () => {
+  it('4 thẻ KPI chỉ hiện gọn tên chỉ số và giá trị, không hiện dòng chú thích nhỏ bên dưới', async () => {
     const w = await moTrang([
-      hd(1, ngay(2), 3000000), hd(2, ngay(3), 1000000, 0), hd(3, ngay(4), 1000000, 0), // kỳ này: 3tr, 2 đơn hủy
-      hd(4, ngay(40), 2000000), hd(5, ngay(41), 1000000, 0), // kỳ trước (30 ngày liền trước): 2tr, 1 đơn hủy
+      hd(1, ngay(2), 3000000), hd(2, ngay(3), 1000000, 0), hd(3, ngay(4), 1000000, 0),
+      hd(4, ngay(40), 2000000), hd(5, ngay(41), 1000000, 0),
     ])
     await w.get('#tk-tu').setValue(ngay(29))
     const [dt, , , huy] = w.findAll('[data-test="tk-kpi"]')
-    expect(dt.find('.tk-so').text()).toContain('▲ 50%')
-    expect(dt.find('.tk-so').classes()).toContain('tk-tot')
-    expect(huy.find('.tk-so').text()).toContain('▲ 100%')
-    expect(huy.find('.tk-so').classes()).toContain('tk-xau')
+    expect(dt.find('.tk-kpi-note').exists()).toBe(false)
+    expect(dt.find('.tk-so').exists()).toBe(false)
+    expect(dt.text()).toContain('3.000.000')
+    expect(huy.text()).toContain('2')
     w.unmount()
   })
 
@@ -236,7 +236,6 @@ describe('Trang Thống kê', () => {
     const k = kpiText(w)
     expect(k[0]).toContain('1.000.000')
     expect(k[1]).toContain('1.470.000')
-    expect(k[1]).toContain('Còn 470.000')
     expect(k[2]).toMatch(/Đơn hoàn thành\s*1\/3/)
     await w.findAll('button').find((b) => b.text() === 'Hôm nay').trigger('click')
     expect(kpiText(w)[2]).toMatch(/Đơn hoàn thành\s*1\/2/)
