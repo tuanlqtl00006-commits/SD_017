@@ -468,8 +468,8 @@ public class CuaHangService {
             }
         }
 
-        // Phí vận chuyển: >= 1.000.000đ freeship, ngược lại 30.000đ
-        long phiVanChuyen = tongTien >= 1_000_000L ? 0L : 30_000L;
+        // Phí vận chuyển theo tỉnh nhận: Hà Nội miễn phí, tỉnh khác tùy tỉnh (xem PhiVanChuyenTinh)
+        long phiVanChuyen = PhiVanChuyenTinh.phi(req.tinhThanh());
         long thanhTien = Math.max(0L, tongTien - soTienGiam + phiVanChuyen);
 
         // Tạo hóa đơn

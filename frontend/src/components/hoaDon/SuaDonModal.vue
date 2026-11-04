@@ -9,7 +9,7 @@ import BaseModal from '../common/BaseModal.vue'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
 import { formatMoney } from '../../utils/format'
-import { phiGiaoHang } from '../../utils/banHang'
+import { phiTheoDiaChi } from '../../utils/phiVanChuyenTinh'
 
 const props = defineProps({ data: { type: Object, required: true } })
 const emit = defineEmits(['close', 'saved'])
@@ -65,7 +65,8 @@ function bo(d) {
 
 /* ----- Tạm tính (backend tính lại chính xác) ----- */
 const tienHang = computed(() => dong.value.reduce((s, d) => s + d.donGia * (Number(d.soLuong) || 0), 0))
-const phiShip = computed(() => phiGiaoHang(tienHang.value))
+// Phí theo tỉnh ghi ở cuối địa chỉ (Hà Nội miễn phí, tỉnh khác tùy tỉnh); không nhận ra tỉnh thì giữ phí cũ của đơn
+const phiShip = computed(() => phiTheoDiaChi(f.diaChiGiaoHang) ?? (Number(props.data.hoaDon?.phiVanChuyen) || 0))
 const cu = computed(() => Number(props.data.hoaDon?.thanhTien) || 0)
 const daTra = computed(() => Number(props.data.daThanhToan) || 0)
 

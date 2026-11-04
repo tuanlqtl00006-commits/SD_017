@@ -472,24 +472,9 @@ public class BanHangService {
 
     /** Đơn vị vận chuyển của đơn bán tại quầy có giao hàng. */
     public static final String DON_VI_VAN_CHUYEN = "Giao Hàng Nhanh";
-    static final long MIEN_PHI_GIAO_TU = 1_000_000L;
-    static final long PHI_GIAO_NOI_THANH = 20_000L;
-    static final long PHI_GIAO_TINH_KHAC = 35_000L;
 
     public record ThanhToanChoRequest(String maPhieu, String ghiChu, Long tienMat, Long chuyenKhoan, String maGiaoDich,
                                       Boolean xacNhanGiaMoi, Long soTienGiam, GiaoHangRequest giaoHang) {
-    }
-
-    /** Phí giao hàng giống web bán online: đơn từ 1.000.000 ₫ miễn phí, còn lại 30.000 ₫. */
-    public static long phiGiaoHang(long tongTienHang) {
-        return tongTienHang >= 1_000_000L ? 0L : 30_000L;
-    }
-
-    /** Phí giao hàng tại quầy theo tỉnh nhận: nội thành Hà Nội (nơi cửa hàng) 20.000 ₫, tỉnh khác 35.000 ₫, đơn từ 1.000.000 ₫ miễn phí. */
-    public static long phiGiaoHang(long tongTienHang, String tinhThanh) {
-        if (tinhThanh == null || tinhThanh.isBlank()) return phiGiaoHang(tongTienHang);
-        if (tongTienHang >= MIEN_PHI_GIAO_TU) return 0L;
-        return "ha noi".equals(boDau(tinhThanh).replaceFirst("^(thanh pho|tinh)\\s+", "")) ? PHI_GIAO_NOI_THANH : PHI_GIAO_TINH_KHAC;
     }
 
     /**
@@ -590,7 +575,9 @@ public class BanHangService {
                 loi.nemNeuCoLoi();
             }
         }
-        long phi = giao ? phiGiaoHang(tongTienHang, gh.tinhThanh()) : 0;
+        // Phí giao theo tỉnh ở cuối địa chỉ (Hà Nội miễn phí, tỉnh khác tùy tỉnh); không nhận ra tỉnh thì tính phí mặc định
+        Long phiTheoTinh = giao ? PhiVanChuyenTinh.phiTheoDiaChi(diaChi) : null;
+        long phi = !giao ? 0 : phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH;
         long thanhTien = tongTienHang - kp.giam() + phi;
 
         // 4. Tiền khách trả, phiếu

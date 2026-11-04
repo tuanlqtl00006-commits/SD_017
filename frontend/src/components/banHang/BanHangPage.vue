@@ -22,7 +22,7 @@ import { formatMoney } from '../../utils/format'
 import { formatPhanTram } from '../../utils/giamGia'
 import { loiSdt } from '../../utils/kiemTra'
 import { taoHtmlHoaDon } from '../../utils/hoaDonIn'
-import { PHI_GIAO, SO_LUONG_TOI_DA, chuoiVietQR, dangGiamTheoDot, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
+import { SO_LUONG_TOI_DA, chuoiVietQR, dangGiamTheoDot, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
 
 const DON_VI_VAN_CHUYEN = 'Giao Hàng Nhanh'
 
@@ -311,7 +311,7 @@ async function chonKhach(k) {
 
 /* ===================== Giao hàng ===================== */
 // Phí giao theo tỉnh nhận: chưa chọn tỉnh thì null (chưa tính), đổi tỉnh là tính lại
-const phiShipTheoTinh = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(tienHang.value, hd.value.p.nguoiNhan.tinhThanh) : 0))
+const phiShipTheoTinh = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(hd.value.p.nguoiNhan.tinhThanh) : 0))
 const phiShip = computed(() => phiShipTheoTinh.value ?? 0)
 const loiGiao = computed(() => {
   if (!hd.value.p.giaoHang) return {}
@@ -771,7 +771,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               <b v-else>{{ phiShip ? formatMoney(phiShip) : 'Miễn phí' }}</b>
             </span>
             <small class="text-muted">
-              Nội thành Hà Nội {{ formatMoney(PHI_GIAO.noiThanh) }}, tỉnh khác {{ formatMoney(PHI_GIAO.tinhKhac) }}, đơn từ {{ formatMoney(PHI_GIAO.mienPhiTu) }} miễn phí
+              Hà Nội miễn phí, tỉnh/thành khác tính phí theo từng tỉnh
             </small>
           </div>
           <p class="ad-hint mb-0">Khách trả tiền tại quầy; thanh toán xong đơn chuyển sang <b>Chờ giao hàng</b> (chờ đơn vị vận chuyển đến lấy).</p>

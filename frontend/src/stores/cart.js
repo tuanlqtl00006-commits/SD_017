@@ -2,11 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 import { layPhien } from '../services/phien'
-import { PHI_GIAO } from '../utils/banHang'
+import { phiVanChuyenTheoTinh } from '../utils/phiVanChuyenTinh'
 
 const KHOA_KHACH_VANG_LAI = 'footstyle_cart_khach'
-/** Phí giao đơn online dưới mức miễn phí (khớp máy chủ). */
-export const PHI_SHIP_ONLINE = 30000
 
 // Giỏ hàng lưu theo tài khoản; nếu khách thêm hàng khi chưa đăng nhập (footstyle_cart_khach) rồi mới đăng nhập/đăng ký thì tự gộp sang giỏ của tài khoản
 function khoaGioHang() {
@@ -108,11 +106,16 @@ export const useCartStore = defineStore('cart', () => {
     return Math.min(giam, subTotal.value)
   })
 
+  // Tỉnh/Thành khách chọn ở trang thanh toán (giỏ hàng chưa biết tỉnh thì chưa tính được phí ship)
+  const tinhGiao = ref('')
+
+  const chuaCoTinh = computed(() => phiVanChuyenTheoTinh(tinhGiao.value) === null)
+
   const shippingFee = computed(() => {
     if (subTotal.value === 0) return 0
-    // Cùng luật với máy chủ (CuaHangService.datHangOnline): đơn từ 1.000.000₫ miễn phí, dưới mức đó phí 30.000₫.
-    // Trước đây giỏ hàng miễn phí từ 500.000₫ nên khách thấy "Miễn phí" mà đơn lưu lại bị cộng 30.000₫ (review 04/11, đơn HD970).
-    return subTotal.value >= PHI_GIAO.mienPhiTu ? 0 : PHI_SHIP_ONLINE
+    // Cùng luật với máy chủ (CuaHangService.datHangOnline): Hà Nội miễn phí, tỉnh khác mất phí tùy tỉnh (không còn mốc miễn phí theo giá trị đơn).
+    // Chưa chọn tỉnh thì chưa tính phí (0), giao diện hiện "chọn Tỉnh/Thành để tính".
+    return phiVanChuyenTheoTinh(tinhGiao.value) ?? 0
   })
 
   const finalTotal = computed(() => {
@@ -169,6 +172,7 @@ export const useCartStore = defineStore('cart', () => {
   function clearCart() {
     items.value = []
     appliedVoucher.value = null
+    tinhGiao.value = ''
     saveToStorage(items.value)
   }
 
@@ -194,6 +198,8 @@ export const useCartStore = defineStore('cart', () => {
     totalCount,
     subTotal,
     discountAmount,
+    tinhGiao,
+    chuaCoTinh,
     shippingFee,
     finalTotal,
     addItem,

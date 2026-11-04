@@ -2,7 +2,6 @@
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
-import { PHI_GIAO } from '../../utils/banHang'
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -163,12 +162,13 @@ function goToCheckout() {
 
             <div class="d-flex justify-content-between mb-3 small">
               <span class="text-muted">Phí vận chuyển:</span>
-              <span v-if="cartStore.shippingFee === 0" class="text-success fw-bold">Miễn phí</span>
+              <span v-if="cartStore.chuaCoTinh" class="text-muted">Tính theo địa chỉ giao hàng</span>
+              <span v-else-if="cartStore.shippingFee === 0" class="text-success fw-bold">Miễn phí</span>
               <span v-else class="fw-semibold">{{ formatMoney(cartStore.shippingFee) }}</span>
             </div>
 
-            <div class="alert alert-info py-2 px-3 small mb-3 border-0" v-if="cartStore.subTotal < PHI_GIAO.mienPhiTu">
-              <i class="bi bi-info-circle me-1"></i> Mua thêm <strong>{{ formatMoney(PHI_GIAO.mienPhiTu - cartStore.subTotal) }}</strong> để được <strong>Miễn phí vận chuyển</strong>!
+            <div class="alert alert-info py-2 px-3 small mb-3 border-0">
+              <i class="bi bi-info-circle me-1"></i> <strong>Miễn phí vận chuyển</strong> cho đơn giao tại <strong>Hà Nội</strong>; tỉnh/thành khác tính phí theo từng tỉnh.
             </div>
 
             <hr class="my-2" />

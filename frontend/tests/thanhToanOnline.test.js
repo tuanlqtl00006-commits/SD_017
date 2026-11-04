@@ -57,12 +57,19 @@ beforeEach(() => {
 })
 
 describe('Thanh toán online', () => {
-  it('phí ship khớp máy chủ: đơn 960.000 ₫ (dưới 1 triệu) tính 30.000 ₫, không ghi "Miễn phí"', async () => {
+  it('phí ship theo tỉnh: Hà Nội miễn phí dù đơn nhỏ, tỉnh khác mất phí tùy tỉnh dù đơn lớn, chưa chọn tỉnh thì chưa tính', async () => {
     const { cart } = await moTrang({ tien: 480000, soLuong: 2 })
-    expect(cart.subTotal).toBe(960000)
-    expect(cart.shippingFee).toBe(30000)
-    cart.items[0].soLuong = 3 // 1.440.000 ₫
+    expect(cart.chuaCoTinh).toBe(true)
     expect(cart.shippingFee).toBe(0)
+    cart.tinhGiao = 'Thành phố Hà Nội'
+    expect(cart.shippingFee).toBe(0)
+    cart.tinhGiao = 'Thành phố Đà Nẵng'
+    expect(cart.chuaCoTinh).toBe(false)
+    expect(cart.shippingFee).toBe(40000)
+    cart.items[0].soLuong = 30 // 14.400.000 ₫: đơn lớn vẫn mất phí ship ở tỉnh khác
+    expect(cart.shippingFee).toBe(40000)
+    cart.tinhGiao = 'Tỉnh Phú Thọ'
+    expect(cart.shippingFee).toBe(25000)
   })
 
   it('khách chưa đăng nhập: chưa chọn Tỉnh/Thành, Phường/Xã thì không đặt được (đơn HD970 trong video)', async () => {

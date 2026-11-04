@@ -35,6 +35,9 @@ const form = ref({
   phuongThucThanhToan: 'COD', // COD hoặc QR
 })
 
+// Phí ship tính theo Tỉnh/Thành khách chọn (Hà Nội miễn phí, tỉnh khác tùy tỉnh)
+watch(() => form.value.tinhThanh, (tinh) => { cartStore.tinhGiao = tinh || '' }, { immediate: true })
+
 // Sổ địa chỉ đã lưu của khách đang đăng nhập (tự điền địa chỉ mặc định)
 const savedAddresses = ref([])
 const selectedAddressId = ref(null)
@@ -489,7 +492,8 @@ async function handleOrderSubmit() {
             </div>
             <div class="co-row">
               <span class="co-ship">Phí vận chuyển <VanChuyenLogo ten="Giao Hàng Nhanh" /></span>
-              <span v-if="cartStore.shippingFee === 0" class="co-val co-green">Miễn phí</span>
+              <span v-if="cartStore.chuaCoTinh" class="co-val text-muted small">Chọn Tỉnh/Thành phố để tính</span>
+              <span v-else-if="cartStore.shippingFee === 0" class="co-val co-green">Miễn phí</span>
               <span v-else class="co-val">{{ formatMoney(cartStore.shippingFee) }}</span>
             </div>
 
