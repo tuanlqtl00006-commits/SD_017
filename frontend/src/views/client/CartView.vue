@@ -1,10 +1,30 @@
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
+import { dongTienDon } from '../../utils/tienDon'
+import { useBaoGiaGioHang } from '../../composables/useBaoGiaGioHang'
 
 const router = useRouter()
 const cartStore = useCartStore()
+// Giá trong giỏ được cập nhật theo cửa hàng (đợt giảm giá hết hạn, giá đổi) và các số tiền lấy theo máy chủ
+useBaoGiaGioHang(cartStore)
+
+// Các dòng tiền cùng tên, cùng thứ tự với trang thanh toán, bán quầy, chi tiết hóa đơn (utils/tienDon.js)
+const tien = computed(() =>
+  dongTienDon({
+    tienHangSauDot: cartStore.subTotal,
+    giamTheoDot: cartStore.giamTheoDot,
+    giamPhieu: cartStore.discountAmount,
+    maPhieu: cartStore.appliedVoucher?.ma,
+    coGiaoHang: true,
+    phiVanChuyen: cartStore.chuaCoTinh ? null : cartStore.shippingFee, // giỏ hàng chưa biết tỉnh: phí tính theo địa chỉ
+    tongThanhToan: cartStore.finalTotal,
+  }),
+)
+const coGiamDot = (item) => Number(item.giaGoc) > Number(item.giaBan)
+const phanTramGiam = (item) => Math.round((1 - Number(item.giaBan) / Number(item.giaGoc)) * 100)
 
 function goToCheckout() {
   router.push('/shop/thanh-toan')
@@ -89,8 +109,12 @@ function goToCheckout() {
                         </div>
                       </div>
                     </td>
-                    <td class="text-center fw-semibold text-danger text-nowrap">
-                      {{ formatMoney(item.giaBan) }}
+                    <td class="text-center text-nowrap" data-testid="gio-don-gia">
+                      <div v-if="coGiamDot(item)" class="text-muted small">
+                        <s>{{ formatMoney(item.giaGoc) }}</s>
+                        <span class="badge bg-danger-subtle text-danger ms-1">-{{ phanTramGiam(item) }}%</span>
+                      </div>
+                      <div class="fw-semibold text-danger">{{ formatMoney(item.giaBan) }}</div>
                     </td>
                     <td class="text-center">
                       <div class="input-group input-group-sm">
@@ -150,31 +174,33 @@ function goToCheckout() {
           <div class="card border-0 shadow-sm rounded-4 p-4">
             <h6 class="fw-bold mb-3">Tóm tắt đơn hàng</h6>
 
-            <div class="d-flex justify-content-between mb-2 small">
-              <span class="text-muted">Tổng tiền hàng:</span>
-              <span class="fw-semibold">{{ formatMoney(cartStore.subTotal) }}</span>
-            </div>
+            <p v-if="cartStore.baoGia?.doiGia" class="alert alert-warning py-2 px-3 small mb-3 border-0" data-testid="gio-doi-gia">
+              <i class="bi bi-arrow-repeat me-1"></i> Giá một số sản phẩm vừa được cập nhật theo cửa hàng.
+            </p>
+            <template v-for="d in tien.dong.slice(0, -1)" :key="d.khoa">
+              <div class="d-flex justify-content-between mb-2 small" :data-dong="d.khoa">
+                <span :class="d.dau === '-' && d.so > 0 ? 'text-success' : 'text-muted'">
+                  {{ d.nhan }}<template v-if="d.ma"> ({{ d.ma }})</template>:
+                </span>
+                <span v-if="d.khoa === 'phi-van-chuyen' && d.so === null" class="text-muted">Tính theo địa chỉ giao hàng</span>
+                <span v-else-if="d.khoa === 'phi-van-chuyen' && d.so === 0" class="text-success fw-bold">Miễn phí</span>
+                <span v-else-if="d.khoa === 'phieu' && !d.so" class="text-muted">Không dùng phiếu</span>
+                <span v-else class="fw-semibold" :class="{ 'text-success': d.dau === '-' }">
+                  {{ d.dau === '-' ? '-' : '' }}{{ formatMoney(d.so) }}
+                </span>
+              </div>
+            </template>
+            <p v-if="cartStore.loiPhieu" class="text-danger small mb-2" data-testid="gio-loi-phieu">{{ cartStore.loiPhieu }}</p>
 
-            <div class="d-flex justify-content-between mb-2 small" v-if="cartStore.discountAmount > 0">
-              <span class="text-success">Giảm giá voucher:</span>
-              <span class="fw-bold text-success">-{{ formatMoney(cartStore.discountAmount) }}</span>
-            </div>
-
-            <div class="d-flex justify-content-between mb-3 small">
-              <span class="text-muted">Phí vận chuyển:</span>
-              <span v-if="cartStore.shippingFee === 0" class="text-success fw-bold">Miễn phí</span>
-              <span v-else class="fw-semibold">{{ formatMoney(cartStore.shippingFee) }}</span>
-            </div>
-
-            <div class="alert alert-info py-2 px-3 small mb-3 border-0" v-if="cartStore.subTotal < 500000">
-              <i class="bi bi-info-circle me-1"></i> Mua thêm <strong>{{ formatMoney(500000 - cartStore.subTotal) }}</strong> để được <strong>Miễn phí vận chuyển</strong>!
+            <div class="alert alert-info py-2 px-3 small mb-3 border-0">
+              <i class="bi bi-info-circle me-1"></i> <strong>Miễn phí vận chuyển</strong> cho đơn giao tại <strong>Hà Nội</strong>; tỉnh/thành khác tính phí theo từng tỉnh.
             </div>
 
             <hr class="my-2" />
 
             <div class="d-flex justify-content-between align-items-baseline mb-4">
-              <span class="fw-bold">Tổng thanh toán:</span>
-              <span class="fs-4 fw-bold text-danger">{{ formatMoney(cartStore.finalTotal) }}</span>
+              <span class="fw-bold">{{ tien.dong.at(-1).nhan }}:</span>
+              <span class="fs-4 fw-bold text-danger" data-dong="tong-thanh-toan">{{ formatMoney(tien.tong) }}</span>
             </div>
 
             <button

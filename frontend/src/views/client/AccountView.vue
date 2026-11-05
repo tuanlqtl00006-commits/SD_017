@@ -560,6 +560,7 @@ async function xacNhanHuyDon() {
                   <div v-for="(it, idx) in order.items" :key="idx" class="ac-item">
                     <div class="ac-item-name">
                       <strong>{{ it.sanPhamTen || it.tenSanPham || 'Sản phẩm' }}</strong>
+                      <span v-if="it.maSpct || it.bienTheMa" class="ac-item-ma" data-testid="ac-ma-sp">{{ it.maSpct || it.bienTheMa }}</span>
                       <span v-if="it.mauSac" class="ac-item-meta">{{ it.mauSac }}<template v-if="it.trongLuong"> · {{ it.trongLuong }}</template></span>
                       <span class="ac-item-qty">x{{ it.soLuong }}</span>
                     </div>
@@ -1061,6 +1062,13 @@ async function xacNhanHuyDon() {
 }
 .ac-item + .ac-item {
   border-top: 1px dashed #eef0f4;
+}
+.ac-item-ma {
+  margin-left: 0.5rem;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1d4ed8;
 }
 .ac-item-meta {
   margin-left: 0.5rem;

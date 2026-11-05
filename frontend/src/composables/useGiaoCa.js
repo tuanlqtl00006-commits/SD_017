@@ -1,4 +1,4 @@
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import api from '../services/api'
 
 // Ca đang làm của người đăng nhập (dùng chung cho nút "Ca làm việc" trên header và trang Bán hàng tại quầy).
@@ -14,6 +14,7 @@ const trangThai = reactive({
   tienMatCaTruoc: null, // tiền mặt ca trước đếm được khi kết ca
   chuyenKhoanCaTruoc: null, // chuyển khoản ca trước hệ thống ghi nhận (người vào ca phải đối soát)
   lichHomNay: [],
+  caKhacDangMo: null, // ca của người khác chưa giao (cửa hàng một két: phải giao xong mới vào ca được)
   loi: '',
 })
 
@@ -31,6 +32,7 @@ async function taiLai() {
       tienMatCaTruoc: res.data?.tienMatCaTruoc ?? null,
       chuyenKhoanCaTruoc: res.data?.chuyenKhoanCaTruoc ?? null,
       lichHomNay: res.data?.lichHomNay ?? [],
+      caKhacDangMo: res.data?.caKhacDangMo ?? null,
       loi: '',
       daTai: true,
     })
@@ -55,14 +57,35 @@ async function ketCa({ tienMatThucTe, tienBanGiao, idNhanVienNhanBanGiao, ghiChu
 
 const dangTrongCa = computed(() => !!trangThai.dangMo)
 
+// Giờ hiện tại, cập nhật mỗi phút để nhắc giao ca khi quá giờ kết thúc ca
+const bayGio = ref(Date.now())
+if (typeof window !== 'undefined') setInterval(() => { bayGio.value = Date.now() }, 60_000)
+
+/**
+ * Ca đang mở đã quá giờ kết thúc theo lịch (hoặc nhận từ hôm trước) chưa: { tenCa, ketThuc: 'HH:mm', phut } | null.
+ * Ca ngoài lịch không có giờ kết thúc nên không nhắc.
+ */
+const quaGioCa = computed(() => {
+  const gc = trangThai.dangMo
+  if (!gc?.thoiGianNhanCa) return null
+  const ngayNhan = String(gc.thoiGianNhanCa).slice(0, 10)
+  const homNay = new Date(bayGio.value - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+  const gioKetThuc = !gc.ngoaiLich && /(\d{2}:\d{2})\s*$/.exec(gc.gioCa || '')?.[1]
+  if (!gioKetThuc) return ngayNhan < homNay ? { tenCa: 'Ca', ketThuc: null, phut: null, caCu: true } : null
+  const ketThuc = new Date(`${ngayNhan}T${gioKetThuc}:00`).getTime()
+  const phut = Math.floor((bayGio.value - ketThuc) / 60_000)
+  return phut > 0 ? { tenCa: gc.tenCa, ketThuc: gioKetThuc, phut, caCu: ngayNhan < homNay } : null
+})
+
 export function useGiaoCa() {
-  return { trangThai, dangTrongCa, taiLai, nhanCa, ketCa }
+  return { trangThai, dangTrongCa, quaGioCa, taiLai, nhanCa, ketCa }
 }
 
 /** Xóa trạng thái ca (đăng xuất / đổi tài khoản). */
 export function datLaiGiaoCa() {
-  Object.assign(trangThai, { daTai: false, dangTai: false, dangMo: null, tongKet: null, goiYTienDauCa: null, nguoiBanGiao: null, thoiGianBanGiao: null, maCaTruoc: null, tienMatCaTruoc: null, chuyenKhoanCaTruoc: null, lichHomNay: [], loi: '' })
+  Object.assign(trangThai, { daTai: false, dangTai: false, dangMo: null, tongKet: null, goiYTienDauCa: null, nguoiBanGiao: null, thoiGianBanGiao: null, maCaTruoc: null, tienMatCaTruoc: null, chuyenKhoanCaTruoc: null, lichHomNay: [], caKhacDangMo: null, loi: '' })
 }
 
 /** Chỉ dùng trong test. */
 export const _datLaiGiaoCa = datLaiGiaoCa
+export const _datBayGio = (ms) => { bayGio.value = ms }

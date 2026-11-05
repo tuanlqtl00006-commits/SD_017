@@ -46,12 +46,11 @@ describe('Bán tại quầy: giỏ hàng', () => {
 })
 
 describe('Bán tại quầy: phí giao hàng theo tỉnh', () => {
-  it('nội thành Hà Nội / tỉnh khác / đơn từ 1 triệu miễn phí; chưa chọn tỉnh thì chưa tính', () => {
-    expect(phiGiaoHang(500000, 'Thành phố Hà Nội')).toBe(20000)
-    expect(phiGiaoHang(500000, 'Tỉnh Phú Thọ')).toBe(35000)
-    expect(phiGiaoHang(1000000, 'Tỉnh Phú Thọ')).toBe(0)
-    expect(phiGiaoHang(500000, '')).toBeNull()
-    expect(phiGiaoHang(500000)).toBe(30000) // không truyền tỉnh: cách tính cũ (trang sửa đơn)
+  it('Hà Nội miễn phí, tỉnh khác tùy tỉnh; chưa chọn tỉnh thì chưa tính', () => {
+    expect(phiGiaoHang('Thành phố Hà Nội')).toBe(0)
+    expect(phiGiaoHang('Tỉnh Phú Thọ')).toBe(25000)
+    expect(phiGiaoHang('Thành phố Hồ Chí Minh')).toBe(50000)
+    expect(phiGiaoHang('')).toBeNull()
   })
 })
 
@@ -221,16 +220,17 @@ describe('Kiểm tra truy cập trang', () => {
 
 describe('Trang ca làm việc có trong router với đúng quyền', () => {
   const quyen = (path) => router.resolve(path).meta
-  it('nhân viên: lịch của mình, lịch sử giao ca; chỉ quản lý xếp lịch', () => {
-    for (const p of ['/lich-cua-toi', '/giao-ca']) {
+  it('Lịch làm việc, Lịch sử giao ca cho cả nhân viên; link cũ /lich-cua-toi chuyển sang tab Lịch ca làm', () => {
+    for (const p of ['/lich-lam-viec', '/giao-ca']) {
       expect(router.resolve(p).name, p).not.toBeUndefined()
       expect(quyen(p).roles, p).toEqual(['nhan-vien', 'quan-ly'])
     }
-    expect(quyen('/lich-lam-viec').roles).toEqual(['quan-ly'])
+    const cu = router.resolve('/lich-cua-toi').matched.at(-1)
+    expect(cu.redirect).toEqual({ path: '/lich-lam-viec', query: { tab: 'cua-toi' } })
   })
 
-  it('có trang chat nội bộ, hỗ trợ khách (nhân viên) và trang chat công khai của khách (/ho-tro)', () => {
-    expect(router.resolve('/chat-noi-bo').name).toBe('chat-noi-bo')
+  it('có trang hỗ trợ khách (nhân viên) và trang chat công khai của khách (/ho-tro); đã bỏ chat nội bộ', () => {
+    expect(router.resolve('/chat-noi-bo').name).not.toBe('chat-noi-bo')
     expect(router.resolve('/ho-tro-truc-tuyen').name).toBe('ho-tro-truc-tuyen')
     expect(router.resolve('/ho-tro').meta.congKhai).toBe(true)
   })

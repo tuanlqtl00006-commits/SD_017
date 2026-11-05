@@ -9,11 +9,12 @@ describe('Đơn hàng của khách: tên sản phẩm', () => {
     const ds = [{ maHoaDon: 'HD1940', trangThai: 0, trangThaiText: 'Chờ xác nhận', items: [{ bienTheId: 21, soLuong: 1, giaBan: 2392000 }] }]
     const kq = await dongBoTrangThaiDon(ds, async () => ({
       trangThai: 4,
-      chiTiet: [{ idSanPham: 21, tenSanPham: 'Vợt cầu lông Mizuno Acrospeed 8', mauSac: 'Xanh dương', trongLuong: '4U (80-84g)', chuVi: 'G5', soLuong: 1, donGia: 2392000 }],
+      chiTiet: [{ idSanPham: 21, maSpct: 'SP21-XD-4U-G5', tenSanPham: 'Vợt cầu lông Mizuno Acrospeed 8', mauSac: 'Xanh dương', trongLuong: '4U (80-84g)', chuVi: 'G5', soLuong: 1, donGia: 2392000 }],
     }))
     expect(kq[0].trangThaiText).toBe('Đang giao hàng')
+    // Review 05/11: "Đơn hàng của tôi" hiện mã sản phẩm của từng dòng
     expect(kq[0].items).toEqual([
-      { sanPhamId: 21, sanPhamTen: 'Vợt cầu lông Mizuno Acrospeed 8', mauSac: 'Xanh dương', trongLuong: '4U (80-84g)', chuVi: 'G5', soLuong: 1, giaBan: 2392000 },
+      { sanPhamId: 21, sanPhamTen: 'Vợt cầu lông Mizuno Acrospeed 8', maSpct: 'SP21-XD-4U-G5', mauSac: 'Xanh dương', trongLuong: '4U (80-84g)', chuVi: 'G5', soLuong: 1, giaBan: 2392000 },
     ])
   })
 

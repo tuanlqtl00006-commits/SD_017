@@ -67,6 +67,40 @@ public class GiamGiaApDungService {
         return ketQua;
     }
 
+    /**
+     * Các mức % có thể đã áp cho một biến thể vào các thời điểm cho trước — để tìm lại GIÁ GỐC lúc bán của dòng hóa đơn cũ
+     * (bảng hoa_don_chi_tiet chỉ lưu đơn giá, không lưu giá gốc; không đổi SQL). Thứ tự: mức gộp của các đợt ĐANG BẬT tại từng
+     * thời điểm trước (đúng cách tính lúc bán), sau đó % riêng của mọi đợt có khoảng ngày chứa thời điểm đó, kể cả đợt / dòng
+     * đã bị tắt sau này. Không trùng lặp, chỉ mức > 0.
+     */
+    @Transactional(readOnly = true)
+    public List<Double> mucGiamCoThe(Long idBienThe, List<LocalDateTime> thoiDiems) {
+        List<Double> kq = new ArrayList<>();
+        if (idBienThe == null) return kq;
+        List<DotGiamGiaChiTiet> cts = chiTietRepository.findByIdSanPhamChiTiet(idBienThe);
+        List<DotApDung> dangBat = new ArrayList<>();
+        for (DotGiamGiaChiTiet ct : cts) {
+            DotApDung d = toDotApDung(ct);
+            if (d != null) dangBat.add(d);
+        }
+        for (LocalDateTime t : thoiDiems) {
+            if (t == null) continue;
+            double gop = GiamGiaChongDot.phanTramTaiThoiDiem(dangBat, t, cheDo());
+            if (gop > 0 && !kq.contains(gop)) kq.add(gop);
+        }
+        for (LocalDateTime t : thoiDiems) {
+            if (t == null) continue;
+            for (DotGiamGiaChiTiet ct : cts) {
+                DotGiamGia dot = ct.getDotGiamGia();
+                if (dot == null || dot.getNgayBatDau() == null || dot.getNgayKetThuc() == null) continue;
+                if (t.isBefore(dot.getNgayBatDau()) || t.isAfter(dot.getNgayKetThuc())) continue;
+                double pt = ct.getPhanTramGiamBienThe() == null ? 0 : ct.getPhanTramGiamBienThe();
+                if (pt > 0 && !kq.contains(pt)) kq.add(pt);
+            }
+        }
+        return kq;
+    }
+
     /** Lịch giảm giá của một biến thể theo từng đoạn thời gian (kể cả đợt chưa bắt đầu). */
     @Transactional(readOnly = true)
     public List<Doan> lichBienThe(Long idBienThe) {

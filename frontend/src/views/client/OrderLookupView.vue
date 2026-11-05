@@ -3,27 +3,23 @@ import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import api from '../../services/api'
-import { formatMoney, formatNgayGio } from '../../utils/format'
+import HoaDonNoiDung from '../../components/hoaDon/HoaDonNoiDung.vue'
 import { docDonHang } from '../../utils/donHangLocal'
+import { loiSdt } from '../../utils/kiemTra'
+import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
 
 const orderCode = ref('')
+// Khách chưa đăng nhập phải nhập SĐT đặt hàng: mã đơn chạy tăng dần, chỉ mã đơn thì ai cũng xem được thông tin của nhau
+const sdt = ref('')
 const loading = ref(false)
 const orderResult = ref(null)
 const searchError = ref('')
 
-// Các bước hiển thị trên đường tiến trình
-const STEPS = [
-  { ten: 'Chờ xác nhận', icon: 'bi-receipt' },
-  { ten: 'Đã xác nhận', icon: 'bi-box-seam' },
-  { ten: 'Đang giao hàng', icon: 'bi-truck' },
-  { ten: 'Hoàn thành', icon: 'bi-check2-circle' },
-]
-
-// Khách đã đăng nhập hay khách vãng lai đều tra cứu được đơn hàng bằng mã đơn
+// Khách đã đăng nhập xem đơn của chính mình bằng mã đơn; khách vãng lai cần mã đơn + SĐT đặt hàng
 function laKhachDangNhap() {
   return auth.trangThai.nguoiDung?.vaiTro === 'KHACH_HANG'
 }
@@ -32,7 +28,8 @@ onMounted(async () => {
   await auth.khoiTao()
   if (route.query.ma) {
     orderCode.value = String(route.query.ma).trim()
-    handleSearch()
+    // Khách vãng lai còn phải nhập SĐT nên chưa tra ngay (không đưa SĐT lên đường dẫn)
+    if (laKhachDangNhap()) handleSearch()
   }
 })
 
@@ -46,27 +43,24 @@ watch(
   },
 )
 
-function tenThanhToan(v) {
-  if (!v) return ''
-  const s = String(v).toUpperCase()
-  if (s === 'COD') return 'Thanh toán khi nhận hàng (COD)'
-  if (s === 'QR') return 'Chuyển khoản VietQR'
-  return String(v)
+// Lần tra cứu thành công gần nhất: tự cập nhật trạng thái đơn đang xem (15 giây / lần, không cần bấm Tra cứu lại)
+let daTra = null
+let lanTra = 0
+async function taiLaiNgam() {
+  if (!daTra || loading.value) return
+  const lan = lanTra
+  try {
+    const kq = await traCuuBackend(daTra.code, daTra.so)
+    if (lan === lanTra && orderResult.value) orderResult.value = kq
+  } catch {
+    // lỗi tạm thời: giữ kết quả đang hiện
+  }
 }
-
-// Mã trạng thái của backend (0 hủy, 1 chờ xác nhận, 2 đã xác nhận, 3 chờ lấy hàng, 4 đang giao, 5 đã giao, 6 hoàn thành, 8 giao thất bại)
-// -> bước trên đường tiến trình (0..3) và có bị hủy không
-function buocTuBackend(code) {
-  const c = Number(code)
-  if (c === 0) return { buoc: 0, huy: true }
-  if (c === 2 || c === 3) return { buoc: 1, huy: false }
-  if (c === 4 || c === 8) return { buoc: 2, huy: false }
-  if (c === 5) return { buoc: 3, huy: false }
-  if (c === 6) return { buoc: 3, huy: false, hoanTat: true }
-  return { buoc: 0, huy: false }
-}
+useAutoRefresh(taiLaiNgam, 3000, { chuKyMs: 15_000, coTheTai: () => !!orderResult.value })
 
 async function handleSearch() {
+  lanTra++
+  daTra = null
   const code = orderCode.value.trim()
   searchError.value = ''
   orderResult.value = null
@@ -75,93 +69,110 @@ async function handleSearch() {
     searchError.value = 'Vui lòng nhập mã đơn hàng (Ví dụ: HD01).'
     return
   }
+  const so = sdt.value.trim()
+  // Đã đăng nhập: SĐT chỉ cần khi tra đơn không thuộc tài khoản này
+  if (!laKhachDangNhap() || so) {
+    const loi = loiSdt(so, 'Vui lòng nhập số điện thoại đặt hàng để tra cứu.')
+    if (loi) {
+      searchError.value = loi
+      return
+    }
+  }
 
   loading.value = true
 
-  // Ưu tiên trạng thái THẬT từ backend (cửa hàng cập nhật khi xác nhận / giao hàng); không có thì mới dùng bản lưu trên máy
+  // Ưu tiên trạng thái THẬT từ backend (cửa hàng cập nhật khi xác nhận / giao hàng); chỉ khi mất kết nối máy chủ mới dùng bản lưu trên máy
   try {
-    orderResult.value = await traCuuBackend(code)
+    orderResult.value = await traCuuBackend(code, so)
+    daTra = { code, so }
   } catch (err) {
-    console.error('Lỗi khi tra cứu đơn hàng:', err)
-    const local = traCuuLocal(code)
+    const local = err?.status == null && so ? traCuuLocal(code, so) : null
     if (local) orderResult.value = local
-    else searchError.value = `Không tìm thấy đơn hàng có mã "${code}". Vui lòng kiểm tra lại.`
+    else if (err?.status == null) searchError.value = err?.message || 'Không kết nối được máy chủ.'
+    else if (laKhachDangNhap() && !so) searchError.value = `Không tìm thấy đơn hàng "${code}" trong tài khoản của bạn. Nếu là đơn đặt bằng số điện thoại khác, hãy nhập số điện thoại đó để tra cứu.`
+    else searchError.value = `Không tìm thấy đơn hàng "${code}" với số điện thoại này. Vui lòng kiểm tra lại mã đơn và số điện thoại đặt hàng.`
   } finally {
     loading.value = false
   }
 }
 
-// Tra cứu từ backend (đường dẫn công khai của cửa hàng online, khách không cần đăng nhập)
-async function traCuuBackend(code) {
+// Tra cứu từ backend: khách đăng nhập xem đơn của mình, còn lại (hoặc đơn khác) phải khớp mã đơn + SĐT
+async function traCuuBackend(code, so) {
+  const traCongKhai = () => api.get('/cua-hang/tra-cuu', { params: { maHoaDon: code, sdt: so } })
   const data = laKhachDangNhap()
-    ? (await api.get(`/khach/don-hang/${encodeURIComponent(code)}`).catch(() => api.get('/cua-hang/tra-cuu', { params: { maHoaDon: code } }))).data
-    : (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: code } })).data
-  const { buoc, huy, hoanTat } = buocTuBackend(data.trangThai)
+    ? (await api.get(`/khach/don-hang/${encodeURIComponent(code)}`).catch((e) => (so ? traCongKhai() : Promise.reject(e)))).data
+    : (await traCongKhai()).data
+  // Backend trả sẵn "chiTietDon" cùng dạng với màn Chi tiết hóa đơn admin (đã bỏ phần nội bộ) -> vẽ y hệt màn admin
+  return data.chiTietDon || chiTietTuDonGon(data)
+}
+
+/** Máy chủ cũ / đơn lưu trên máy chỉ có dữ liệu gọn: đổi sang cùng dạng với chi tiết hóa đơn admin. */
+function chiTietTuDonGon(d) {
+  const ten = d.hoTenNguoiNhan || 'Khách mua hàng'
   return {
-    maHoaDon: data.maHoaDon || code,
-    ngayTaoFormatted: data.ngayTao ? formatNgayGio(data.ngayTao) : '—',
-    ten: data.hoTenNguoiNhan || 'Khách mua hàng',
-    sdt: data.sdtNguoiNhan || '—',
-    diaChi: data.diaChiGiaoHang || 'Nhận tại cửa hàng FootStyle',
-    thanhToan: '',
-    buoc,
-    huy,
-    hoanTat: !!hoanTat,
-    trangThaiText: data.tenTrangThai || '',
-    items: (data.chiTiet || []).map((i) => ({
-      ten: i.tenSanPham || 'Sản phẩm',
-      mau: i.mauSac || '',
+    hoaDon: {
+      maHoaDon: d.maHoaDon,
+      loaiDon: 2,
+      tenLoaiDon: 'Trực tuyến',
+      trangThai: Number(d.trangThai ?? 1),
+      ngayTao: d.ngayTao,
+      tongTien: Number(d.tongTien) || 0,
+      soTienGiam: Number(d.soTienGiam) || 0,
+      phiVanChuyen: Number(d.phiVanChuyen) || 0,
+      thanhTien: Number(d.thanhTien) || 0,
+      donViVanChuyen: d.donViVanChuyen || null,
+      ghiChu: d.ghiChu || null,
+    },
+    khachHang: { ten, sdt: d.sdtNguoiNhan || null, email: d.email || null },
+    giaoHang: { hoTenNguoiNhan: ten, sdtNguoiNhan: d.sdtNguoiNhan || null, diaChi: d.diaChiGiaoHang || null },
+    sanPham: (d.chiTiet || []).map((i, idx) => ({
+      id: idx,
+      maSpct: i.maSpct || '',
+      tenSanPham: i.tenSanPham || 'Sản phẩm',
+      mauSac: i.mauSac || '',
       trongLuong: i.trongLuong || '',
+      chuVi: i.chuVi || '',
       soLuong: i.soLuong,
       donGia: Number(i.donGia) || 0,
+      thanhTien: Number(i.thanhTien) || (Number(i.donGia) || 0) * (Number(i.soLuong) || 0),
     })),
-    tongTienHang: Number(data.tongTien) || 0,
-    tienGiam: Number(data.soTienGiam) || 0,
-    phiVanChuyen: Number(data.phiVanChuyen) || 0,
-    tongThanhToan: Number(data.thanhTien) || 0,
+    thanhToan: [],
+    lichSu: [],
+    daThanhToan: Number(d.daTra) || 0,
   }
 }
 
-// Đơn lưu trên máy (đơn cũ chưa có trên backend, hoặc mất kết nối)
-function traCuuLocal(code) {
+// Mã trạng thái của đơn lưu trên máy (0 chờ xác nhận, 1 đã xác nhận, 2 đang giao, 3 hoàn thành, 6/7 hủy) -> mã của backend
+const TRANG_THAI_LOCAL = { 0: 1, 1: 2, 2: 4, 3: 6, 6: 0, 7: 0 }
+
+// Đơn lưu trên máy (khi mất kết nối máy chủ); cũng phải khớp SĐT vì máy dùng chung có thể còn đơn của khách trước
+function traCuuLocal(code, so) {
   try {
-    const f = docDonHang().find((o) => o.maHoaDon?.toUpperCase() === code.toUpperCase())
+    const f = docDonHang().find((o) => o.maHoaDon?.toUpperCase() === code.toUpperCase() && String(o.sdtKhachHang || '').replace(/\D/g, '') === so.replace(/\D/g, ''))
     if (!f) return null
-    const t = Number(f.trangThai) || 0
-    return {
+    return chiTietTuDonGon({
       maHoaDon: f.maHoaDon,
-      ngayTaoFormatted: formatNgayGio(f.ngayTao),
-      ten: f.tenKhachHang || 'Khách mua hàng',
-      sdt: f.sdtKhachHang || '—',
-      diaChi: f.diaChiGiaoHang || 'Nhận tại cửa hàng FootStyle',
-      thanhToan: tenThanhToan(f.phuongThucThanhToan),
-      buoc: Math.min(t, 3),
-      huy: t === 6 || t === 7,
-      hoanTat: t === 3,
-      trangThaiText: f.trangThaiText || '',
-      items: (f.items || []).map((i) => ({
-        ten: i.sanPhamTen || i.tenSanPham || 'Sản phẩm',
-        mau: i.mauSac || '',
-        trongLuong: i.trongLuong || '',
+      trangThai: TRANG_THAI_LOCAL[Number(f.trangThai) || 0] ?? 1,
+      ngayTao: f.ngayTao,
+      hoTenNguoiNhan: f.tenKhachHang,
+      sdtNguoiNhan: f.sdtKhachHang,
+      diaChiGiaoHang: f.diaChiGiaoHang,
+      chiTiet: (f.items || []).map((i) => ({
+        tenSanPham: i.sanPhamTen || i.tenSanPham,
+        mauSac: i.mauSac,
+        trongLuong: i.trongLuong,
         soLuong: i.soLuong,
         donGia: i.giaBan || i.donGia || 0,
       })),
-      tongTienHang: f.tongTienHang ?? null,
-      tienGiam: f.tienGiam || 0,
-      phiVanChuyen: f.phiVanChuyen ?? null,
-      tongThanhToan: f.tongThanhToan || 0,
-    }
+      tongTien: f.tongTienHang,
+      soTienGiam: f.tienGiam,
+      phiVanChuyen: f.phiVanChuyen,
+      thanhTien: f.tongThanhToan,
+    })
   } catch (e) {
     console.error('Lỗi khi đọc local orders:', e)
     return null
   }
-}
-
-function stepClass(i, o) {
-  if (o.huy) return ''
-  if (o.hoanTat || o.buoc > i) return 'completed'
-  if (o.buoc === i) return 'active'
-  return ''
 }
 </script>
 
@@ -182,250 +193,183 @@ function stepClass(i, o) {
           <div class="ol-search-icon"><i class="bi bi-search"></i></div>
           <div>
             <h4 class="fw-bold text-dark mb-0">Tra cứu đơn hàng</h4>
-            <p class="text-muted small mb-0">Nhập mã đơn hàng để theo dõi hành trình giao nhận sản phẩm của bạn.</p>
+            <p class="text-muted small mb-0">Nhập mã đơn hàng và số điện thoại đặt hàng để theo dõi hành trình giao nhận sản phẩm của bạn.</p>
           </div>
         </div>
-        <form @submit.prevent="handleSearch" class="d-flex flex-column flex-sm-row gap-2">
-          <input
-            type="text"
-            class="form-control form-control-lg text-uppercase ol-input"
-            placeholder="Nhập mã đơn hàng (Ví dụ: HD01...)"
-            v-model="orderCode"
-          />
-          <button class="btn btn-primary btn-lg px-4 fw-semibold text-nowrap rounded-3" type="submit" :disabled="loading">
-            <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
+        <form @submit.prevent="handleSearch" class="ol-form" novalidate>
+          <div class="ol-field">
+            <label class="ol-label" for="ol-ma">Mã đơn hàng</label>
+            <div class="ol-input-wrap">
+              <i class="bi bi-receipt ol-input-icon" aria-hidden="true"></i>
+              <input
+                id="ol-ma"
+                type="text"
+                autocomplete="off"
+                class="form-control ol-input ol-input-ma"
+                placeholder="Nhập mã đơn hàng"
+                aria-label="Mã đơn hàng"
+                v-model="orderCode"
+              />
+            </div>
+          </div>
+          <div class="ol-field">
+            <label class="ol-label" for="ol-sdt">
+              Số điện thoại đặt hàng<span v-if="laKhachDangNhap()" class="ol-khong-bat-buoc"> (không bắt buộc)</span>
+            </label>
+            <div class="ol-input-wrap">
+              <i class="bi bi-telephone ol-input-icon" aria-hidden="true"></i>
+              <input
+                id="ol-sdt"
+                type="tel"
+                inputmode="numeric"
+                maxlength="10"
+                autocomplete="tel"
+                class="form-control ol-input"
+                placeholder="Nhập số điện thoại"
+                aria-label="Số điện thoại đặt hàng"
+                data-testid="ol-sdt"
+                v-model="sdt"
+              />
+            </div>
+          </div>
+          <button class="btn btn-primary ol-nut" type="submit" :disabled="loading">
+            <span v-if="loading" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <i v-else class="bi bi-search" aria-hidden="true"></i>
             <span>Tra cứu</span>
           </button>
         </form>
-        <div v-if="searchError" class="alert alert-danger py-2 small mt-3 mb-0">
+        <div v-if="searchError" class="alert alert-danger py-2 small mt-3 mb-0" role="alert">
           <i class="bi bi-exclamation-triangle-fill me-1"></i> {{ searchError }}
         </div>
       </div>
 
-      <!-- Kết quả tra cứu -->
-      <div v-if="orderResult" class="card border-0 shadow-sm rounded-4 p-4">
-        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 pb-3 mb-4 ol-head">
-          <div>
-            <div class="text-muted small">Mã đơn hàng</div>
-            <h3 class="fw-bold text-primary mb-0">{{ orderResult.maHoaDon }}</h3>
-          </div>
-          <div class="text-sm-end">
-            <span v-if="orderResult.huy" class="badge rounded-pill text-bg-danger px-3 py-2 mb-1">Đã hủy</span>
-            <span v-else class="badge rounded-pill text-bg-primary px-3 py-2 mb-1">{{ STEPS[orderResult.buoc].ten }}</span>
-            <div class="text-muted small"><i class="bi bi-clock me-1"></i>Đặt lúc {{ orderResult.ngayTaoFormatted }}</div>
-          </div>
-        </div>
-
-        <!-- Tiến trình -->
-        <div v-if="orderResult.huy" class="alert alert-danger d-flex align-items-center gap-2 mb-4">
-          <i class="bi bi-x-circle-fill fs-5"></i>
-          <div>Đơn hàng này đã bị hủy.</div>
-        </div>
-        <div v-else class="order-timeline mb-4">
-          <div v-for="(s, i) in STEPS" :key="s.ten" class="order-step" :class="stepClass(i, orderResult)">
-            <div class="order-step-icon"><i class="bi" :class="s.icon"></i></div>
-            <div class="order-step-label">{{ s.ten }}</div>
-          </div>
-        </div>
-
-        <!-- Thông tin giao hàng & sản phẩm -->
-        <div class="row g-4">
-          <div class="col-lg-5">
-            <div class="ol-box h-100">
-              <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-geo-alt-fill text-primary me-2"></i>Thông tin người nhận</h6>
-              <div class="ol-row"><span class="text-muted">Họ và tên</span><strong>{{ orderResult.ten }}</strong></div>
-              <div class="ol-row"><span class="text-muted">Số điện thoại</span><strong>{{ orderResult.sdt }}</strong></div>
-              <div class="ol-row ol-row-block">
-                <span class="text-muted">Địa chỉ nhận</span>
-                <strong>{{ orderResult.diaChi }}</strong>
-              </div>
-              <div v-if="orderResult.thanhToan" class="ol-row">
-                <span class="text-muted">Thanh toán</span>
-                <span class="badge text-bg-light border">{{ orderResult.thanhToan }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-7">
-            <div class="ol-box h-100">
-              <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-bag-check-fill text-primary me-2"></i>Sản phẩm</h6>
-              <div class="d-flex flex-column gap-2 mb-3">
-                <div v-for="(item, idx) in orderResult.items" :key="idx" class="ol-item">
-                  <div class="flex-grow-1">
-                    <div class="fw-semibold">{{ item.ten }}</div>
-                    <div v-if="item.mau || item.trongLuong" class="text-muted small">
-                      <span v-if="item.mau">Màu: {{ item.mau }}</span>
-                      <span v-if="item.trongLuong"> · {{ item.trongLuong }}</span>
-                    </div>
-                    <div class="text-muted small">{{ formatMoney(item.donGia) }} × {{ item.soLuong }}</div>
-                  </div>
-                  <div class="fw-semibold text-nowrap">{{ formatMoney(item.donGia * item.soLuong) }}</div>
-                </div>
-              </div>
-
-              <div class="ol-summary">
-                <div v-if="orderResult.tongTienHang !== null" class="d-flex justify-content-between small">
-                  <span class="text-muted">Tạm tính</span><span>{{ formatMoney(orderResult.tongTienHang) }}</span>
-                </div>
-                <div v-if="orderResult.tienGiam > 0" class="d-flex justify-content-between small">
-                  <span class="text-muted">Giảm giá</span><span class="text-success">-{{ formatMoney(orderResult.tienGiam) }}</span>
-                </div>
-                <div v-if="orderResult.phiVanChuyen !== null" class="d-flex justify-content-between small">
-                  <span class="text-muted">Phí vận chuyển</span>
-                  <span>{{ orderResult.phiVanChuyen ? formatMoney(orderResult.phiVanChuyen) : 'Miễn phí' }}</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center pt-2 mt-2 ol-total">
-                  <span class="fw-bold">Tổng thanh toán</span>
-                  <span class="fs-4 fw-bold text-danger">{{ formatMoney(orderResult.tongThanhToan) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Kết quả tra cứu: cùng một component với màn Chi tiết hóa đơn admin (cô review 04/11: hai màn y hệt nhau) -->
+      <HoaDonNoiDung v-if="orderResult" :data="orderResult" che-do-khach class="ol-ket-qua" />
     </div>
   </div>
 </template>
 
 <style scoped>
 .ol-container {
-  max-width: 980px;
+  max-width: 1280px;
 }
-.ol-search-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: #e8f1ff;
-  color: #0d6efd;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.3rem;
-  flex-shrink: 0;
-}
-.ol-input {
-  font-size: 1rem;
-}
-.ol-head {
-  border-bottom: 1px solid #eef0f3;
-}
-
-/* Đường tiến trình nằm ngang, có đường nối giữa các bước */
-.order-timeline {
-  display: flex;
-  justify-content: space-between;
+.ol-search {
   position: relative;
-  padding: 8px 0;
+  overflow: hidden;
+  border: 1px solid #e6eefb !important;
 }
-.order-step {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  z-index: 1;
-}
-.order-step::before {
+.ol-search::before {
   content: '';
   position: absolute;
-  top: 23px;
-  right: 50%;
-  width: 100%;
-  height: 3px;
-  background: #e3e7ed;
-  z-index: -1;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0d6efd, #4dabf7);
 }
-.order-step:first-child::before {
-  display: none;
-}
-.order-step.completed::before,
-.order-step.active::before {
-  background: #0d6efd;
-}
-.order-step-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #fff;
-  border: 3px solid #e3e7ed;
-  color: #9aa4b2;
+.ol-search-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0d6efd, #4dabf7);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px rgba(13, 110, 253, 0.28);
 }
-.order-step.completed .order-step-icon {
-  background: #0d6efd;
-  border-color: #0d6efd;
-  color: #fff;
+
+/* Form tra cứu: mỗi ô có nhãn + biểu tượng, nút nằm cùng hàng */
+.ol-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 14px;
+  align-items: end;
 }
-.order-step.active .order-step-icon {
-  border-color: #0d6efd;
+.ol-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+}
+.ol-khong-bat-buoc {
+  font-weight: 400;
+  color: #94a3b8;
+}
+.ol-input-wrap {
+  position: relative;
+}
+.ol-input-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 1.05rem;
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+.ol-input-wrap:focus-within .ol-input-icon {
   color: #0d6efd;
-  box-shadow: 0 0 0 5px rgba(13, 110, 253, 0.15);
 }
-.order-step-label {
-  font-size: 0.85rem;
-  color: #7b8794;
-  font-weight: 500;
-}
-.order-step.completed .order-step-label,
-.order-step.active .order-step-label {
-  color: #18242f;
-  font-weight: 700;
-}
-
-.ol-box {
+.ol-input {
+  height: 52px;
+  padding-left: 44px;
+  border: 1.5px solid #dbe3ee;
+  border-radius: 12px;
   background: #f8fafc;
-  border: 1px solid #eef0f3;
-  border-radius: 14px;
-  padding: 18px;
+  font-size: 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
-.ol-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
-  font-size: 0.9rem;
-  border-bottom: 1px dashed #e3e7ed;
+.ol-input:hover {
+  border-color: #b6c6dc;
 }
-.ol-row:last-child {
-  border-bottom: 0;
-}
-.ol-row-block {
-  flex-direction: column;
-  gap: 2px;
-}
-.ol-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+.ol-input:focus {
+  border-color: #0d6efd;
   background: #fff;
-  border: 1px solid #eef0f3;
-  border-radius: 10px;
-  padding: 10px 12px;
+  box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.12);
 }
-.ol-summary {
-  border-top: 1px solid #e3e7ed;
-  padding-top: 12px;
+.ol-input::placeholder {
+  color: #9aa7b8;
 }
-.ol-total {
-  border-top: 1px dashed #cfd6df;
+/* Mã đơn tự viết hoa khi gõ, còn chữ gợi ý giữ chữ thường */
+.ol-input-ma {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
 }
-
-@media (max-width: 576px) {
-  .order-step-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 1rem;
+.ol-input-ma::placeholder {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.ol-nut {
+  height: 52px;
+  padding: 0 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0d6efd, #3b8cff);
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(13, 110, 253, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.ol-nut:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(13, 110, 253, 0.36);
+}
+@media (max-width: 768px) {
+  .ol-form {
+    grid-template-columns: 1fr;
   }
-  .order-step::before {
-    top: 19px;
-  }
-  .order-step-label {
-    font-size: 0.72rem;
-  }
+}
+/* Kết quả dùng bố cục rộng như màn admin */
+.ol-ket-qua {
+  margin-top: 0.5rem;
 }
 </style>

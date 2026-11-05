@@ -46,6 +46,14 @@ public class CuaHangService {
         this.mailService = mailService;
     }
 
+    /** Chi tiết hóa đơn giống màn admin (cô review 04/11: màn đơn của khách phải y hệt màn Chi tiết hóa đơn). Nạp bằng setter như mailService. */
+    private HoaDonService hoaDonService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setHoaDonService(HoaDonService hoaDonService) {
+        this.hoaDonService = hoaDonService;
+    }
+
     public record DatHangOnlineRequest(
             String hoTenNguoiNhan,
             String sdtNguoiNhan,
@@ -389,6 +397,13 @@ public class CuaHangService {
         if (req.diaChiGiaoHang() == null || req.diaChiGiaoHang().trim().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập địa chỉ giao hàng.", null, null, Map.of("diaChiGiaoHang", "Địa chỉ giao hàng không được để trống"));
         }
+        // Review 04/11: đơn HD970 đặt được khi chưa chọn Tỉnh/Thành, Phường/Xã (địa chỉ chỉ còn "s23sssss") -> không giao được
+        if (req.tinhThanh() == null || req.tinhThanh().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng chọn Tỉnh/Thành phố nhận hàng.", null, null, Map.of("tinhThanh", "Vui lòng chọn Tỉnh/Thành phố"));
+        }
+        if (req.phuongXa() == null || req.phuongXa().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng chọn Phường/Xã nhận hàng.", null, null, Map.of("phuongXa", "Vui lòng chọn Phường/Xã"));
+        }
         if (req.chiTiet() == null || req.chiTiet().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Giỏ hàng rỗng. Vui lòng chọn ít nhất 1 sản phẩm.", null, null, null);
         }
@@ -414,9 +429,7 @@ public class CuaHangService {
 
             // Theo yêu cầu của cô: CHƯA trừ tồn kho lúc khách đặt; trừ khi nhân viên chuyển đơn Chờ xác nhận -> Đã xác nhận (HoaDonService)
 
-            long giaGoc = spct.getGiaBan() == null ? 0 : spct.getGiaBan();
-            double pt = giamMap.getOrDefault(spct.getId().longValue(), 0.0);
-            long giaBan = pt > 0 ? Math.round(giaGoc * (100.0 - pt) / 100.0) : giaGoc;
+            long giaBan = giaBanOnline(spct, giamMap);
             long thanhTienMon = giaBan * item.soLuong();
             tongTien += thanhTienMon;
 
@@ -453,8 +466,8 @@ public class CuaHangService {
             }
         }
 
-        // Phí vận chuyển: >= 1.000.000đ freeship, ngược lại 30.000đ
-        long phiVanChuyen = tongTien >= 1_000_000L ? 0L : 30_000L;
+        // Phí vận chuyển theo tỉnh nhận: Hà Nội miễn phí, tỉnh khác tùy tỉnh (xem PhiVanChuyenTinh)
+        long phiVanChuyen = phiVanChuyenOnline(req.tinhThanh());
         long thanhTien = Math.max(0L, tongTien - soTienGiam + phiVanChuyen);
 
         // Tạo hóa đơn
@@ -552,6 +565,98 @@ public class CuaHangService {
         return res;
     }
 
+    /* ===================== Tính tiền giỏ hàng (xem trước) ===================== */
+
+    /** Giá bán online của biến thể lúc này: giá niêm yết trừ % đợt đang chạy. Dùng chung cho đặt hàng và tính tiền xem trước. */
+    static long giaBanOnline(SanPhamChiTiet spct, Map<Long, Double> giamMap) {
+        long giaGoc = spct.getGiaBan() == null ? 0 : spct.getGiaBan();
+        double pt = giamMap.getOrDefault(spct.getId().longValue(), 0.0);
+        return pt > 0 ? Math.round(giaGoc * (100.0 - pt) / 100.0) : giaGoc;
+    }
+
+    /** Phí giao đơn online theo tỉnh nhận (PhiVanChuyenTinh: Hà Nội miễn phí, tỉnh khác tùy tỉnh). Dùng chung cho đặt hàng và tính tiền xem trước. */
+    static long phiVanChuyenOnline(String tinhThanh) {
+        return PhiVanChuyenTinh.phi(tinhThanh);
+    }
+
+    /** tinhThanh: tỉnh nhận khách đang chọn ở trang thanh toán; trống (giỏ hàng chưa biết địa chỉ) thì chưa tính phí giao. */
+    public record TinhTienRequest(List<DatHangOnlineRequest.ItemRequest> chiTiet, String maPhieuGiamGia, Integer idKhachHang,
+                                  String tinhThanh) {
+    }
+
+    /**
+     * Tính tiền giỏ hàng như lúc đặt hàng (review 05/11: giỏ hàng lưu giá trên trình duyệt nên có thể đã cũ - đợt giảm giá hết hạn,
+     * giá đổi - làm số trên trang thanh toán lệch với số máy chủ thu). Cùng giá bán, cùng phiếu, cùng phí giao với datHangOnline;
+     * không ghi gì vào CSDL, không báo lỗi khi hết hàng / phiếu không dùng được mà trả lý do để giao diện hiện.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> tinhTien(TinhTienRequest req) {
+        Map<Long, Double> giamMap = giamGiaService.phanTramTheoBienThe(bayGio());
+        long tongGoc = 0;
+        long tongTien = 0;
+        List<Map<String, Object>> dong = new ArrayList<>();
+        for (DatHangOnlineRequest.ItemRequest item : req == null || req.chiTiet() == null ? List.<DatHangOnlineRequest.ItemRequest>of() : req.chiTiet()) {
+            if (item == null || item.idSanPhamChiTiet() == null || item.soLuong() == null || item.soLuong() <= 0) continue;
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("idSanPhamChiTiet", item.idSanPhamChiTiet());
+            m.put("soLuong", item.soLuong());
+            SanPhamChiTiet spct = spctRepo.findById(item.idSanPhamChiTiet()).orElse(null);
+            if (spct == null) {
+                m.put("conBan", false);
+                dong.add(m);
+                continue;
+            }
+            long giaGoc = spct.getGiaBan() == null ? 0 : spct.getGiaBan();
+            long giaBan = giaBanOnline(spct, giamMap);
+            int ton = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
+            m.put("conBan", true);
+            m.put("maSpct", spct.getMaSpct());
+            m.put("giaGoc", giaGoc);
+            m.put("donGia", giaBan);
+            m.put("phanTramGiam", giamMap.getOrDefault(spct.getId().longValue(), 0.0));
+            m.put("thanhTien", giaBan * item.soLuong());
+            m.put("soLuongTon", ton);
+            m.put("duHang", ton >= item.soLuong());
+            tongGoc += giaGoc * item.soLuong();
+            tongTien += giaBan * item.soLuong();
+            dong.add(m);
+        }
+
+        String maPhieu = null;
+        String loiPhieu = null;
+        long soTienGiam = 0;
+        String ma = req == null || req.maPhieuGiamGia() == null ? "" : req.maPhieuGiamGia().trim();
+        if (!ma.isEmpty()) {
+            PhieuGiamGia p = phieuRepo.findFirstByMaPhieuIgnoreCase(ma).orElse(null);
+            if (p == null) {
+                loiPhieu = "Mã phiếu giảm giá không tồn tại.";
+            } else {
+                String lyDo = lyDoPhieuKhongDung(p, tongTien, req.idKhachHang());
+                if (lyDo != null) {
+                    loiPhieu = "Không áp dụng được mã " + p.getMaPhieu() + ": " + lyDo;
+                } else {
+                    maPhieu = p.getMaPhieu();
+                    soTienGiam = PhieuApDung.soTienGiam(p, tongTien);
+                }
+            }
+        }
+        // Chưa chọn tỉnh thì chưa tính được phí giao (null), tổng tạm chưa gồm phí
+        String tinh = req == null || req.tinhThanh() == null ? "" : req.tinhThanh().trim();
+        Long phi = tinh.isEmpty() ? null : phiVanChuyenOnline(tinh);
+
+        Map<String, Object> kq = new LinkedHashMap<>();
+        kq.put("dong", dong);
+        kq.put("tongTienGoc", tongGoc);
+        kq.put("tienGiamTheoDot", Math.max(0, tongGoc - tongTien));
+        kq.put("tongTien", tongTien);
+        kq.put("maPhieu", maPhieu);
+        kq.put("soTienGiam", soTienGiam);
+        kq.put("loiPhieu", loiPhieu);
+        kq.put("phiVanChuyen", phi);
+        kq.put("thanhTien", Math.max(0, tongTien - soTienGiam + (phi == null ? 0 : phi)));
+        return kq;
+    }
+
     /**
      * Tra cứu đơn của CHÍNH khách đang đăng nhập: đơn không thuộc khách này thì báo "không tìm thấy"
      * (không cho biết đơn người khác có tồn tại hay không).
@@ -563,30 +668,54 @@ public class CuaHangService {
         if (hd == null || hd.getKhachHang() == null || !idKhach.equals(hd.getKhachHang().getId())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma + " trong tài khoản của bạn.", null, null, null);
         }
-        return traCuuDonHang(ma, null);
+        return chiTietDon(hd);
     }
 
-    /** Tra cứu đơn hàng online */
+    /**
+     * Tra cứu đơn cho khách CHƯA đăng nhập: bắt buộc mã đơn + số điện thoại đặt hàng (SĐT người nhận hoặc SĐT
+     * khách hàng của đơn). Mã đơn chạy tăng dần nên dễ đoán; sai/thiếu SĐT chỉ báo "không tìm thấy", không cho
+     * biết đơn có tồn tại hay không, để khách lẻ không xem được họ tên, SĐT, địa chỉ của nhau.
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> traCuuDonHang(String maHoaDon, String sdt) {
-        if (maHoaDon == null || maHoaDon.trim().isEmpty()) {
+        String ma = maHoaDon == null ? "" : maHoaDon.trim();
+        if (ma.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập mã đơn hàng để tra cứu.", null, null, null);
         }
-        HoaDon hd = hoaDonRepo.findFirstByMaHoaDonIgnoreCase(maHoaDon.trim())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + maHoaDon, null, null, null));
-
-        if (sdt != null && !sdt.trim().isEmpty()) {
-            if (hd.getSdtNguoiNhan() != null && !hd.getSdtNguoiNhan().trim().equals(sdt.trim())) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Số điện thoại không khớp với đơn hàng " + maHoaDon, null, null, null);
-            }
+        String so = sdt == null ? "" : sdt.replaceAll("\\D", "");
+        if (so.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập số điện thoại đặt hàng để tra cứu.", null, null, null);
         }
+        HoaDon hd = hoaDonRepo.findFirstByMaHoaDonIgnoreCase(ma).orElse(null);
+        if (hd == null || !dungSdtDatHang(hd, so)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma + " với số điện thoại này.", null, null, null);
+        }
+        return chiTietDon(hd);
+    }
 
+    private static boolean dungSdtDatHang(HoaDon hd, String so) {
+        String nhan = hd.getSdtNguoiNhan() == null ? "" : hd.getSdtNguoiNhan().replaceAll("\\D", "");
+        String khach = hd.getKhachHang() == null || hd.getKhachHang().getSdt() == null ? "" : hd.getKhachHang().getSdt().replaceAll("\\D", "");
+        return so.equals(nhan) || so.equals(khach);
+    }
+
+    /** Dùng nội bộ (trang thanh toán giả lập chỉ lấy số tiền / trạng thái, không trả thông tin người nhận). */
+    @Transactional(readOnly = true)
+    public Map<String, Object> xemDonNoiBo(String maHoaDon) {
+        String ma = maHoaDon == null ? "" : maHoaDon.trim();
+        HoaDon hd = ma.isEmpty() ? null : hoaDonRepo.findFirstByMaHoaDonIgnoreCase(ma).orElse(null);
+        if (hd == null) throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma, null, null, null);
+        return chiTietDon(hd);
+    }
+
+    private Map<String, Object> chiTietDon(HoaDon hd) {
         List<HoaDonChiTiet> cts = hoaDonChiTietRepo.findByHoaDon_IdOrderByIdAsc(hd.getId());
         List<Map<String, Object>> monHangs = new ArrayList<>();
         for (HoaDonChiTiet c : cts) {
             SanPhamChiTiet bt = c.getSanPhamChiTiet();
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("idSanPham", bt != null && bt.getSanPham() != null ? bt.getSanPham().getId() : null);
+            m.put("maSpct", bt != null ? bt.getMaSpct() : null);
             m.put("tenSanPham", bt != null && bt.getSanPham() != null ? bt.getSanPham().getTenSanPham() : "");
             m.put("mauSac", bt != null && bt.getMauSac() != null ? bt.getMauSac().getTen() : "");
             m.put("trongLuong", bt != null && bt.getTrongLuong() != null ? bt.getTrongLuong().getTen() : "");
@@ -621,7 +750,39 @@ public class CuaHangService {
         res.put("daTra", daTra);
         res.put("daThanhToanDu", hd.getThanhTien() != null && daTra.compareTo(hd.getThanhTien()) >= 0);
         res.put("idPhuongThucThanhToan", hd.getIdPhuongThucThanhToan());
+        if (hoaDonService != null) {
+            res.put("chiTietDon", banChoKhach(hoaDonService.getChiTietHoaDon(hd.getId())));
+        }
 
+        return res;
+    }
+
+    /**
+     * Cùng dữ liệu với GET /api/hoa-don/{id} (để màn khách vẽ y hệt màn admin) nhưng bỏ phần chỉ dành cho cửa hàng:
+     * nút đổi trạng thái, quyền sửa đơn, nhân viên phụ trách, người thao tác và ghi chú nội bộ trong lịch sử.
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> banChoKhach(Map<String, Object> chiTiet) {
+        Map<String, Object> res = new LinkedHashMap<>(chiTiet);
+        Map<String, Object> info = new LinkedHashMap<>((Map<String, Object>) chiTiet.get("hoaDon"));
+        for (String k : List.of("chuyenDuoc", "duocChinhSua", "daChinhSua", "tenNhanVien", "maNhanVien")) info.remove(k);
+        res.put("hoaDon", info);
+        res.remove("duocXacNhanThanhToan");
+
+        List<Map<String, Object>> lichSu = new ArrayList<>();
+        for (Map<String, Object> ls : (List<Map<String, Object>>) chiTiet.getOrDefault("lichSu", List.of())) {
+            Object tt = ls.get("trangThai");
+            if (tt == null) continue; // thao tác nội bộ (sửa đơn, ghi chú...) không phải bước trạng thái
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", ls.get("id"));
+            m.put("trangThai", tt);
+            m.put("hanhDong", ls.get("hanhDong"));
+            m.put("thoiGian", ls.get("thoiGian"));
+            // Lý do hủy / giao thất bại thì khách cần biết; các ghi chú khác là nội bộ
+            if (Integer.valueOf(HoaDon.DA_HUY).equals(tt) || Integer.valueOf(HoaDon.GIAO_THAT_BAI).equals(tt)) m.put("moTa", ls.get("moTa"));
+            lichSu.add(m);
+        }
+        res.put("lichSu", lichSu);
         return res;
     }
 

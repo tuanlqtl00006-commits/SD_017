@@ -52,20 +52,13 @@ const menuAll = [
   },
   { key: 'khach-hang', label: 'Quản lý khách hàng', icon: 'bi-people', to: '/khach-hang', roles: NV },
   { key: 'nhan-vien', label: 'Quản lý nhân viên', icon: 'bi-person', to: '/nhan-vien', roles: QL },
-  {
-    // badge: khóa trong useChatChuaDoc().dem (hoTro = cuộc chat khách cần xử lý, noiBo = tin nội bộ chưa đọc)
-    key: 'tro-chuyen', label: 'Trò chuyện', icon: 'bi-chat-dots', roles: NV,
-    children: [
-      { label: 'Hỗ trợ trực tuyến', icon: 'bi-headset', to: '/ho-tro-truc-tuyen', badge: 'hoTro' },
-      { label: 'Chat nội bộ', icon: 'bi-people-fill', to: '/chat-noi-bo', badge: 'noiBo' },
-    ],
-  },
+  // badge: khóa trong useChatChuaDoc().dem (hoTro = cuộc chat khách cần xử lý)
+  { key: 'ho-tro', label: 'Hỗ trợ trực tuyến', icon: 'bi-chat-dots', to: '/ho-tro-truc-tuyen', roles: NV, badge: 'hoTro' },
   {
     // Nhận ca / giao ca bấm nút "Ca làm việc" trên header; ở đây là lịch và lịch sử
     key: 'lich-lam', label: 'Quản lý lịch làm', icon: 'bi-calendar-week', roles: NV,
     children: [
-      { label: 'Lịch làm việc', icon: 'bi-calendar3', to: '/lich-lam-viec', roles: QL },
-      { label: 'Lịch ca làm', icon: 'bi-calendar-check', to: '/lich-cua-toi' },
+      { label: 'Lịch làm việc', icon: 'bi-calendar3', to: '/lich-lam-viec' },
       { label: 'Lịch sử giao ca', icon: 'bi-arrow-left-right', to: '/giao-ca' },
     ],
   },
@@ -83,7 +76,7 @@ const menu = computed(() =>
     .filter((m) => m.roles.includes(role.value))
     .map((m) => (m.children ? { ...m, children: m.children.filter((c) => !c.roles || c.roles.includes(role.value)) } : m)),
 )
-const tongChuaDoc = computed(() => (chuaDoc.dem.donCho || 0) + (chuaDoc.dem.hoTro || 0) + (chuaDoc.dem.noiBo || 0))
+const tongChuaDoc = computed(() => (chuaDoc.dem.donCho || 0) + (chuaDoc.dem.hoTro || 0))
 const nhanSo = (n) => (n > 99 ? '99+' : n)
 
 /* ----- Thông báo & Tài khoản (góc phải header) ----- */
@@ -145,7 +138,7 @@ const ZOOM = 0.75
 }
 
 // Nhóm có menu con mặc định đóng cho gọn; bấm vào nhóm để mở/đóng.
-const open = reactive({ 'san-pham': false, 'thuoc-tinh': false, 'giam-gia': false, 'tro-chuyen': false, 'lich-lam': false })
+const open = reactive({ 'san-pham': false, 'thuoc-tinh': false, 'giam-gia': false, 'lich-lam': false })
 for (const g of menuAll) {
   if (g.children?.some((c) => isActive(c.to, c.exact))) open[g.key] = true
 }
@@ -217,7 +210,8 @@ const toggle = (key) => { open[key] = !open[key] }
         </div>
 
         <TroLyNoiBo />
-        <GiaoCaNut v-if="auth.daDangNhap.value && !auth.laKhachHang.value" />
+        <!-- Quản lý không nhận ca / giao ca nên không có nút Ca làm việc -->
+        <GiaoCaNut v-if="auth.daDangNhap.value && !auth.laKhachHang.value && !auth.laQuanLy.value" />
         <div ref="thongBaoRef" class="position-relative">
           <button
             type="button"
@@ -241,7 +235,7 @@ const toggle = (key) => { open[key] = !open[key] }
             </div>
 
             <div class="ad-tb-danh-sach">
-              <!-- Tin nhắn hỗ trợ / nội bộ chưa đọc -->
+              <!-- Tin nhắn hỗ trợ khách chưa đọc -->
               <button
                 v-if="chuaDoc.dem.hoTro > 0"
                 type="button"
@@ -252,19 +246,6 @@ const toggle = (key) => { open[key] = !open[key] }
                 <div class="flex-grow-1 min-w-0">
                   <div class="fw-semibold text-dark small">Hỗ trợ trực tuyến</div>
                   <div class="text-muted" style="font-size: 0.78rem;">Có {{ chuaDoc.dem.hoTro }} cuộc trò chuyện khách hàng cần xử lý</div>
-                </div>
-              </button>
-
-              <button
-                v-if="chuaDoc.dem.noiBo > 0"
-                type="button"
-                class="ad-tb-muc"
-                @click="diDenChat('/chat-noi-bo')"
-              >
-                <span class="ad-tb-icon is-chat"><i class="bi bi-chat-dots-fill"></i></span>
-                <div class="flex-grow-1 min-w-0">
-                  <div class="fw-semibold text-dark small">Chat nội bộ</div>
-                  <div class="text-muted" style="font-size: 0.78rem;">Có {{ chuaDoc.dem.noiBo }} tin nhắn nội bộ chưa đọc</div>
                 </div>
               </button>
 
@@ -296,7 +277,7 @@ const toggle = (key) => { open[key] = !open[key] }
               </template>
 
               <div
-                v-if="!donChoList.length && !chuaDoc.dem.hoTro && !chuaDoc.dem.noiBo"
+                v-if="!donChoList.length && !chuaDoc.dem.hoTro"
                 class="text-center text-muted py-4 px-3 small"
               >
                 <i class="bi bi-bell-slash d-block fs-4 mb-1 opacity-50"></i>

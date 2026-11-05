@@ -1,16 +1,17 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
-import { formatDate, formatMoney, todayIso } from '../utils/format'
+import { formatDate, formatMoney, formatNgayGio, todayIso } from '../utils/format'
 import { TRANG_THAI_HOA_DON, TT } from '../constants/hoaDon'
 import {
   TT_HOAN_THANH, congNgay, gioLam, gomCot, khoangGuiMayChu, khungGioHienThi, kyTruoc, lamTronTran,
   laHoaDonCho, locTheoKhoang, nhanTienGon, phanTram, phanTramThayDoi, soNgay, theoLoaiDon, tinhKhoang, tongHop, tyLeCoMat, tyLeDungGio, xepHang,
 } from '../utils/thongKe'
 import DateInput from './common/DateInput.vue'
+import BaseModal from './common/BaseModal.vue'
 import { exportExcel } from '../utils/exportExcel'
 
 const toast = useToast()
@@ -63,20 +64,25 @@ const TRANG_THAI = Object.fromEntries(
   Object.entries(MAU_TRANG_THAI).map(([ma, color]) => [ma, { label: TRANG_THAI_HOA_DON[ma].label, color }]),
 )
 
-async function load() {
+// ngam = true: tải ngầm (tự cập nhật), lỗi thì giữ số đang hiện, không báo; lần tải cũ về chậm không đè lần mới
+let lanTaiHd = 0
+async function load(ngam = false) {
+  const lan = ++lanTaiHd
   taiGd3()
   try {
     const res = await api.get('/hoa-don', { params: { page: 0, size: 2000 } })
+    if (lan !== lanTaiHd) return
     hoaDon.value = (res?.data?.content ?? []).filter((h) => !laHoaDonCho(h))
     homNay.value = todayIso()
   } catch (e) {
-    toast.error(e.message || 'Không tải được dữ liệu thống kê.')
+    if (!ngam) toast.error(e.message || 'Không tải được dữ liệu thống kê.')
   } finally {
-    loading.value = false
+    if (lan === lanTaiHd) loading.value = false
   }
 }
-onMounted(load)
-useAutoRefresh(load)
+onMounted(() => load())
+// Thống kê tải nhiều đơn nên tự cập nhật 30 giây một lần (vẫn tải lại ngay khi quay lại tab)
+useAutoRefresh(() => load(true), 3000, { chuKyMs: 30_000 })
 
 function chonMoc(m) {
   mocChon.value = m.ma
@@ -204,46 +210,43 @@ function soSanh(nay, truoc, xauKhiTang = false) {
   return { text: `${tang ? '▲' : '▼'} ${pct(Math.abs(p))}`, huong: tang !== xauKhiTang ? 'tot' : 'xau' }
 }
 
+// Cô review 04/11: bỏ hết dòng chữ nhỏ dưới các thẻ (chỉ còn tên, số liệu và so với kỳ trước).
+// Thẻ "Đơn hoàn thành" / "Đơn đã hủy" bấm vào được: mở bảng danh sách đơn, lọc đơn online / đơn tại quầy.
 const kpi = computed(() => {
   const a = tk.value
   const b = tkTruoc.value ?? {}
   return [
-    {
-      label: 'Doanh thu thực tế',
-      value: formatMoney(a.doanhThu),
-      icon: 'bi-cash-coin',
-      tone: 'blue',
-      note: 'Đơn đã hoàn thành, không gồm phí ship',
-      so: soSanh(a.doanhThu, b.doanhThu),
-    },
-    {
-      label: 'Doanh thu dự kiến',
-      value: formatMoney(a.doanhThuDuKien),
-      icon: 'bi-graph-up-arrow',
-      tone: 'sky',
-      note: a.doanhThuDuKien > a.doanhThu ? `Còn ${formatMoney(a.doanhThuDuKien - a.doanhThu)} từ đơn đang xử lý / giao` : 'Mọi đơn chưa hủy',
-      so: soSanh(a.doanhThuDuKien, b.doanhThuDuKien),
-    },
-    {
-      label: 'Đơn hoàn thành',
-      value: `${a.hoanThanh}/${a.tongDon} đơn`,
-      title: `${a.hoanThanh} đơn hoàn thành trên tổng số ${a.tongDon} đơn hàng phát sinh`,
-      icon: 'bi-check2-circle',
-      tone: 'green',
-      note: a.hoanThanh ? `${pct(a.tyLeHoanThanh)} tổng đơn · TB ${formatMoney(a.trungBinh)}/đơn` : 'Chưa có đơn hoàn thành',
-      so: soSanh(a.hoanThanh, b.hoanThanh),
-    },
-    {
-      label: 'Đơn đã hủy',
-      value: `${a.huy} đơn`,
-      title: `${a.huy} đơn đã bị hủy`,
-      icon: 'bi-x-circle',
-      tone: 'rose',
-      note: a.tongDon ? `${pct(a.tyLeHuy)} tổng đơn` : 'Chưa có đơn',
-      so: soSanh(a.huy, b.huy, true),
-    },
+    { label: 'Doanh thu thực tế', value: formatMoney(a.doanhThu), icon: 'bi-cash-coin', tone: 'blue', so: soSanh(a.doanhThu, b.doanhThu) },
+    { label: 'Doanh thu dự kiến', value: formatMoney(a.doanhThuDuKien), icon: 'bi-graph-up-arrow', tone: 'sky', so: soSanh(a.doanhThuDuKien, b.doanhThuDuKien) },
+    { label: 'Đơn hoàn thành', value: `${a.hoanThanh}/${a.tongDon}`, icon: 'bi-check2-circle', tone: 'green', so: soSanh(a.hoanThanh, b.hoanThanh), dsDon: 'hoanThanh' },
+    { label: 'Đơn đã hủy', value: a.huy, icon: 'bi-x-circle', tone: 'rose', so: soSanh(a.huy, b.huy, true), dsDon: 'huy' },
   ]
 })
+
+/* ----- Bảng danh sách đơn khi bấm thẻ đơn (lọc đơn online / tại quầy) ----- */
+const DS_DON = {
+  hoanThanh: { tieuDe: 'Đơn hoàn thành', loc: (h) => h.trangThai === TT.HOAN_THANH },
+  huy: { tieuDe: 'Đơn đã hủy', loc: (h) => h.trangThai === TT.DA_HUY },
+}
+const LOAI_DON_LOC = [
+  { ma: '', nhan: 'Tất cả' },
+  { ma: 'Trực tuyến', nhan: 'Đơn online' },
+  { ma: 'Tại quầy', nhan: 'Đơn tại quầy' },
+]
+const dsDonMo = ref('') // '' | 'hoanThanh' | 'huy'
+const loaiDonLoc = ref('')
+function moDsDon(ma) {
+  if (!ma) return
+  dsDonMo.value = ma
+  loaiDonLoc.value = ''
+}
+const donCuaThe = computed(() => {
+  const cfg = DS_DON[dsDonMo.value]
+  return cfg ? trongKhoang.value.filter(cfg.loc).sort((x, y) => String(y.ngayTao).localeCompare(String(x.ngayTao))) : []
+})
+const demLoaiDon = (ma) => (ma ? donCuaThe.value.filter((h) => h.loaiDon === ma).length : donCuaThe.value.length)
+const donHienThi = computed(() => (loaiDonLoc.value ? donCuaThe.value.filter((h) => h.loaiDon === loaiDonLoc.value) : donCuaThe.value))
+const tongTienDonHienThi = computed(() => donHienThi.value.reduce((s, h) => s + Number(h.tongTien ?? 0), 0))
 
 /* ----- Biểu đồ cột Doanh thu theo ngày / tuần / tháng (điều khiển từ ô THỐNG KÊ) ----- */
 const bieuDo = computed(() => gomCot(hoaDon.value, kq.value.tu, kq.value.den, homNay.value, donViChon.value))
@@ -962,10 +965,22 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
     <!-- 4 chỉ số tổng quan -->
     <div class="row g-3">
       <div v-for="k in kpi" :key="k.label" class="col-12 col-sm-6 col-xl-3">
-        <section class="ad-card tk-kpi-card h-100 mb-0" data-test="tk-kpi" :title="k.title || k.label">
-          <div class="tk-kpi-label">{{ k.label }}</div>
+        <component
+          :is="k.dsDon ? 'button' : 'section'"
+          :type="k.dsDon ? 'button' : undefined"
+          class="ad-card tk-kpi-card h-100 mb-0"
+          :class="{ 'tk-kpi-bam': k.dsDon }"
+          data-test="tk-kpi"
+          :data-ds-don="k.dsDon"
+          :title="k.dsDon ? `Xem danh sách ${k.label.toLowerCase()}` : undefined"
+          @click="moDsDon(k.dsDon)"
+        >
+          <div class="tk-kpi-label">
+            {{ k.label }}
+            <i v-if="k.dsDon" class="bi bi-box-arrow-up-right tk-kpi-mo" aria-hidden="true"></i>
+          </div>
           <div class="tk-kpi-value">{{ loading ? '…' : k.value }}</div>
-        </section>
+        </component>
       </div>
     </div>
 
@@ -1019,6 +1034,59 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
     </div>
+    <!-- Bấm thẻ đơn: danh sách đơn trong khoảng đang xem, lọc đơn online / đơn tại quầy -->
+    <BaseModal v-if="dsDonMo" :title="`${DS_DON[dsDonMo].tieuDe} (${moTaKhoang})`" size="xl" @close="dsDonMo = ''">
+      <div class="tk-ds-loc mb-3" role="tablist" aria-label="Lọc loại đơn">
+        <button
+          v-for="l in LOAI_DON_LOC"
+          :key="l.ma"
+          type="button"
+          class="ad-btn ad-btn-sm"
+          :class="{ 'ad-btn-primary': loaiDonLoc === l.ma }"
+          role="tab"
+          :aria-selected="loaiDonLoc === l.ma"
+          :data-loai-don="l.ma || 'tat-ca'"
+          @click="loaiDonLoc = l.ma"
+        >
+          {{ l.nhan }} ({{ demLoaiDon(l.ma) }})
+        </button>
+      </div>
+      <div class="ad-table-wrap">
+        <div class="ad-table-scroll">
+          <table class="ad-table" data-test="tk-ds-don">
+            <thead>
+              <tr>
+                <th class="ad-col-stt">STT</th>
+                <th>Mã hóa đơn</th>
+                <th>Ngày tạo</th>
+                <th>Khách hàng</th>
+                <th>Loại đơn</th>
+                <th class="text-end">Tổng tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="!donHienThi.length">
+                <td colspan="6"><div class="ad-empty"><i class="bi bi-inbox" aria-hidden="true"></i><span>Không có đơn nào</span></div></td>
+              </tr>
+              <tr v-for="(h, i) in donHienThi" :key="h.id">
+                <td class="ad-col-stt">{{ i + 1 }}</td>
+                <td class="ad-nowrap"><RouterLink :to="`/hoa-don/${h.id}`" class="ad-code">{{ h.maHoaDon }}</RouterLink></td>
+                <td class="ad-nowrap">{{ formatNgayGio(h.ngayTao) }}</td>
+                <td>{{ h.tenKhachHang || 'Khách lẻ' }}</td>
+                <td class="ad-nowrap">
+                  <span class="ad-pill" :class="h.loaiDon === 'Trực tuyến' ? 'ad-pill-blue' : 'ad-pill-gray'">{{ h.loaiDon === 'Trực tuyến' ? 'Online' : h.loaiDon || '—' }}</span>
+                </td>
+                <td class="text-end ad-nowrap fw-semibold">{{ formatMoney(h.tongTien) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <template #footer>
+        <span class="me-auto text-muted small">{{ donHienThi.length }} đơn · Tổng {{ formatMoney(tongTienDonHienThi) }}</span>
+        <button type="button" class="ad-btn" @click="dsDonMo = ''">Đóng</button>
+      </template>
+    </BaseModal>
 
     <div class="row g-3">
       <!-- Biểu đồ doanh thu -->
@@ -1516,10 +1584,27 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
   color: var(--fs-text, #18242f);
 }
 
-.tk-kpi-note {
-  font-size: 0.78rem;
-  color: #64748b;
-  margin-top: 0.2rem;
+.tk-kpi-bam {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+.tk-kpi-bam:hover,
+.tk-kpi-bam:focus-visible {
+  border-color: rgba(9, 119, 236, 0.35);
+  box-shadow: 0 10px 28px rgba(9, 119, 236, 0.14);
+  transform: translateY(-1px);
+}
+.tk-kpi-mo {
+  margin-left: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--fs-primary, #0977ec);
+}
+.tk-ds-loc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .tk-so {

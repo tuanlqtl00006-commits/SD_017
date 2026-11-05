@@ -1,19 +1,37 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCartStore } from '../../stores/cart'
 import { useAuth } from '../../composables/useAuth'
 import { khachDiaChiService } from '../../services/khachDiaChiService'
 import DiaChiHanhChinhSelect from '../../components/common/DiaChiHanhChinhSelect.vue'
+import BaseModal from '../../components/common/BaseModal.vue'
 import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
 import VoucherPanel from '../../components/shop/VoucherPanel.vue'
 import VanChuyenLogo from '../../components/common/VanChuyenLogo.vue'
 import { formatMoney } from '../../utils/format'
+import { dongTienDon } from '../../utils/tienDon'
+import { useBaoGiaGioHang } from '../../composables/useBaoGiaGioHang'
 import api from '../../services/api'
 
 const route = useRoute()
 const router = useRouter()
 const cartStore = useCartStore()
+// Giá trong giỏ cập nhật theo cửa hàng, số tiền lấy theo máy chủ (cùng cách tính với lúc đặt hàng) - review 05/11
+useBaoGiaGioHang(cartStore)
+// Các dòng tiền cùng tên, cùng thứ tự với giỏ hàng, bán quầy, chi tiết hóa đơn (utils/tienDon.js)
+const tien = computed(() =>
+  dongTienDon({
+    tienHangSauDot: cartStore.subTotal,
+    giamTheoDot: cartStore.giamTheoDot,
+    giamPhieu: cartStore.discountAmount,
+    maPhieu: cartStore.appliedVoucher?.ma,
+    coGiaoHang: true,
+    phiVanChuyen: cartStore.chuaCoTinh ? null : cartStore.shippingFee, // chưa chọn tỉnh: chưa tính phí giao
+    tongThanhToan: cartStore.finalTotal,
+  }),
+)
+const coGiamDot = (item) => Number(item.giaGoc) > Number(item.giaBan)
 const auth = useAuth()
 
 // Khách vãng lai (chưa đăng nhập/đăng ký) vẫn được mua hàng; đăng nhập chỉ để tự điền thông tin và dùng sổ địa chỉ
@@ -34,6 +52,9 @@ const form = ref({
   phuongThucThanhToan: 'COD', // COD hoặc QR
 })
 
+// Phí ship tính theo Tỉnh/Thành khách chọn (Hà Nội miễn phí, tỉnh khác tùy tỉnh)
+watch(() => form.value.tinhThanh, (tinh) => { cartStore.tinhGiao = tinh || '' }, { immediate: true })
+
 // Sổ địa chỉ đã lưu của khách đang đăng nhập (tự điền địa chỉ mặc định)
 const savedAddresses = ref([])
 const selectedAddressId = ref(null)
@@ -50,6 +71,16 @@ function onChonDiaChi() {
   }
   luuVaoSo.value = false
   applySavedAddress()
+}
+
+// Review 04/11: sổ địa chỉ không còn là các thẻ to; chỉ hiện gọn địa chỉ đang chọn, bấm "Thay đổi" mở pop-up (giống cửa sổ địa chỉ bên admin)
+const moSoDiaChi = ref(false)
+const diaChiDangChon = computed(() => savedAddresses.value.find((x) => x.id === selectedAddressId.value) ?? null)
+const ghepDiaChi = (a) => [a.diaChiCuThe, a.phuongXa, a.quanHuyen, a.tinhThanhPho].filter(Boolean).join(', ')
+function chonTuSoDiaChi(id) {
+  selectedAddressId.value = id
+  onChonDiaChi()
+  moSoDiaChi.value = false
 }
 
 function applySavedAddress() {
@@ -84,6 +115,9 @@ onMounted(async () => {
 })
 
 const errors = ref({})
+// Sau lần bấm "Đặt hàng" đầu tiên, nhập lại ô nào thì kiểm tra lại ngay: sửa đúng là dòng báo lỗi mất (review 04/11)
+const daBamDat = ref(false)
+watch([form, selectedAddressId], () => { if (daBamDat.value) validate() }, { deep: true })
 const submitting = ref(false)
 const submitError = ref('')
 
@@ -103,6 +137,13 @@ function validate() {
   if (!form.value.diaChiCuThe.trim()) {
     errs.diaChiCuThe = 'Vui lòng nhập địa chỉ cụ thể (số nhà, ngõ/đường).'
   }
+  // Review 04/11: đơn HD970 đặt được khi chưa chọn Tỉnh/Thành, Phường/Xã -> bắt buộc chọn đủ
+  if (!form.value.tinhThanh) errs.tinhThanh = 'Vui lòng chọn Tỉnh/Thành phố.'
+  if (!form.value.phuongXa) errs.phuongXa = 'Vui lòng chọn Phường/Xã.'
+  // Địa chỉ đã lưu (dữ liệu cũ) thiếu tỉnh / phường: nhắc chọn địa chỉ khác vì các ô chọn tỉnh đang ẩn
+  if (diaChiDangChon.value && (errs.tinhThanh || errs.phuongXa || errs.diaChiCuThe)) {
+    errs.soDiaChi = 'Địa chỉ đã lưu này thiếu thông tin. Vui lòng bấm "Thay đổi" để chọn địa chỉ khác hoặc thêm địa chỉ mới.'
+  }
 
   errors.value = errs
   return Object.keys(errs).length === 0
@@ -114,6 +155,7 @@ async function handleOrderSubmit() {
     return
   }
 
+  daBamDat.value = true
   if (!validate()) {
     return
   }
@@ -284,33 +326,63 @@ async function handleOrderSubmit() {
               <i class="bi bi-geo-alt-fill text-primary"></i> 2. Địa chỉ nhận hàng
             </h5>
 
-            <div v-if="savedAddresses.length > 0" class="dc-list mb-3">
-              <label
-                v-for="a in savedAddresses"
-                :key="a.id"
-                class="dc-card"
-                :class="{ active: selectedAddressId === a.id }"
-              >
-                <input type="radio" class="dc-radio" :value="a.id" v-model="selectedAddressId" @change="onChonDiaChi" />
-                <span class="dc-icon"><i class="bi bi-house-door-fill"></i></span>
-                <span class="dc-body">
-                  <span class="dc-name">
-                    {{ a.tenNguoiNhan }}
-                    <span v-if="a.sdtNguoiNhan" class="dc-phone">{{ a.sdtNguoiNhan }}</span>
-                    <span v-if="a.laDiaChiMacDinh" class="dc-badge">Mặc định</span>
-                  </span>
-                  <span class="dc-addr">{{ [a.diaChiCuThe, a.phuongXa, a.quanHuyen, a.tinhThanhPho].filter(Boolean).join(', ') }}</span>
-                </span>
-                <i v-if="selectedAddressId === a.id" class="bi bi-check-circle-fill dc-check"></i>
-              </label>
-
-              <label class="dc-card dc-new" :class="{ active: selectedAddressId === null }">
-                <input type="radio" class="dc-radio" :value="null" v-model="selectedAddressId" @change="onChonDiaChi" />
-                <span class="dc-icon"><i class="bi bi-plus-lg"></i></span>
-                <span class="dc-body"><span class="dc-name">Thêm địa chỉ mới</span><span class="dc-addr">Nhập nhanh địa chỉ giao hàng khác</span></span>
-                <i v-if="selectedAddressId === null" class="bi bi-check-circle-fill dc-check"></i>
-              </label>
+            <!-- Sổ địa chỉ gọn: một dòng địa chỉ đang dùng + nút "Thay đổi" mở pop-up chọn địa chỉ (giống cửa sổ địa chỉ bên admin) -->
+            <div v-if="savedAddresses.length > 0" class="dc-gon mb-3" :class="{ 'is-loi': errors.soDiaChi }" data-testid="ck-dia-chi-gon">
+              <i class="bi dc-gon-icon" :class="diaChiDangChon ? 'bi-geo-alt-fill' : 'bi-plus-circle'" aria-hidden="true"></i>
+              <div class="dc-gon-noi-dung">
+                <template v-if="diaChiDangChon">
+                  <div class="dc-gon-ten">
+                    {{ diaChiDangChon.tenNguoiNhan }}
+                    <span v-if="diaChiDangChon.sdtNguoiNhan" class="dc-phone">{{ diaChiDangChon.sdtNguoiNhan }}</span>
+                    <span v-if="diaChiDangChon.laDiaChiMacDinh" class="dc-badge">Mặc định</span>
+                  </div>
+                  <div class="dc-addr">{{ ghepDiaChi(diaChiDangChon) }}</div>
+                </template>
+                <div v-else class="dc-gon-ten">Giao đến địa chỉ mới <span class="dc-addr fw-normal">(nhập bên dưới)</span></div>
+              </div>
+              <button type="button" class="dc-gon-nut" data-testid="ck-doi-dia-chi" @click="moSoDiaChi = true">
+                {{ diaChiDangChon ? 'Thay đổi' : 'Chọn địa chỉ đã lưu' }}
+              </button>
             </div>
+            <div v-if="errors.soDiaChi" class="text-danger small mt-n2 mb-3">{{ errors.soDiaChi }}</div>
+
+            <BaseModal v-if="moSoDiaChi" title="Chọn địa chỉ nhận hàng" size="md" @close="moSoDiaChi = false">
+              <div class="dc-list" role="listbox" aria-label="Sổ địa chỉ">
+                <button
+                  v-for="a in savedAddresses"
+                  :key="a.id"
+                  type="button"
+                  role="option"
+                  class="dc-card"
+                  :class="{ active: selectedAddressId === a.id }"
+                  :aria-selected="selectedAddressId === a.id"
+                  @click="chonTuSoDiaChi(a.id)"
+                >
+                  <span class="dc-icon"><i class="bi bi-house-door-fill"></i></span>
+                  <span class="dc-body">
+                    <span class="dc-name">
+                      {{ a.tenNguoiNhan }}
+                      <span v-if="a.sdtNguoiNhan" class="dc-phone">{{ a.sdtNguoiNhan }}</span>
+                      <span v-if="a.laDiaChiMacDinh" class="dc-badge">Mặc định</span>
+                    </span>
+                    <span class="dc-addr">{{ ghepDiaChi(a) }}</span>
+                  </span>
+                  <i v-if="selectedAddressId === a.id" class="bi bi-check-circle-fill dc-check"></i>
+                </button>
+                <button
+                  type="button"
+                  role="option"
+                  class="dc-card dc-new"
+                  :class="{ active: selectedAddressId === null }"
+                  :aria-selected="selectedAddressId === null"
+                  @click="chonTuSoDiaChi(null)"
+                >
+                  <span class="dc-icon"><i class="bi bi-plus-lg"></i></span>
+                  <span class="dc-body"><span class="dc-name">Thêm địa chỉ mới</span><span class="dc-addr">Nhập địa chỉ giao hàng khác</span></span>
+                  <i v-if="selectedAddressId === null" class="bi bi-check-circle-fill dc-check"></i>
+                </button>
+              </div>
+            </BaseModal>
             <div class="row g-3">
               <template v-if="savedAddresses.length === 0 || selectedAddressId === null">
               <DiaChiHanhChinhSelect
@@ -318,6 +390,9 @@ async function handleOrderSubmit() {
                 v-model:phuong-xa="form.phuongXa"
                 id-prefix="ck-dc"
                 col-class="col-md-6"
+                required
+                :error-tinh="errors.tinhThanh || ''"
+                :error-phuong="errors.phuongXa || ''"
               />
 
               <div class="col-12">
@@ -414,7 +489,9 @@ async function handleOrderSubmit() {
                     <span v-if="item.trongLuong">Trọng lượng: {{ item.trongLuong }}</span>
                     <span v-if="item.chuVi">Cán: {{ item.chuVi }}</span>
                   </div>
-                  <div v-if="item.soLuong > 1" class="co-item-unit">{{ formatMoney(item.giaBan) }} x {{ item.soLuong }}</div>
+                  <div class="co-item-unit" data-testid="co-don-gia">
+                    <s v-if="coGiamDot(item)" class="me-1">{{ formatMoney(item.giaGoc) }}</s>{{ formatMoney(item.giaBan) }} x {{ item.soLuong }}
+                  </div>
                 </div>
                 <div class="co-item-total">{{ formatMoney(item.giaBan * item.soLuong) }}</div>
               </div>
@@ -423,24 +500,25 @@ async function handleOrderSubmit() {
             <!-- Mã giảm giá: gợi ý mã tốt nhất + nhập / chọn mã -->
             <VoucherPanel />
 
-            <!-- Chi phí -->
-            <div class="co-row">
-              <span>Tạm tính</span>
-              <span class="co-val">{{ formatMoney(cartStore.subTotal) }}</span>
+            <!-- Chi phí: cùng các dòng với giỏ hàng / bán quầy / chi tiết hóa đơn -->
+            <p v-if="cartStore.baoGia?.doiGia" class="co-doi-gia" data-testid="co-doi-gia">
+              <i class="bi bi-arrow-repeat"></i> Giá một số sản phẩm vừa được cập nhật theo cửa hàng.
+            </p>
+            <div v-for="d in tien.dong.slice(0, -1)" :key="d.khoa" class="co-row" :data-dong="d.khoa">
+              <span :class="{ 'co-green': d.dau === '-' && d.so > 0, 'co-ship': d.khoa === 'phi-van-chuyen' }">
+                {{ d.nhan }}<template v-if="d.ma"> ({{ d.ma }})</template>
+                <VanChuyenLogo v-if="d.khoa === 'phi-van-chuyen'" ten="Giao Hàng Nhanh" />
+              </span>
+              <span v-if="d.khoa === 'phi-van-chuyen' && d.so === null" class="co-val text-muted small">Chọn Tỉnh/Thành phố để tính</span>
+              <span v-else-if="d.khoa === 'phi-van-chuyen' && d.so === 0" class="co-val co-green">Miễn phí</span>
+              <span v-else-if="d.khoa === 'phieu' && !d.so" class="co-val text-muted">Không dùng phiếu</span>
+              <span v-else class="co-val" :class="{ 'co-green': d.dau === '-' }">{{ d.dau === '-' ? '-' : '' }}{{ formatMoney(d.so) }}</span>
             </div>
-            <div v-if="cartStore.discountAmount > 0" class="co-row">
-              <span class="co-green">Giảm giá voucher<template v-if="cartStore.appliedVoucher"> ({{ cartStore.appliedVoucher.ma }})</template></span>
-              <span class="co-val co-green">-{{ formatMoney(cartStore.discountAmount) }}</span>
-            </div>
-            <div class="co-row">
-              <span class="co-ship">Phí vận chuyển <VanChuyenLogo ten="Giao Hàng Nhanh" /></span>
-              <span v-if="cartStore.shippingFee === 0" class="co-val co-green">Miễn phí</span>
-              <span v-else class="co-val">{{ formatMoney(cartStore.shippingFee) }}</span>
-            </div>
+            <p v-if="cartStore.loiPhieu" class="text-danger small mb-2" data-testid="co-loi-phieu">{{ cartStore.loiPhieu }}</p>
 
-            <div class="co-total">
-              <span>Tổng cộng</span>
-              <span class="co-total-val">{{ formatMoney(cartStore.finalTotal) }}</span>
+            <div class="co-total" data-dong="tong-thanh-toan">
+              <span>{{ tien.dong.at(-1).nhan }}</span>
+              <span class="co-total-val">{{ formatMoney(tien.tong) }}</span>
             </div>
 
             <div v-if="submitError" class="alert alert-danger py-2 small mb-3">{{ submitError }}</div>
@@ -463,13 +541,49 @@ async function handleOrderSubmit() {
 </template>
 
 <style scoped>
-.dc-list { display: grid; gap: 10px; }
+.co-doi-gia {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.82rem;
+}
+.dc-gon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.dc-gon.is-loi { border-color: #dc3545; }
+.dc-gon-icon { flex: none; color: #1d4ed8; font-size: 1.05rem; }
+.dc-gon-noi-dung { flex: 1; min-width: 0; line-height: 1.35; }
+.dc-gon-ten { font-weight: 700; font-size: 0.88rem; color: #0f172a; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.dc-gon .dc-addr { font-size: 0.82rem; }
+.dc-gon-nut {
+  flex: none;
+  padding: 3px 12px;
+  border: 1px solid #1d4ed8;
+  border-radius: 999px;
+  background: #fff;
+  color: #1d4ed8;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dc-gon-nut:hover { background: #1d4ed8; color: #fff; }
+.dc-list { display: grid; gap: 8px; }
 .dc-card {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
   border: 1.5px solid #e2e8f0;
   border-radius: 14px;
   background: #fff;

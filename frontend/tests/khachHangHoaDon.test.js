@@ -259,7 +259,9 @@ describe('Hóa đơn: bố cục chuẩn của trang quản lý, tab trạng th�
     // không có <select> nào dành cho số dòng mỗi trang
     expect(w.findAll('.ad-pager select')).toHaveLength(0)
     expect(w.find('select#hd-trang-thai').exists()).toBe(true)
-    expect(w.findAll('.s2-trigger').map((s) => s.attributes('id'))).toEqual(['hd-loai'])
+    // Review 05/11: ô lọc Loại đơn thay bằng 2 tab kênh bán
+    expect(w.findAll('.s2-trigger')).toHaveLength(0)
+    expect(w.findAll('.hd-kenh-tab').map((t) => t.text().trim())).toEqual([expect.stringContaining('Đơn tại quầy'), 'Đơn online'])
     w.unmount()
   })
 
@@ -430,11 +432,13 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
       await flushPromises()
       expect(w.find('#hd-tu-ngay').element.value).toBe('14/10/2026')
       expect(w.find('#hd-den-ngay').element.value).toBe('14/10/2026')
-      expect(goiDanhSach().length).toBe(truoc + 1)
+      expect(goiDanhSach().length).toBeGreaterThan(truoc)
       expect(goiDanhSach().at(-1)[1].params).toMatchObject({ tuNgay: '2026-10-14', denNgay: '2026-10-14', page: 0 })
-      // cùng ngày thì không tải lại thừa
+      // cùng ngày: chỉ còn các lần tự cập nhật ngầm (review 05/11, 10 giây / lần), vẫn đúng ngày mới, không đổi bộ lọc
+      const sau = goiDanhSach().length
       vi.advanceTimersByTime(5 * 60 * 1000); await flushPromises()
-      expect(goiDanhSach().length).toBe(truoc + 1)
+      expect(goiDanhSach().slice(sau).every((c) => c[1].params.tuNgay === '2026-10-14' && c[1].params.denNgay === '2026-10-14')).toBe(true)
+      expect(w.find('#hd-tu-ngay').element.value).toBe('14/10/2026')
       w.unmount()
     } finally {
       vi.useRealTimers()
@@ -459,7 +463,8 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
       vi.advanceTimersByTime(30 * 1000); await flushPromises()
       expect(w.find('#hd-tu-ngay').element.value).toBe('')
       expect(w.find('#hd-den-ngay').element.value).toBe('')
-      expect(goiDanhSach().length).toBe(truoc)
+      // chỉ có các lần tự cập nhật ngầm, vẫn giữ 2 ô ngày trống (không tự điền lại ngày)
+      expect(goiDanhSach().slice(truoc).every((c) => c[1].params.tuNgay === null && c[1].params.denNgay === null)).toBe(true)
       // Đặt lại bộ lọc lấy đúng ngày hiện tại lúc bấm
       await w.findAll('button').find((b) => b.text().includes('Đặt lại bộ lọc')).trigger('click'); await flushPromises()
       expect(w.find('#hd-tu-ngay').element.value).toBe('15/10/2026')
@@ -505,13 +510,22 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
     }
   })
 
-  it('đổi loại đơn thì tự lọc, không cần bấm nút tìm', async () => {
+  // Review 05/11: chia 2 tab đơn tại quầy / đơn online (lọc theo kênh bán ở máy chủ, không theo cột loại đơn)
+  it('mặc định tab Đơn tại quầy; bấm tab Đơn online thì tự lọc kenh=ONLINE, về tất cả trạng thái và nhớ tab', async () => {
+    sessionStorage.clear()
     moApi()
     const w = await moTrang()
-    await datSelect2(w, '#hd-loai', '2')
+    expect(goiDanhSach().at(-1)[1].params).toMatchObject({ kenh: 'TAI_QUAY' })
+    expect(api.get.mock.calls.find((c) => c[0] === '/hoa-don/dem-trang-thai')[1].params.kenh).toBe('TAI_QUAY')
+    await w.find('#hd-trang-thai').setValue('6')
     await flushPromises()
-    expect(goiDanhSach().at(-1)[1].params.loaiDon).toBe('2')
+    await w.find('[data-kenh="ONLINE"]').trigger('click')
+    await flushPromises()
+    expect(goiDanhSach().at(-1)[1].params).toMatchObject({ kenh: 'ONLINE', trangThai: null, page: 0 })
+    expect(w.findAll('.ad-card-title').map((t) => t.text())).toContain('Danh sách đơn online')
+    expect(sessionStorage.getItem('footstyle_hoa_don_kenh')).toBe('ONLINE')
     w.unmount()
+    sessionStorage.clear()
   })
 
   it('CSS trang hóa đơn không ép lại cỡ chữ / chiều cao ô / bảng của trang chung', () => {

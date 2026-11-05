@@ -41,13 +41,13 @@ describe('Quy tắc công tắc theo khoảng ngày giờ (hàm thuần)', () =>
     expect(tinhTrangThai(cu, '2026-10-08')).toBe('SAP_DIEN_RA')
     expect(tinhTrangThai(cu, '2026-10-09')).toBe('DANG_HOAT_DONG')
   })
-  it('từ 16/10: công tắc bật = "Đã kết thúc", công tắc tắt = "Ngưng hoạt động"', () => {
+  it('từ 16/10: công tắc bật = "Đã kết thúc", công tắc tắt = "Ngừng hoạt động"', () => {
     expect(tinhTrangThai(phieu({ hoatDong: true }), '2026-10-16T00:00:00')).toBe('DA_KET_THUC')
     expect(tinhTrangThai(phieu({ hoatDong: true }), '2027-01-01T00:00:00')).toBe('DA_KET_THUC')
     expect(tinhTrangThai(phieu({ hoatDong: false }), '2026-10-16T00:00:00')).toBe('NGUNG_HOAT_DONG')
     expect(tinhTrangThai(phieu({ hoatDong: false }), '2027-01-01T00:00:00')).toBe('NGUNG_HOAT_DONG')
   })
-  it('trước 16/10: sắp diễn ra / đang hoạt động / ngưng hoạt động', () => {
+  it('trước 16/10: sắp diễn ra / đang diễn ra / ngừng hoạt động', () => {
     expect(tinhTrangThai(phieu(), '2026-10-08T23:59:59')).toBe('SAP_DIEN_RA')
     expect(tinhTrangThai(phieu(), '2026-10-09T00:00:00')).toBe('DANG_HOAT_DONG')
     expect(tinhTrangThai(phieu(), '2026-10-15T12:00:00')).toBe('DANG_HOAT_DONG')
@@ -81,8 +81,8 @@ describe('Danh sách phiếu giảm giá: công tắc và trạng thái', () => 
     const w = await montarDanhSach([2026, 10, 15])
     expect(dong(w, 'VCHBAT01').find('button[role="switch"]').exists()).toBe(true)
     expect(dong(w, 'VCHTAT02').find('button[role="switch"]').exists()).toBe(true)
-    expect(dong(w, 'VCHBAT01').text()).toContain('Đang hoạt động')
-    expect(dong(w, 'VCHTAT02').text()).toContain('Ngưng hoạt động')
+    expect(dong(w, 'VCHBAT01').text()).toContain('Đang diễn ra')
+    expect(dong(w, 'VCHTAT02').text()).toContain('Ngừng hoạt động')
     w.unmount()
   })
 
@@ -97,8 +97,8 @@ describe('Danh sách phiếu giảm giá: công tắc và trạng thái', () => 
       expect(sw.attributes('title'), `${ma} có chú thích`).toContain('Đã kết thúc')
     }
     expect(dong(w, 'VCHBAT01').text()).toContain('Đã kết thúc')
-    expect(dong(w, 'VCHBAT01').text()).not.toContain('Đang hoạt động')
-    expect(dong(w, 'VCHTAT02').text()).toContain('Ngưng hoạt động')
+    expect(dong(w, 'VCHBAT01').text()).not.toContain('Đang diễn ra')
+    expect(dong(w, 'VCHTAT02').text()).toContain('Ngừng hoạt động')
     expect(dong(w, 'VCHTAT02').text()).not.toContain('Đã kết thúc')
     w.unmount()
   })
@@ -135,7 +135,7 @@ describe('Danh sách phiếu giảm giá: công tắc và trạng thái', () => 
     await flushPromises()
     expect(mock.api.put).toHaveBeenCalledTimes(1)
     expect(mock.api.put.mock.calls[0][0]).toBe('/phieu-giam-gia/1/trang-thai')
-    expect(dong(w, 'VCHBAT01').text()).toContain('Ngưng hoạt động')
+    expect(dong(w, 'VCHBAT01').text()).toContain('Ngừng hoạt động')
     w.unmount()
   })
 

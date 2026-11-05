@@ -64,7 +64,7 @@ public class ThanhToanGiaLapController {
     }
 
     private Map<String, Object> thongTin(String ma) {
-        Map<String, Object> don = cuaHangService.traCuuDonHang(ma, null);
+        Map<String, Object> don = cuaHangService.xemDonNoiBo(ma);
         BigDecimal thanhTien = don.get("thanhTien") instanceof BigDecimal b ? b : BigDecimal.ZERO;
         BigDecimal daTra = don.get("daTra") instanceof BigDecimal b ? b : BigDecimal.ZERO;
         long conLai = Math.max(0, thanhTien.subtract(daTra).longValue());

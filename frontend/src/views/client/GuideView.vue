@@ -196,7 +196,7 @@ watch(
       </div>
 
       <div class="p-3 bg-primary-subtle rounded-3 text-dark small border-start border-4 border-primary">
-        <strong>Chính sách giao hàng:</strong> Miễn phí vận chuyển toàn quốc cho tất cả đơn hàng từ <strong>500.000₫</strong>. Với các đơn hàng dưới 500.000₫, phí ship đồng giá 30.000₫.
+        <strong>Chính sách giao hàng:</strong> Miễn phí vận chuyển toàn quốc cho tất cả đơn hàng từ <strong>1.000.000₫</strong>. Với các đơn hàng dưới 1.000.000₫, phí ship đồng giá 30.000₫.
       </div>
     </div>
 
