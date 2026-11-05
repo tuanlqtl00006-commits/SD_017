@@ -15,6 +15,7 @@ import { useAuth } from '../../composables/useAuth'
 import { formatDate, todayIso } from '../../utils/format'
 import { xuatLichTuan } from '../../utils/mauLichLamViec'
 import { congNgayIso, demTheoCa, gomLich, mauCa, ngayTrongTuan, nhanTuan, thu2CuaTuan } from '../../utils/lichTuan'
+import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
 const toast = useToast()
 const laQuanLy = useAuth().laQuanLy
@@ -56,6 +57,16 @@ onMounted(async () => {
   }
   await taiLich()
 })
+// Máy khác xếp / sửa lịch, đổi ca, đánh dấu thu ngân: cập nhật ngay (giữ tuần đang xem)
+async function taiLichNgam() {
+  if (!laQuanLy.value || dangTai.value) return
+  const tuan = thu2.value
+  const [dsCa, ds] = await Promise.all([lichLamViecService.dsCa(), lichLamViecService.lich(tuan, congNgayIso(tuan, 6))])
+  if (tuan !== thu2.value || dangTai.value) return
+  cas.value = dsCa
+  lich.value = ds
+}
+useAutoRefresh(taiLichNgam, 3000, { chuKyMs: 0, chuDe: ['lich-lam-viec'] })
 
 function doiTuan(soTuan) {
   thu2.value = soTuan === 0 ? thu2CuaTuan(todayIso()) : congNgayIso(thu2.value, soTuan * 7)

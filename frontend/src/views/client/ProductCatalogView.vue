@@ -6,6 +6,7 @@ import { cuaHangService } from '../../services/cuaHangService'
 import { dotGiamGiaService } from '../../services/dotGiamGiaService'
 import { thuocTinhService } from '../../services/thuocTinhService'
 import { formatMoney } from '../../utils/format'
+import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
 const route = useRoute()
 const router = useRouter()
@@ -299,6 +300,14 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+// Giá / tồn kho / sản phẩm mới đổi ở quầy hoặc trang quản trị: cập nhật danh sách ngay, giữ nguyên bộ lọc đang chọn
+async function taiNgam() {
+  if (loading.value) return
+  const ds = await cuaHangService.getDanhSachSanPham()
+  if (Array.isArray(ds) && ds.length) products.value = ds
+}
+useAutoRefresh(taiNgam, 3000, { chuKyMs: 30_000, chuDe: ['san-pham', 'ton-kho', 'giam-gia'] })
 
 function selectCategory(catKey) {
   currentCategory.value = catKey

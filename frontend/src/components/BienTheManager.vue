@@ -161,7 +161,7 @@ onMounted(load)
 
 // Luôn lấy dữ liệu mới nhất từ server khi: đổi bộ lọc trạng thái (vd sang xem mục đã ẩn) và khi quay lại tab trình duyệt.
 watch(() => filters.trangThai, () => load(false, true))
-useAutoRefresh(() => load(false, true))
+useAutoRefresh(() => load(false, true), 3000, { chuDe: ['san-pham', 'ton-kho', 'giam-gia'] })
 
 // Đổi trạng thái xong thì cập nhật ngay dòng đó bằng dữ liệu server vừa trả về (không chờ tải lại cả danh sách).
 function patchRow(daDoi) {

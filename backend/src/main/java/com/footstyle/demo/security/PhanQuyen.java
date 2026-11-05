@@ -21,6 +21,7 @@ public final class PhanQuyen {
             "/api/uploads",            // ảnh sản phẩm / ảnh đại diện (thẻ <img> không gửi kèm token)
             "/api/ho-tro/khach",       // khung chat của khách (bảo vệ bằng mã truy cập riêng của từng hội thoại)
             "/api/cua-hang",           // Bán hàng online (khách xem sản phẩm, đặt hàng, tra cứu)
+            "/api/su-kien",            // kênh báo thay đổi dữ liệu (chỉ tên chủ đề; EventSource không gửi kèm token được)
             "/api/test-connection");
 
     /** Không cần đăng nhập, chỉ đúng phương thức. */

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { baoChuaVaoCa, baoHetPhien, baoVaiTro, layToken } from './phien';
+import { TAB_ID, TIEU_DE_TAB } from './suKien';
 
 const api = axios.create({
     baseURL: '/api', // Dùng proxy trong vite.config.js để chuyển hướng sang http://localhost:8081/api
@@ -15,6 +16,9 @@ api.interceptors.request.use((config) => {
         config.headers = config.headers ?? {};
         config.headers.Authorization = `Bearer ${token}`;
     }
+    // Mã tab: backend báo thay đổi kèm mã này để chính tab vừa ghi không tải lại thừa (services/suKien.js)
+    config.headers = config.headers ?? {};
+    config.headers[TIEU_DE_TAB] = TAB_ID;
     return config;
 });
 

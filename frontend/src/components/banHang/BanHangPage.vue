@@ -24,6 +24,7 @@ import { formatPhanTram } from '../../utils/giamGia'
 import { loiSdt } from '../../utils/kiemTra'
 import { taoHtmlHoaDon } from '../../utils/hoaDonIn'
 import { SO_LUONG_TOI_DA, chuoiVietQR, dangGiamTheoDot, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
+import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
 const DON_VI_VAN_CHUYEN = 'Giao Hàng Nhanh'
 
@@ -83,6 +84,15 @@ async function taiHoaDonCho() {
     daTaiCho.value = true
   }
 }
+
+// Hóa đơn chờ đổi ở cửa sổ / máy khác (thêm, bỏ, thanh toán): cập nhật ngay, không cần F5
+async function taiChoNgam() {
+  const ds = (await api.get('/ban-hang/hoa-don-cho')).data || []
+  dsCho.value = ds
+  for (const h of ds) if (!phu[h.id]) phu[h.id] = phuMoi()
+  if (!ds.some((h) => h.id === dangChon.value)) dangChon.value = ds[0]?.id ?? null
+}
+useAutoRefresh(taiChoNgam, 3000, { chuKyMs: 0, chuDe: ['hoa-don'], coTheTai: () => daTaiCho.value && !dangGui.value })
 
 /** Lỗi khi thao tác hóa đơn chờ: hóa đơn đã đóng ở cửa sổ khác thì tải lại danh sách. */
 function baoLoiCho(e, macDinh) {

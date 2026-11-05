@@ -77,7 +77,7 @@ onMounted(load)
 
 // Luôn lấy dữ liệu mới nhất từ server khi: đổi bộ lọc trạng thái (vd sang xem nhân viên đã nghỉ) và khi quay lại tab trình duyệt.
 watch(() => filters.trangThai, () => load(false, true))
-useAutoRefresh(() => load(false, true))
+useAutoRefresh(() => load(false, true), 3000, { chuDe: ['nhan-vien'] })
 
 // Đổi trạng thái xong thì cập nhật ngay dòng đó bằng dữ liệu server vừa trả về (không chờ tải lại cả danh sách).
 function patchRow(daDoi) {

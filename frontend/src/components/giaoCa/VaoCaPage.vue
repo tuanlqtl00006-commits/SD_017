@@ -10,6 +10,7 @@ import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
 import { duongDanQuayLaiAnToan } from '../../services/phien'
 import { formatMoney, formatNgayGio } from '../../utils/format'
+import { useSuKien } from '../../composables/useSuKien'
 
 const TIEN_TOI_DA = 1_000_000_000
 const route = useRoute()
@@ -104,6 +105,10 @@ onMounted(() => {
   }, CHU_KY_KIEM_TRA_MS)
 })
 onBeforeUnmount(() => clearInterval(henGio))
+// Người ca trước vừa giao ca / thu ngân vừa mở ca / quản lý vừa xếp lịch: cập nhật ngay, không chờ 10 giây
+useSuKien(['giao-ca'], () => {
+  if (!dangGui.value) taiLai()
+})
 watch(
   () => trangThai.caKhacDangMo,
   (moi, cu) => {

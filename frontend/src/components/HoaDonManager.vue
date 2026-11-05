@@ -189,7 +189,7 @@ onMounted(() => {
 })
 // Quay lại tab: kiểm tra ngày trước (đổi ngày thì watch tải lại), không đổi thì tải lại lặng lẽ như cũ
 // Tự tải ngầm 10 giây một lần (đơn online mới, đơn vừa đổi trạng thái hiện ra không cần F5); giữ trang / bộ lọc / tab đang xem
-useAutoRefresh(() => (capNhatNgayHienTai() ? undefined : load(true)))
+useAutoRefresh(() => (capNhatNgayHienTai() ? undefined : load(true)), 3000, { chuDe: ['hoa-don'] })
 
 const resetFilters = () => {
   Object.assign(filters, defaultFilters())

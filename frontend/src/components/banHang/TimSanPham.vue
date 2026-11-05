@@ -9,6 +9,7 @@ import Select2 from '../common/Select2.vue'
 import QuetMaModal from './QuetMaModal.vue'
 import { formatMoney } from '../../utils/format'
 import { formatPhanTram } from '../../utils/giamGia'
+import { useSuKien } from '../../composables/useSuKien'
 
 // trongHop: hiện trong hộp thoại 'Chọn sản phẩm' của màn bán hàng (không có khung thẻ / tiêu đề / ô quét mã riêng)
 const props = defineProps({ trongHop: { type: Boolean, default: false } })
@@ -36,28 +37,35 @@ const loiGia = computed(() =>
 const luaChon = (ds, tatCa) => [{ value: '', label: tatCa }, ...(ds || []).map((x) => ({ value: x.id, label: x.ten }))]
 const coLoc = computed(() => Object.values(loc).some((v) => v !== ''))
 
-async function tai() {
+let lanTai = 0 // chỉ nhận kết quả của lần tải mới nhất (gõ tìm và tải ngầm cùng lúc không đè nhau)
+async function tai(ngam = false) {
   if (loiGia.value) return
-  dangTai.value = true
-  loi.value = ''
+  const lan = ++lanTai
+  if (!ngam) {
+    dangTai.value = true
+    loi.value = ''
+  }
   try {
     const params = { trang: trang.value - 1, kichThuoc: KICH_THUOC }
     for (const [k, v] of Object.entries(loc)) if (v !== '' && v !== null) params[k] = typeof v === 'string' ? v.trim() || undefined : v
     const res = (await api.get('/ban-hang/san-pham/loc', { params })).data
+    if (lan !== lanTai) return
     ds.value = res.items || []
     tongSo.value = res.tongSo || 0
     if (res.boLoc) boLoc.value = res.boLoc
     if (res.trang !== undefined && res.trang + 1 !== trang.value) trang.value = res.trang + 1
   } catch (e) {
-    loi.value = e.message || 'Không tải được sản phẩm.'
+    if (lan === lanTai && !ngam) loi.value = e.message || 'Không tải được sản phẩm.'
   } finally {
-    dangTai.value = false
+    if (lan === lanTai) dangTai.value = false
   }
 }
 onMounted(() => {
   tai()
   if (props.trongHop) setTimeout(() => oTim.value?.focus(), 50)
 })
+// Quầy khác / đơn online / trang quản trị vừa đổi tồn kho, giá: cập nhật bảng ngay (kể cả khi hộp chọn đang mở), số lượng đang nhập giữ nguyên
+useSuKien(['ton-kho', 'san-pham', 'giam-gia'], () => tai(true))
 watch(
   () => ({ ...loc }),
   () => {
@@ -115,7 +123,7 @@ function onMaCamera(giaTri) {
 }
 
 /** Sau khi thêm / bỏ sản phẩm, thanh toán: tải lại để tồn kho mới nhất. */
-defineExpose({ taiLai: tai, focusTim: () => oTim.value?.focus() })
+defineExpose({ taiLai: () => tai(), focusTim: () => oTim.value?.focus() })
 </script>
 
 <template>

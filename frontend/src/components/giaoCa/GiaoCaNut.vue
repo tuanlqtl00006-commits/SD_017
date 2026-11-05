@@ -4,6 +4,7 @@
 import { onMounted, ref } from 'vue'
 import GiaoCaModal from './GiaoCaModal.vue'
 import { useGiaoCa } from '../../composables/useGiaoCa'
+import { useSuKien } from '../../composables/useSuKien'
 
 const { trangThai, dangTrongCa, quaGioCa, taiLai } = useGiaoCa()
 const mo = ref(false)
@@ -11,6 +12,8 @@ const mo = ref(false)
 onMounted(() => {
   if (!trangThai.daTai) taiLai()
 })
+// Thu ngân / người khác vừa nhận ca, giao ca, xếp lịch: trạng thái ca (và màn bán hàng) cập nhật ngay, không cần F5
+useSuKien(['giao-ca'], taiLai)
 </script>
 
 <template>

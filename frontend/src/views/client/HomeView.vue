@@ -7,6 +7,7 @@ import { dotGiamGiaService } from '../../services/dotGiamGiaService'
 import { useCartStore } from '../../stores/cart'
 import { useAuth } from '../../composables/useAuth'
 import { formatMoney } from '../../utils/format'
+import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -240,6 +241,14 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+// Giá / tồn kho / sản phẩm mới đổi ở quầy hoặc trang quản trị: cập nhật ngay, không cần F5
+async function taiNgam() {
+  if (loading.value) return
+  const ds = await cuaHangService.getDanhSachSanPham()
+  if (Array.isArray(ds) && ds.length) products.value = ds
+}
+useAutoRefresh(taiNgam, 3000, { chuKyMs: 30_000, chuDe: ['san-pham', 'ton-kho', 'giam-gia'] })
 
 onUnmounted(() => {
   if (countdownTimer) clearInterval(countdownTimer)

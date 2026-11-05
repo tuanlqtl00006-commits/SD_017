@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { cuaHangService } from '../../services/cuaHangService'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
+import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
 const route = useRoute()
 const router = useRouter()
@@ -77,6 +78,23 @@ async function loadProductDetail(id) {
 onMounted(() => {
   loadProductDetail(Number(route.params.id))
 })
+
+// Tồn kho / giá / ảnh đổi ở quầy hoặc trang quản trị: cập nhật ngay, giữ nguyên màu - trọng lượng - chu vi - số lượng khách đang chọn
+async function taiNgam() {
+  const id = Number(route.params.id)
+  if (!id || !product.value || loading.value) return
+  const res = await cuaHangService.getChiTietSanPham(id)
+  if (Number(route.params.id) !== id || !res?.product) return
+  product.value = res.product
+  variants.value = res.variants || []
+  discounts.value = res.discounts || {}
+  colors.value = res.colors || []
+  weights.value = res.weights || []
+  grips.value = res.grips || []
+  const anh = [res.product.anhChinh, ...(res.product.danhSachAnh || [])]
+  if (!anh.includes(activeImage.value)) activeImage.value = res.product.anhChinh || res.product.danhSachAnh?.[0] || ''
+}
+useAutoRefresh(taiNgam, 3000, { chuKyMs: 30_000, chuDe: ['san-pham', 'ton-kho', 'giam-gia'] })
 
 watch(
   () => route.params.id,

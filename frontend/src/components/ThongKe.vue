@@ -82,7 +82,7 @@ async function load(ngam = false) {
 }
 onMounted(() => load())
 // Thống kê tải nhiều đơn nên tự cập nhật 30 giây một lần (vẫn tải lại ngay khi quay lại tab)
-useAutoRefresh(() => load(true), 3000, { chuKyMs: 30_000 })
+useAutoRefresh(() => load(true), 3000, { chuKyMs: 30_000, chuDe: ['hoa-don'] })
 
 function chonMoc(m) {
   mocChon.value = m.ma

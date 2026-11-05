@@ -105,7 +105,7 @@ function datLaiBoLoc() {
 
 // Luôn lấy dữ liệu mới nhất từ server khi: đổi bộ lọc trạng thái (vd sang xem sản phẩm đã ngưng) và khi quay lại tab trình duyệt.
 watch(() => filters.trangThai, () => taiDuLieu(false, true))
-useAutoRefresh(() => taiDuLieu(false, true))
+useAutoRefresh(() => taiDuLieu(false, true), 3000, { chuDe: ['san-pham', 'ton-kho', 'giam-gia'] })
 
 // Mỗi sản phẩm thêm thông tin tính từ biến thể: số biến thể, tổng tồn kho, giá thấp nhất và cao nhất.
 // computed: tự tính lại mỗi khi danhSachSanPham hoặc danhSachBienThe thay đổi.

@@ -74,7 +74,7 @@ async function load(showLoading = true, quiet = false) {
   }
 }
 onMounted(load)
-useAutoRefresh(() => load(false, true))
+useAutoRefresh(() => load(false, true), 3000, { chuDe: ['khach-hang', 'hoa-don'] })
 
 /* ----- Địa chỉ mặc định hiển thị ở bảng ----- */
 function diaChiMacDinh(k) {

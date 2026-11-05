@@ -59,6 +59,7 @@ async function taiNgam() {
   }
 }
 useAutoRefresh(taiNgam, 3000, {
+  chuDe: ['hoa-don'],
   coTheTai: () => !action.open && !action.saving && !moSuaDon.value && !showLichSu.value && !showQrModal.value && !dangXacNhanTt.value,
 })
 

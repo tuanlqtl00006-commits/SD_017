@@ -17,6 +17,7 @@ import { useToast } from '../../composables/useToast'
 import { formatMoney, formatNgayGio, todayIso } from '../../utils/format'
 import { inBienBanGiaoCa, moTaChenhLech, thoiLuong } from '../../utils/giaoCa'
 import { congNgayIso } from '../../utils/lichTuan'
+import { useSuKien } from '../../composables/useSuKien'
 
 const toast = useToast()
 const auth = useAuth()
@@ -84,6 +85,8 @@ async function lamMoiNgam() {
 const khiTabHienLai = () => {
   if (!document.hidden) lamMoiNgam()
 }
+// Nhận ca / giao ca / bán hàng ở quầy: cập nhật ngay, không chờ 10 giây
+useSuKien(['giao-ca', 'hoa-don'], lamMoiNgam)
 onMounted(async () => {
   if (auth.laQuanLy.value) {
     try {

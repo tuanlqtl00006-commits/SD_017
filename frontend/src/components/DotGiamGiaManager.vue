@@ -79,7 +79,7 @@ async function load(showLoading = true, quiet = false) {
   }
 }
 onMounted(load)
-useAutoRefresh(() => load(false, true))
+useAutoRefresh(() => load(false, true), 3000, { chuDe: ['giam-gia'] })
 
 function patchRow(daDoi) {
   if (!daDoi || daDoi.id === undefined) return
