@@ -78,6 +78,14 @@ public class NhanVienController {
         return service.doiTrangThai(id);
     }
 
+    /** Đổi vai trò nhanh (vd: Bán hàng <-> Thu ngân ngay trên màn hình xếp lịch). */
+    @PutMapping("/{id}/vai-tro")
+    public NhanVienResponse doiVaiTro(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
+        Integer idVaiTro = body != null && body.get("idVaiTro") != null ? ((Number) body.get("idVaiTro")).intValue() : null;
+        String tenVaiTro = body != null && body.get("tenVaiTro") != null ? String.valueOf(body.get("tenVaiTro")) : null;
+        return service.doiVaiTro(id, idVaiTro, tenVaiTro);
+    }
+
     /** Đổi mật khẩu cho nhân viên (nhân viên tự đổi sau khi đăng nhập). */
     @PutMapping("/{id}/doi-mat-khau")
     public ResponseEntity<Void> doiMatKhau(@PathVariable Integer id, @RequestBody Map<String, String> body) {

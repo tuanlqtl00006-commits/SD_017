@@ -226,7 +226,8 @@ const kpi = computed(() => {
     },
     {
       label: 'Đơn hoàn thành',
-      value: `${a.hoanThanh}/${a.tongDon}`,
+      value: `${a.hoanThanh}/${a.tongDon} đơn`,
+      title: `${a.hoanThanh} đơn hoàn thành trên tổng số ${a.tongDon} đơn hàng phát sinh`,
       icon: 'bi-check2-circle',
       tone: 'green',
       note: a.hoanThanh ? `${pct(a.tyLeHoanThanh)} tổng đơn · TB ${formatMoney(a.trungBinh)}/đơn` : 'Chưa có đơn hoàn thành',
@@ -234,7 +235,8 @@ const kpi = computed(() => {
     },
     {
       label: 'Đơn đã hủy',
-      value: a.huy,
+      value: `${a.huy} đơn`,
+      title: `${a.huy} đơn đã bị hủy`,
       icon: 'bi-x-circle',
       tone: 'rose',
       note: a.tongDon ? `${pct(a.tyLeHuy)} tổng đơn` : 'Chưa có đơn',
@@ -423,6 +425,58 @@ const theoPt = computed(() => {
   return ds.map((x) => ({ ...x, pct: phanTram(x.soTien, tong) }))
 })
 const tongTienPt = computed(() => theoPt.value.reduce((s, x) => s + (Number(x.soTien) || 0), 0))
+
+const laTienMat = (p) => {
+  const ma = String(p?.ma || '').toUpperCase()
+  const ten = boDau(p?.ten || '')
+  return ma === 'PT01' || ten.includes('tien mat')
+}
+
+const laChuyenKhoan = (p) => {
+  const ma = String(p?.ma || '').toUpperCase()
+  const ten = boDau(p?.ten || '')
+  return (
+    ma === 'PT02' ||
+    ma === 'PT04' ||
+    ten.includes('chuyen khoan') ||
+    ten.includes('ngan hang') ||
+    ten.includes('vnpay') ||
+    ten.includes('vietqr') ||
+    ten.includes('qr')
+  )
+}
+
+const laCod = (p) => {
+  const ma = String(p?.ma || '').toUpperCase()
+  const ten = boDau(p?.ten || '')
+  return ma === 'PT03' || ten.includes('cod') || ten.includes('nhan hang')
+}
+
+const tongTienMat = computed(() => theoPt.value.filter(laTienMat).reduce((s, x) => s + (Number(x.soTien) || 0), 0))
+const tongSoDonTienMat = computed(() => theoPt.value.filter(laTienMat).reduce((s, x) => s + (Number(x.soDon) || 0), 0))
+const tyLeTienMat = computed(() => (tongTienPt.value > 0 ? phanTram(tongTienMat.value, tongTienPt.value) : 0))
+
+const tongChuyenKhoan = computed(() => theoPt.value.filter(laChuyenKhoan).reduce((s, x) => s + (Number(x.soTien) || 0), 0))
+const tongSoDonChuyenKhoan = computed(() => theoPt.value.filter(laChuyenKhoan).reduce((s, x) => s + (Number(x.soDon) || 0), 0))
+const tyLeChuyenKhoan = computed(() => (tongTienPt.value > 0 ? phanTram(tongChuyenKhoan.value, tongTienPt.value) : 0))
+
+const tongCod = computed(() => theoPt.value.filter((p) => !laTienMat(p) && !laChuyenKhoan(p)).reduce((s, x) => s + (Number(x.soTien) || 0), 0))
+const tongSoDonCod = computed(() => theoPt.value.filter((p) => !laTienMat(p) && !laChuyenKhoan(p)).reduce((s, x) => s + (Number(x.soDon) || 0), 0))
+const tyLeCod = computed(() => (tongTienPt.value > 0 ? phanTram(tongCod.value, tongTienPt.value) : 0))
+
+function layIconPhuongThuc(p) {
+  if (laTienMat(p)) return 'bi bi-cash-stack text-success'
+  if (laChuyenKhoan(p)) return 'bi bi-credit-card-2-front-fill text-primary'
+  if (laCod(p)) return 'bi bi-box-seam-fill text-secondary'
+  return 'bi bi-wallet2 text-dark'
+}
+
+function layMauPhuongThuc(p) {
+  if (laTienMat(p)) return 'bg-success'
+  if (laChuyenKhoan(p)) return 'bg-primary'
+  if (laCod(p)) return 'bg-secondary'
+  return 'bg-info'
+}
 const theoCa = computed(() => {
   const ds = Array.isArray(gd3.value.theoCa) ? gd3.value.theoCa : []
   const max = Math.max(1, ...ds.map((x) => Number(x.doanhThu) || 0))
@@ -492,6 +546,8 @@ function xuatExcel() {
         { stt: 2, nhom: 'Bộ lọc', ten: 'Thương hiệu / Từ khóa lọc', gt: thuongHieuChon.value || 'Tất cả thương hiệu', truoc: tuKhoaSp.value || 'Không lọc', bienDong: '—', ghiChu: 'Điều kiện lọc chi tiết theo thương hiệu và sản phẩm' },
         { _isSection: true, title: '2. CHỈ SỐ TỔNG DOANH THU & GIÁ TRỊ ĐƠN HÀNG (VNĐ)' },
         { stt: 3, nhom: 'Doanh thu', ten: 'Tổng doanh thu thực tế', gt: a.doanhThu, truoc: b ? b.doanhThu : '—', bienDong: bienDong(a.doanhThu, b?.doanhThu), ghiChu: 'Chỉ tính đơn đã hoàn thành, không bao gồm phí vận chuyển' },
+        { stt: '3a', nhom: 'Doanh thu', ten: '• Trong đó: Doanh thu tiền mặt', gt: tongTienMat.value, truoc: '—', bienDong: '—', ghiChu: `${tongSoDonTienMat.value} đơn thanh toán tiền mặt (${pctGon(tyLeTienMat.value)})` },
+        { stt: '3b', nhom: 'Doanh thu', ten: '• Trong đó: Doanh thu chuyển khoản', gt: tongChuyenKhoan.value, truoc: '—', bienDong: '—', ghiChu: `${tongSoDonChuyenKhoan.value} đơn thanh toán chuyển khoản (${pctGon(tyLeChuyenKhoan.value)})` },
         { stt: 4, nhom: 'Doanh thu', ten: 'Tổng doanh thu dự kiến', gt: a.doanhThuDuKien, truoc: b ? b.doanhThuDuKien : '—', bienDong: bienDong(a.doanhThuDuKien, b?.doanhThuDuKien), ghiChu: 'Gồm mọi đơn hợp lệ chưa hủy (đang xử lý, đang giao, hoàn thành)' },
         { stt: 5, nhom: 'Doanh thu', ten: 'Doanh thu đang xử lý / chờ thu', gt: Math.max(0, a.doanhThuDuKien - a.doanhThu), truoc: b ? Math.max(0, b.doanhThuDuKien - b.doanhThu) : '—', bienDong: '—', ghiChu: 'Phần chênh lệch giữa doanh thu dự kiến và doanh thu thực tế' },
         { stt: 6, nhom: 'Hiệu quả đơn', ten: 'Giá trị trung bình / đơn hoàn thành', gt: a.trungBinh, truoc: b ? b.trungBinh : '—', bienDong: bienDong(a.trungBinh, b?.trungBinh), ghiChu: 'Tổng doanh thu thực tế chia cho tổng số đơn hoàn thành' },
@@ -571,8 +627,39 @@ function xuatExcel() {
       },
     },
     {
+      sheetName: 'Phương thức thanh toán',
+      title: 'IV. DOANH THU THEO PHƯƠNG THỨC THANH TOÁN',
+      subtitle: phuDeChung,
+      columns: [
+        C('STT', 'stt', 8, { align: 'center' }),
+        C('Phương thức thanh toán', 'ten', 28),
+        C('Số đơn hoàn thành', 'so', 20, { number: true }),
+        C('Doanh thu thực tế (₫)', 'v', 24, { money: true }),
+        C('Giá trị TB / đơn (₫)', 'tb', 22, { money: true }),
+        C('Tỷ trọng DT (%)', 'pct', 18, { align: 'right' }),
+      ],
+      rows: theoPt.value.map((p, idx) => ({
+        stt: idx + 1,
+        ten: p.ten,
+        so: Number(p.soDon) || 0,
+        v: Number(p.soTien) || 0,
+        tb: p.soDon > 0 ? Math.round(p.soTien / p.soDon) : 0,
+        pct: pctGon(p.pct),
+      })),
+      totalRow: {
+        stt: '',
+        ten: 'TỔNG CỘNG',
+        so: theoPt.value.reduce((s, x) => s + (Number(x.soDon) || 0), 0),
+        v: tongTienPt.value,
+        tb: theoPt.value.reduce((s, x) => s + (Number(x.soDon) || 0), 0) > 0
+          ? Math.round(tongTienPt.value / theoPt.value.reduce((s, x) => s + (Number(x.soDon) || 0), 0))
+          : 0,
+        pct: tongTienPt.value > 0 ? '100%' : '0%',
+      },
+    },
+    {
       sheetName: 'Theo loại đơn',
-      title: 'IV. DOANH THU THEO KÊNH / LOẠI ĐƠN HÀNG',
+      title: 'V. DOANH THU THEO KÊNH / LOẠI ĐƠN HÀNG',
       subtitle: phuDeChung,
       columns: [
         C('STT', 'stt', 8, { align: 'center' }),
@@ -875,9 +962,60 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
     <!-- 4 chỉ số tổng quan -->
     <div class="row g-3">
       <div v-for="k in kpi" :key="k.label" class="col-12 col-sm-6 col-xl-3">
-        <section class="ad-card tk-kpi-card h-100 mb-0" data-test="tk-kpi">
+        <section class="ad-card tk-kpi-card h-100 mb-0" data-test="tk-kpi" :title="k.title || k.label">
           <div class="tk-kpi-label">{{ k.label }}</div>
           <div class="tk-kpi-value">{{ loading ? '…' : k.value }}</div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Phân tách rõ ràng doanh thu Tiền mặt & Doanh thu Chuyển khoản -->
+    <div class="row g-3" data-test="tk-pt-tong-quan">
+      <div :class="tongCod > 0 ? 'col-12 col-md-4' : 'col-12 col-md-6'">
+        <section class="ad-card tk-kpi-sub-card is-tien-mat h-100 mb-0">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tk-kpi-sub-icon text-success"><i class="bi bi-cash-stack" aria-hidden="true"></i></span>
+              <span class="tk-kpi-sub-label">Doanh thu tiền mặt</span>
+            </div>
+            <span v-if="tongTienPt > 0" class="badge bg-success-subtle text-success fw-semibold">{{ pctGon(tyLeTienMat) }}</span>
+          </div>
+          <div class="tk-kpi-sub-val text-success">{{ dangTaiGd3 ? '…' : formatMoney(tongTienMat) }}</div>
+          <div class="tk-kpi-sub-desc text-muted small">
+            {{ tongSoDonTienMat ? `${tongSoDonTienMat} đơn thanh toán tiền mặt` : 'Chưa có đơn tiền mặt' }}
+          </div>
+        </section>
+      </div>
+
+      <div :class="tongCod > 0 ? 'col-12 col-md-4' : 'col-12 col-md-6'">
+        <section class="ad-card tk-kpi-sub-card is-chuyen-khoan h-100 mb-0">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tk-kpi-sub-icon text-primary"><i class="bi bi-credit-card-2-front-fill" aria-hidden="true"></i></span>
+              <span class="tk-kpi-sub-label">Doanh thu chuyển khoản</span>
+            </div>
+            <span v-if="tongTienPt > 0" class="badge bg-primary-subtle text-primary fw-semibold">{{ pctGon(tyLeChuyenKhoan) }}</span>
+          </div>
+          <div class="tk-kpi-sub-val text-primary">{{ dangTaiGd3 ? '…' : formatMoney(tongChuyenKhoan) }}</div>
+          <div class="tk-kpi-sub-desc text-muted small">
+            {{ tongSoDonChuyenKhoan ? `${tongSoDonChuyenKhoan} đơn thanh toán chuyển khoản` : 'Chưa có đơn chuyển khoản' }}
+          </div>
+        </section>
+      </div>
+
+      <div v-if="tongCod > 0" class="col-12 col-md-4">
+        <section class="ad-card tk-kpi-sub-card is-cod h-100 mb-0">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tk-kpi-sub-icon text-secondary"><i class="bi bi-box-seam-fill" aria-hidden="true"></i></span>
+              <span class="tk-kpi-sub-label">Doanh thu COD (Thu hộ)</span>
+            </div>
+            <span class="badge bg-secondary-subtle text-secondary fw-semibold">{{ pctGon(tyLeCod) }}</span>
+          </div>
+          <div class="tk-kpi-sub-val text-secondary">{{ dangTaiGd3 ? '…' : formatMoney(tongCod) }}</div>
+          <div class="tk-kpi-sub-desc text-muted small">
+            {{ tongSoDonCod }} đơn nhận hàng thanh toán COD
+          </div>
         </section>
       </div>
     </div>
@@ -1064,8 +1202,41 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <!-- Doanh thu theo loại đơn, Nhân viên bán tốt nhất & Khách hàng mua nhiều nhất -->
-      <div class="col-12 col-lg-4">
+      <!-- Doanh thu theo phương thức thanh toán & Doanh thu theo loại đơn -->
+      <div class="col-12 col-lg-6">
+        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-phuong-thuc">
+          <div class="tk-sec-head">
+            <h3 class="tk-sec-title m-0">Doanh thu theo phương thức thanh toán</h3>
+            <span v-if="!dangTaiGd3 && theoPt.length" class="text-muted small">{{ theoPt.length }} phương thức</span>
+          </div>
+          <div v-if="dangTaiGd3" class="ad-empty">Đang tải…</div>
+          <div v-else-if="!theoPt.length" class="ad-empty">Chưa có dữ liệu.</div>
+          <div v-else class="tk-pt-list">
+            <div v-for="p in theoPt" :key="p.ten" class="tk-loai-item">
+              <div class="d-flex justify-content-between align-items-center small mb-1">
+                <span class="fw-semibold text-dark">
+                  <i :class="layIconPhuongThuc(p)" class="me-1" aria-hidden="true"></i>
+                  {{ p.ten }}
+                  <small class="text-muted fw-normal">({{ p.soDon }} đơn)</small>
+                </span>
+                <span class="fw-semibold text-dark">
+                  {{ formatMoney(p.soTien) }}
+                  <small class="text-muted fw-normal">({{ pctGon(p.pct) }})</small>
+                </span>
+              </div>
+              <div class="progress tk-progress">
+                <div
+                  class="progress-bar"
+                  :class="layMauPhuongThuc(p)"
+                  :style="{ width: Math.min(100, Math.max(0, p.pct || 0)) + '%' }"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-12 col-lg-6">
         <section class="ad-card tk-section-card h-100 mb-0">
           <div class="tk-sec-head">
             <h3 class="tk-sec-title m-0">Doanh thu theo loại đơn</h3>
@@ -1084,7 +1255,8 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <div class="col-12 col-lg-4">
+      <!-- Nhân viên bán tốt nhất & Khách hàng mua nhiều nhất -->
+      <div class="col-12 col-lg-6">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-top-nv">
           <div class="tk-sec-head">
             <h3 class="tk-sec-title m-0">Nhân viên bán tốt nhất</h3>
@@ -1103,7 +1275,7 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <div class="col-12 col-lg-4">
+      <div class="col-12 col-lg-6">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-top-kh">
           <div class="tk-sec-head">
             <h3 class="tk-sec-title m-0">Khách hàng mua nhiều nhất</h3>
@@ -1123,15 +1295,8 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
       </div>
     </div>
 
-    <!-- Ẩn phương thức thanh toán (Tiền mặt / Chuyển khoản) và ca làm việc / lịch làm việc khỏi giao diện chính -->
+    <!-- Ẩn ca làm việc / lịch làm việc khỏi giao diện chính -->
     <div class="d-none" aria-hidden="true">
-      <section data-test="tk-phuong-thuc">
-        <div v-if="!theoPt.length">{{ dangTaiGd3 ? 'Đang tải…' : 'Chưa có dữ liệu.' }}</div>
-        <div v-for="p in theoPt" :key="p.ten">
-          <span>{{ p.ten }} ({{ p.soDon }} đơn)</span>
-          <span>{{ formatMoney(p.soTien) }} ({{ pctGon(p.pct) }})</span>
-        </div>
-      </section>
 
       <div class="col-12 col-md-6 col-lg-4">
         <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-theo-ca">
@@ -1365,6 +1530,58 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
 .tk-tot { color: #15803d; }
 .tk-xau { color: #be123c; }
 .tk-vua { color: #d97706; }
+
+.tk-kpi-sub-card {
+  padding: 0.95rem 1.15rem;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  transition: box-shadow 0.2s ease;
+}
+
+.tk-kpi-sub-card:hover {
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+.tk-kpi-sub-card.is-tien-mat {
+  border-left: 4px solid #16a34a;
+}
+
+.tk-kpi-sub-card.is-chuyen-khoan {
+  border-left: 4px solid #0977ec;
+}
+
+.tk-kpi-sub-card.is-cod {
+  border-left: 4px solid #64748b;
+}
+
+.tk-kpi-sub-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.tk-kpi-sub-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.tk-kpi-sub-val {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tk-kpi-sub-desc {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.tk-pt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
 
 .tk-section-card {
   padding: 1.15rem 1.35rem;

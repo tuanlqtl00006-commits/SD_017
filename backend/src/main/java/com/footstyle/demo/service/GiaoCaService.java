@@ -90,8 +90,11 @@ public class GiaoCaService {
         NguoiDung nd = XacThuc.nhanVien();
         Map<String, Object> kq = new LinkedHashMap<>();
         Optional<GiaoCa> mo = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA);
-        kq.put("dangMo", mo.map(this::dto).orElse(null));
-        kq.put("tongKet", mo.map(this::tongKet).orElse(null));
+        Optional<GiaoCa> caCuaHang = mo.or(() -> giaoCaRepo.findFirstByTrangThaiOrderByThoiGianNhanCaDescIdDesc(GiaoCa.DANG_TRONG_CA));
+        GiaoCa caHienDung = mo.orElse(caCuaHang.orElse(null));
+        kq.put("dangMo", caHienDung != null ? dto(caHienDung) : null);
+        kq.put("laNguoiMoCa", mo.isPresent());
+        kq.put("tongKet", caHienDung != null ? tongKet(caHienDung) : null);
         Optional<GiaoCa> truoc = caTruocChuaNhan();
         kq.put("goiYTienDauCa", truoc.map(g -> soTien(g.getTienBanGiao())).orElse(null));
         kq.put("nguoiBanGiao", truoc.map(g -> g.getNhanVien().getHoTen()).orElse(null));
@@ -119,8 +122,9 @@ public class GiaoCaService {
     @Transactional(readOnly = true)
     public GiaoCa caDangMoBatBuoc(Integer idNhanVien) {
         GiaoCa gc = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(idNhanVien, GiaoCa.DANG_TRONG_CA)
+                .or(() -> giaoCaRepo.findFirstByTrangThaiOrderByThoiGianNhanCaDescIdDesc(GiaoCa.DANG_TRONG_CA))
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
-                        "Bạn chưa nhận ca. Vui lòng bấm \"Ca làm việc\" > Nhận ca trước khi bán hàng.", "CHUA_NHAN_CA", null));
+                        "Quầy thu ngân chưa mở ca bán hàng hôm nay. Vui lòng nhờ Thu ngân mở ca trước khi thanh toán.", "CHUA_NHAN_CA", null));
         if (gc.getThoiGianNhanCa() != null && gc.getThoiGianNhanCa().toLocalDate().isBefore(bayGio().toLocalDate())) {
             throw new ApiException(HttpStatus.CONFLICT, "Ca " + gc.getMaGiaoCa() + " nhận ngày " + gc.getThoiGianNhanCa().format(NGAY)
                     + " chưa giao. Vui lòng giao ca đó rồi vào ca mới trước khi bán hàng.", "CA_CU_CHUA_GIAO", null);
@@ -143,6 +147,13 @@ public class GiaoCaService {
     @Transactional
     public Map<String, Object> nhanCa(NhanCaRequest req) {
         NguoiDung nd = XacThuc.nhanVien();
+        boolean laThuNganTrongLich = lichHomNay(nd.id()).stream()
+                .anyMatch(l -> l.getGhiChu() != null && l.getGhiChu().contains("Thu ngân"));
+        if (nd.laNhanVienBanHang() && !laThuNganTrongLich) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Nhân viên bán hàng không quản lý két tiền. Chỉ Thu ngân hoặc Quản lý mới được mở ca bán hàng.",
+                    "KHONG_CO_QUYEN", null);
+        }
         Optional<GiaoCa> dangMo = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA);
         if (dangMo.isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "Bạn đang trong ca " + dangMo.get().getMaGiaoCa() + ", vui lòng giao ca trước khi nhận ca mới.",
@@ -238,6 +249,11 @@ public class GiaoCaService {
     @Transactional
     public Map<String, Object> ketCa(KetCaRequest req) {
         NguoiDung nd = XacThuc.nhanVien();
+        if (nd.laNhanVienBanHang()) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Nhân viên bán hàng không quản lý két tiền. Chỉ Thu ngân hoặc Quản lý mới được chốt ca bán hàng.",
+                    "KHONG_CO_QUYEN", null);
+        }
         GiaoCa gc = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA)
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "Bạn không có ca nào đang mở để giao.", "CHUA_NHAN_CA", null));
         long soCho = hoaDonRepo.findByIdGiaoCaOrderByNgayTaoAsc(gc.getId()).stream().filter(HoaDonChoService::laHoaDonCho).count();

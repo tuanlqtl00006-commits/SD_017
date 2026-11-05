@@ -517,7 +517,8 @@ GO
 -- 1. Dữ liệu vai_tro
 INSERT INTO vai_tro (ten_vai_tro, trang_thai) VALUES
 (N'Quản lý', 1),
-(N'Nhân viên', 1);
+(N'Nhân viên', 1),
+(N'Thu ngân', 1);
 GO
 
 -- 2. Dữ liệu nhan_vien (Mật khẩu mặc định: Footstyle@123)

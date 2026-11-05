@@ -3,6 +3,7 @@ package com.footstyle.demo.service;
 import com.footstyle.demo.entity.CaLamViec;
 import com.footstyle.demo.entity.LichLamViec;
 import com.footstyle.demo.entity.NhanVien;
+import com.footstyle.demo.entity.VaiTro;
 import com.footstyle.demo.exception.ApiException;
 import com.footstyle.demo.exception.LoiForm;
 import com.footstyle.demo.repository.CaLamViecRepository;
@@ -147,7 +148,10 @@ public class LichLamViecService {
 
     /* ===================== Lịch làm việc ===================== */
 
-    public record XepLichRequest(List<Integer> idNhanViens, Integer idCa, List<String> ngays, String ghiChu) {
+    public record XepLichRequest(List<Integer> idNhanViens, Integer idCa, List<String> ngays, String ghiChu, Integer idThuNgan) {
+        public XepLichRequest(List<Integer> idNhanViens, Integer idCa, List<String> ngays, String ghiChu) {
+            this(idNhanViens, idCa, ngays, ghiChu, null);
+        }
     }
 
     /** Lịch trong khoảng ngày (idNhanVien = null: mọi nhân viên). */
@@ -234,7 +238,11 @@ public class LichLamViecService {
                 l.setNhanVien(nv);
                 l.setCaLamViec(ca);
                 l.setNgayLam(ngay);
-                l.setGhiChu(ghiChu == null || ghiChu.isEmpty() ? null : ghiChu);
+                String noteCa = ghiChu == null || ghiChu.isEmpty() ? null : ghiChu;
+                if (idNv.equals(req.idThuNgan())) {
+                    noteCa = noteCa == null ? "Thu ngân" : "[Thu ngân] " + noteCa;
+                }
+                l.setGhiChu(noteCa);
                 l.setTrangThai(1);
                 lichRepo.save(l);
                 daThem++;
@@ -275,6 +283,36 @@ public class LichLamViecService {
             throw ApiException.conflict("Nhân viên đã nhận ca theo lịch này nên không xóa được.");
         }
         lichRepo.delete(l);
+    }
+
+    /** Đổi vai trò Thu ngân cho một ca đã xếp (không cần xếp lại lịch, không đổi vai trò nhân sự). */
+    @Transactional
+    public Map<String, Object> doiThuNganLich(Integer id) {
+        LichLamViec l = lichRepo.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy lịch làm việc."));
+        if (l.getNgayLam().isBefore(homNay())) {
+            throw ApiException.badRequest("Lịch đã qua không thể đổi vai trò.");
+        }
+        boolean dangLaThuNgan = l.getGhiChu() != null && l.getGhiChu().contains("Thu ngân");
+        if (dangLaThuNgan) {
+            String gcMoi = l.getGhiChu().replace("[Thu ngân]", "").replace("Thu ngân", "").trim();
+            l.setGhiChu(gcMoi.isEmpty() ? null : gcMoi);
+        } else {
+            // Gỡ vai trò thu ngân của nhân viên khác trong cùng ca và cùng ngày
+            List<LichLamViec> cungCa = lichRepo.findByNgayLamBetween(l.getNgayLam(), l.getNgayLam()).stream()
+                    .filter(o -> o.getCaLamViec().getId().equals(l.getCaLamViec().getId()))
+                    .toList();
+            for (LichLamViec khac : cungCa) {
+                if (!khac.getId().equals(l.getId()) && khac.getGhiChu() != null && khac.getGhiChu().contains("Thu ngân")) {
+                    String gc = khac.getGhiChu().replace("[Thu ngân]", "").replace("Thu ngân", "").trim();
+                    khac.setGhiChu(gc.isEmpty() ? null : gc);
+                    lichRepo.save(khac);
+                }
+            }
+            String gc = l.getGhiChu();
+            l.setGhiChu(gc == null || gc.isBlank() ? "Thu ngân" : "[Thu ngân] " + gc);
+        }
+        LichLamViec daLuu = lichRepo.save(l);
+        return lichDto(daLuu);
     }
 
     /**
@@ -343,6 +381,10 @@ public class LichLamViecService {
         m.put("gioBatDau", ca.getGioBatDau().format(GIO));
         m.put("gioKetThuc", ca.getGioKetThuc().format(GIO));
         m.put("ghiChu", l.getGhiChu());
+        m.put("vaiTro", nv.getVaiTro() == null ? null : nv.getVaiTro().getTenVaiTro());
+        boolean laThuNganCa = (nv.getVaiTro() != null && VaiTro.TEN_THU_NGAN.equalsIgnoreCase(nv.getVaiTro().getTenVaiTro()))
+                || (l.getGhiChu() != null && l.getGhiChu().contains("Thu ngân"));
+        m.put("laThuNgan", laThuNganCa);
         m.put("daQua", l.getNgayLam().isBefore(homNay()));
         return m;
     }

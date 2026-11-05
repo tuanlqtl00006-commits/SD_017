@@ -90,10 +90,9 @@ async function doiTrangThai(c) {
   <section class="ad-card">
     <header class="ad-list-head">
       <div class="ad-card-head">
-        <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-clock"></i></span>
         <h2 class="ad-card-title">Ca làm việc</h2>
       </div>
-      <button type="button" class="ad-btn ad-btn-primary" @click="moThem"><i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm ca</button>
+      <button type="button" class="ad-btn ad-btn-primary" @click="moThem">+ Thêm ca</button>
     </header>
     <div class="ad-table-wrap">
       <div class="ad-table-scroll">
@@ -125,8 +124,8 @@ async function doiTrangThai(c) {
               <td class="ad-col-actions">
                 <div class="ad-actions">
                   <StatusSwitch :on="c.hoatDong" :label="c.hoatDong ? `Ngừng dùng ${c.tenCa}` : `Bật ${c.tenCa}`" @toggle="doiTrangThai(c)" />
-                  <button type="button" class="ad-icon-btn" title="Sửa ca" :aria-label="`Sửa ${c.tenCa}`" @click="moSua(c)">
-                    <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                  <button type="button" class="ad-btn ad-btn-sm" title="Sửa ca" :aria-label="`Sửa ${c.tenCa}`" @click="moSua(c)">
+                    Sửa
                   </button>
                 </div>
               </td>

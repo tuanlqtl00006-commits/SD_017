@@ -149,6 +149,34 @@ public class NhanVienService {
         return toResponse(daLuu, diaChiRepo.findByNhanVienIdOrderByMacDinhDescIdAsc(daLuu.getId()));
     }
 
+    /** Đổi vai trò nhanh cho nhân viên (vd: Bán hàng <-> Thu ngân ngay trên màn hình xếp lịch). */
+    @Transactional
+    public NhanVienResponse doiVaiTro(Integer id, Integer idVaiTro, String tenVaiTro) {
+        NhanVien nv = timNhanVien(id);
+        VaiTro vaiTroCu = nv.getVaiTro();
+        if (dangHoatDong(nv) && laQuanLy(vaiTroCu)) {
+            kiemTraConQuanLyKhac(vaiTroCu, "Không thể đổi vai trò của quản lý cuối cùng của hệ thống.");
+        }
+        VaiTro vaiTroMoi = null;
+        if (idVaiTro != null) {
+            vaiTroMoi = vaiTroRepo.findById(idVaiTro).orElse(null);
+        } else if (tenVaiTro != null && !tenVaiTro.isBlank()) {
+            vaiTroMoi = vaiTroRepo.findByTrangThaiOrderByIdAsc(1).stream()
+                    .filter(v -> v.getTenVaiTro() != null && (v.getTenVaiTro().equalsIgnoreCase(tenVaiTro.trim())
+                            || ("Bán hàng".equalsIgnoreCase(tenVaiTro.trim()) && VaiTro.TEN_NHAN_VIEN.equalsIgnoreCase(v.getTenVaiTro()))))
+                    .findFirst().orElse(null);
+        }
+        if (vaiTroMoi == null) {
+            throw ApiException.badRequest("Không tìm thấy vai trò phù hợp.");
+        }
+        if (!VaiTro.laVaiTroHopLe(vaiTroMoi.getTenVaiTro())) {
+            throw ApiException.badRequest("Vai trò không hợp lệ.");
+        }
+        nv.setVaiTro(vaiTroMoi);
+        NhanVien daLuu = nhanVienRepo.save(nv);
+        return toResponse(daLuu, diaChiRepo.findByNhanVienIdOrderByMacDinhDescIdAsc(daLuu.getId()));
+    }
+
     /** Đổi mật khẩu cho nhân viên: kiểm tra độ dài 8-50, có cả chữ và số, không khoảng trắng, rồi băm lưu lại. */
     @Transactional
     public void doiMatKhau(Integer id, String matKhauMoi) {
@@ -356,7 +384,7 @@ public class NhanVienService {
             } else if (vaiTro.getTrangThai() == null || vaiTro.getTrangThai() != 1) {
                 loi.them("idVaiTro", "Vai trò này đang ngưng sử dụng.");
             } else if (!VaiTro.laVaiTroHopLe(vaiTro.getTenVaiTro())) {
-                loi.them("idVaiTro", "Chỉ có hai vai trò: " + VaiTro.TEN_QUAN_LY + " và " + VaiTro.TEN_NHAN_VIEN + ".");
+                loi.them("idVaiTro", "Vai trò không hợp lệ.");
             }
         }
 

@@ -11,13 +11,22 @@ public record NguoiDung(String loai, Integer id, String ma, String hoTen, String
 
     public static final String QUAN_LY = "QUAN_LY";
     public static final String NHAN_VIEN = "NHAN_VIEN";
+    public static final String THU_NGAN = "THU_NGAN";
     public static final String KHACH_HANG = "KHACH_HANG";
 
     public boolean laQuanLy() {
         return QUAN_LY.equals(vaiTro);
     }
 
-    /** Nhân viên hoặc quản lý (người làm việc trong cửa hàng). */
+    public boolean laThuNgan() {
+        return THU_NGAN.equals(vaiTro);
+    }
+
+    public boolean laNhanVienBanHang() {
+        return LOAI_NHAN_VIEN.equals(loai) && !laQuanLy() && !laThuNgan();
+    }
+
+    /** Nhân viên hoặc quản lý hoặc thu ngân (người làm việc trong cửa hàng). */
     public boolean laNhanVien() {
         return LOAI_NHAN_VIEN.equals(loai);
     }
@@ -29,7 +38,8 @@ public record NguoiDung(String loai, Integer id, String ma, String hoTen, String
     /** Tên vai trò hiển thị. */
     public String tenVaiTro() {
         if (laQuanLy()) return "Quản lý";
+        if (laThuNgan()) return "Thu ngân";
         if (laKhachHang()) return "Khách hàng";
-        return "Nhân viên";
+        return "Nhân viên bán hàng";
     }
 }

@@ -35,6 +35,11 @@ export const nhanVienService = {
     return (await api.put(`/nhan-vien/${id}/trang-thai`)).data
   },
 
+  /** Đổi nhanh vai trò: Thu ngân <-> Bán hàng ngay trên lịch làm */
+  async doiVaiTro(id, { idVaiTro, tenVaiTro } = {}) {
+    return (await api.put(`/nhan-vien/${id}/vai-tro`, { idVaiTro, tenVaiTro })).data
+  },
+
   /** Đổi mật khẩu nhân viên: nhân viên đăng nhập tự đổi mật khẩu cá nhân */
   async doiMatKhau(id, matKhau) {
     return (await api.put(`/nhan-vien/${id}/doi-mat-khau`, { matKhau })).data

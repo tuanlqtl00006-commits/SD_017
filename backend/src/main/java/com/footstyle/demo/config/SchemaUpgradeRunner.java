@@ -117,7 +117,12 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
             // Giống hệt mục 4.2 trong database/SD_17_2_du_lieu.sql (SchemaUpgradeRunnerHoaDonTest kiểm tra hai bên không lệch).
             "UPDATE hoa_don SET thanh_tien = CASE WHEN thanh_tien > ISNULL(phi_van_chuyen, 0) THEN thanh_tien - ISNULL(phi_van_chuyen, 0) ELSE 0 END, "
                     + "phi_van_chuyen = 0, don_vi_van_chuyen = NULL "
-                    + "WHERE loai_hoa_don = 1 AND (ISNULL(phi_van_chuyen, 0) <> 0 OR don_vi_van_chuyen IS NOT NULL)");
+                    + "WHERE loai_hoa_don = 1 AND (ISNULL(phi_van_chuyen, 0) <> 0 OR don_vi_van_chuyen IS NOT NULL)",
+            "INSERT INTO vai_tro (ten_vai_tro, trang_thai) SELECT v.ten, 1 FROM (VALUES (N'Thu ngân')) AS v(ten) "
+                    + "WHERE NOT EXISTS (SELECT 1 FROM vai_tro r WHERE r.ten_vai_tro = v.ten)",
+            "UPDATE ca_lam_viec SET ten_ca = N'Ca sáng' WHERE id = 1 AND ten_ca <> N'Ca sáng'",
+            "UPDATE ca_lam_viec SET ten_ca = N'Ca chiều' WHERE id = 2 AND ten_ca <> N'Ca chiều'",
+            "UPDATE ca_lam_viec SET ten_ca = N'Ca tối' WHERE id = 3 AND ten_ca <> N'Ca tối'");
 
     /**
      * Các bảng có mã do hệ thống tự cấp: {bảng, cột mã}. Mã cũ nhiều số 0 (HD000001, NV0001, SP001, DGG001, DC000...)

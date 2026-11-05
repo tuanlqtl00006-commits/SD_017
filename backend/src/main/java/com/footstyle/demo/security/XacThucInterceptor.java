@@ -117,9 +117,12 @@ public class XacThucInterceptor implements HandlerInterceptor {
         if (!PhanQuyen.duocPhep(nd, method, path)) {
             return new KetQua(403, "KHONG_DU_QUYEN", PhanQuyen.lyDoTuChoi(nd), nd);
         }
-        if (PhanQuyen.canVaoCa(nd, method, path)
-                && giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA).isEmpty()) {
-            return new KetQua(409, "CHUA_NHAN_CA", "Bạn chưa vào ca. Hãy vào ca (nhập tiền đầu ca) trước khi làm việc.", nd);
+        if (PhanQuyen.canVaoCa(nd, method, path)) {
+            boolean coCa = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA).isPresent()
+                    || giaoCaRepo.existsByTrangThai(GiaoCa.DANG_TRONG_CA);
+            if (!coCa) {
+                return new KetQua(409, "CHUA_NHAN_CA", "Quầy thu ngân chưa mở ca bán hàng hôm nay. Vui lòng mở ca trước khi làm việc.", nd);
+            }
         }
         return KetQua.choQua(nd);
     }
@@ -163,10 +166,11 @@ public class XacThucInterceptor implements HandlerInterceptor {
     }
 
     public static NguoiDung tuNhanVien(NhanVien n) {
-        boolean ql = n.getVaiTro() != null && n.getVaiTro().getTenVaiTro() != null
-                && VaiTro.TEN_QUAN_LY.equalsIgnoreCase(n.getVaiTro().getTenVaiTro().trim());
-        return new NguoiDung(NguoiDung.LOAI_NHAN_VIEN, n.getId(), n.getMaNhanVien(), n.getHoTen(),
-                ql ? NguoiDung.QUAN_LY : NguoiDung.NHAN_VIEN, n.getEmail());
+        String vt = n.getVaiTro() == null ? null : n.getVaiTro().getTenVaiTro();
+        boolean ql = vt != null && VaiTro.TEN_QUAN_LY.equalsIgnoreCase(vt.trim());
+        boolean tn = vt != null && (VaiTro.TEN_THU_NGAN.equalsIgnoreCase(vt.trim()) || "Thu ngân".equalsIgnoreCase(vt.trim()));
+        String role = ql ? NguoiDung.QUAN_LY : (tn ? NguoiDung.THU_NGAN : NguoiDung.NHAN_VIEN);
+        return new NguoiDung(NguoiDung.LOAI_NHAN_VIEN, n.getId(), n.getMaNhanVien(), n.getHoTen(), role, n.getEmail());
     }
 
     public static NguoiDung tuKhachHang(KhachHang k) {

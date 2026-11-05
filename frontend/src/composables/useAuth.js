@@ -28,9 +28,11 @@ let dangKhoiTao = null
 const daDangNhap = computed(() => !!trangThai.nguoiDung)
 const laQuanLy = computed(() => trangThai.nguoiDung?.vaiTro === 'QUAN_LY')
 const laKhachHang = computed(() => trangThai.nguoiDung?.vaiTro === 'KHACH_HANG')
-// Vai trò theo cách gọi của menu / router: 'quan-ly' | 'nhan-vien' | 'khach-hang'
+const laThuNgan = computed(() => trangThai.nguoiDung?.vaiTro === 'THU_NGAN' || /thu ngân/i.test(trangThai.nguoiDung?.tenVaiTro || ''))
+const laNhanVienBanHang = computed(() => !laQuanLy.value && !laKhachHang.value && !laThuNgan.value)
+// Vai trò theo cách gọi của menu / router: 'quan-ly' | 'nhan-vien' | 'thu-ngan' | 'khach-hang'
 // (khách hàng đăng nhập ở trang bán online không được vào trang quản trị)
-const vaiTro = computed(() => (laQuanLy.value ? 'quan-ly' : laKhachHang.value ? 'khach-hang' : 'nhan-vien'))
+const vaiTro = computed(() => (laQuanLy.value ? 'quan-ly' : laKhachHang.value ? 'khach-hang' : laThuNgan.value ? 'thu-ngan' : 'nhan-vien'))
 
 /** Hỏi backend có bật đăng nhập không + xác nhận lại phiên đang lưu (tài khoản bị ngừng / đổi mật khẩu ở máy khác thì phải đăng nhập lại). */
 async function khoiTao() {
@@ -123,6 +125,8 @@ export function useAuth() {
     daDangNhap,
     laQuanLy,
     laKhachHang,
+    laThuNgan,
+    laNhanVienBanHang,
     vaiTro,
     vietTat,
     khoiTao,

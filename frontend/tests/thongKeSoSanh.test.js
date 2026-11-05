@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn() } }))
@@ -30,26 +30,94 @@ const DU_LIEU = {
 }
 
 beforeEach(() => {
+  // Cố định "hôm nay" là 05/11/2026 để kỳ mặc định là Tháng 10/2026 và Tháng 11/2026
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 10, 5, 10, 0, 0))
   document.body.innerHTML = ''
   api.get.mockReset()
   api.post.mockReset()
   api.get.mockResolvedValue({ data: DU_LIEU })
 })
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+const sanPhamThang10 = [
+  { maSanPham: 'SP01', tenSanPham: 'Vợt Yonex Astrox 99 Pro', thuongHieu: 'Yonex', soLuong: 3, doanhThu: 900000, hoaDonIds: [1, 2], khachHangIds: [7] },
+  { maSanPham: 'SP02', tenSanPham: 'Vợt Lining Axforce 80', thuongHieu: 'Lining', soLuong: 1, doanhThu: 550000, hoaDonIds: [2], khachHangIds: [7] },
+]
+
 describe('Thống kê so sánh', () => {
-  it('tải theo tháng, hiện so với kỳ trước và cùng kỳ năm trước, biểu đồ tăng trưởng và sản phẩm', async () => {
+  it('so sánh kỳ mới nhất với kỳ liền trước: thẻ tóm tắt, phân tích chênh lệch, bảng chỉ số và sản phẩm', async () => {
     const w = mount(ThongKeSoSanh, { attachTo: document.body })
     await flushPromises()
-    expect(api.get).toHaveBeenCalledWith('/thong-ke/so-sanh', { params: { kieu: 'THANG', ky: expect.stringMatching(/^\d{4}-\d{2}$/) } })
-    const the = w.findAll('[data-test="ss-chi-so"]')
-    expect(the).toHaveLength(8)
+    expect(api.get).toHaveBeenCalledWith('/thong-ke/so-sanh', { params: { kieu: 'THANG', ky: '2026-11' } })
+    expect(w.find('[data-test="ss-dang-so-sanh"]').text()).toContain('Đang so sánh Tháng 11/2026 với Tháng 10/2026')
+    expect(w.find('[data-test="ss-luu-y-ky"]').text()).toContain('Tháng 11/2026 chưa kết thúc (đã qua 5/30 ngày)')
+
+    // Không còn cộng dồn "tổng doanh thu" / "doanh thu dự kiến" của nhiều kỳ
+    expect(w.text()).not.toContain('Doanh thu dự kiến')
+    expect(w.text()).not.toContain('Tổng doanh thu kỳ')
+
+    const the = w.findAll('[data-test="ss-kpi"]')
+    expect(the).toHaveLength(6)
+    expect(the[0].text()).toContain('Doanh thu')
+    expect(the[0].text()).toContain('▼ 100%')
+    expect(the[0].text()).toContain('Tháng 10/2026: 1.450.000')
+
+    const dong = w.findAll('[data-test="ss-chi-so"]')
+    expect(dong).toHaveLength(9)
+    expect(dong[0].text()).toContain('1.450.000')
+    expect(dong[0].text()).toContain('-1.450.000')
+    expect(dong[0].find('.ss-trend-pill').classes()).toContain('is-xau')
+    // Đơn hủy giảm là tốt
+    expect(dong[7].text()).toContain('Đơn hủy')
+    expect(dong[7].find('.ss-trend-pill').classes()).toContain('is-tot')
+    // Tỷ lệ hủy 1/4 đơn = 25%, giảm 25 điểm %
+    expect(dong[8].text()).toContain('25%')
+    expect(dong[8].text()).toContain('-25 điểm %')
+
+    const viSao = w.find('[data-test="ss-vi-sao"]').text()
+    expect(viSao).toContain('giảm 1.450.000')
+    expect(viSao).toContain('2 → 0 đơn')
+
     expect(w.find('svg[aria-label="Biểu đồ so sánh nhóm chỉ số doanh thu"]').exists()).toBe(true)
-    expect(the[0].text()).toContain('1.450.000')
-    expect(the[0].text()).toContain('▲ 20,8%')
-    expect(the[0].text()).toContain('so với cùng kỳ Tháng 10/2025')
-    expect(the[4].find('.ss-xau').text()).toContain('▲ 50%')
     expect(w.find('[data-test="ss-xu-huong"]').text()).toContain('+100%')
-    expect(w.find('[data-test="ss-san-pham"]').text()).toContain('▲ 200%')
+    expect(w.find('[data-test="ss-san-pham"]').text()).toContain('↓ Giảm (-100%)')
+    w.unmount()
+  })
+
+  it('lọc theo thương hiệu: đếm đúng số đơn có sản phẩm khớp lọc, ẩn chỉ số tính theo cả hóa đơn và gửi email đúng bộ lọc', async () => {
+    api.get.mockResolvedValue({
+      data: { ...DU_LIEU, hienTai: { ...chiSo('Tháng 10/2026', 1450000), sanPhamTrongKy: sanPhamThang10 } },
+    })
+    api.post.mockResolvedValue({ data: { daGui: true, giaLap: false, email: 'ql@gmail.com' } })
+    const w = mount(ThongKeSoSanh, { attachTo: document.body })
+    await flushPromises()
+
+    const bangTh = w.find('[data-test="ss-thuong-hieu"]').text()
+    expect(bangTh).toContain('Yonex')
+    expect(bangTh).toContain('Lining')
+
+    await w.find('.ss-brand-select').setValue('Yonex')
+    await flushPromises()
+
+    const dong = w.findAll('[data-test="ss-chi-so"]')
+    expect(dong).toHaveLength(5)
+    expect(dong[0].text()).toContain('900.000')
+    expect(dong[1].text()).toContain('Đơn hoàn thành')
+    expect(dong[1].findAll('td')[1].text()).toBe('2')
+    expect(w.find('[data-test="ss-thuong-hieu"]').text()).not.toContain('Lining')
+
+    await w.find('[data-test="ss-email"]').trigger('click')
+    await w.find('#ss-email-o').setValue('ql@gmail.com')
+    await w.find('.ss-email').trigger('submit')
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledWith(
+      '/thong-ke/so-sanh/gui-email',
+      expect.objectContaining({ thuongHieu: 'Yonex', dsKy: ['2026-10', '2026-11'] })
+    )
     w.unmount()
   })
 

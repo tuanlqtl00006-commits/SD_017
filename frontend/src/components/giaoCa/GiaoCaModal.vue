@@ -202,7 +202,15 @@ const tieuDe = computed(() => {
         Còn {{ hoaDonCho }} hóa đơn chờ chưa thanh toán ở màn hình Bán hàng tại quầy. Vui lòng thanh toán hoặc hủy (trả hàng về kho) trước khi giao ca.
       </div>
 
-      <form id="gc-ket-form" novalidate class="gc-ket" @submit.prevent="moXacNhan">
+      <div v-if="auth.laNhanVienBanHang.value" class="alert alert-info d-flex align-items-center gap-2 mt-3 mb-0" role="status">
+        <i class="bi bi-shield-lock-fill fs-5"></i>
+        <div>
+          <strong>Nhân viên bán hàng:</strong> Bạn đang tạo đơn trong ca bán hàng của quầy thu ngân.
+          Chỉ <b>Thu ngân</b> được phép kiểm đếm két tiền và thực hiện chốt ca / bàn giao ca.
+        </div>
+      </div>
+
+      <form v-else id="gc-ket-form" novalidate class="gc-ket" @submit.prevent="moXacNhan">
         <h3 class="gc-tieu-de-nho">Giao ca</h3>
         <div class="row g-3">
           <div class="col-md-6">
@@ -265,11 +273,11 @@ const tieuDe = computed(() => {
       </template>
       <template v-else-if="trangThai.daTai && !dangTrongCa">
         <button type="button" class="ad-btn" @click="emit('close')">Đóng</button>
-        <button type="button" class="ad-btn ad-btn-primary" @click="sangTrangVaoCa"><i class="bi bi-door-open" aria-hidden="true"></i> Đi tới trang vào ca</button>
+        <button v-if="!auth.laNhanVienBanHang.value" type="button" class="ad-btn ad-btn-primary" @click="sangTrangVaoCa"><i class="bi bi-door-open" aria-hidden="true"></i> Đi tới trang vào ca</button>
       </template>
       <template v-else-if="trangThai.daTai">
         <button type="button" class="ad-btn" @click="emit('close')">Đóng</button>
-        <button type="submit" form="gc-ket-form" class="ad-btn ad-btn-danger" :disabled="dangGui">Giao ca</button>
+        <button v-if="!auth.laNhanVienBanHang.value" type="submit" form="gc-ket-form" class="ad-btn ad-btn-danger" :disabled="dangGui">Giao ca</button>
       </template>
     </template>
   </BaseModal>

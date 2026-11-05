@@ -232,7 +232,7 @@ public class NhanVienImportService {
         } else {
             VaiTro v = vaiTroTheoTen.get(chuanHoaTen(tenVaiTro));
             if (v != null) idVaiTro = v.getId();
-            else loiDinhDang.put("idVaiTro", "Vai trò chỉ gồm " + VaiTro.TEN_QUAN_LY + " hoặc " + VaiTro.TEN_NHAN_VIEN + ".");
+            else loiDinhDang.put("idVaiTro", "Vai trò không hợp lệ.");
         }
         DiaChiNhanVienDto diaChi = new DiaChiNhanVienDto(null, chu(d, viTri, Cot.TINH), chu(d, viTri, Cot.PHUONG_XA), chu(d, viTri, Cot.DIA_CHI), true);
         // Mật khẩu tạm: sinh ngẫu nhiên, đạt luật mật khẩu; được băm khi lưu và gửi cho nhân viên qua mail

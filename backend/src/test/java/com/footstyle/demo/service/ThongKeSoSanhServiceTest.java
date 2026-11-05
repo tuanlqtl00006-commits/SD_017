@@ -45,6 +45,7 @@ class ThongKeSoSanhServiceTest {
             public boolean guiBaoCao(String den, String tieuDe, String banChu, String html, Map<String, byte[]> anh) {
                 thuDaGui.put("den", den);
                 thuDaGui.put("tieuDe", tieuDe);
+                thuDaGui.put("chu", banChu);
                 thuDaGui.put("html", html);
                 thuDaGui.put("anh", anh);
                 return false;
@@ -143,16 +144,21 @@ class ThongKeSoSanhServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void guiEmail_kemBangVaHaiBieuDoPng() {
+    void guiEmail_kemBangDoiChieuVaBieuDoPng() {
         Map<String, Object> kq = service.guiEmail("THANG", "2026-10", "quanly@gmail.com");
         assertEquals(true, kq.get("giaLap"));
         assertTrue(String.valueOf(thuDaGui.get("tieuDe")).contains("Tháng 10/2026"));
         String html = String.valueOf(thuDaGui.get("html"));
-        assertTrue(html.contains("Doanh thu thực tế") && html.contains("cid:bieu-do-xu-huong"));
+        assertTrue(html.contains("Bảng đối chiếu chỉ số") && html.contains("cid:bieu-do-xu-huong"));
+        assertTrue(html.contains("Doanh thu thay đổi do đâu"));
+        assertTrue(html.contains("Tỷ lệ hủy đơn"), "không lọc sản phẩm thì có các chỉ số theo hóa đơn");
+        assertTrue(html.contains("chưa kết thúc"), "tháng 10/2026 đang diễn ra theo đồng hồ kiểm thử");
+        String chu = String.valueOf(thuDaGui.get("chu"));
+        assertTrue(chu.contains("- Doanh thu: 1.450.000"), chu);
         List<String> phanTich = (List<String>) service.soSanh("THANG", "2026-10").get("phanTich");
         assertTrue(phanTich != null && !phanTich.isEmpty());
         Map<String, byte[]> anh = (Map<String, byte[]>) thuDaGui.get("anh");
-        assertEquals(2, anh.size());
+        assertEquals(1, anh.size());
         byte[] png = anh.get("bieu-do-xu-huong");
         assertTrue(png.length > 1000 && png[1] == 'P' && png[2] == 'N' && png[3] == 'G');
         assertThrows(ApiException.class, () -> service.guiEmail("THANG", null, "khong-phai-email"));
@@ -164,5 +170,8 @@ class ThongKeSoSanhServiceTest {
         String htmlLoc = String.valueOf(thuDaGui.get("html"));
         assertTrue(htmlLoc.contains("Các kỳ đối chiếu: Tháng 9/2026, Tháng 10/2026"));
         assertTrue(htmlLoc.contains("Từ khóa SP: Astrox"));
+        assertTrue(!htmlLoc.contains("Tỷ lệ hủy đơn"), "lọc sản phẩm thì bỏ các chỉ số tính theo cả hóa đơn");
+        String chuLoc = String.valueOf(thuDaGui.get("chu"));
+        assertTrue(chuLoc.contains("- Đơn hoàn thành: 2 (Tháng 9/2026: 1, ▲ 100%)"), "đếm đúng 2 hóa đơn có sản phẩm khớp lọc: " + chuLoc);
     }
 }

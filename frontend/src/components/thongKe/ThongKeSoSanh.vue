@@ -1,6 +1,7 @@
 <script setup>
-// So sánh & Tăng trưởng doanh thu qua các kỳ (Theo tháng / quý / năm / tùy chọn khoảng ngày)
-// Tập trung vào Tổng doanh thu thực tế, Doanh thu dự kiến, Tổng đơn hàng, Đơn hoàn thành, AOV và Sức mua sản phẩm (không tách Tiền mặt / Chuyển khoản).
+// So sánh doanh thu giữa các kỳ (tháng / quý / năm / khoảng ngày tùy chọn).
+// Kỳ mới nhất trong danh sách là kỳ đang xét, được so với kỳ liền trước: thẻ tóm tắt, phân tích chênh lệch doanh thu,
+// biểu đồ, bảng đối chiếu chỉ số, doanh thu theo thương hiệu và sản phẩm bán chạy qua các kỳ.
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '../../services/api'
@@ -38,15 +39,6 @@ const NHAN_QUY = {
   3: 'Quý 3 (T7 - T9)',
   4: 'Quý 4 (T10 - T12)',
 }
-
-const boDau = (s) =>
-  String(s ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim()
 
 function ngayDauThang(y, m) {
   return `${y}-${String(m).padStart(2, '0')}-01`
@@ -232,14 +224,8 @@ function xoaKy(idx) {
   if (cuoi) thayDoiHopKy(cuoi)
 }
 
-/* ----- Bộ lọc chung (Thương hiệu & Tìm sản phẩm) ----- */
+/* ----- Bộ lọc thương hiệu (áp dụng cho toàn trang, Excel và email) ----- */
 const thuongHieuLoc = ref('')
-const tuKhoaSpLoc = ref('')
-
-function datLaiLocChung() {
-  thuongHieuLoc.value = ''
-  tuKhoaSpLoc.value = ''
-}
 
 /* ----- Bộ nhớ đệm chỉ số từng kỳ ----- */
 const cacheChiSoKy = reactive({})
@@ -358,9 +344,11 @@ async function napDayDuChiSoCacKyChon() {
         ky: { ma, nhan: nhanCuaMucKy(item, loai), tuNgay: tu, denNgay: den },
         doanhThuThucTe: 0,
         doanhThuDuKien: 0,
+        tongGiamGia: 0,
         soDon: 0,
         soHoanThanh: 0,
         soHuy: 0,
+        tyLeHuy: 0,
         giaTriTrungBinh: 0,
         soSanPhamBan: 0,
         soKhachMua: 0,
@@ -465,18 +453,27 @@ watch(
   { deep: true },
 )
 
+/* ----- Danh mục chỉ số so sánh ----- */
+// the: hiện trên hàng thẻ tóm tắt; theoHoaDon: tính theo cả hóa đơn nên ẩn khi đang lọc thương hiệu / sản phẩm;
+// xauKhiTang: tăng là xấu (tô đỏ); trungTinh: không tô màu tốt / xấu.
 const CHI_SO = [
-  { k: 'doanhThuThucTe', ten: 'Doanh thu thực tế', tenNgan: 'Doanh thu thực tế', tien: true },
-  { k: 'doanhThuDuKien', ten: 'Doanh thu dự kiến', tenNgan: 'Doanh thu dự kiến', tien: true },
-  { k: 'soDon', ten: 'Tổng đơn', tenNgan: 'Tổng đơn' },
-  { k: 'soHoanThanh', ten: 'Đơn hoàn thành', tenNgan: 'Đơn hoàn thành' },
-  { k: 'soHuy', ten: 'Đơn hủy', tenNgan: 'Đơn hủy', xauKhiTang: true },
-  { k: 'giaTriTrungBinh', ten: 'Giá trị TB / đơn', tenNgan: 'Giá trị TB / đơn', tien: true },
-  { k: 'soSanPhamBan', ten: 'Sản phẩm bán ra', tenNgan: 'Sản phẩm bán ra' },
-  { k: 'soKhachMua', ten: 'Khách hàng mua', tenNgan: 'Khách hàng mua' },
+  { k: 'doanhThuThucTe', ten: 'Doanh thu', tien: true, the: true },
+  { k: 'soHoanThanh', ten: 'Đơn hoàn thành', the: true },
+  { k: 'giaTriTrungBinh', ten: 'Giá trị TB / đơn', tien: true, the: true },
+  { k: 'soSanPhamBan', ten: 'Sản phẩm bán ra', the: true },
+  { k: 'soKhachMua', ten: 'Khách hàng mua', the: true },
+  { k: 'tongGiamGia', ten: 'Tiền giảm giá', tien: true, theoHoaDon: true, trungTinh: true },
+  { k: 'soDon', ten: 'Tổng đơn phát sinh', theoHoaDon: true },
+  { k: 'soHuy', ten: 'Đơn hủy', theoHoaDon: true, xauKhiTang: true },
+  { k: 'tyLeHuy', ten: 'Tỷ lệ hủy đơn', phanTram: true, theoHoaDon: true, xauKhiTang: true, the: true },
 ]
 
-const giaTri = (c, v) => (c.tien ? formatMoney(v ?? 0) : String(v ?? 0))
+const coLocSanPham = computed(() => Boolean(thuongHieuLoc.value.trim()))
+const chiSoHienThi = computed(() => CHI_SO.filter((c) => !coLocSanPham.value || !c.theoHoaDon))
+
+function soThapPhan(v) {
+  return String(Math.round((Number(v) || 0) * 10) / 10).replace('.', ',')
+}
 
 function tinhPhanTram(a, b) {
   const va = Number(a) || 0
@@ -485,42 +482,52 @@ function tinhPhanTram(a, b) {
   return Math.round(((va - vb) * 1000) / vb) / 10
 }
 
-function dinhDangPhanTram(p, coDauCong = true) {
-  if (p === null || p === undefined) return '+100%'
+function dinhDangPhanTram(p) {
+  if (p === null || p === undefined) return 'Mới phát sinh'
   const num = Math.round(Number(p) * 10) / 10
-  const str = String(Math.abs(num)).replace('.', ',')
-  if (num > 0) return `${coDauCong ? '+' : ''}${str}%`
-  if (num < 0) return `-${str}%`
+  if (num > 0) return `+${soThapPhan(num)}%`
+  if (num < 0) return `-${soThapPhan(Math.abs(num))}%`
   return '0%'
 }
 
-function moTaTang(p, xauKhiTang = false, valNay = null, valGoc = null) {
-  if (p === null || p === undefined) {
-    if (valNay !== null && valGoc !== null && Number(valGoc) === 0 && Number(valNay) > 0) {
-      const so = Number(valNay)
-      const chenh = so >= 1000 ? nhanTienGon(so) : String(so)
-      const nhan = `▲ 100% (+${chenh})`
-      return {
-        text: nhan,
-        textNgan: nhan,
-        lop: xauKhiTang ? 'ss-xau' : 'ss-tot',
-      }
-    }
-    return { text: 'Kỳ so sánh chưa có', textNgan: '0%', lop: 'text-muted' }
+function tienCoDau(v) {
+  const so = Math.round(Number(v) || 0)
+  return `${so > 0 ? '+' : so < 0 ? '-' : ''}${formatMoney(Math.abs(so))}`
+}
+
+function layGiaTri(cs, c) {
+  if (!cs) return 0
+  if (c.k === 'tyLeHuy') {
+    if (cs.tyLeHuy !== undefined && cs.tyLeHuy !== null) return Number(cs.tyLeHuy) || 0
+    const don = Number(cs.soDon) || 0
+    return don > 0 ? Math.round(((Number(cs.soHuy) || 0) * 1000) / don) / 10 : 0
   }
-  if (Math.abs(p) < 0.05) {
-    return { text: 'Không đổi', textNgan: '0%', lop: 'text-muted' }
+  return Number(cs[c.k]) || 0
+}
+
+function hienThiGiaTri(c, v) {
+  if (c.phanTram) return `${soThapPhan(v)}%`
+  return c.tien ? formatMoney(Math.round(v)) : String(Math.round(v))
+}
+
+/** So sánh giá trị một chỉ số giữa 2 kỳ: chênh lệch, % tăng / giảm và màu tốt / xấu. */
+function soSanhGiaTri(c, nay, truoc) {
+  const hieu = c.phanTram ? Math.round((nay - truoc) * 10) / 10 : Math.round(nay) - Math.round(truoc)
+  const dau = hieu > 0 ? '+' : hieu < 0 ? '-' : ''
+  const abs = Math.abs(hieu)
+  const chenhText = c.phanTram ? `${dau}${soThapPhan(abs)} điểm %` : `${dau}${c.tien ? formatMoney(abs) : abs}`
+  let pct = null
+  let pctText
+  if (c.phanTram) {
+    pctText = '—'
+  } else if (Math.round(truoc) === 0) {
+    pctText = Math.round(nay) === 0 ? '0%' : 'Mới phát sinh'
+  } else {
+    pct = tinhPhanTram(nay, truoc)
+    pctText = pct === 0 ? '0%' : `${pct > 0 ? '▲' : '▼'} ${soThapPhan(Math.abs(pct))}%`
   }
-  const tang = p > 0
-  const s = `${tang ? '▲' : '▼'} ${String(Math.abs(p)).replace('.', ',')}%`
-  const lop = tang !== xauKhiTang ? 'ss-tot' : 'ss-xau'
-  if (valNay !== null && valGoc !== null) {
-    const hieu = Number(valNay) - Number(valGoc)
-    const absHieu = Math.abs(hieu)
-    const strHieu = `${hieu >= 0 ? '+' : '-'}${absHieu >= 1000 ? nhanTienGon(absHieu) : String(absHieu)}`
-    return { text: s, textNgan: `${s} (${strHieu})`, lop }
-  }
-  return { text: s, textNgan: s, lop }
+  const lop = hieu === 0 || c.trungTinh ? 'is-flat' : (hieu > 0) !== Boolean(c.xauKhiTang) ? 'is-tot' : 'is-xau'
+  return { hieu, chenhText, pct, pctText, bienDong: c.phanTram ? chenhText : pctText, lop }
 }
 
 function layChiSoDayDuCuaKy(item, ma, nhanMacDinh) {
@@ -544,10 +551,12 @@ function layChiSoDayDuCuaKy(item, ma, nhanMacDinh) {
       goc = {
         ky: { ma, nhan: nhanMacDinh, tuNgay: khoang.tu, denNgay: khoang.den },
         doanhThuThucTe: dt,
-        doanhThuDuKien: dt,
+        doanhThuDuKien: Number(trongXu.doanhThuDuKien) || dt,
+        tongGiamGia: 0,
         soDon: sd,
         soHoanThanh: sd,
         soHuy: 0,
+        tyLeHuy: 0,
         giaTriTrungBinh: sd > 0 ? Math.round(dt / sd) : 0,
         soSanPhamBan: 0,
         soKhachMua: 0,
@@ -561,9 +570,11 @@ function layChiSoDayDuCuaKy(item, ma, nhanMacDinh) {
       ky: { ma, nhan: nhanMacDinh, tuNgay: khoang.tu, denNgay: khoang.den },
       doanhThuThucTe: 0,
       doanhThuDuKien: 0,
+      tongGiamGia: 0,
       soDon: 0,
       soHoanThanh: 0,
       soHuy: 0,
+      tyLeHuy: 0,
       giaTriTrungBinh: 0,
       soSanPhamBan: 0,
       soKhachMua: 0,
@@ -572,49 +583,47 @@ function layChiSoDayDuCuaKy(item, ma, nhanMacDinh) {
   }
 
   const spGocTrongKy = Array.isArray(goc.sanPhamTrongKy) ? goc.sanPhamTrongKy : []
+  const kyChuan = {
+    ma,
+    nhan: goc.ky?.nhan || nhanMacDinh,
+    tuNgay: goc.ky?.tuNgay || khoang.tu,
+    denNgay: goc.ky?.denNgay || khoang.den,
+  }
   const th = thuongHieuLoc.value.trim()
-  const kw = boDau(tuKhoaSpLoc.value)
-  if ((th || kw) && spGocTrongKy.length > 0) {
-    const spKhop = spGocTrongKy.filter((sp) => {
-      const khopTh = !th || String(sp.thuongHieu || '').trim() === th
-      const khopKw = !kw || boDau(`${sp.maSanPham || ''} ${sp.tenSanPham || ''} ${sp.thuongHieu || ''}`).includes(kw)
-      return khopTh && khopKw
-    })
+  if (th) {
+    // Chỉ tính phần doanh thu của sản phẩm thuộc thương hiệu; số đơn = số hóa đơn hoàn thành có chứa các sản phẩm đó
+    const spKhop = spGocTrongKy.filter((sp) => String(sp.thuongHieu || '').trim() === th)
     const dtLoc = spKhop.reduce((s, x) => s + (Number(x.doanhThu) || 0), 0)
     const slLoc = spKhop.reduce((s, x) => s + (Number(x.soLuong) || 0), 0)
-    const donLoc = dtLoc > 0 ? Math.max(1, Math.min(Number(goc.soHoanThanh) || 1, spKhop.length)) : 0
+    const coMaDon = spKhop.every((sp) => Array.isArray(sp.hoaDonIds))
+    const donLoc = coMaDon
+      ? new Set(spKhop.flatMap((sp) => sp.hoaDonIds)).size
+      : dtLoc > 0
+        ? Math.max(1, Math.min(Number(goc.soHoanThanh) || 1, spKhop.length))
+        : 0
+    const khachLoc = coMaDon ? new Set(spKhop.flatMap((sp) => sp.khachHangIds || [])).size : 0
     return {
       ...goc,
-      ky: {
-        ma,
-        nhan: goc.ky?.nhan || nhanMacDinh,
-        tuNgay: goc.ky?.tuNgay || khoang.tu,
-        denNgay: goc.ky?.denNgay || khoang.den,
-      },
+      ky: kyChuan,
       doanhThuThucTe: dtLoc,
       doanhThuDuKien: dtLoc,
+      tongGiamGia: 0,
       soDon: donLoc,
       soHoanThanh: donLoc,
       soHuy: 0,
+      tyLeHuy: 0,
       giaTriTrungBinh: donLoc > 0 ? Math.round(dtLoc / donLoc) : 0,
       soSanPhamBan: slLoc,
+      soKhachMua: khachLoc,
       sanPhamTrongKy: spKhop,
       sanPhamTrongKyGoc: spGocTrongKy,
     }
   }
 
-  return {
-    ...goc,
-    ky: {
-      ma,
-      nhan: goc.ky?.nhan || nhanMacDinh,
-      tuNgay: goc.ky?.tuNgay || khoang.tu,
-      denNgay: goc.ky?.denNgay || khoang.den,
-    },
-    sanPhamTrongKyGoc: spGocTrongKy,
-  }
+  return { ...goc, ky: kyChuan, sanPhamTrongKyGoc: spGocTrongKy }
 }
 
+/** Các kỳ đang so sánh, sắp theo thời gian (cũ → mới), kèm doanh thu tăng / giảm so với kỳ liền trước. */
 const cacKyDoiChieu = computed(() => {
   const ketQua = []
   const daCo = new Set()
@@ -639,78 +648,165 @@ const cacKyDoiChieu = computed(() => {
     })
   })
   const sapXep = [...ketQua].sort((a, b) => String(a.ma || '').localeCompare(String(b.ma || '')))
-  const maxDt = Math.max(0, ...sapXep.map((x) => Number(x.doanhThuThucTe) || 0))
 
   return sapXep.map((cs, idx) => {
     const truoc = idx > 0 ? sapXep[idx - 1] : null
     const dtNay = Number(cs.doanhThuThucTe) || 0
     const dtTruoc = truoc ? Number(truoc.doanhThuThucTe) || 0 : 0
-    const chenhLech = truoc ? dtNay - dtTruoc : dtNay
-    let pctDt = null
-    if (!truoc) {
-      if (d.value?.ky?.ma === cs.ma && d.value?.tangSoVoiCungKy?.doanhThuThucTe !== undefined && d.value?.tangSoVoiCungKy?.doanhThuThucTe !== null) {
-        pctDt = Number(d.value.tangSoVoiCungKy.doanhThuThucTe)
-      } else {
-        pctDt = dtNay > 0 ? 100 : 0
-      }
-    } else {
-      pctDt = dtTruoc === 0 ? (dtNay > 0 ? 100 : 0) : tinhPhanTram(dtNay, dtTruoc)
-    }
-
     return {
       ...cs,
+      laKyDau: !truoc,
       soVoiNhan: truoc ? truoc.nhan : null,
-      chenhLech,
-      pctDoanhThu: pctDt,
-      laCaoNhat: maxDt > 0 && dtNay === maxDt,
-      moTaDt: moTaTang(pctDt, false, dtNay, truoc ? dtTruoc : 0),
+      chenhLech: truoc ? dtNay - dtTruoc : 0,
+      pctDoanhThu: truoc ? tinhPhanTram(dtNay, dtTruoc) : null,
     }
   })
 })
 
-/* ----- 6 Thẻ KPI tổng hợp (Như mẫu nhưng bỏ Tiền mặt / Chuyển khoản, thay bằng Doanh thu dự kiến & Tổng đơn hàng) ----- */
-const tongHopCacKy = computed(() => {
-  const ds = cacKyDoiChieu.value
-  const tongDoanhThu = ds.reduce((s, k) => s + (Number(k.doanhThuThucTe) || 0), 0)
-  const tongDoanhThuDuKien = ds.reduce((s, k) => s + (Number(k.doanhThuDuKien) || 0), 0)
-  const tongDon = ds.reduce((s, k) => s + (Number(k.soDon) || 0), 0)
-  const tongDonHoanThanh = ds.reduce((s, k) => s + (Number(k.soHoanThanh) || 0), 0)
-  const tongDonHuy = ds.reduce((s, k) => s + (Number(k.soHuy) || 0), 0)
-  const tongSanPham = ds.reduce((s, k) => s + (Number(k.soSanPhamBan) || 0), 0)
-  const aovTrungBinh = tongDonHoanThanh > 0 ? Math.round(tongDoanhThu / tongDonHoanThanh) : 0
+const kyChinh = computed(() => cacKyDoiChieu.value[cacKyDoiChieu.value.length - 1] || null)
+const kySoSanh = computed(() =>
+  cacKyDoiChieu.value.length >= 2 ? cacKyDoiChieu.value[cacKyDoiChieu.value.length - 2] : null
+)
 
-  let tangTruongBinhQuan = 0
-  if (ds.length >= 2) {
-    const buoc = []
-    for (let i = 1; i < ds.length; i++) {
-      const a = Number(ds[i].doanhThuThucTe) || 0
-      const b = Number(ds[i - 1].doanhThuThucTe) || 0
-      if (b === 0) {
-        buoc.push(a > 0 ? 100 : a === 0 && Number(ds[0].doanhThuThucTe) > 0 ? -100 : 0)
-      } else {
-        buoc.push(((a - b) * 100) / b)
+/* ----- Thẻ tóm tắt: kỳ đang xét so với kỳ liền trước ----- */
+const theKpi = computed(() => {
+  const nay = kyChinh.value
+  if (!nay) return []
+  const truoc = kySoSanh.value
+  return chiSoHienThi.value
+    .filter((c) => c.the)
+    .map((c) => {
+      const vNay = layGiaTri(nay, c)
+      const vTruoc = truoc ? layGiaTri(truoc, c) : 0
+      return {
+        ...c,
+        giaTriText: hienThiGiaTri(c, vNay),
+        giaTriTruocText: truoc ? hienThiGiaTri(c, vTruoc) : '',
+        ss: truoc ? soSanhGiaTri(c, vNay, vTruoc) : null,
       }
-    }
-    tangTruongBinhQuan = buoc.length ? Math.round((buoc.reduce((s, x) => s + x, 0) / buoc.length) * 10) / 10 : 0
-  } else if (ds.length === 1) {
-    tangTruongBinhQuan = Math.round((Number(ds[0].pctDoanhThu) || 0) * 10) / 10
-  }
+    })
+})
 
-  const dau = tangTruongBinhQuan > 0 ? '+' : ''
+function soNgayGiua(tu, den) {
+  return Math.round((new Date(`${den}T12:00:00`) - new Date(`${tu}T12:00:00`)) / 86400000) + 1
+}
+
+/** Lưu ý khi 2 kỳ không cùng độ dài (kỳ đang diễn ra hoặc khoảng ngày tùy chọn lệch nhau). */
+const luuYKy = computed(() => {
+  const nay = kyChinh.value
+  if (!nay?.tuNgay || !nay?.denNgay) return ''
+  const tu = String(nay.tuNgay).slice(0, 10)
+  const den = String(nay.denNgay).slice(0, 10)
+  if (tu <= homNay && homNay < den) {
+    return `${nay.nhan} chưa kết thúc (đã qua ${soNgayGiua(tu, homNay)}/${soNgayGiua(tu, den)} ngày), số liệu sẽ còn thay đổi đến hết kỳ.`
+  }
+  const truoc = kySoSanh.value
+  if (kieu.value === 'TUY_CHON' && truoc?.tuNgay && truoc?.denNgay) {
+    const a = soNgayGiua(tu, den)
+    const b = soNgayGiua(String(truoc.tuNgay).slice(0, 10), String(truoc.denNgay).slice(0, 10))
+    if (a !== b) return `Hai kỳ có độ dài khác nhau: ${nay.nhan} có ${a} ngày, ${truoc.nhan} có ${b} ngày.`
+  }
+  return ''
+})
+
+/* ----- Doanh thu thay đổi do đâu ----- */
+/** Tách chênh lệch doanh thu: phần do số đơn = (số đơn mới - số đơn cũ) x giá trị TB / đơn kỳ trước, còn lại do giá trị đơn. */
+function tachChenhLechDoanhThu(nay, truoc) {
+  const dt1 = Number(truoc.doanhThuThucTe) || 0
+  const dt2 = Number(nay.doanhThuThucTe) || 0
+  const n1 = Number(truoc.soHoanThanh) || 0
+  const n2 = Number(nay.soHoanThanh) || 0
+  const tong = dt2 - dt1
+  const doSoDon = n1 === 0 ? tong : Math.round((n2 - n1) * (dt1 / n1))
+  return { tong, doSoDon, doGiaTriDon: tong - doSoDon }
+}
+
+function sanPhamBienDong(nay, truoc) {
+  const theoSp = new Map()
+  const cong = (k, dau) => {
+    for (const sp of k?.sanPhamTrongKy || []) {
+      const khoa = sp.maSanPham || sp.tenSanPham
+      if (!khoa) continue
+      const e = theoSp.get(khoa) || { khoa, ten: sp.tenSanPham || khoa, hieu: 0 }
+      e.hieu += dau * (Number(sp.doanhThu) || 0)
+      theoSp.set(khoa, e)
+    }
+  }
+  cong(truoc, -1)
+  cong(nay, 1)
+  const ds = [...theoSp.values()]
   return {
-    tongDoanhThu,
-    tongDoanhThuDuKien,
-    tongDon,
-    tongDonHoanThanh,
-    tongDonHuy,
-    tongSanPham,
-    aovTrungBinh,
-    tangTruongBinhQuan,
-    tangTruongBinhQuanText: `${dau}${String(tangTruongBinhQuan).replace('.', ',')}%`,
+    spTang: ds.filter((x) => x.hieu > 0).sort((a, b) => b.hieu - a.hieu).slice(0, 3),
+    spGiam: ds.filter((x) => x.hieu < 0).sort((a, b) => a.hieu - b.hieu).slice(0, 3),
+  }
+}
+
+const phanTichDoanhThu = computed(() => {
+  const nay = kyChinh.value
+  const truoc = kySoSanh.value
+  if (!nay || !truoc) return null
+  const tach = tachChenhLechDoanhThu(nay, truoc)
+  return {
+    ...tach,
+    donTruoc: Number(truoc.soHoanThanh) || 0,
+    donNay: Number(nay.soHoanThanh) || 0,
+    gtTruoc: Number(truoc.giaTriTrungBinh) || 0,
+    gtNay: Number(nay.giaTriTrungBinh) || 0,
+    ...sanPhamBienDong(nay, truoc),
   }
 })
 
-/* ----- Biểu đồ Doanh thu & Tốc độ tăng trưởng qua các kỳ (Giống mẫu, tỷ lệ chuẩn xác) ----- */
+/* ----- Bảng đối chiếu chỉ số (dòng = chỉ số, cột = kỳ) ----- */
+const bangChiSo = computed(() => {
+  const ds = cacKyDoiChieu.value
+  const nay = kyChinh.value
+  const truoc = kySoSanh.value
+  return chiSoHienThi.value.map((c) => ({
+    ...c,
+    cot: ds.map((k, i) => {
+      const v = layGiaTri(k, c)
+      return {
+        ma: k.ma,
+        text: hienThiGiaTri(c, v),
+        ss: ds.length > 2 && i > 0 ? soSanhGiaTri(c, v, layGiaTri(ds[i - 1], c)) : null,
+      }
+    }),
+    ss: nay && truoc ? soSanhGiaTri(c, layGiaTri(nay, c), layGiaTri(truoc, c)) : null,
+  }))
+})
+
+/* ----- Doanh thu theo thương hiệu ----- */
+const bangThuongHieu = computed(() => {
+  const ds = cacKyDoiChieu.value
+  const theoTh = new Map()
+  ds.forEach((k) => {
+    for (const sp of k.sanPhamTrongKy || []) {
+      const ten = String(sp.thuongHieu || '').trim() || 'Khác'
+      if (!theoTh.has(ten)) theoTh.set(ten, {})
+      const e = theoTh.get(ten)
+      e[k.ma] = (e[k.ma] || 0) + (Number(sp.doanhThu) || 0)
+    }
+  })
+  const nay = kyChinh.value
+  const truoc = kySoSanh.value
+  const tongNay = nay ? [...theoTh.values()].reduce((s, e) => s + (e[nay.ma] || 0), 0) : 0
+  return [...theoTh.entries()]
+    .map(([ten, theoKy]) => {
+      const vNay = nay ? theoKy[nay.ma] || 0 : 0
+      const vTruoc = truoc ? theoKy[truoc.ma] || 0 : 0
+      return {
+        ten,
+        theoKy,
+        vNay,
+        tongCacKy: Object.values(theoKy).reduce((s, x) => s + x, 0),
+        tyTrong: tongNay > 0 ? `${soThapPhan((vNay * 100) / tongNay)}%` : '0%',
+        ss: truoc ? soSanhGiaTri(CHI_SO[0], vNay, vTruoc) : null,
+      }
+    })
+    .sort((a, b) => b.vNay - a.vNay || b.tongCacKy - a.tongCacKy || a.ten.localeCompare(b.ten, 'vi'))
+})
+
+/* ----- Biểu đồ doanh thu & tăng / giảm qua các kỳ ----- */
 const W_COMBO = 860
 const H_COMBO = 340
 const PAD_COMBO = { l: 82, r: 76, t: 54, b: 46 }
@@ -733,7 +829,7 @@ const bieuDoQuaCacKy = computed(() => {
   const maxVal = Math.max(0, ...ds.map((k) => Math.max(Number(k.doanhThuThucTe) || 0, Number(k.doanhThuDuKien) || 0)))
   const max = tinhTranBieuDo(maxVal)
 
-  // Tách biệt rõ vùng đường tăng trưởng (%) phía trên và vùng cột doanh thu (VNĐ) phía dưới để không bao giờ đè chữ
+  // Tách biệt vùng đường tăng / giảm (%) phía trên và vùng cột doanh thu (VNĐ) phía dưới để không đè chữ
   const yZeroBar = H_COMBO - PAD_COMBO.b
   const caoBarMax = 112
   const yTopLine = PAD_COMBO.t + 4
@@ -755,9 +851,9 @@ const bieuDoQuaCacKy = computed(() => {
 
   const ticksPct = [
     { pct: maxPctScale, nhan: `+${maxPctScale}%`, y: yTopLine },
-    { pct: halfPct, nhan: `+${String(halfPct).replace('.', ',')}%`, y: (yTopLine + yMidLine) / 2 },
+    { pct: halfPct, nhan: `+${soThapPhan(halfPct)}%`, y: (yTopLine + yMidLine) / 2 },
     { pct: 0, nhan: '0%', y: yMidLine },
-    { pct: -halfPct, nhan: `-${String(halfPct).replace('.', ',')}%`, y: (yMidLine + yBotLine) / 2 },
+    { pct: -halfPct, nhan: `-${soThapPhan(halfPct)}%`, y: (yMidLine + yBotLine) / 2 },
     { pct: -maxPctScale, nhan: `-${maxPctScale}%`, y: yBotLine },
   ]
 
@@ -774,12 +870,15 @@ const bieuDoQuaCacKy = computed(() => {
     const yThucTe = yZeroBar - hThucTe
     const yTong = yZeroBar - (hThucTe + hChoThu)
 
-    const rawPct = Number(k.pctDoanhThu) || 0
+    // Kỳ đầu tiên không có kỳ trước để so; kỳ trước bằng 0 mà kỳ này có doanh thu thì ghi "Mới"
+    const coDiem = !k.laKyDau
+    const laMoi = coDiem && (k.pctDoanhThu === null || k.pctDoanhThu === undefined)
+    const rawPct = laMoi ? maxPctScale : Number(k.pctDoanhThu) || 0
     const pctClamped = Math.max(-maxPctScale, Math.min(maxPctScale, rawPct))
     const yLine = yMidLine - (pctClamped / maxPctScale) * ((yBotLine - yTopLine) / 2)
-    const strPct = String(Math.round(Math.abs(rawPct) * 10) / 10).replace('.', ',')
-    const nhanPct = rawPct > 0 ? `↑ +${strPct}%` : rawPct < 0 ? `↓ -${strPct}%` : '0%'
-    const rongBadge = Math.max(58, nhanPct.length * 6.5 + 16)
+    const strPct = soThapPhan(Math.abs(rawPct))
+    const nhanPct = laMoi ? 'Mới' : rawPct > 0 ? `↑ +${strPct}%` : rawPct < 0 ? `↓ -${strPct}%` : '0%'
+    const rongBadge = Math.max(46, nhanPct.length * 6.5 + 16)
 
     return {
       ...k,
@@ -799,6 +898,7 @@ const bieuDoQuaCacKy = computed(() => {
       hChoThu,
       yZeroBar,
       caoBarMax,
+      coDiem,
       yLine,
       rongBadge,
       nhanCot: dk > 0 ? nhanTienGon(dt > 0 ? dt : dk) : '0 đ',
@@ -807,16 +907,18 @@ const bieuDoQuaCacKy = computed(() => {
     }
   })
 
-  const polyline = cot.map((c) => `${c.cx},${c.yLine}`).join(' ')
+  const diem = cot.filter((c) => c.coDiem)
+  const polyline = diem.map((c) => `${c.cx},${c.yLine}`).join(' ')
   const xuHuongText = (d.value?.xuHuong || [])
     .filter((x) => x.tangTruong !== null && x.tangTruong !== undefined)
-    .map((x) => `${x.tangTruong >= 0 ? '+' : ''}${String(x.tangTruong).replace('.', ',')}%`)
+    .map((x) => `${x.tangTruong >= 0 ? '+' : ''}${soThapPhan(x.tangTruong)}%`)
     .join(' ')
 
   return {
     ticksTien,
     ticksPct,
     cot,
+    diem,
     polyline,
     yZeroBar,
     xuHuongText,
@@ -828,59 +930,15 @@ const kyDangHover = computed(() => {
   return bieuDoQuaCacKy.value.cot[hoverKyIdx.value] || null
 })
 
-/* ----- Bảng đối chiếu doanh thu chi tiết các kỳ ----- */
-const timKyBang = ref('')
-const locHieuSuatKy = ref('TAT_CA')
-const sapXepKy = ref('THOI_GIAN_TANG')
-
-function datLaiBangKy() {
-  timKyBang.value = ''
-  locHieuSuatKy.value = 'TAT_CA'
-  sapXepKy.value = 'THOI_GIAN_TANG'
-}
-
-const bangChiTietCacKy = computed(() => {
-  const kw = boDau(timKyBang.value)
-  let ds = cacKyDoiChieu.value.filter((k) => {
-    if (kw && !boDau(`${k.nhan} ${k.khoangHienThi} ${k.ma}`).includes(kw)) return false
-    if (locHieuSuatKy.value === 'TANG' && (Number(k.pctDoanhThu) || 0) <= 0) return false
-    if (locHieuSuatKy.value === 'GIAM' && (Number(k.pctDoanhThu) || 0) >= 0) return false
-    if (locHieuSuatKy.value === 'CO_DT' && (Number(k.doanhThuThucTe) || 0) <= 0) return false
-    return true
-  })
-
-  if (sapXepKy.value === 'THOI_GIAN_GIAM') {
-    ds = [...ds].reverse()
-  } else if (sapXepKy.value === 'DT_GIAM') {
-    ds = [...ds].sort((a, b) => (Number(b.doanhThuThucTe) || 0) - (Number(a.doanhThuThucTe) || 0))
-  } else if (sapXepKy.value === 'DT_TANG') {
-    ds = [...ds].sort((a, b) => (Number(a.doanhThuThucTe) || 0) - (Number(b.doanhThuThucTe) || 0))
-  }
-  return ds
-})
-
-/* ----- Top sản phẩm bán chạy & Đối chiếu sức mua qua các kỳ ----- */
-const timSpBang = ref('')
-const thuongHieuSpBang = ref('')
-const xuHuongSpBang = ref('TAT_CA')
-const sapXepSpBang = ref('SL_GIAM')
-
-function datLaiBangSp() {
-  timSpBang.value = ''
-  thuongHieuSpBang.value = ''
-  xuHuongSpBang.value = 'TAT_CA'
-  sapXepSpBang.value = 'SL_GIAM'
-}
+/* ----- Sản phẩm bán chạy qua các kỳ ----- */
 
 const dsSanPhamGoc = computed(() => {
   const dsKy = cacKyDoiChieu.value
   const mapSp = new Map()
 
-  let coDuLieuTheoKy = false
   dsKy.forEach((k) => {
     const dsSpKy = Array.isArray(k.sanPhamTrongKyGoc) ? k.sanPhamTrongKyGoc : k.sanPhamTrongKy
     if (Array.isArray(dsSpKy) && dsSpKy.length > 0) {
-      coDuLieuTheoKy = true
       for (const sp of dsSpKy) {
         const key = sp.maSanPham || sp.tenSanPham
         if (!key) continue
@@ -888,7 +946,7 @@ const dsSanPhamGoc = computed(() => {
           mapSp.set(key, {
             maSanPham: sp.maSanPham || 'SP',
             tenSanPham: sp.tenSanPham || 'Sản phẩm',
-            thuongHieu: sp.thuongHieu || 'FootStyle',
+            thuongHieu: sp.thuongHieu || '',
             tongBan: 0,
             tongDoanhThu: 0,
             theoKy: {},
@@ -896,11 +954,10 @@ const dsSanPhamGoc = computed(() => {
           })
         }
         const entry = mapSp.get(key)
-        if (sp.thuongHieu && entry.thuongHieu === 'FootStyle') entry.thuongHieu = sp.thuongHieu
+        if (sp.thuongHieu && !entry.thuongHieu) entry.thuongHieu = sp.thuongHieu
         const sl = Number(sp.soLuong) || 0
-        const dt = Number(sp.doanhThu) || 0
         entry.tongBan += sl
-        entry.tongDoanhThu += dt
+        entry.tongDoanhThu += Number(sp.doanhThu) || 0
         entry.theoKy[k.ma] = (entry.theoKy[k.ma] || 0) + sl
       }
     }
@@ -919,58 +976,40 @@ const dsSanPhamGoc = computed(() => {
           theoKy[dsKy[idxChinh].ma] = Number(sp.soLuong) || 0
           if (idxChinh > 0) theoKy[dsKy[idxChinh - 1].ma] = Number(sp.soLuongKyTruoc) || 0
         } else {
-          theoKy[dsKy[0].ma] = Number(sp.soLuong) || 0
-          theoKy[dsKy[dsKy.length - 1].ma] = Number(sp.soLuongKyTruoc) || 0
+          theoKy[dsKy[dsKy.length - 1].ma] = Number(sp.soLuong) || 0
+          theoKy[dsKy[dsKy.length - 2].ma] = Number(sp.soLuongKyTruoc) || 0
         }
       } else if (dsKy.length === 1) {
         theoKy[dsKy[0].ma] = Number(sp.soLuong) || 0
       }
-      const tongSl = !coDuLieuTheoKy
-        ? Object.values(theoKy).reduce((s, v) => s + v, 0) || Number(sp.soLuong) || 0
-        : Number(sp.soLuong) || 0
       mapSp.set(key, {
         maSanPham: sp.maSanPham || 'SP',
         tenSanPham: sp.tenSanPham || 'Sản phẩm',
-        thuongHieu: sp.thuongHieu || 'FootStyle',
-        tongBan: tongSl,
+        thuongHieu: sp.thuongHieu || '',
+        tongBan: Object.values(theoKy).reduce((s, x) => s + x, 0) || Number(sp.soLuong) || 0,
         tongDoanhThu: Number(sp.doanhThu) || 0,
-        soLuongKyNay: Number(sp.soLuong) || 0,
-        soLuongKyTruoc: Number(sp.soLuongKyTruoc) || 0,
         theoKy,
-        tangTruongGoc: sp.tangTruong,
+        tangTruongGoc: sp.tangTruong ?? null,
       })
-    } else if (sp.tangTruong !== undefined && mapSp.get(key).tangTruongGoc === null) {
-      mapSp.get(key).tangTruongGoc = sp.tangTruong
     }
   }
 
   return [...mapSp.values()].map((item) => {
     let pct = item.tangTruongGoc
-    if (dsKy.length >= 2 && (coDuLieuTheoKy || pct === null)) {
-      const slDau = Number(item.theoKy[dsKy[dsKy.length - 2].ma]) || 0
-      const slCuoi = Number(item.theoKy[dsKy[dsKy.length - 1].ma]) || 0
-      pct = slDau === 0 ? (slCuoi > 0 ? 100 : 0) : tinhPhanTram(slCuoi, slDau)
+    if (dsKy.length >= 2) {
+      const slTruoc = Number(item.theoKy[dsKy[dsKy.length - 2].ma]) || 0
+      const slNay = Number(item.theoKy[dsKy[dsKy.length - 1].ma]) || 0
+      pct = slTruoc === 0 ? (slNay > 0 ? 100 : 0) : tinhPhanTram(slNay, slTruoc)
     }
     const numPct = Number(pct) || 0
     const huong = numPct > 0 ? 'TANG' : numPct < 0 ? 'GIAM' : 'ON_DINH'
     const nhanXuHuong =
       numPct > 0
-        ? `↑ Tăng (+${String(Math.abs(numPct)).replace('.', ',')}%)`
+        ? `↑ Tăng (+${soThapPhan(Math.abs(numPct))}%)`
         : numPct < 0
-          ? `↓ Giảm (-${String(Math.abs(numPct)).replace('.', ',')}%)`
+          ? `↓ Giảm (-${soThapPhan(Math.abs(numPct))}%)`
           : '→ Ổn định (0%)'
-    return {
-      ...item,
-      pctTangTruong: pct,
-      huong,
-      nhanXuHuong,
-      moTaKiemThu: moTaTang(
-         item.tangTruongGoc ?? pct,
-        false,
-        item.soLuongKyNay ?? item.tongBan,
-        item.soLuongKyTruoc ?? 0
-      ),
-    }
+    return { ...item, pctTangTruong: pct, huong, nhanXuHuong }
   })
 })
 
@@ -999,144 +1038,106 @@ const dsThuongHieu = computed(() => {
 })
 
 const bangSanPhamDoiChieu = computed(() => {
-  const thChung = thuongHieuLoc.value.trim()
-  const kwChung = boDau(tuKhoaSpLoc.value)
-  const thRieng = thuongHieuSpBang.value.trim()
-  const kwRieng = boDau(timSpBang.value)
-
-  let ds = dsSanPhamGoc.value.filter((sp) => {
-    if (thChung && sp.thuongHieu !== thChung) return false
-    if (thRieng && sp.thuongHieu !== thRieng) return false
-    const chuoi = boDau(`${sp.maSanPham} ${sp.tenSanPham} ${sp.thuongHieu}`)
-    if (kwChung && !chuoi.includes(kwChung)) return false
-    if (kwRieng && !chuoi.includes(kwRieng)) return false
-    if (xuHuongSpBang.value !== 'TAT_CA' && sp.huong !== xuHuongSpBang.value) return false
-    return true
-  })
-
-  if (sapXepSpBang.value === 'SL_GIAM') {
-    ds = [...ds].sort((a, b) => b.tongBan - a.tongBan || b.tongDoanhThu - a.tongDoanhThu)
-  } else if (sapXepSpBang.value === 'DT_GIAM') {
-    ds = [...ds].sort((a, b) => b.tongDoanhThu - a.tongDoanhThu || b.tongBan - a.tongBan)
-  } else if (sapXepSpBang.value === 'TANG_GIAM') {
-    ds = [...ds].sort((a, b) => (Number(b.pctTangTruong) || 0) - (Number(a.pctTangTruong) || 0))
-  } else if (sapXepSpBang.value === 'TEN_AZ') {
-    ds = [...ds].sort((a, b) => a.tenSanPham.localeCompare(b.tenSanPham, 'vi'))
-  }
-  return ds
+  const th = thuongHieuLoc.value.trim()
+  return dsSanPhamGoc.value
+    .filter((sp) => sp.tongBan > 0 && (!th || String(sp.thuongHieu || '').trim() === th))
+    .sort((a, b) => b.tongBan - a.tongBan || b.tongDoanhThu - a.tongDoanhThu)
+    .slice(0, 20)
 })
 
 const tenDonVi = computed(() =>
   kieu.value === 'THANG' ? 'tháng' : kieu.value === 'QUY' ? 'quý' : kieu.value === 'TUY_CHON' ? 'khoảng ngày' : 'năm'
 )
-const nhanKy = computed(() => d.value?.ky?.nhan ?? '')
+const nhanKy = computed(() => kyChinh.value?.nhan || d.value?.ky?.nhan || '')
 
-/* ----- Xuất Excel chuyên nghiệp & đầy đủ nội dung ----- */
+/* ----- Xuất Excel: cùng nội dung và bộ lọc với trang ----- */
 function xuatExcel() {
   if (canhBaoKy.value) {
     toast.warning(canhBaoKy.value)
     return
   }
   const v = d.value
-  if (!v) return
+  const nay = kyChinh.value
+  if (!v || !nay) return
+  const truoc = kySoSanh.value
   const C = (header, key, width = 18, opts = {}) => ({ header, key, width, ...opts })
-  const tang = (p) => {
-    if (p === null || p === undefined) return '—'
-    if (Math.abs(p) < 0.05) return '0%'
-    return `${p > 0 ? '+' : ''}${String(p).replace('.', ',')}%`
-  }
   const dsKy = cacKyDoiChieu.value
-  const phuDeChung = `Chế độ đối chiếu: Theo ${tenDonVi.value}  |  Các kỳ so sánh: ${dsKy.map((k) => k.nhan).join(' vs ')}  |  Ngày xuất: ${formatDate(homNay)}`
+  const moTaLoc = []
+  if (thuongHieuLoc.value.trim()) moTaLoc.push(`Thương hiệu: ${thuongHieuLoc.value.trim()}`)
+  const phuDe = [
+    truoc ? `So sánh ${nay.nhan} với ${truoc.nhan}` : nay.nhan,
+    `Theo ${tenDonVi.value}`,
+    `Các kỳ: ${dsKy.map((k) => k.nhan).join(', ')}`,
+    ...moTaLoc,
+    `Ngày xuất: ${formatDate(homNay)}`,
+  ].join('  |  ')
+  const cotSoSanh = truoc
+    ? [C('Chênh lệch', 'chenh', 20, { align: 'right' }), C('Tăng / giảm', 'tangGiam', 16, { align: 'center' })]
+    : []
 
   const sheets = [
     {
-      sheetName: 'Đối chiếu các kỳ',
-      title: 'I. BẢNG ĐỐI CHIẾU DOANH THU & TỐC ĐỘ TĂNG TRƯỞNG CÁC KỲ',
-      subtitle: phuDeChung,
+      sheetName: 'Chỉ số các kỳ',
+      title: 'I. BẢNG ĐỐI CHIẾU CHỈ SỐ CÁC KỲ',
+      subtitle: phuDe,
       columns: [
         C('STT', 'stt', 8, { align: 'center' }),
-        C('Kỳ so sánh', 'nhan', 22),
-        C('Khoảng thời gian', 'khoang', 26, { align: 'center' }),
-        C('Tổng doanh thu thực tế (₫)', 'doanhThuThucTe', 26, { money: true }),
-        C('Doanh thu dự kiến (₫)', 'doanhThuDuKien', 24, { money: true }),
-        C('Tổng số đơn', 'soDon', 16, { number: true }),
-        C('Đơn hoàn thành', 'soHoanThanh', 18, { number: true }),
-        C('Đơn đã hủy', 'soHuy', 14, { number: true }),
-        C('Giá trị TB / đơn (₫)', 'giaTriTrungBinh', 22, { money: true }),
-        C('Sản phẩm đã bán', 'soSanPhamBan', 18, { number: true }),
-        C('Chênh lệch DT (₫)', 'chenhLech', 22, { money: true }),
-        C('Tăng trưởng (±%)', 'tangTruong', 18, { align: 'center' }),
+        C('Chỉ số', 'ten', 26),
+        ...dsKy.map((k, i) => C(k.nhan, `ky_${i}`, 20, { align: 'right' })),
+        ...cotSoSanh,
       ],
-      rows: dsKy.map((k, idx) => ({
-        stt: idx + 1,
-        nhan: k.laCaoNhat ? `${k.nhan} (Cao nhất)` : k.nhan,
-        khoang: k.khoangHienThi,
-        doanhThuThucTe: Number(k.doanhThuThucTe) || 0,
-        doanhThuDuKien: Number(k.doanhThuDuKien) || 0,
-        soDon: Number(k.soDon) || 0,
-        soHoanThanh: Number(k.soHoanThanh) || 0,
-        soHuy: Number(k.soHuy) || 0,
-        giaTriTrungBinh: Number(k.giaTriTrungBinh) || 0,
-        soSanPhamBan: Number(k.soSanPhamBan) || 0,
-        chenhLech: Number(k.chenhLech) || 0,
-        tangTruong: dinhDangPhanTram(k.pctDoanhThu),
-      })),
-      totalRow: {
-        stt: '',
-        nhan: 'TỔNG CỘNG CÁC KỲ',
-        khoang: `${dsKy.length} kỳ đối chiếu`,
-        doanhThuThucTe: tongHopCacKy.value.tongDoanhThu,
-        doanhThuDuKien: tongHopCacKy.value.tongDoanhThuDuKien,
-        soDon: tongHopCacKy.value.tongDon,
-        soHoanThanh: tongHopCacKy.value.tongDonHoanThanh,
-        soHuy: tongHopCacKy.value.tongDonHuy,
-        giaTriTrungBinh: tongHopCacKy.value.aovTrungBinh,
-        soSanPhamBan: tongHopCacKy.value.tongSanPham,
-        chenhLech: '',
-        tangTruong: `TB: ${tongHopCacKy.value.tangTruongBinhQuanText}`,
-      },
-    },
-    {
-      sheetName: 'Ma trận chỉ số',
-      title: 'II. MA TRẬN ĐỐI CHIẾU 8 CHỈ SỐ CỐT LÕI QUA CÁC KỲ',
-      subtitle: phuDeChung,
-      columns: [
-        C('STT', 'stt', 8, { align: 'center' }),
-        C('Chỉ số kinh doanh', 'ten', 30),
-        ...dsKy.flatMap((k, idx) => [
-          C(`Kỳ ${idx + 1}: ${k.nhan}`, `ky_${idx}`, 22),
-          ...(idx > 0 ? [C(`±% so với ${dsKy[idx - 1].nhan}`, `pct_${idx}`, 20, { align: 'center' })] : []),
-        ]),
-      ],
-      rows: CHI_SO.map((c, idx) => {
+      rows: bangChiSo.value.map((c, idx) => {
         const row = {
-          _moneyKeys: c.tien ? dsKy.map((_, i) => `ky_${i}`) : [],
+          _moneyKeys: c.tien ? [...dsKy.map((_, i) => `ky_${i}`), 'chenh'] : [],
           stt: idx + 1,
           ten: c.ten,
         }
         dsKy.forEach((k, i) => {
-          const val = Number(k[c.k]) || 0
-          row[`ky_${i}`] = val
-          if (i > 0) {
-            const valTruoc = Number(dsKy[i - 1][c.k]) || 0
-            row[`pct_${i}`] = tang(tinhPhanTram(val, valTruoc))
-          }
+          const val = layGiaTri(k, c)
+          row[`ky_${i}`] = c.phanTram ? `${soThapPhan(val)}%` : Math.round(val)
         })
+        if (c.ss) {
+          row.chenh = c.phanTram ? c.ss.chenhText : c.ss.hieu
+          row.tangGiam = c.ss.pctText
+        }
         return row
       }),
     },
     {
-      sheetName: 'Top sản phẩm qua các kỳ',
-      title: 'III. TOP SẢN PHẨM BÁN CHẠY & ĐỐI CHIẾU SỨC MUA QUA CÁC KỲ',
-      subtitle: phuDeChung,
+      sheetName: 'Thương hiệu',
+      title: 'II. DOANH THU THEO THƯƠNG HIỆU',
+      subtitle: phuDe,
+      columns: [
+        C('STT', 'stt', 8, { align: 'center' }),
+        C('Thương hiệu', 'ten', 22),
+        ...dsKy.map((k, i) => C(k.nhan, `ky_${i}`, 20, { money: true })),
+        ...(truoc ? [C('Chênh lệch', 'chenh', 20, { money: true }), C('Tăng / giảm', 'tangGiam', 16, { align: 'center' })] : []),
+        C(`Tỷ trọng ${nay.nhan}`, 'tyTrong', 18, { align: 'center' }),
+      ],
+      rows: bangThuongHieu.value.map((th, idx) => {
+        const row = { stt: idx + 1, ten: th.ten, tyTrong: th.tyTrong }
+        dsKy.forEach((k, i) => {
+          row[`ky_${i}`] = th.theoKy[k.ma] || 0
+        })
+        if (th.ss) {
+          row.chenh = th.ss.hieu
+          row.tangGiam = th.ss.pctText
+        }
+        return row
+      }),
+    },
+    {
+      sheetName: 'Sản phẩm',
+      title: 'III. SẢN PHẨM BÁN CHẠY QUA CÁC KỲ',
+      subtitle: phuDe,
       columns: [
         C('STT', 'stt', 8, { align: 'center' }),
         C('Mã SP', 'maSanPham', 14, { align: 'center' }),
         C('Tên sản phẩm', 'tenSanPham', 38),
         C('Thương hiệu', 'thuongHieu', 18),
+        ...dsKy.map((k, idx) => C(k.nhan, `sl_ky_${idx}`, 16, { number: true })),
         C('Tổng bán', 'tongBan', 14, { number: true }),
-        C('Tổng doanh thu (₫)', 'tongDoanhThu', 24, { money: true }),
-        ...dsKy.map((k, idx) => C(k.nhan, `sl_ky_${idx}`, 18, { number: true })),
+        C('Doanh thu (₫)', 'tongDoanhThu', 22, { money: true }),
         C('Xu hướng', 'nhanXuHuong', 22, { align: 'center' }),
       ],
       rows: bangSanPhamDoiChieu.value.map((sp, idx) => {
@@ -1154,33 +1155,18 @@ function xuatExcel() {
         })
         return r
       }),
-      totalRow: {
-        stt: '',
-        maSanPham: '',
-        tenSanPham: 'TỔNG CỘNG TOP SẢN PHẨM',
-        thuongHieu: '',
-        tongBan: bangSanPhamDoiChieu.value.reduce((s, x) => s + x.tongBan, 0),
-        tongDoanhThu: bangSanPhamDoiChieu.value.reduce((s, x) => s + x.tongDoanhThu, 0),
-        ...Object.fromEntries(
-          dsKy.map((k, i) => [
-            `sl_ky_${i}`,
-            bangSanPhamDoiChieu.value.reduce((s, x) => s + (Number(x.theoKy[k.ma]) || 0), 0),
-          ])
-        ),
-        nhanXuHuong: '',
-      },
     },
   ]
 
   exportExcel({
-    filename: `so-sanh_${v.kieu.toLowerCase()}_${v.ky.ma}.xlsx`,
+    filename: `so-sanh_${v.kieu.toLowerCase()}_${String(nay.ma).replace(/[^A-Za-z0-9_-]/g, '_')}.xlsx`,
     report: {
-      brand: 'HỆ THỐNG CỬA HÀNG GIÀY THỂ THAO FOOTSTYLE — BÁO CÁO ĐỐI CHIẾU DOANH THU',
-      subtitle: phuDeChung,
+      brand: 'FOOTSTYLE — BÁO CÁO SO SÁNH DOANH THU',
+      subtitle: phuDe,
     },
     sheets,
   })
-  toast.success('Đã xuất file Excel so sánh đầy đủ.')
+  toast.success('Đã xuất file Excel so sánh.')
 }
 
 /* ----- Gửi email báo cáo ----- */
@@ -1294,8 +1280,7 @@ async function guiEmail() {
   try {
     const emailChuan = dsEmail.join(', ')
     const dsMaKy = cacKyDoiChieu.value.map((k) => k.ma).filter(Boolean)
-    const thChon = (thuongHieuLoc.value || thuongHieuSpBang.value || '').trim()
-    const kwChon = (tuKhoaSpLoc.value || timSpBang.value || '').trim()
+    const thChon = thuongHieuLoc.value.trim()
     const payload = {
       kieu: kieu.value,
       ky: ky.value,
@@ -1303,10 +1288,6 @@ async function guiEmail() {
       dsKy: dsMaKy,
     }
     if (thChon) payload.thuongHieu = thChon
-    if (kwChon) payload.tuKhoaSp = kwChon
-    if (xuHuongSpBang.value && xuHuongSpBang.value !== 'TAT_CA') payload.xuHuongSp = xuHuongSpBang.value
-    if (sapXepSpBang.value && sapXepSpBang.value !== 'SL_GIAM') payload.sapXepSp = sapXepSpBang.value
-    if (sapXepKy.value && sapXepKy.value !== 'THOI_GIAN_TANG') payload.sapXepKy = sapXepKy.value
     if (gc) payload.ghiChu = gc
     const res = (await api.post('/thong-ke/so-sanh/gui-email', payload)).data
     toast.success(
@@ -1406,10 +1387,6 @@ async function guiEmail() {
       </form>
 
       <div class="ss-mode-row">
-        <div class="d-flex align-items-center gap-2">
-          <span class="ss-mode-title">Chế độ đối chiếu:</span>
-        </div>
-
         <div class="ss-mode-pills" role="group" aria-label="Chọn kiểu kỳ">
           <button
             v-for="o in KIEU"
@@ -1422,45 +1399,21 @@ async function guiEmail() {
             {{ o.t }}
           </button>
         </div>
+
+        <select
+          v-model="thuongHieuLoc"
+          class="form-select ss-filter-select ss-brand-select"
+          aria-label="Lọc theo thương hiệu"
+        >
+          <option value="">Tất cả thương hiệu</option>
+          <option v-for="th in dsThuongHieu" :key="th" :value="th">{{ th }}</option>
+        </select>
       </div>
 
-      <!-- Bộ lọc Thương hiệu & Tìm sản phẩm -->
-      <div class="ss-quick-filter-row">
-        <div class="ss-filter-field">
-          <label class="ss-field-label">Thương hiệu</label>
-          <select v-model="thuongHieuLoc" class="form-select ss-filter-select">
-            <option value="">Tất cả thương hiệu</option>
-            <option v-for="th in dsThuongHieu" :key="th" :value="th">{{ th }}</option>
-          </select>
-        </div>
-
-        <div class="ss-filter-field">
-          <label class="ss-field-label">Tìm sản phẩm</label>
-          <div class="ss-search-wrap">
-            <i class="bi bi-search ss-search-ico" aria-hidden="true"></i>
-            <input
-              v-model="tuKhoaSpLoc"
-              type="search"
-              class="form-control ss-filter-input"
-              placeholder="Mã hoặc tên sản phẩm..."
-            />
-          </div>
-        </div>
-
-        <button type="button" class="ss-reset-btn" @click="datLaiLocChung">
-          <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại
-        </button>
-      </div>
-
-      <!-- Khung chọn nhiều kỳ đối chiếu -->
+      <!-- Khung chọn các kỳ so sánh -->
       <div class="ss-period-box">
         <div class="ss-period-box-head">
-          <div class="d-flex flex-wrap align-items-center gap-2">
-            <span class="ss-count-badge">{{ dsKyChon.length }} kỳ đối chiếu</span>
-            <span class="ss-period-hint">
-              So sánh đồng thời nhiều mốc thời gian để theo dõi tốc độ tăng trưởng kinh doanh
-            </span>
-          </div>
+          <span class="ss-count-badge">{{ dsKyChon.length }} kỳ so sánh</span>
           <button
             type="button"
             class="ss-add-period-btn"
@@ -1578,61 +1531,103 @@ async function guiEmail() {
     <div v-if="loi" class="alert alert-warning small mb-0" role="alert">{{ loi }}</div>
     <div v-if="dangTai && !d" class="ad-empty">Đang tải số liệu so sánh…</div>
 
-    <template v-if="d">
-      <!-- 3. Dãy 6 Thẻ KPI Tổng hợp (Giống mẫu, bỏ Tiền mặt / Chuyển khoản, tập trung Tổng doanh thu & Tổng đơn hàng) -->
+    <template v-if="d && kyChinh">
+      <!-- 2. Đang so sánh kỳ nào với kỳ nào -->
+      <div class="ss-context" data-test="ss-dang-so-sanh">
+        <div class="ss-context-main">
+          <template v-if="kySoSanh">
+            Đang so sánh <strong>{{ kyChinh.nhan }}</strong> với <strong>{{ kySoSanh.nhan }}</strong>
+          </template>
+          <template v-else>
+            Đang xem <strong>{{ kyChinh.nhan }}</strong>. Thêm một kỳ nữa để so sánh.
+          </template>
+          <span v-if="coLocSanPham" class="ss-context-loc">Thương hiệu: {{ thuongHieuLoc.trim() }}</span>
+        </div>
+        <div v-if="luuYKy" class="ss-context-warn" data-test="ss-luu-y-ky">
+          <i class="bi bi-info-circle" aria-hidden="true"></i> {{ luuYKy }}
+        </div>
+      </div>
+
+      <!-- 3. Thẻ tóm tắt: kỳ đang xét so với kỳ liền trước -->
       <div class="ss-kpi-strip">
-        <div class="ad-card ss-kpi-box">
-          <div class="ss-kpi-lbl">Tổng doanh thu kỳ</div>
-          <div class="ss-kpi-val">{{ formatMoney(tongHopCacKy.tongDoanhThu) }}</div>
-        </div>
-
-        <div class="ad-card ss-kpi-box">
-          <div class="ss-kpi-lbl">Doanh thu dự kiến</div>
-          <div class="ss-kpi-val">{{ formatMoney(tongHopCacKy.tongDoanhThuDuKien) }}</div>
-        </div>
-
-        <div class="ad-card ss-kpi-box">
-          <div class="ss-kpi-lbl">Tổng đơn hàng</div>
-          <div class="ss-kpi-val">{{ tongHopCacKy.tongDon }}</div>
-        </div>
-
-        <div class="ad-card ss-kpi-box">
-          <div class="ss-kpi-lbl">Tổng đơn hoàn thành</div>
-          <div class="ss-kpi-val">{{ tongHopCacKy.tongDonHoanThanh }}</div>
-        </div>
-
-        <div class="ad-card ss-kpi-box">
-          <div class="ss-kpi-lbl">AOV trung bình</div>
-          <div class="ss-kpi-val">{{ formatMoney(tongHopCacKy.aovTrungBinh) }}</div>
-        </div>
-
-        <div class="ad-card ss-kpi-box">
-          <div class="ss-kpi-lbl">Tăng trưởng bình quân</div>
-          <div
-            class="ss-kpi-val"
-            :class="tongHopCacKy.tangTruongBinhQuan >= 0 ? 'ss-val-pos' : 'ss-val-neg'"
-          >
-            {{ tongHopCacKy.tangTruongBinhQuanText }}
+        <div v-for="t in theKpi" :key="t.k" class="ad-card ss-kpi-box" data-test="ss-kpi">
+          <div class="ss-kpi-lbl">{{ t.ten }}</div>
+          <div class="ss-kpi-val">{{ t.giaTriText }}</div>
+          <div v-if="t.ss" class="ss-kpi-cmp">
+            <span class="ss-trend-pill" :class="t.ss.lop">{{ t.ss.bienDong }}</span>
+            <span class="ss-kpi-ref">{{ kySoSanh.nhan }}: {{ t.giaTriTruocText }}</span>
           </div>
         </div>
       </div>
 
-      <!-- 4. Biểu đồ Doanh thu & Tốc độ tăng trưởng qua các kỳ (Giống mẫu) -->
+      <!-- 4. Doanh thu thay đổi do đâu -->
+      <section v-if="phanTichDoanhThu" class="ad-card ss-section-card" data-test="ss-vi-sao">
+        <div class="ss-section-head">
+          <h3 class="ss-section-title m-0">
+            <template v-if="phanTichDoanhThu.tong === 0">
+              Doanh thu {{ kyChinh.nhan }} không đổi so với {{ kySoSanh.nhan }}
+            </template>
+            <template v-else>
+              Doanh thu {{ kyChinh.nhan }}
+              <span :class="phanTichDoanhThu.tong > 0 ? 'ss-tot' : 'ss-xau'">
+                {{ phanTichDoanhThu.tong > 0 ? 'tăng' : 'giảm' }} {{ formatMoney(Math.abs(phanTichDoanhThu.tong)) }}
+              </span>
+              so với {{ kySoSanh.nhan }}
+            </template>
+          </h3>
+        </div>
+        <div class="ss-why-grid">
+          <div class="ss-why-item">
+            <div class="ss-why-lbl">Do số đơn hoàn thành</div>
+            <div class="ss-why-detail">{{ phanTichDoanhThu.donTruoc }} → {{ phanTichDoanhThu.donNay }} đơn</div>
+            <div class="ss-why-val" :class="phanTichDoanhThu.doSoDon >= 0 ? 'ss-tot' : 'ss-xau'">
+              {{ tienCoDau(phanTichDoanhThu.doSoDon) }}
+            </div>
+          </div>
+          <div class="ss-why-item">
+            <div class="ss-why-lbl">Do giá trị TB / đơn</div>
+            <div class="ss-why-detail">
+              {{ formatMoney(phanTichDoanhThu.gtTruoc) }} → {{ formatMoney(phanTichDoanhThu.gtNay) }}
+            </div>
+            <div class="ss-why-val" :class="phanTichDoanhThu.doGiaTriDon >= 0 ? 'ss-tot' : 'ss-xau'">
+              {{ tienCoDau(phanTichDoanhThu.doGiaTriDon) }}
+            </div>
+          </div>
+          <div class="ss-why-item">
+            <div class="ss-why-lbl">Sản phẩm tăng doanh thu nhiều nhất</div>
+            <div v-if="!phanTichDoanhThu.spTang.length" class="ss-why-empty">Không có</div>
+            <div v-for="sp in phanTichDoanhThu.spTang" :key="`t-${sp.khoa}`" class="ss-why-sp">
+              <span class="ss-why-sp-ten">{{ sp.ten }}</span>
+              <strong class="ss-tot">{{ tienCoDau(sp.hieu) }}</strong>
+            </div>
+          </div>
+          <div class="ss-why-item">
+            <div class="ss-why-lbl">Sản phẩm giảm doanh thu nhiều nhất</div>
+            <div v-if="!phanTichDoanhThu.spGiam.length" class="ss-why-empty">Không có</div>
+            <div v-for="sp in phanTichDoanhThu.spGiam" :key="`g-${sp.khoa}`" class="ss-why-sp">
+              <span class="ss-why-sp-ten">{{ sp.ten }}</span>
+              <strong class="ss-xau">{{ tienCoDau(sp.hieu) }}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Biểu đồ doanh thu & tăng / giảm qua các kỳ -->
       <section class="ad-card ss-section-card" data-test="ss-xu-huong">
         <div class="ss-section-head">
           <div class="d-flex align-items-center gap-2">
-            <h3 class="ss-section-title m-0">Biểu đồ Doanh thu &amp; Tốc độ tăng trưởng qua các kỳ</h3>
+            <h3 class="ss-section-title m-0">Doanh thu qua các kỳ</h3>
           </div>
 
           <div class="ss-chart-legend">
             <span class="ss-legend-item">
-              <i class="ss-legend-sq" style="background: #2563eb"></i> Doanh thu thực tế
+              <i class="ss-legend-sq" style="background: #2563eb"></i> Doanh thu
             </span>
             <span class="ss-legend-item">
-              <i class="ss-legend-sq" style="background: #10b981"></i> Đơn chờ hoàn tất
+              <i class="ss-legend-sq" style="background: #10b981"></i> Đơn đang xử lý
             </span>
             <span class="ss-legend-item">
-              <i class="ss-legend-line"></i> Tăng trưởng (%)
+              <i class="ss-legend-line"></i> Tăng / giảm so với kỳ trước
             </span>
           </div>
         </div>
@@ -1696,7 +1691,6 @@ async function guiEmail() {
               class="ss-combo-col"
               @mouseenter="hoverKyIdx = c.idx"
             >
-              <!-- Vùng bắt sự kiện rê chuột toàn bộ cột -->
               <rect
                 :x="c.xKhu + 4"
                 :y="PAD_COMBO.t - 20"
@@ -1706,7 +1700,7 @@ async function guiEmail() {
                 :fill="hoverKyIdx === c.idx ? 'rgba(231, 241, 253, 0.45)' : 'transparent'"
               />
 
-              <!-- Cột nền xám nhạt khi kỳ có doanh thu = 0 -->
+              <!-- Cột nền xám nhạt khi kỳ không có doanh thu -->
               <rect
                 v-if="c.hTong === 0"
                 :x="c.xBar"
@@ -1717,7 +1711,7 @@ async function guiEmail() {
                 fill="#f1f5f9"
               />
 
-              <!-- Cột tổng (bao gồm phần chờ hoàn tất màu xanh lá ở trên nếu có) -->
+              <!-- Phần đơn đang xử lý (chưa hoàn thành) nằm trên cột doanh thu -->
               <rect
                 v-if="c.hChoThu > 0"
                 :x="c.xBar"
@@ -1728,7 +1722,6 @@ async function guiEmail() {
                 fill="#10b981"
               />
 
-              <!-- Cột doanh thu thực tế màu xanh dương -->
               <rect
                 v-if="c.hThucTe > 0"
                 :x="c.xBar"
@@ -1762,9 +1755,9 @@ async function guiEmail() {
               </text>
             </g>
 
-            <!-- Đường tốc độ tăng trưởng -->
+            <!-- Đường tăng / giảm so với kỳ liền trước -->
             <polyline
-              v-if="bieuDoQuaCacKy.cot.length > 1"
+              v-if="bieuDoQuaCacKy.diem.length > 1"
               :points="bieuDoQuaCacKy.polyline"
               fill="none"
               stroke="#be123c"
@@ -1773,9 +1766,8 @@ async function guiEmail() {
               stroke-linejoin="round"
             />
 
-            <!-- Điểm tròn & Nhãn % tăng trưởng -->
             <g
-              v-for="c in bieuDoQuaCacKy.cot"
+              v-for="c in bieuDoQuaCacKy.diem"
               :key="`pt-${c.ma}`"
               class="ss-combo-col"
               @mouseenter="hoverKyIdx = c.idx"
@@ -1811,7 +1803,7 @@ async function guiEmail() {
             </g>
           </svg>
 
-          <!-- Hộp nổi chi tiết kỳ khi di chuột (Giống mẫu) -->
+          <!-- Chi tiết kỳ khi di chuột -->
           <div
             v-if="kyDangHover"
             class="ss-chart-tooltip"
@@ -1820,26 +1812,26 @@ async function guiEmail() {
             <div class="ss-tt-title">{{ kyDangHover.nhan }}</div>
             <div class="ss-tt-range">{{ kyDangHover.khoangHienThi }}</div>
             <div class="ss-tt-row">
-              <span>Tổng doanh thu:</span>
+              <span>Doanh thu:</span>
               <strong>{{ formatMoney(kyDangHover.doanhThuThucTe) }}</strong>
-            </div>
-            <div class="ss-tt-row">
-              <span>Doanh thu dự kiến:</span>
-              <strong class="text-info">{{ formatMoney(kyDangHover.doanhThuDuKien) }}</strong>
-            </div>
-            <div class="ss-tt-row">
-              <span>Tổng số đơn:</span>
-              <strong>{{ kyDangHover.soDon }} đơn</strong>
-            </div>
-            <div class="ss-tt-row">
-              <span>Tăng trưởng:</span>
-              <strong :class="kyDangHover.laTang ? 'text-success' : 'text-danger'">
-                {{ dinhDangPhanTram(kyDangHover.pctDoanhThu) }}
-              </strong>
             </div>
             <div class="ss-tt-row">
               <span>Đơn hoàn thành:</span>
               <strong>{{ kyDangHover.soHoanThanh }} đơn</strong>
+            </div>
+            <div class="ss-tt-row">
+              <span>Giá trị TB / đơn:</span>
+              <strong>{{ formatMoney(kyDangHover.giaTriTrungBinh) }}</strong>
+            </div>
+            <div v-if="kyDangHover.choThu > 0" class="ss-tt-row">
+              <span>Đơn đang xử lý:</span>
+              <strong class="text-info">{{ formatMoney(kyDangHover.choThu) }}</strong>
+            </div>
+            <div v-if="!kyDangHover.laKyDau" class="ss-tt-row">
+              <span>So với {{ kyDangHover.soVoiNhan }}:</span>
+              <strong :class="kyDangHover.laTang ? 'text-success' : 'text-danger'">
+                {{ dinhDangPhanTram(kyDangHover.pctDoanhThu) }}
+              </strong>
             </div>
           </div>
         </div>
@@ -1847,44 +1839,14 @@ async function guiEmail() {
         <span class="d-none">{{ bieuDoQuaCacKy.xuHuongText }}</span>
       </section>
 
-      <!-- 5. Bảng đối chiếu doanh thu chi tiết các kỳ (Giống mẫu, header nền xanh chữ đen) -->
-      <section class="ad-card ss-section-card">
+      <!-- 6. Bảng đối chiếu chỉ số -->
+      <section class="ad-card ss-section-card" data-test="ss-bang-chi-so">
         <div class="ss-section-head">
           <div class="d-flex flex-wrap align-items-center gap-2">
-            <h3 class="ss-section-title m-0">Bảng đối chiếu doanh thu chi tiết các kỳ</h3>
-            <span class="ss-count-badge">{{ bangChiTietCacKy.length }} kỳ hiển thị</span>
+            <h3 class="ss-section-title m-0">Bảng đối chiếu chỉ số</h3>
+            <span class="ss-count-badge">{{ cacKyDoiChieu.length }} kỳ</span>
           </div>
-          <span class="ss-unit-pill">Đơn vị: VNĐ</span>
-        </div>
-
-        <div class="ss-table-filter-bar">
-          <div class="ss-search-wrap ss-search-wrap--table">
-            <i class="bi bi-search ss-search-ico" aria-hidden="true"></i>
-            <input
-              v-model="timKyBang"
-              type="search"
-              class="form-control ss-filter-input"
-              placeholder="Tìm tên kỳ, khoảng ngày..."
-            />
-          </div>
-
-          <select v-model="locHieuSuatKy" class="form-select ss-filter-select ss-filter-select--table">
-            <option value="TAT_CA">Tất cả hiệu suất</option>
-            <option value="TANG">Kỳ tăng trưởng dương</option>
-            <option value="GIAM">Kỳ sụt giảm</option>
-            <option value="CO_DT">Kỳ có phát sinh doanh thu</option>
-          </select>
-
-          <select v-model="sapXepKy" class="form-select ss-filter-select ss-filter-select--table">
-            <option value="THOI_GIAN_TANG">Thứ tự các kỳ (Cũ → Mới)</option>
-            <option value="THOI_GIAN_GIAM">Thứ tự các kỳ (Mới → Cũ)</option>
-            <option value="DT_GIAM">Doanh thu (Cao → Thấp)</option>
-            <option value="DT_TANG">Doanh thu (Thấp → Cao)</option>
-          </select>
-
-          <button type="button" class="ss-reset-btn" @click="datLaiBangKy">
-            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại
-          </button>
+          <span v-if="kySoSanh" class="ss-unit-pill">{{ kyChinh.nhan }} so với {{ kySoSanh.nhan }}</span>
         </div>
 
         <div class="ad-table-wrap">
@@ -1892,149 +1854,98 @@ async function guiEmail() {
             <table class="ad-table ss-compare-table mb-0">
               <thead>
                 <tr>
-                  <th>KỲ SO SÁNH</th>
-                  <th>KHOẢNG THỜI GIAN</th>
-                  <th class="text-end">TỔNG DOANH THU</th>
-                  <th class="text-end">DOANH THU DỰ KIẾN</th>
-                  <th class="text-center">TỔNG ĐƠN</th>
-                  <th class="text-center">ĐƠN HOÀN THÀNH</th>
-                  <th class="text-end">AOV</th>
-                  <th class="text-center">ĐÃ BÁN</th>
-                  <th class="text-end">CHÊNH LỆCH</th>
-                  <th class="text-end">TĂNG TRƯỞNG</th>
+                  <th>CHỈ SỐ</th>
+                  <th v-for="k in cacKyDoiChieu" :key="`h-${k.ma}`" class="text-end ss-col-ky">
+                    {{ k.nhan.toUpperCase() }}
+                  </th>
+                  <template v-if="kySoSanh">
+                    <th class="text-end">CHÊNH LỆCH</th>
+                    <th class="text-end">TĂNG / GIẢM</th>
+                  </template>
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="!bangChiTietCacKy.length">
-                  <td colspan="10" class="text-center text-muted py-4">
-                    Không có kỳ đối chiếu nào khớp bộ lọc.
+                <tr v-for="c in bangChiSo" :key="c.k" data-test="ss-chi-so">
+                  <td class="fw-bold text-dark">{{ c.ten }}</td>
+                  <td v-for="o in c.cot" :key="`${c.k}-${o.ma}`" class="text-end ad-nowrap">
+                    <div class="fw-semibold text-dark">{{ o.text }}</div>
+                    <div v-if="o.ss" class="ss-cell-sub" :class="o.ss.lop">{{ o.ss.bienDong }}</div>
                   </td>
-                </tr>
-                <tr v-for="k in bangChiTietCacKy" :key="k.ma">
-                  <td>
-                    <div class="fw-bold text-dark">{{ k.nhan }}</div>
-                    <span v-if="k.laCaoNhat" class="ss-badge-peak">Cao nhất</span>
-                  </td>
-                  <td class="text-dark small">{{ k.khoangHienThi }}</td>
-                  <td class="text-end fw-bold text-dark ad-nowrap">{{ formatMoney(k.doanhThuThucTe) }}</td>
-                  <td class="text-end fw-semibold ss-text-blue ad-nowrap">{{ formatMoney(k.doanhThuDuKien) }}</td>
-                  <td class="text-center fw-semibold text-dark">{{ k.soDon }}</td>
-                  <td class="text-center fw-bold ss-text-green">{{ k.soHoanThanh }}</td>
-                  <td class="text-end text-dark ad-nowrap">{{ formatMoney(k.giaTriTrungBinh) }}</td>
-                  <td class="text-center fw-semibold text-dark">{{ k.soSanPhamBan }}</td>
-                  <td
-                    class="text-end fw-semibold ad-nowrap"
-                    :class="k.chenhLech > 0 ? 'ss-tot' : k.chenhLech < 0 ? 'ss-xau' : 'text-dark'"
-                  >
-                    {{ k.chenhLech > 0 ? '+' : '' }}{{ formatMoney(k.chenhLech) }}
-                  </td>
-                  <td class="text-end ad-nowrap">
-                    <span
-                      class="ss-trend-pill"
-                      :class="
-                        (Number(k.pctDoanhThu) || 0) > 0
-                          ? 'is-up'
-                          : (Number(k.pctDoanhThu) || 0) < 0
-                            ? 'is-down'
-                            : 'is-flat'
-                      "
-                    >
-                      {{
-                        (Number(k.pctDoanhThu) || 0) > 0
-                          ? '↑'
-                          : (Number(k.pctDoanhThu) || 0) < 0
-                            ? '↓'
-                            : '→'
-                      }}
-                      {{ dinhDangPhanTram(k.pctDoanhThu) }}
-                    </span>
-                  </td>
+                  <template v-if="c.ss">
+                    <td class="text-end ad-nowrap ss-delta" :class="c.ss.lop">{{ c.ss.chenhText }}</td>
+                    <td class="text-end ad-nowrap">
+                      <span class="ss-trend-pill" :class="c.ss.lop">{{ c.ss.pctText }}</span>
+                    </td>
+                  </template>
                 </tr>
               </tbody>
-              <tfoot>
-                <tr class="ss-tfoot-total">
-                  <td colspan="2" class="fw-bold">TỔNG CỘNG (KỲ ĐANG LỌC)</td>
-                  <td class="text-end fw-bold ad-nowrap">{{ formatMoney(tongHopCacKy.tongDoanhThu) }}</td>
-                  <td class="text-end fw-bold ss-text-blue ad-nowrap">{{ formatMoney(tongHopCacKy.tongDoanhThuDuKien) }}</td>
-                  <td class="text-center fw-bold">{{ tongHopCacKy.tongDon }}</td>
-                  <td class="text-center fw-bold ss-text-green">{{ tongHopCacKy.tongDonHoanThanh }}</td>
-                  <td class="text-end fw-bold ad-nowrap">{{ formatMoney(tongHopCacKy.aovTrungBinh) }}</td>
-                  <td class="text-center fw-bold">{{ tongHopCacKy.tongSanPham }}</td>
-                  <td colspan="2" class="text-end fw-bold" :class="tongHopCacKy.tangTruongBinhQuan >= 0 ? 'ss-tot' : 'ss-xau'">
-                    Tăng trưởng TB: {{ tongHopCacKy.tangTruongBinhQuanText }}
-                  </td>
-                </tr>
-              </tfoot>
             </table>
           </div>
         </div>
+        <p v-if="coLocSanPham" class="ss-table-note mb-0">
+          Đang lọc theo sản phẩm nên chỉ tính phần doanh thu của sản phẩm khớp lọc; số đơn là số đơn hoàn thành có chứa các sản phẩm đó.
+        </p>
+      </section>
 
-        <!-- Khối chỉ số chuẩn của kỳ chính phục vụ kiểm thử tự động -->
-        <div class="d-none" aria-hidden="true">
-          <div v-for="c in CHI_SO" :key="c.k" data-test="ss-chi-so">
-            <span>{{ c.ten }}</span>
-            <span>{{ giaTri(c, d.hienTai[c.k]) }}</span>
-            <span :class="moTaTang(d.tangSoVoiKyTruoc[c.k], c.xauKhiTang).lop">
-              {{ moTaTang(d.tangSoVoiKyTruoc[c.k], c.xauKhiTang).text }}
-            </span>
-            <span>so với {{ d.kyTruoc.ky.nhan }} ({{ giaTri(c, d.kyTruoc[c.k]) }})</span>
-            <template v-if="d.cungKyNamTruoc">
-              <span :class="moTaTang(d.tangSoVoiCungKy[c.k], c.xauKhiTang).lop">
-                {{ moTaTang(d.tangSoVoiCungKy[c.k], c.xauKhiTang).text }}
-              </span>
-              <span>so với cùng kỳ {{ d.cungKyNamTruoc.ky.nhan }}</span>
-            </template>
+      <!-- 7. Doanh thu theo thương hiệu -->
+      <section class="ad-card ss-section-card" data-test="ss-thuong-hieu">
+        <div class="ss-section-head">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <h3 class="ss-section-title m-0">Doanh thu theo thương hiệu</h3>
+            <span class="ss-count-badge">{{ bangThuongHieu.length }} thương hiệu</span>
+          </div>
+          <span class="ss-unit-pill">Đơn vị: VNĐ</span>
+        </div>
+
+        <div v-if="!bangThuongHieu.length" class="ad-empty">Các kỳ đã chọn chưa có sản phẩm nào được bán.</div>
+        <div v-else class="ad-table-wrap">
+          <div class="ad-table-scroll">
+            <table class="ad-table ss-compare-table mb-0">
+              <thead>
+                <tr>
+                  <th>THƯƠNG HIỆU</th>
+                  <th v-for="k in cacKyDoiChieu" :key="`th-h-${k.ma}`" class="text-end ss-col-ky">
+                    {{ k.nhan.toUpperCase() }}
+                  </th>
+                  <template v-if="kySoSanh">
+                    <th class="text-end">CHÊNH LỆCH</th>
+                    <th class="text-end">TĂNG / GIẢM</th>
+                  </template>
+                  <th class="text-end">TỶ TRỌNG {{ kyChinh.nhan.toUpperCase() }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="th in bangThuongHieu" :key="th.ten">
+                  <td><span class="ss-brand-pill">{{ th.ten }}</span></td>
+                  <td v-for="k in cacKyDoiChieu" :key="`th-${th.ten}-${k.ma}`" class="text-end ad-nowrap text-dark">
+                    {{ formatMoney(th.theoKy[k.ma] || 0) }}
+                  </td>
+                  <template v-if="th.ss">
+                    <td class="text-end ad-nowrap ss-delta" :class="th.ss.lop">{{ th.ss.chenhText }}</td>
+                    <td class="text-end ad-nowrap">
+                      <span class="ss-trend-pill" :class="th.ss.lop">{{ th.ss.pctText }}</span>
+                    </td>
+                  </template>
+                  <td class="text-end fw-semibold text-dark">{{ th.tyTrong }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
 
-      <!-- 6. Top sản phẩm bán chạy & Đối chiếu sức mua qua các kỳ (Giống mẫu, header nền xanh chữ đen) -->
+      <!-- 8. Sản phẩm bán chạy qua các kỳ -->
       <section class="ad-card ss-section-card" data-test="ss-san-pham">
         <div class="ss-section-head">
           <div class="d-flex flex-wrap align-items-center gap-2">
-            <h3 class="ss-section-title m-0">Top sản phẩm bán chạy &amp; Đối chiếu sức mua qua các kỳ</h3>
+            <h3 class="ss-section-title m-0">Sản phẩm bán chạy qua các kỳ</h3>
             <span class="ss-count-badge">{{ bangSanPhamDoiChieu.length }} sản phẩm</span>
           </div>
-          <span class="ss-unit-pill">Top mặt hàng nổi bật</span>
-        </div>
-
-        <div class="ss-table-filter-bar">
-          <div class="ss-search-wrap ss-search-wrap--table">
-            <i class="bi bi-search ss-search-ico" aria-hidden="true"></i>
-            <input
-              v-model="timSpBang"
-              type="search"
-              class="form-control ss-filter-input"
-              placeholder="Tìm mã SP, tên sản phẩm, thương hiệu..."
-            />
-          </div>
-
-          <select v-model="thuongHieuSpBang" class="form-select ss-filter-select ss-filter-select--table">
-            <option value="">Tất cả thương hiệu</option>
-            <option v-for="th in dsThuongHieu" :key="th" :value="th">{{ th }}</option>
-          </select>
-
-          <select v-model="xuHuongSpBang" class="form-select ss-filter-select ss-filter-select--table">
-            <option value="TAT_CA">Tất cả xu hướng</option>
-            <option value="TANG">Đang tăng trưởng (↑)</option>
-            <option value="GIAM">Đang sụt giảm (↓)</option>
-            <option value="ON_DINH">Ổn định (→)</option>
-          </select>
-
-          <select v-model="sapXepSpBang" class="form-select ss-filter-select ss-filter-select--table">
-            <option value="SL_GIAM">Bán chạy nhất (Tổng bán cao → thấp)</option>
-            <option value="DT_GIAM">Doanh thu cao nhất (Cao → thấp)</option>
-            <option value="TANG_GIAM">Tăng trưởng mạnh nhất</option>
-            <option value="TEN_AZ">Tên sản phẩm (A → Z)</option>
-          </select>
-
-          <button type="button" class="ss-reset-btn" @click="datLaiBangSp">
-            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Đặt lại
-          </button>
+          <span class="ss-unit-pill">Số lượng bán theo kỳ</span>
         </div>
 
         <div v-if="!bangSanPhamDoiChieu.length" class="ad-empty">
-          Chưa có sản phẩm bán chạy nào khớp điều kiện lọc trong các kỳ đã chọn.
+          Chưa có sản phẩm nào khớp điều kiện lọc trong các kỳ đã chọn.
         </div>
         <div v-else class="ad-table-wrap">
           <div class="ad-table-scroll">
@@ -2045,15 +1956,15 @@ async function guiEmail() {
                   <th style="width: 96px">MÃ SP</th>
                   <th>TÊN SẢN PHẨM</th>
                   <th class="text-center">THƯƠNG HIỆU</th>
-                  <th class="text-center">TỔNG BÁN</th>
-                  <th class="text-end">TỔNG DOANH THU</th>
                   <th
                     v-for="k in cacKyDoiChieu"
-                    :key="`th-${k.ma}`"
+                    :key="`sp-h-${k.ma}`"
                     class="text-center ss-col-ky"
                   >
                     {{ k.nhan.toUpperCase() }}
                   </th>
+                  <th class="text-center">TỔNG BÁN</th>
+                  <th class="text-end">DOANH THU</th>
                   <th class="text-end">XU HƯỚNG</th>
                 </tr>
               </thead>
@@ -2065,10 +1976,8 @@ async function guiEmail() {
                     <span class="fw-bold text-dark">{{ p.tenSanPham }}</span>
                   </td>
                   <td class="text-center">
-                    <span class="ss-brand-pill">{{ p.thuongHieu }}</span>
+                    <span v-if="p.thuongHieu" class="ss-brand-pill">{{ p.thuongHieu }}</span>
                   </td>
-                  <td class="text-center fw-bold text-dark">{{ p.tongBan }}</td>
-                  <td class="text-end fw-bold text-dark ad-nowrap">{{ formatMoney(p.tongDoanhThu) }}</td>
                   <td
                     v-for="k in cacKyDoiChieu"
                     :key="`td-${p.maSanPham}-${k.ma}`"
@@ -2076,14 +1985,15 @@ async function guiEmail() {
                   >
                     {{ p.theoKy[k.ma] ?? 0 }}
                   </td>
+                  <td class="text-center fw-bold text-dark">{{ p.tongBan }}</td>
+                  <td class="text-end fw-bold text-dark ad-nowrap">{{ formatMoney(p.tongDoanhThu) }}</td>
                   <td class="text-end ad-nowrap">
                     <span
                       class="ss-trend-pill"
-                      :class="p.huong === 'TANG' ? 'is-up' : p.huong === 'GIAM' ? 'is-down' : 'is-flat'"
+                      :class="p.huong === 'TANG' ? 'is-tot' : p.huong === 'GIAM' ? 'is-xau' : 'is-flat'"
                     >
                       {{ p.nhanXuHuong }}
                     </span>
-                    <span class="d-none">{{ p.moTaKiemThu.text }}</span>
                   </td>
                 </tr>
               </tbody>
@@ -2207,18 +2117,8 @@ async function guiEmail() {
   justify-content: space-between;
   gap: 0.85rem;
   padding-bottom: 1.15rem;
+  margin-bottom: 1.15rem;
   border-bottom: 1px solid #e2e8f0;
-}
-
-.ss-mode-ico {
-  color: #0977ec;
-  font-size: 1.1rem;
-}
-
-.ss-mode-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #18242f;
 }
 
 .ss-mode-pills {
@@ -2252,29 +2152,8 @@ async function guiEmail() {
   font-weight: 700;
 }
 
-.ss-quick-filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 1rem;
-  padding: 1.15rem 0;
-}
-
-.ss-filter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.ss-field-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #18242f;
-  margin: 0;
-}
-
 .ss-filter-select {
-  height: 46px;
+  height: 42px;
   min-width: 200px;
   padding: 0.5rem 2.25rem 0.5rem 0.95rem;
   font-size: 0.9rem;
@@ -2283,24 +2162,13 @@ async function guiEmail() {
   color: #18242f;
 }
 
-.ss-search-wrap {
-  position: relative;
-  min-width: 260px;
-}
-
-.ss-search-ico {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #475569;
-  font-size: 0.92rem;
-  pointer-events: none;
+.ss-brand-select {
+  width: auto;
 }
 
 .ss-filter-input {
   height: 46px;
-  padding: 0.5rem 0.95rem 0.5rem 2.4rem;
+  padding: 0.5rem 0.95rem;
   font-size: 0.9rem;
   border-radius: 12px;
   border-color: #dce3ec;
@@ -2358,11 +2226,6 @@ async function guiEmail() {
   color: #0977ec;
   font-size: 0.86rem;
   font-weight: 700;
-}
-
-.ss-period-hint {
-  font-size: 0.9rem;
-  color: #475569;
 }
 
 .ss-add-period-btn {
@@ -2505,10 +2368,44 @@ async function guiEmail() {
   color: #475569;
 }
 
-/* ----- 3. 6 KPI Cards Strip ----- */
+/* ----- 2. Dòng "Đang so sánh ..." ----- */
+.ss-context {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 1.15rem;
+  border-radius: 14px;
+  background: #f1f7fe;
+  border: 1px solid #c9def9;
+  color: #000000;
+}
+
+.ss-context-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.98rem;
+}
+
+.ss-context-loc {
+  padding: 0.18rem 0.65rem;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #93c5fd;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.ss-context-warn {
+  font-size: 0.88rem;
+  color: #9a3412;
+}
+
+/* ----- 3. Thẻ tóm tắt ----- */
 .ss-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
   gap: 1rem;
 }
 
@@ -2518,6 +2415,18 @@ async function guiEmail() {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+.ss-kpi-cmp {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.ss-kpi-ref {
+  font-size: 0.8rem;
+  color: #475569;
 }
 
 .ss-kpi-icon {
@@ -2678,24 +2587,6 @@ async function guiEmail() {
   font-weight: 700;
 }
 
-.ss-table-filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.85rem;
-  margin-bottom: 1.1rem;
-}
-
-.ss-search-wrap--table {
-  flex: 1 1 260px;
-  max-width: 340px;
-}
-
-.ss-filter-select--table {
-  width: auto;
-  min-width: 200px;
-}
-
 .ss-compare-table {
   font-size: 0.92rem;
 }
@@ -2717,20 +2608,6 @@ async function guiEmail() {
   font-size: 0.92rem;
 }
 
-.ss-badge-peak {
-  display: inline-block;
-  margin-top: 3px;
-  padding: 0.15rem 0.55rem;
-  border-radius: 6px;
-  background: #dcfce7;
-  color: #15803d;
-  font-size: 0.76rem;
-  font-weight: 700;
-}
-
-.ss-text-blue { color: #2563eb; }
-.ss-text-green { color: #16a34a; }
-
 .ss-trend-pill {
   display: inline-flex;
   align-items: center;
@@ -2741,12 +2618,12 @@ async function guiEmail() {
   font-weight: 700;
 }
 
-.ss-trend-pill.is-up {
+.ss-trend-pill.is-tot {
   background: #dcfce7;
   color: #15803d;
 }
 
-.ss-trend-pill.is-down {
+.ss-trend-pill.is-xau {
   background: #ffe4e6;
   color: #e11d48;
 }
@@ -2756,12 +2633,87 @@ async function guiEmail() {
   color: #000000;
 }
 
-.ss-tfoot-total td {
-  background: #f1f7fe !important;
-  padding: 0.95rem;
-  border-top: 2px solid #93c5fd;
-  color: #000000 !important;
-  font-size: 0.92rem;
+.ss-delta {
+  font-weight: 700;
+}
+
+.ss-delta.is-tot,
+.ss-cell-sub.is-tot {
+  color: #15803d;
+}
+
+.ss-delta.is-xau,
+.ss-cell-sub.is-xau {
+  color: #be123c;
+}
+
+.ss-delta.is-flat,
+.ss-cell-sub.is-flat {
+  color: #475569;
+}
+
+.ss-cell-sub {
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.ss-table-note {
+  margin-top: 0.75rem;
+  font-size: 0.84rem;
+  color: #475569;
+}
+
+/* ----- 4. Doanh thu thay đổi do đâu ----- */
+.ss-why-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.ss-why-item {
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.ss-why-lbl {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #000000;
+}
+
+.ss-why-detail {
+  font-size: 0.88rem;
+  color: #334155;
+}
+
+.ss-why-val {
+  font-size: 1.1rem;
+}
+
+.ss-why-sp {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+}
+
+.ss-why-sp-ten {
+  color: #000000;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-why-empty {
+  font-size: 0.86rem;
+  color: #94a3b8;
 }
 
 .ss-sp-thumb {
@@ -2802,14 +2754,14 @@ async function guiEmail() {
 .ss-xau { color: #be123c; font-weight: 700; }
 
 @media (max-width: 1199.98px) {
-  .ss-kpi-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .ss-why-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 767.98px) {
-  .ss-kpi-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .ss-why-grid {
+    grid-template-columns: 1fr;
   }
   .ss-period-grid {
     grid-template-columns: 1fr;

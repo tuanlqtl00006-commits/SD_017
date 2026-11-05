@@ -15,6 +15,7 @@ import GiaoCaModal from '../giaoCa/GiaoCaModal.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import VanChuyenLogo from '../common/VanChuyenLogo.vue'
 import { useGiaoCa } from '../../composables/useGiaoCa'
+import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../composables/useToast'
 import { NGAN_HANG, PHUONG_THUC, daCauHinhNganHang } from '../../constants/thanhToan'
 import { formatMoney } from '../../utils/format'
@@ -28,6 +29,7 @@ const DON_VI_VAN_CHUYEN = 'Giao Hàng Nhanh'
 const SO_HOA_DON_CHO_TOI_DA = 10
 const router = useRouter()
 const toast = useToast()
+const auth = useAuth()
 const giaoCa = useGiaoCa()
 
 /* ===================== Hóa đơn chờ (CSDL) ===================== */
@@ -94,8 +96,8 @@ async function themHoaDon() {
     return null
   }
   if (!giaoCa.dangTrongCa.value) {
-    toast.error('Bạn chưa vào ca.')
-    moCa.value = true
+    toast.error(auth.laNhanVienBanHang.value ? 'Bạn chưa vào ca. Quầy thu ngân chưa mở ca bán hàng hôm nay.' : 'Bạn chưa vào ca.')
+    if (!auth.laNhanVienBanHang.value) moCa.value = true
     return null
   }
   try {
@@ -473,7 +475,11 @@ onBeforeUnmount(() => {
 })
 
 const lyDoKhongThanhToan = computed(() => {
-  if (!giaoCa.dangTrongCa.value) return 'Bạn chưa vào ca.'
+  if (!giaoCa.dangTrongCa.value) {
+    return auth.laNhanVienBanHang.value
+      ? 'Quầy thu ngân chưa mở ca bán hàng hôm nay. Vui lòng nhờ Thu ngân mở ca trước khi thanh toán.'
+      : 'Bạn chưa vào ca.'
+  }
   if (!hd.value.gio.length) return 'Hóa đơn chưa có sản phẩm.'
   if (hd.value.coGiaDoi) return 'Có sản phẩm đã đổi giá. Báo khách rồi bấm "Cập nhật giá".'
   if (loiPhieu.value) return loiPhieu.value
@@ -488,7 +494,7 @@ function moXacNhan() {
   if (hd.value.p.giaoHang) daChamGiao.value = true
   if (lyDoKhongThanhToan.value) {
     toast.error(lyDoKhongThanhToan.value)
-    if (!giaoCa.dangTrongCa.value) moCa.value = true
+    if (!giaoCa.dangTrongCa.value && !auth.laNhanVienBanHang.value) moCa.value = true
     return
   }
   xacNhan.value = true
@@ -605,8 +611,16 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   <div class="ad-page bh">
     <div v-if="giaoCa.trangThai.daTai && !giaoCa.dangTrongCa.value" class="bh-chua-ca" role="alert">
       <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
-      <span>Bạn chưa vào ca. Vui lòng <b>vào ca</b> (nhập tiền đầu ca) trước khi bán hàng.</span>
-      <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="moCa = true">Vào ca</button>
+      <span>
+        Bạn chưa vào ca.
+        <template v-if="auth.laNhanVienBanHang.value">
+          Quầy thu ngân chưa mở ca bán hàng hôm nay. Vui lòng nhờ <b>Thu ngân mở ca</b> trước khi tạo đơn và thanh toán.
+        </template>
+        <template v-else>
+          Vui lòng <b>vào ca</b> (nhập tiền đầu ca) trước khi bán hàng.
+        </template>
+      </span>
+      <button v-if="!auth.laNhanVienBanHang.value" type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="moCa = true">Vào ca</button>
     </div>
 
     <div class="bh-luoi">

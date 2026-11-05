@@ -1,4 +1,4 @@
-﻿-- =================================================================
+-- =================================================================
 -- FILE SQL GỘP: DỮ LIỆU MẪU + NÂNG CẤP  (chạy SAU database/SD_17.sql)
 -- =================================================================
 -- Cách chạy (CSDL mới):
@@ -229,7 +229,7 @@ GO
 
 -- 1. Vai trò (tên "Quản lý" phải khớp VaiTro.TEN_QUAN_LY ở backend)
 INSERT INTO vai_tro (ten_vai_tro, trang_thai)
-SELECT v.ten, 1 FROM (VALUES (N'Quản lý'), (N'Nhân viên')) AS v(ten)
+SELECT v.ten, 1 FROM (VALUES (N'Quản lý'), (N'Nhân viên'), (N'Thu ngân')) AS v(ten)
 WHERE NOT EXISTS (SELECT 1 FROM vai_tro r WHERE r.ten_vai_tro = v.ten);
 GO
 
