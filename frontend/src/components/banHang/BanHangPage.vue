@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 // Bán hàng tại quầy: mỗi tab là một hóa đơn chờ (lưu ở CSDL, thêm sản phẩm là trừ kho).
 // Tự chọn phiếu giảm nhiều nhất, có giao hàng, thanh toán tiền mặt / chuyển khoản / kết hợp. Phải vào ca mới bán được.
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -30,7 +30,6 @@ const DON_VI_VAN_CHUYEN = 'Giao Hàng Nhanh'
 const SO_HOA_DON_CHO_TOI_DA = 10
 const router = useRouter()
 const toast = useToast()
-const auth = useAuth()
 const giaoCa = useGiaoCa()
 // Quản lý có toàn quyền: bán hàng không bắt nhận ca / giao ca; nhân viên phải vào ca trước
 const auth = useAuth()
