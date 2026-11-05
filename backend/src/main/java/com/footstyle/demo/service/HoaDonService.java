@@ -560,16 +560,39 @@ public class HoaDonService {
         ls.setNguoiThaoTac(nguoi.isEmpty() ? "Quản lý" : nguoi);
         lichSuHoaDonRepository.save(ls);
 
-        // Hết hàng nên đơn tự hủy: báo cho khách qua email (nếu khách có email)
-        if (tuHuyHetHang && mailService != null && hd.getKhachHang() != null) {
-            mailService.guiThongBaoHuyDon(hd.getHoTenNguoiNhan() != null ? hd.getHoTenNguoiNhan() : hd.getKhachHang().getHoTen(),
-                    hd.getKhachHang().getEmail(), hd.getMaHoaDon(), ghiChu);
+        // Đơn online đổi trạng thái: gửi thư báo cho khách (review: "làm thêm email khi đổi trạng thái"); hủy (kể cả tự hủy
+        // do hết hàng) thì gửi thư hủy kèm lý do. Gửi ở luồng riêng nên không làm chậm thao tác.
+        if (mailService != null && !laTaiQuay(hd)) {
+            String email = emailNhanThongBao(hd);
+            if (email != null) {
+                String ten = hd.getHoTenNguoiNhan() != null ? hd.getHoTenNguoiNhan()
+                        : hd.getKhachHang() != null ? hd.getKhachHang().getHoTen() : null;
+                if (moi == HoaDon.DA_HUY) {
+                    mailService.guiThongBaoHuyDon(ten, email, hd.getMaHoaDon(), ghiChu.isEmpty() ? null : ghiChu);
+                } else {
+                    mailService.guiCapNhatTrangThai(ten, email, hd.getMaHoaDon(), moi, ghiChu,
+                            GiaoCaService.dinhDangTien(thanhTien(hd)), hd.getDiaChiGiaoHang());
+                }
+            }
         }
 
         return getChiTietHoaDon(hd.getId());
     }
 
     /* ===================== Hàm phụ ===================== */
+
+    /**
+     * Email nhận thông báo của đơn online: email ghi lúc đặt hàng (dòng lịch sử "Đặt hàng trực tuyến"), không có thì email
+     * tài khoản khách hàng. Không có email hợp lệ thì null.
+     */
+    String emailNhanThongBao(HoaDon hd) {
+        for (LichSuHoaDon ls : lichSuHoaDonRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+            String e = MailService.emailTrongMoTa(ls.getMoTa());
+            if (e != null) return e;
+        }
+        String e = hd.getKhachHang() == null ? null : hd.getKhachHang().getEmail();
+        return e != null && e.contains("@") ? e.trim() : null;
+    }
 
     /** Các dòng của đơn mà tồn kho hiện tại không đủ (rỗng nếu đủ hàng). */
     private List<String> danhSachThieuHang(HoaDon hd) {

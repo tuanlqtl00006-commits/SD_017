@@ -21,9 +21,16 @@ import org.junit.jupiter.api.Test;
 class CuaHangTraCuuTest {
 
     private CuaHangService service;
+    private HoaDon hoaDonChoQuay;
 
     @BeforeEach
     void setUp() {
+        hoaDonChoQuay = new HoaDon();
+        hoaDonChoQuay.setId(968);
+        hoaDonChoQuay.setMaHoaDon("HD968");
+        hoaDonChoQuay.setLoaiDon(HoaDon.TAI_QUAY);
+        hoaDonChoQuay.setTrangThai(HoaDon.CHO_XAC_NHAN);
+        hoaDonChoQuay.setSdtNguoiNhan("0379992712");
         KhachHang kh = new KhachHang();
         kh.setId(5);
         kh.setSdt("0911222333");
@@ -46,8 +53,13 @@ class CuaHangTraCuuTest {
                 KhoGia.khongDung(ChatLieuRepository.class), KhoGia.khongDung(DoCungRepository.class),
                 KhoGia.khongDung(DiemCanBangRepository.class), KhoGia.khongDung(MauSacRepository.class),
                 KhoGia.khongDung(TrongLuongRepository.class), KhoGia.khongDung(ChuViRepository.class),
-                KhoGia.tao(HoaDonRepository.class, (t, a) -> "findFirstByMaHoaDonIgnoreCase".equals(t)
-                        ? Optional.ofNullable("HD967".equalsIgnoreCase((String) a[0]) ? hd : null) : KhoGia.KHONG_CO),
+                KhoGia.tao(HoaDonRepository.class, (t, a) -> switch (t) {
+                    case "findFirstByMaHoaDonIgnoreCase" -> Optional.ofNullable("HD967".equalsIgnoreCase((String) a[0]) ? hd : null);
+                    // tra cứu theo SĐT: mới nhất trước; số 0379992712 có thêm một hóa đơn chờ tại quầy chưa thanh toán (phải bị bỏ)
+                    case "timTheoSdt" -> "0379992712".equals(a[0]) ? List.of(hoaDonChoQuay, hd)
+                            : "0911222333".equals(a[0]) ? List.of(hd) : List.of();
+                    default -> KhoGia.KHONG_CO;
+                }),
                 KhoGia.tao(HoaDonChiTietRepository.class, (t, a) -> "findByHoaDon_IdOrderByIdAsc".equals(t) ? List.of() : KhoGia.KHONG_CO),
                 KhoGia.khongDung(LichSuHoaDonRepository.class),
                 KhoGia.tao(LichSuThanhToanRepository.class, (t, a) -> "findByHoaDon_IdOrderByThoiGianAscIdAsc".equals(t) ? List.of() : KhoGia.KHONG_CO),
@@ -79,6 +91,36 @@ class CuaHangTraCuuTest {
         assertEquals("HD967", d.get("maHoaDon"));
         assertEquals("tuan134", d.get("hoTenNguoiNhan"));
         assertEquals("HD967", service.traCuuDonHang("HD967", "0911222333").get("maHoaDon"));
+    }
+
+    /** Tra cứu theo số điện thoại: chỉ danh sách gọn (không họ tên / địa chỉ), bỏ hóa đơn chờ tại quầy, SĐT sai báo rõ. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void traCuuTheoSdt_chiTraDanhSachGon_boHoaDonChoTaiQuay() {
+        Map<String, Object> kq = service.traCuuTheoSdt("0379 992 712");
+        assertEquals("0379992712", kq.get("sdt"));
+        List<Map<String, Object>> don = (List<Map<String, Object>>) kq.get("don");
+        assertEquals(1, don.size(), "bỏ HD968 là hóa đơn chờ tại quầy chưa thanh toán");
+        Map<String, Object> d = don.get(0);
+        assertEquals("HD967", d.get("maHoaDon"));
+        assertEquals("Chờ xác nhận", d.get("tenTrangThai"));
+        assertEquals("Trực tuyến", d.get("loaiDon"));
+        assertEquals(BigDecimal.valueOf(468_000), d.get("thanhTien"));
+        assertTrue(!d.containsKey("hoTenNguoiNhan") && !d.containsKey("diaChiGiaoHang"), "danh sách không lộ họ tên, địa chỉ");
+        // số khách hàng (không phải số người nhận) cũng ra đơn của khách đó
+        assertEquals("HD967", ((List<Map<String, Object>>) service.traCuuTheoSdt("0911222333").get("don")).get(0).get("maHoaDon"));
+    }
+
+    @Test
+    void traCuuTheoSdt_sdtSaiDinhDang_hoacKhongCoDon() {
+        for (String sai : new String[] {null, "", "abc", "12345", "1379992712", "03799927123"}) {
+            ApiException e = loi(() -> service.traCuuTheoSdt(sai));
+            assertEquals(400, e.getStatus().value(), String.valueOf(sai));
+            assertTrue(e.getMessage().contains("10 chữ số"), e.getMessage());
+        }
+        ApiException khong = loi(() -> service.traCuuTheoSdt("0999999999"));
+        assertEquals(404, khong.getStatus().value());
+        assertTrue(khong.getMessage().contains("Không tìm thấy đơn hàng nào"));
     }
 
     @Test

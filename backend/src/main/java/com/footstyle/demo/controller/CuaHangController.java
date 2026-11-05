@@ -66,6 +66,12 @@ public class CuaHangController {
         return service.traCuuDonHang(maHoaDon, sdt);
     }
 
+    /** Tra cứu theo số điện thoại: danh sách đơn gọn của số đó; xem chi tiết từng đơn thì dùng /tra-cuu (mã đơn + SĐT). */
+    @GetMapping("/tra-cuu-sdt")
+    public Map<String, Object> traCuuTheoSdt(@RequestParam(required = false) String sdt) {
+        return service.traCuuTheoSdt(sdt);
+    }
+
     // Tài khoản nhận tiền hiển thị trong mã VietQR (đổi bằng biến môi trường / application.properties).
     // Mặc định là tài khoản MẪU để thử giao diện, KHÔNG nhận tiền thật.
     @Value("${app.thanh-toan.ngan-hang:MB}")

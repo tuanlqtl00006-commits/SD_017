@@ -468,4 +468,55 @@ class MailServiceTest {
         assertTrue(html.contains("15.559.000 ₫"));
         assertNotNull(phanLoai(phan, "image/jpeg"));
     }
+
+    /* ---------- review: email đặt hàng đẹp hơn + email khi đổi trạng thái ---------- */
+
+    @Test
+    void guiXacNhanDatHang_coBangTienVaTienTrinh() throws Exception {
+        GhiThu sender = new GhiThu();
+        MailService s = dich(new NoiCap(sender));
+        s.guiXacNhanDatHang("Tuấn", "tuan@gmail.com", "HD971",
+                List.of("Ống cầu lông nhựa Victor NCS (Trắng) x1 - 234.000 ₫", "Vợt cầu lông Victor Thruster F C Ultra (Trắng) x1 - 3.400.000 ₫"),
+                "3.384.000 ₫", "so,ngo, Phường An Hải, Thành phố Đà Nẵng", "Thanh toán khi nhận hàng (COD)",
+                new MailService.TienDon("3.634.000 ₫", "250.000 ₫", "VCHE7KL4B", "0 ₫", "0379992712"));
+        doiDuThu(sender, 1);
+        String html = (String) phanLoai(cacPhanLa(docLai(sender.daGui.get(0))), "text/html").getContent();
+        assertTrue(html.contains("Tạm tính") && html.contains("3.634.000 ₫"));
+        assertTrue(html.contains("Giảm giá (mã VCHE7KL4B)") && html.contains("-250.000 ₫"));
+        assertTrue(html.contains("Phí vận chuyển") && html.contains("Miễn phí"));
+        assertTrue(html.contains("0379992712"));
+        for (String buoc : List.of("Đặt hàng", "Xác nhận", "Đang giao", "Đã giao", "Hoàn thành")) assertTrue(html.contains(buoc), buoc);
+    }
+
+    @Test
+    void guiCapNhatTrangThai_moiTrangThaiCoTieuDeVaLoiNhanRieng() throws Exception {
+        GhiThu sender = new GhiThu();
+        MailService s = dich(new NoiCap(sender));
+        s.guiCapNhatTrangThai("Tuấn", "tuan@gmail.com", "HD971", 4, null, "3.384.000 ₫", "Đà Nẵng");
+        s.guiCapNhatTrangThai("Tuấn", "tuan@gmail.com", "HD971", 8, "Khách không nghe máy", "3.384.000 ₫", "Đà Nẵng");
+        s.guiCapNhatTrangThai("Tuấn", "khong-co-a-cong", "HD971", 2, null, null, null); // email sai: bỏ qua
+        doiDuThu(sender, 2);
+        Thread.sleep(200);
+        assertEquals(2, sender.daGui.size());
+        List<String> tieuDe = new java.util.ArrayList<>();
+        List<String> html = new java.util.ArrayList<>();
+        for (MimeMessage m : sender.daGui) {
+            MimeMessage d = docLai(m);
+            tieuDe.add(d.getSubject());
+            html.add((String) phanLoai(cacPhanLa(d), "text/html").getContent());
+        }
+        int giao = tieuDe.get(0).contains("đang được giao") ? 0 : 1;
+        assertTrue(tieuDe.get(giao).contains("HD971"));
+        assertTrue(html.get(giao).contains("ĐANG GIAO HÀNG"));
+        assertTrue(html.get(giao).contains("https://footstyle.vn"), "có nút tra cứu đơn");
+        assertTrue(html.get(1 - giao).contains("Khách không nghe máy"), "giao thất bại ghi lý do");
+        assertTrue(html.get(1 - giao).contains("Giao thất bại"));
+    }
+
+    @Test
+    void emailTrongMoTa_layDungEmailGhiLucDatHang() {
+        assertEquals("tuan@gmail.com", MailService.emailTrongMoTa("Khách đặt online đơn HD9 - Giao tới: X (SĐT: 09) - " + MailService.NHAN_EMAIL_DON + "tuan@gmail.com"));
+        assertNull(MailService.emailTrongMoTa("Khách đặt online đơn HD9 - Giao tới: X"));
+        assertNull(MailService.emailTrongMoTa(null));
+    }
 }

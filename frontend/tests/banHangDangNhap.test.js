@@ -494,9 +494,13 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     // Review: ô chuyển khoản ghi đủ thông tin, mã QR to hơn (210px), bấm để phóng to
     const ttCk = w.find('[data-testid="bh-qr-thong-tin"]').text()
     for (const chu of ['Ngân hàngMB', 'Số tài khoản0123456789', 'Chủ tài khoảnFOOTSTYLE DEMO', 'Số tiền3.861.000', 'Nội dungHD100']) expect(ttCk.replace(/\s+/g, '')).toContain(chu.replace(/\s+/g, ''))
+    // Đủ thông tin sản phẩm ngay trong khung chuyển khoản: tên, mã, phân loại, số lượng, đơn giá, thành tiền
+    const spCk = w.find('[data-testid="bh-qr-san-pham"]').text().replace(/\s+/g, '')
+    for (const chu of ['Yonex Astrox 99 Pro', 'SP01-DEN-4U-G5', 'Đen · 4U · G5', '1 × 3.861.000', '3.861.000']) expect(spCk).toContain(chu.replace(/\s+/g, ''))
     expect(w.find('.bh-qr-anh img').attributes('width')).toBe('210')
     await w.find('.bh-qr-anh').trigger('click')
     expect(body().find('[data-testid="bh-qr-to"] img').attributes('width')).toBe('340')
+    expect(body().find('[data-testid="bh-qr-to"] .bh-qr-sp').text()).toContain('Yonex Astrox 99 Pro')
     expect(may.thanhToan).toBeNull()
     // khách bấm "Xác nhận chuyển tiền" trên trang ngân hàng giả
     may.ck = { ...may.ck, daNhan: true, maGiaoDich: 'GIALAP-HD100-1' }

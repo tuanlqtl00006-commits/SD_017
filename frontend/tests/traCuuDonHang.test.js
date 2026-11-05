@@ -31,6 +31,84 @@ beforeEach(() => {
   localStorage.clear()
 })
 
+
+describe('Tra cứu đơn hàng theo số điện thoại', () => {
+  const DS = { sdt: '0379992712', don: [
+    { maHoaDon: 'HD967', ngayTao: '2026-11-04T07:36:00', loaiDon: 'Trực tuyến', trangThai: 1, tenTrangThai: 'Chờ xác nhận', thanhTien: 468000 },
+    { maHoaDon: 'HD950', ngayTao: '2026-11-01T09:00:00', loaiDon: 'Tại quầy', trangThai: 6, tenTrangThai: 'Đã hoàn thành', thanhTien: 250000 },
+  ] }
+  // chỉ điền ô số điện thoại (ô mã đơn để trống) rồi bấm Tra cứu
+  async function chuyenSdt(w, so) {
+    await w.find('input[aria-label="Mã đơn hàng"]').setValue('')
+    await w.find('[data-testid="ol-sdt"]').setValue(so)
+    await w.find('form').trigger('submit')
+    await flushPromises()
+  }
+
+  it('hai ô xếp hai dòng (mã đơn, số điện thoại), một nút Tra cứu; chỉ nhập số điện thoại thì không bắt nhập mã đơn', async () => {
+    api.get.mockResolvedValue({ data: DS })
+    const w = mount(OrderLookupView)
+    await flushPromises()
+    expect(w.findAll('form input')).toHaveLength(2)
+    expect(w.findAll('form button[type="submit"]')).toHaveLength(1)
+    expect(w.find('[data-testid="ol-tab-sdt"]').exists()).toBe(false)
+    await chuyenSdt(w, '0379992712')
+    expect(w.text()).not.toContain('Vui lòng nhập mã đơn hàng')
+    expect(w.find('[data-testid="ol-ds-don"]').exists()).toBe(true)
+  })
+
+  it('để trống cả hai ô thì báo nhập mã đơn hoặc số điện thoại, không gọi máy chủ', async () => {
+    const w = mount(OrderLookupView)
+    await flushPromises()
+    await w.find('form').trigger('submit')
+    expect(api.get).not.toHaveBeenCalled()
+    expect(w.text()).toContain('Vui lòng nhập mã đơn hàng hoặc số điện thoại')
+  })
+
+  it('nhập số điện thoại đúng thì ra danh sách đơn gọn, chưa lộ họ tên / địa chỉ; bấm "Xem chi tiết" mới mở đơn', async () => {
+    api.get.mockImplementation((url, cfg) => {
+      if (url === '/cua-hang/tra-cuu-sdt') return Promise.resolve({ data: DS })
+      if (url === '/cua-hang/tra-cuu' && cfg.params.sdt === '0379992712' && cfg.params.maHoaDon === 'HD967') return Promise.resolve({ data: DON })
+      return Promise.reject(loi404())
+    })
+    const w = mount(OrderLookupView)
+    await flushPromises()
+    await chuyenSdt(w, '0379992712')
+    expect(api.get).toHaveBeenCalledWith('/cua-hang/tra-cuu-sdt', { params: { sdt: '0379992712' } })
+    const bang = w.get('[data-testid="ol-ds-don"]').text()
+    for (const chu of ['HD967', 'HD950', 'Chờ xác nhận', 'Đã hoàn thành', '468.000', '250.000']) expect(bang).toContain(chu)
+    expect(w.text()).not.toContain('tuan134')
+    await w.findAll('[data-testid="ol-xem-don"]')[0].trigger('click')
+    await flushPromises()
+    expect(api.get).toHaveBeenCalledWith('/cua-hang/tra-cuu', { params: { maHoaDon: 'HD967', sdt: '0379992712' } })
+    expect(w.text()).toContain('tuan134')
+  })
+
+  it('số điện thoại sai định dạng thì báo ngay, không gọi máy chủ; số không có đơn thì báo không tìm thấy', async () => {
+    const w = mount(OrderLookupView)
+    await flushPromises()
+    await chuyenSdt(w, '1234')
+    expect(api.get).not.toHaveBeenCalled()
+    expect(w.find('[role="alert"]').exists()).toBe(true)
+    api.get.mockRejectedValue(Object.assign(new Error('Không tìm thấy đơn hàng nào với số điện thoại này.'), { status: 404 }))
+    await chuyenSdt(w, '0999999999')
+    expect(w.text()).toContain('Không tìm thấy đơn hàng nào')
+    expect(w.find('[data-testid="ol-ds-don"]').exists()).toBe(false)
+  })
+
+  it('nhập thêm mã đơn rồi tra thì xem đúng đơn đó và bỏ danh sách cũ', async () => {
+    api.get.mockImplementation((url) => (url === '/cua-hang/tra-cuu-sdt' ? Promise.resolve({ data: DS }) : Promise.resolve({ data: DON })))
+    const w = mount(OrderLookupView)
+    await flushPromises()
+    await chuyenSdt(w, '0379992712')
+    expect(w.find('[data-testid="ol-ds-don"]').exists()).toBe(true)
+    await tra(w, 'HD967', '0379992712')
+    expect(api.get).toHaveBeenCalledWith('/cua-hang/tra-cuu', { params: { maHoaDon: 'HD967', sdt: '0379992712' } })
+    expect(w.find('[data-testid="ol-ds-don"]').exists()).toBe(false)
+    expect(w.text()).toContain('tuan134')
+  })
+})
+
 describe('Tra cứu đơn hàng', () => {
   it('khách chưa đăng nhập: chỉ nhập mã đơn thì không gọi máy chủ, bắt nhập SĐT đặt hàng', async () => {
     const w = mount(OrderLookupView)

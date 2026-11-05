@@ -88,12 +88,22 @@ function goToCheckout() {
                   <tr v-for="item in cartStore.items" :key="item.bienTheId">
                     <td>
                       <div class="d-flex align-items-center gap-3">
-                        <img
-                          :src="item.anh || '/logo.png'"
-                          :alt="item.sanPhamTen"
-                          class="rounded-3 border p-1"
-                          style="width: 56px; height: 56px; object-fit: contain; background: #f8fafc;"
-                        />
+                        <!-- Nhãn -35% nằm góc trên của ảnh sản phẩm -->
+                        <div class="position-relative flex-shrink-0 rounded-3 overflow-hidden">
+                          <img
+                            :src="item.anh || '/logo.png'"
+                            :alt="item.sanPhamTen"
+                            class="rounded-3 border p-1"
+                            style="width: 56px; height: 56px; object-fit: contain; background: #f8fafc;"
+                          />
+                          <!-- cùng kiểu nhãn với bảng chọn sản phẩm ở Bán hàng tại quầy -->
+                          <span
+                            v-if="coGiamDot(item)"
+                            class="position-absolute top-0 start-0 text-white fw-bold"
+                            style="padding: 1px 4px; border-bottom-right-radius: 7px; background: #dc2626; font-size: 0.62rem; line-height: 1.4;"
+                            data-testid="gio-giam-anh"
+                          >-{{ phanTramGiam(item) }}%</span>
+                        </div>
                         <div>
                           <RouterLink
                             :to="`/shop/san-pham/${item.sanPhamId}`"
@@ -112,7 +122,6 @@ function goToCheckout() {
                     <td class="text-center text-nowrap" data-testid="gio-don-gia">
                       <div v-if="coGiamDot(item)" class="text-muted small">
                         <s>{{ formatMoney(item.giaGoc) }}</s>
-                        <span class="badge bg-danger-subtle text-danger ms-1">-{{ phanTramGiam(item) }}%</span>
                       </div>
                       <div class="fw-semibold text-danger">{{ formatMoney(item.giaBan) }}</div>
                     </td>

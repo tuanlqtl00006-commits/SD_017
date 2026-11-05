@@ -16,6 +16,10 @@ import java.util.Optional;
 public interface HoaDonRepository extends JpaRepository<HoaDon, Integer>, JpaSpecificationExecutor<HoaDon> {
     Optional<HoaDon> findFirstByMaHoaDonIgnoreCase(String maHoaDon);
 
+    /** Đơn có SĐT người nhận hoặc SĐT khách hàng đúng `sdt`, mới nhất trước (tra cứu đơn theo số điện thoại; dùng Pageable để giới hạn số đơn). */
+    @Query("select h from HoaDon h left join h.khachHang k where h.sdtNguoiNhan = :sdt or k.sdt = :sdt order by h.id desc")
+    List<HoaDon> timTheoSdt(@Param("sdt") String sdt, Pageable pageable);
+
     Page<HoaDon> findByTrangThai(Integer trangThai, Pageable pageable);
 
     /** Số đơn (chưa hủy) của một khách đã dùng một phiếu: kiểm tra giới hạn số lần dùng mỗi khách. */

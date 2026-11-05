@@ -920,6 +920,22 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               <div><dt>Số tiền</dt><dd class="bh-qr-tien">{{ formatMoney(thongTinCk.soTien) }}</dd></div>
               <div><dt>Nội dung</dt><dd class="fw-bold">{{ thongTinCk.noiDung }}</dd></div>
             </dl>
+            <!-- Đủ thông tin sản phẩm của hóa đơn đang thu tiền: tên, mã, phân loại, số lượng, đơn giá, thành tiền -->
+            <div v-if="hd.gio.length" class="bh-qr-sp" data-testid="bh-qr-san-pham">
+              <p class="bh-qr-sp-tieu-de">Sản phẩm ({{ tongSoLuong(hd.gio) }})</p>
+              <ul>
+                <li v-for="d in hd.gio" :key="d.id">
+                  <span class="bh-qr-sp-ten">
+                    <b>{{ d.ten }}</b>
+                    <small class="text-muted d-block">{{ d.ma }}<template v-if="d.phanLoai"> · {{ d.phanLoai }}</template></small>
+                  </span>
+                  <span class="bh-qr-sp-tien">
+                    {{ d.soLuong }} × {{ formatMoney(d.donGia) }}
+                    <b class="d-block">{{ formatMoney(d.donGia * d.soLuong) }}</b>
+                  </span>
+                </li>
+              </ul>
+            </div>
             <template v-if="ckGiaLap">
               <div v-if="ckGiaLap.daNhan" class="bh-ck-da-nhan"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Đã nhận tiền<template v-if="ckGiaLap.maGiaoDich"> · {{ ckGiaLap.maGiaoDich }}</template></div>
               <div v-else class="bh-ck-cho"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Đang chờ khách chuyển khoản</div>
@@ -944,6 +960,21 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                 <div><dt>Số tiền</dt><dd class="bh-qr-tien">{{ formatMoney(thongTinCk.soTien) }}</dd></div>
                 <div><dt>Nội dung</dt><dd class="fw-bold">{{ thongTinCk.noiDung }}</dd></div>
               </dl>
+              <div v-if="hd.gio.length" class="bh-qr-sp">
+                <p class="bh-qr-sp-tieu-de">Sản phẩm ({{ tongSoLuong(hd.gio) }})</p>
+                <ul>
+                  <li v-for="d in hd.gio" :key="d.id">
+                    <span class="bh-qr-sp-ten">
+                      <b>{{ d.ten }}</b>
+                      <small class="text-muted d-block">{{ d.ma }}<template v-if="d.phanLoai"> · {{ d.phanLoai }}</template></small>
+                    </span>
+                    <span class="bh-qr-sp-tien">
+                      {{ d.soLuong }} × {{ formatMoney(d.donGia) }}
+                      <b class="d-block">{{ formatMoney(d.donGia * d.soLuong) }}</b>
+                    </span>
+                  </li>
+                </ul>
+              </div>
             </div>
           </BaseModal>
 
@@ -1776,6 +1807,40 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 }
 .bh-qr-tt > div:last-child {
   border-bottom: 0;
+}
+.bh-qr-sp {
+  margin-top: 0.4rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--fs-line, #dbe3ee);
+  font-size: 0.84rem;
+}
+.bh-qr-sp-tieu-de {
+  margin: 0 0 0.3rem;
+  font-weight: 700;
+}
+.bh-qr-sp ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bh-qr-sp li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px dashed var(--fs-line, #dbe3ee);
+}
+.bh-qr-sp li:last-child {
+  border-bottom: 0;
+}
+.bh-qr-sp-ten {
+  min-width: 0;
+  word-break: break-word;
+}
+.bh-qr-sp-tien {
+  flex-shrink: 0;
+  text-align: right;
+  white-space: nowrap;
 }
 .bh-qr-tt dt {
   font-weight: 400;

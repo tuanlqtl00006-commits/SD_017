@@ -1,4 +1,4 @@
-﻿package com.footstyle.demo.service;
+package com.footstyle.demo.service;
 
 import com.footstyle.demo.entity.CaLamViec;
 import com.footstyle.demo.entity.GiaoCa;
@@ -90,12 +90,14 @@ public class GiaoCaService {
     public Map<String, Object> hienTai() {
         NguoiDung nd = XacThuc.nhanVien();
         Map<String, Object> kq = new LinkedHashMap<>();
-        Optional<GiaoCa> mo = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA);
+        // Quản lý (admin) có toàn quyền, không nhận ca / giao ca (chốt 04/11): kể cả còn ca cũ mở từ trước (vd GC143) cũng không coi là
+        // đang trong ca, nên màn bán hàng không nhắc quản lý giao ca.
+        Optional<GiaoCa> mo = nd.laQuanLy() ? Optional.empty() : giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA);
         kq.put("dangMo", mo.map(this::dto).orElse(null));
         kq.put("laNguoiMoCa", mo.isPresent());
         kq.put("tongKet", mo.map(this::tongKet).orElse(null));
-        // Chưa vào ca mà đang có ca của người khác mở thì chưa vào ca được (trang Vào ca báo trước)
-        kq.put("caKhacDangMo", mo.isPresent() ? null : giaoCaRepo.findFirstByTrangThaiOrderByThoiGianNhanCaAsc(GiaoCa.DANG_TRONG_CA).map(this::dto).orElse(null));
+        // Chưa vào ca mà đang có ca của người khác mở thì chưa vào ca được (trang Vào ca báo trước); quản lý không cần vào ca
+        kq.put("caKhacDangMo", mo.isPresent() || nd.laQuanLy() ? null : giaoCaRepo.findFirstByTrangThaiOrderByThoiGianNhanCaAsc(GiaoCa.DANG_TRONG_CA).map(this::dto).orElse(null));
         Optional<GiaoCa> truoc = caTruocChuaNhan();
         kq.put("goiYTienDauCa", truoc.map(g -> soTien(g.getTienBanGiao())).orElse(null));
         kq.put("nguoiBanGiao", truoc.map(g -> g.getNhanVien().getHoTen()).orElse(null));

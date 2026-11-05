@@ -509,13 +509,22 @@ public class CuaHangService {
             hoaDonChiTietRepo.save(ct);
         }
 
-        // Lịch sử hóa đơn
+        // Email nhận thông báo: ưu tiên email khách nhập lúc đặt, không có thì dùng email tài khoản khách hàng
+        String emailNhan = req.emailNguoiNhan() == null ? "" : req.emailNguoiNhan().trim();
+        if (emailNhan.isEmpty() && hd.getKhachHang() != null && hd.getKhachHang().getEmail() != null) {
+            emailNhan = hd.getKhachHang().getEmail().trim();
+        }
+        if (!emailNhan.contains("@") || emailNhan.contains(" ")) emailNhan = "";
+
+        // Lịch sử hóa đơn. Hóa đơn không có cột email (không đổi SQL) nên ghi email nhận thông báo vào đây
+        // để khi nhân viên đổi trạng thái đơn còn gửi được thư cho khách (kể cả khách chưa đăng nhập).
         LichSuHoaDon ls = new LichSuHoaDon();
         ls.setHoaDon(hd);
         ls.setHanhDong("Đặt hàng trực tuyến");
         ls.setNguoiThaoTac(req.hoTenNguoiNhan().trim());
         ls.setThoiGian(now);
-        ls.setMoTa("Khách đặt online đơn " + maHd + " - Giao tới: " + diaChiFull + " (SĐT: " + sdt + ")");
+        ls.setMoTa("Khách đặt online đơn " + maHd + " - Giao tới: " + diaChiFull + " (SĐT: " + sdt + ")"
+                + (emailNhan.isEmpty() ? "" : " - " + MailService.NHAN_EMAIL_DON + emailNhan));
         lichSuHoaDonRepo.save(ls);
 
         // Nếu chuyển khoản, chuẩn bị mã VietQR
@@ -542,12 +551,9 @@ public class CuaHangService {
         res.put("ngayTao", now.toString());
         res.put("trangThai", "Chờ xác nhận");
 
-        // Gửi mail xác nhận đặt hàng: ưu tiên email khách nhập lúc đặt, không có thì dùng email tài khoản khách hàng
+        // Gửi mail xác nhận đặt hàng (ghi đủ tạm tính, giảm giá, phí vận chuyển như hóa đơn)
         if (mailService != null) {
-            String email = req.emailNguoiNhan() == null ? "" : req.emailNguoiNhan().trim();
-            if (email.isEmpty() && hd.getKhachHang() != null && hd.getKhachHang().getEmail() != null) {
-                email = hd.getKhachHang().getEmail();
-            }
+            String email = emailNhan;
             List<String> mon = new ArrayList<>();
             for (HoaDonChiTiet ct : dsChiTiet) {
                 SanPhamChiTiet bt = ct.getSanPhamChiTiet();
@@ -557,9 +563,15 @@ public class CuaHangService {
                 String giaChu = tienMon > 0 ? " - " + String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", tienMon) : "";
                 mon.add(tenSp + mau + " x" + ct.getSoLuong() + giaChu);
             }
+            MailService.TienDon tien = new MailService.TienDon(
+                    String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", tongTien),
+                    soTienGiam > 0 ? String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", soTienGiam) : null,
+                    phieu != null ? phieu.getMaPhieu() : null,
+                    String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", phiVanChuyen),
+                    sdt);
             mailService.guiXacNhanDatHang(hd.getHoTenNguoiNhan(), email, maHd, mon,
                     String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", thanhTien),
-                    diaChiFull, (String) res.get("tenPhuongThuc"));
+                    diaChiFull, (String) res.get("tenPhuongThuc"), tien);
         }
 
         return res;
@@ -691,6 +703,43 @@ public class CuaHangService {
             throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma + " với số điện thoại này.", null, null, null);
         }
         return chiTietDon(hd);
+    }
+
+    /** Số đơn tối đa trả về khi tra cứu theo số điện thoại (mới nhất trước). */
+    static final int SO_DON_TRA_CUU_SDT = 20;
+
+    /**
+     * Tra cứu theo SỐ ĐIỆN THOẠI: danh sách đơn của số đó (SĐT người nhận hoặc SĐT khách hàng), chỉ gồm thông tin gọn
+     * (mã đơn, ngày, loại đơn, trạng thái, thành tiền); họ tên, địa chỉ, sản phẩm chỉ xem được khi bấm vào từng đơn
+     * (đi qua tra cứu mã đơn + SĐT như cũ). Bỏ hóa đơn chờ tại quầy chưa thanh toán.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> traCuuTheoSdt(String sdt) {
+        String so = sdt == null ? "" : sdt.replaceAll("\\D", "");
+        if (!so.matches("^0\\d{9}$")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.", null, null, null);
+        }
+        List<Map<String, Object>> don = new ArrayList<>();
+        for (HoaDon hd : hoaDonRepo.timTheoSdt(so, org.springframework.data.domain.PageRequest.of(0, SO_DON_TRA_CUU_SDT))) {
+            boolean chuaThanhToanTaiQuay = Integer.valueOf(HoaDon.TAI_QUAY).equals(hd.getLoaiDon())
+                    && Integer.valueOf(HoaDon.CHO_XAC_NHAN).equals(hd.getTrangThai());
+            if (chuaThanhToanTaiQuay) continue;
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("maHoaDon", hd.getMaHoaDon());
+            m.put("ngayTao", hd.getNgayTao());
+            m.put("loaiDon", Integer.valueOf(HoaDon.TAI_QUAY).equals(hd.getLoaiDon()) ? "Tại quầy" : "Trực tuyến");
+            m.put("trangThai", hd.getTrangThai());
+            m.put("tenTrangThai", HoaDonLuongTrangThai.ten(hd.getTrangThai()));
+            m.put("thanhTien", hd.getThanhTien());
+            don.add(m);
+        }
+        if (don.isEmpty()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng nào với số điện thoại này.", null, null, null);
+        }
+        Map<String, Object> kq = new LinkedHashMap<>();
+        kq.put("sdt", so);
+        kq.put("don", don);
+        return kq;
     }
 
     private static boolean dungSdtDatHang(HoaDon hd, String so) {

@@ -332,7 +332,9 @@ const toggle = (key) => { open[key] = !open[key] }
 
 <style scoped>
 /* Thanh bên có độ phóng to riêng (--ui-side-zoom): body đã zoom --ui-zoom nên ở đây nhân thêm tỉ lệ bù, chiều cao chia cho hệ số hiệu dụng để luôn phủ hết màn hình */
-.ad-aside { position: sticky; top: 0; zoom: calc(var(--ui-side-zoom) / var(--ui-zoom)); height: calc(100vh / var(--ui-side-zoom)); overflow-y: auto; overflow-x: hidden; width: 300px; }
+.ad-aside { position: sticky; top: 0; zoom: calc(var(--ui-side-zoom) / var(--ui-zoom)); height: calc(100vh / var(--ui-side-zoom)); overflow-y: auto; overflow-x: hidden; width: 300px; scrollbar-width: none; -ms-overflow-style: none; }
+/* Ẩn thanh cuộn của menu bên trái (vẫn cuộn được bằng chuột / bàn phím) */
+.ad-aside::-webkit-scrollbar { display: none; }
 .ad-logo { height: 100px; }
 .ad-link { white-space: nowrap; display: flex; align-items: center; padding: 0.7rem 1rem; border-radius: 0.5rem; text-align: left; }
 .ad-link .icon { font-size: 1.15rem; margin-right: 0.8rem; width: 24px; text-align: center; }

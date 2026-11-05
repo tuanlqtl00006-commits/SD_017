@@ -467,6 +467,16 @@ public class MailService {
      */
     public void guiXacNhanDatHang(String hoTen, String email, String maHoaDon, java.util.List<String> monHang,
                                   String thanhTienChu, String diaChi, String cachThanhToan) {
+        guiXacNhanDatHang(hoTen, email, maHoaDon, monHang, thanhTienChu, diaChi, cachThanhToan, null);
+    }
+
+    /** Các dòng tiền của đơn (đã định dạng "1.000 ₫") để thư đặt hàng ghi giống hóa đơn; giam / maPhieu / sdt có thể rỗng. */
+    public record TienDon(String tamTinh, String giam, String maPhieu, String phiVanChuyen, String sdt) {
+    }
+
+    /** Như trên, kèm bảng tiền (tạm tính, giảm giá, phí vận chuyển) và số điện thoại người nhận; `tien` = null thì chỉ ghi tổng. */
+    public void guiXacNhanDatHang(String hoTen, String email, String maHoaDon, java.util.List<String> monHang,
+                                  String thanhTienChu, String diaChi, String cachThanhToan, TienDon tien) {
         if (email == null || !email.contains("@")) return;
         final String den = email.trim();
         String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
@@ -505,6 +515,9 @@ public class MailService {
                 .append("<div style=\"font-family:'Courier New',Courier,monospace;font-size:28px;line-height:36px;letter-spacing:3px;font-weight:bold;color:#15803d;margin-top:4px;\">")
                 .append(esc(ma)).append("</div>")
                 .append("</td></tr></table></td></tr>\n");
+
+        // Thanh tiến trình: đang ở bước "Đặt hàng" (giống dòng thời gian ở màn tra cứu đơn)
+        themTienTrinh(h, 1);
 
         // Bảng chi tiết sản phẩm
         boolean coCotGia = false;
@@ -548,6 +561,18 @@ public class MailService {
             h.append("</tr>\n");
         }
 
+        // Các dòng tiền như trên hóa đơn: tạm tính, giảm giá (mã phiếu), phí vận chuyển
+        if (tien != null) {
+            String cot = coCotGia ? "2" : "1";
+            dongTien(h, cot, "Tạm tính", tien.tamTinh(), "#111827", true);
+            if (tien.giam() != null && !tien.giam().isBlank()) {
+                String nhan = tien.maPhieu() == null || tien.maPhieu().isBlank() ? "Giảm giá" : "Giảm giá (mã " + tien.maPhieu() + ")";
+                dongTien(h, cot, nhan, "-" + tien.giam(), "#16a34a", false);
+            }
+            dongTien(h, cot, "Phí vận chuyển", tien.phiVanChuyen() == null || tien.phiVanChuyen().startsWith("0 ") ? "Miễn phí" : tien.phiVanChuyen(),
+                    "#111827", false);
+        }
+
         // Dòng tổng thanh toán
         h.append("<tr style=\"background-color:#f8fafc;\">")
                 .append("<td colspan=\"").append(coCotGia ? "2" : "1").append("\" style=\"padding:14px;border-top:2px solid #e5e7eb;").append(phong).append("font-size:15px;font-weight:bold;color:#111827;\">Tổng thanh toán</td>")
@@ -562,6 +587,7 @@ public class MailService {
                 .append("<tr><td style=\"padding:14px 18px;\">")
                 .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;\">");
         dongThongTinDon(h, "Người nhận", ten, true);
+        if (tien != null && tien.sdt() != null && !tien.sdt().isBlank()) dongThongTinDon(h, "Số điện thoại", tien.sdt(), false);
         dongThongTinDon(h, "Địa chỉ giao tới", diaChi, false);
         dongThongTinDon(h, "Phương thức thanh toán", cachThanhToan, false);
         h.append("</table></td></tr></table></td></tr>\n");
@@ -622,6 +648,146 @@ public class MailService {
 
         final ThuMail thu = new ThuMail(tieuDe, banChu, h.toString());
         luongGui.submit(() -> gui(den, thu, logoGan));
+    }
+
+    /* ===================== Thư báo đổi trạng thái đơn online ===================== */
+
+    /** Đầu dòng ghi email nhận thông báo trong lịch sử "Đặt hàng trực tuyến" (hóa đơn không có cột email; không đổi SQL). */
+    public static final String NHAN_EMAIL_DON = "Email nhận thông báo: ";
+
+    /** Lấy email đã ghi trong mô tả lịch sử đặt hàng (null nếu không có). */
+    public static String emailTrongMoTa(String moTa) {
+        if (moTa == null) return null;
+        int i = moTa.indexOf(NHAN_EMAIL_DON);
+        if (i < 0) return null;
+        String e = moTa.substring(i + NHAN_EMAIL_DON.length()).trim();
+        int het = e.indexOf(' ');
+        if (het > 0) e = e.substring(0, het);
+        return e.contains("@") ? e : null;
+    }
+
+    /** Màu nhấn, nhãn, tiêu đề, lời nhắn của thư theo trạng thái mới (mã như entity HoaDon). */
+    private record NoiDungTrangThai(String mau, String nhan, String tieuDe, String loiNhan) {
+    }
+
+    private static NoiDungTrangThai noiDungTrangThai(int trangThai) {
+        return switch (trangThai) {
+            case 2 -> new NoiDungTrangThai("#2563eb", "ĐÃ XÁC NHẬN", "Đơn hàng đã được xác nhận",
+                    "Cửa hàng đã xác nhận đơn hàng của bạn và đang chuẩn bị hàng.");
+            case 3 -> new NoiDungTrangThai("#7c3aed", "ĐANG CHUẨN BỊ HÀNG", "Đơn hàng đã đóng gói xong",
+                    "Đơn hàng đã được đóng gói và đang chờ đơn vị vận chuyển đến lấy.");
+            case 4 -> new NoiDungTrangThai("#0284c7", "ĐANG GIAO HÀNG", "Đơn hàng đang được giao",
+                    "Đơn hàng đã được giao cho đơn vị vận chuyển và đang trên đường đến bạn. Vui lòng để ý điện thoại để nhận hàng.");
+            case 5 -> new NoiDungTrangThai("#16a34a", "ĐÃ GIAO HÀNG", "Đơn hàng đã giao thành công",
+                    "Đơn hàng đã được giao đến bạn. Cảm ơn bạn đã mua sắm tại cửa hàng!");
+            case 6 -> new NoiDungTrangThai("#15803d", "HOÀN THÀNH", "Đơn hàng đã hoàn thành",
+                    "Đơn hàng đã hoàn tất. Rất mong được phục vụ bạn trong những lần mua sắm tiếp theo!");
+            case 8 -> new NoiDungTrangThai("#ea580c", "GIAO HÀNG KHÔNG THÀNH CÔNG", "Giao hàng chưa thành công",
+                    "Đơn vị vận chuyển chưa giao được đơn hàng. Cửa hàng sẽ liên hệ với bạn để sắp xếp giao lại.");
+            default -> new NoiDungTrangThai("#2563eb", "CẬP NHẬT ĐƠN HÀNG", "Đơn hàng có cập nhật mới",
+                    "Trạng thái đơn hàng của bạn vừa được cập nhật.");
+        };
+    }
+
+    /**
+     * Báo cho khách khi đơn online đổi trạng thái (đã xác nhận, đang chuẩn bị, đang giao, đã giao, hoàn thành, giao thất bại).
+     * Đơn bị hủy dùng {@link #guiThongBaoHuyDon}. Gửi ở luồng riêng; không có email hợp lệ thì bỏ qua.
+     */
+    public void guiCapNhatTrangThai(String hoTen, String email, String maHoaDon, int trangThai, String ghiChu,
+                                   String thanhTienChu, String diaChi) {
+        if (email == null || !email.contains("@")) return;
+        final String den = email.trim();
+        String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
+        String ma = String.valueOf(maHoaDon);
+        NoiDungTrangThai nd = noiDungTrangThai(trangThai);
+        boolean thatBai = trangThai == 8;
+        String lyDo = thatBai && ghiChu != null && !ghiChu.isBlank() ? ghiChu.trim() : null;
+        String tieuDe = "[" + tenCuaHang + "] Đơn hàng " + ma + ": " + nd.tieuDe().toLowerCase(Locale.forLanguageTag("vi-VN"));
+        StringBuilder chu = new StringBuilder("Xin chào " + ten + ",\n\n" + nd.loiNhan() + "\n\nMã đơn hàng: " + ma);
+        if (lyDo != null) chu.append("\nLý do: ").append(lyDo);
+        if (thanhTienChu != null) chu.append("\nTổng thanh toán: ").append(thanhTienChu);
+        if (diaChi != null && !diaChi.isBlank()) chu.append("\nGiao tới: ").append(diaChi);
+        chu.append("\n\nBạn có thể tra cứu đơn hàng bằng mã ").append(ma).append(" trên website.\n");
+
+        final byte[] logoGan = logo;
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        StringBuilder h = new StringBuilder(5000);
+        moKhungHtml(h, tieuDe, "Đơn hàng " + ma + ": " + nd.tieuDe(), nd.mau(), logoGan != null, nd.nhan(), nd.tieuDe());
+        h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
+                .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>").append(esc(nd.loiNhan())).append("</td></tr>\n");
+        themTienTrinh(h, trangThai);
+        h.append("<tr><td style=\"padding:12px 28px 8px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;\">")
+                .append("<tr><td style=\"padding:14px 18px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;\">");
+        dongThongTinDon(h, "Mã đơn hàng", ma, true);
+        dongThongTinDon(h, "Trạng thái", nd.tieuDe(), false);
+        if (lyDo != null) dongThongTinDon(h, "Lý do", lyDo, false);
+        if (thanhTienChu != null) dongThongTinDon(h, "Tổng thanh toán", thanhTienChu, false);
+        if (diaChi != null && !diaChi.isBlank()) dongThongTinDon(h, "Giao tới", diaChi, false);
+        h.append("</table></td></tr></table></td></tr>\n");
+        if (linkCuaHang != null) {
+            h.append("<tr><td align=\"center\" style=\"padding:14px 28px 4px 28px;\">")
+                    .append("<a href=\"").append(esc(linkCuaHang)).append("\" target=\"_blank\" style=\"").append(phong)
+                    .append("display:inline-block;background-color:").append(nd.mau())
+                    .append(";color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;\">")
+                    .append("Tra cứu đơn hàng</a></td></tr>\n");
+        }
+        dongKhungHtml(h);
+        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
+        luongGui.submit(() -> gui(den, thu, logoGan));
+    }
+
+    /**
+     * Thanh tiến trình 5 bước của đơn online (Đặt hàng → Xác nhận → Đang giao → Đã giao → Hoàn thành), dựng bằng bảng để
+     * hiện đúng trên Gmail / Outlook. `trangThai` là mã trạng thái của hóa đơn; giao thất bại tô cam ở bước "Đang giao".
+     */
+    private static void themTienTrinh(StringBuilder h, int trangThai) {
+        String[] nhan = {"Đặt hàng", "Xác nhận", "Đang giao", "Đã giao", "Hoàn thành"};
+        int buoc = switch (trangThai) {
+            case 2, 3 -> 1;
+            case 4, 8 -> 2;
+            case 5 -> 3;
+            case 6 -> 4;
+            default -> 0;
+        };
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        h.append("<tr><td style=\"padding:14px 28px 6px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;table-layout:fixed;\"><tr>");
+        for (int i = 0; i < nhan.length; i++) {
+            if (i > 0) {
+                // Mũi tên nối hai bước: tô màu khi đơn đã đi qua đoạn này
+                String mauMuiTen = i <= buoc ? (trangThai == 8 && i == buoc ? "#ea580c" : "#2563eb") : "#d1d5db";
+                h.append("<td width=\"22\" align=\"center\" valign=\"top\" style=\"width:22px;padding:0;\">")
+                        .append("<div style=\"height:34px;line-height:34px;").append(phong).append("font-size:18px;font-weight:bold;color:")
+                        .append(mauMuiTen).append(";\">&#8594;</div></td>");
+            }
+            boolean xong = i < buoc || (i == buoc && trangThai == 6);
+            boolean dangO = i == buoc && !xong;
+            String mau = trangThai == 8 && i == buoc ? "#ea580c" : "#2563eb";
+            String nen = xong ? mau : dangO ? "#ffffff" : "#ffffff";
+            String vien = xong || dangO ? mau : "#d1d5db";
+            String chuSo = xong ? "#ffffff" : dangO ? mau : "#9ca3af";
+            String kyHieu = xong ? "&#10003;" : String.valueOf(i + 1);
+            h.append("<td align=\"center\" valign=\"top\" style=\"padding:0 2px;\">")
+                    .append("<div style=\"width:30px;height:30px;line-height:30px;margin:0 auto;border-radius:50%;border:2px solid ").append(vien)
+                    .append(";background-color:").append(nen).append(";color:").append(chuSo).append(";").append(phong)
+                    .append("font-size:13px;font-weight:bold;text-align:center;\">").append(kyHieu).append("</div>")
+                    .append("<div style=\"").append(phong).append("margin-top:6px;font-size:11px;line-height:14px;font-weight:")
+                    .append(xong || dangO ? "bold;color:#111827" : "normal;color:#9ca3af").append(";\">")
+                    .append(esc(trangThai == 8 && i == buoc ? "Giao thất bại" : nhan[i])).append("</div></td>");
+        }
+        h.append("</tr></table></td></tr>\n");
+    }
+
+    /** Một dòng tiền (nhãn - giá trị) trong bảng sản phẩm của thư đặt hàng. */
+    private static void dongTien(StringBuilder h, String colspan, String nhan, String giaTri, String mau, boolean dongDau) {
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        String vien = dongDau ? "border-top:1px solid #e5e7eb;" : "";
+        h.append("<tr><td colspan=\"").append(colspan).append("\" style=\"padding:8px 14px;").append(vien).append(phong)
+                .append("font-size:14px;color:#6b7280;\">").append(esc(nhan)).append("</td>")
+                .append("<td align=\"right\" style=\"padding:8px 14px;white-space:nowrap;").append(vien).append(phong)
+                .append("font-size:14px;font-weight:bold;color:").append(mau).append(";\">").append(esc(giaTri)).append("</td></tr>\n");
     }
 
     /** Dựng phần mở đầu chuẩn cho thư HTML (dải màu nhấn, logo cửa hàng, nhãn trạng thái, tiêu đề lớn). */

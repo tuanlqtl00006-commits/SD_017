@@ -1,9 +1,10 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import api from '../../services/api'
 import HoaDonNoiDung from '../../components/hoaDon/HoaDonNoiDung.vue'
+import { formatMoney, formatNgayGio } from '../../utils/format'
 import { docDonHang } from '../../utils/donHangLocal'
 import { loiSdt } from '../../utils/kiemTra'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
@@ -18,6 +19,69 @@ const sdt = ref('')
 const loading = ref(false)
 const orderResult = ref(null)
 const searchError = ref('')
+
+// Hai ô nhập xếp hai dòng: Mã đơn hàng và Số điện thoại, một nút Tra cứu chung:
+//  - có mã đơn (+ SĐT): xem chi tiết đúng một đơn; - chỉ có SĐT: ra danh sách đơn của số đó, bấm vào để xem chi tiết
+const dsDon = ref(null) // { sdt, don: [...] } khi tra chỉ bằng số điện thoại
+
+// Tra theo SĐT: máy chủ chỉ trả danh sách gọn (mã đơn, ngày, trạng thái, thành tiền); họ tên, địa chỉ, sản phẩm chỉ xem khi bấm vào từng đơn
+async function traCuuSdt() {
+  lanTra++
+  daTra = null
+  searchError.value = ''
+  orderResult.value = null
+  dsDon.value = null
+  const so = sdt.value.trim()
+  const loi = loiSdt(so, 'Vui lòng nhập số điện thoại đặt hàng để tra cứu.')
+  if (loi) {
+    searchError.value = loi
+    return
+  }
+  loading.value = true
+  try {
+    dsDon.value = (await api.get('/cua-hang/tra-cuu-sdt', { params: { sdt: so } })).data
+  } catch (err) {
+    searchError.value = err?.status == null ? err?.message || 'Không kết nối được máy chủ.' : err.message || 'Không tìm thấy đơn hàng nào với số điện thoại này.'
+  } finally {
+    loading.value = false
+  }
+}
+
+// Bấm một đơn trong danh sách: xem chi tiết (đi qua tra cứu mã đơn + SĐT đang nhập)
+async function xemDon(d) {
+  const so = sdt.value.trim()
+  const code = d.maHoaDon
+  lanTra++
+  daTra = null
+  searchError.value = ''
+  orderCode.value = code
+  loading.value = true
+  try {
+    orderResult.value = await traCuuBackend(code, so)
+    daTra = { code, so }
+    await nextTick()
+    document.querySelector('.ol-ket-qua')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  } catch (err) {
+    searchError.value = err?.status == null ? err?.message || 'Không kết nối được máy chủ.' : `Không xem được đơn ${code}. Vui lòng thử lại.`
+  } finally {
+    loading.value = false
+  }
+}
+
+function guiForm() {
+  const co = orderCode.value.trim()
+  const so = sdt.value.trim()
+  if (!co && !so) {
+    lanTra++
+    daTra = null
+    orderResult.value = null
+    dsDon.value = null
+    searchError.value = 'Vui lòng nhập mã đơn hàng hoặc số điện thoại đặt hàng để tra cứu.'
+    return
+  }
+  // Chỉ có số điện thoại: xem danh sách đơn; có mã đơn: xem chi tiết đơn đó
+  return co ? handleSearch() : traCuuSdt()
+}
 
 // Khách đã đăng nhập xem đơn của chính mình bằng mã đơn; khách vãng lai cần mã đơn + SĐT đặt hàng
 function laKhachDangNhap() {
@@ -64,6 +128,7 @@ async function handleSearch() {
   const code = orderCode.value.trim()
   searchError.value = ''
   orderResult.value = null
+  dsDon.value = null
 
   if (!code) {
     searchError.value = 'Vui lòng nhập mã đơn hàng (Ví dụ: HD01).'
@@ -193,10 +258,10 @@ function traCuuLocal(code, so) {
           <div class="ol-search-icon"><i class="bi bi-search"></i></div>
           <div>
             <h4 class="fw-bold text-dark mb-0">Tra cứu đơn hàng</h4>
-            <p class="text-muted small mb-0">Nhập mã đơn hàng và số điện thoại đặt hàng để theo dõi hành trình giao nhận sản phẩm của bạn.</p>
+            <p class="text-muted small mb-0">Nhập mã đơn hàng và số điện thoại để xem một đơn, hoặc chỉ nhập số điện thoại để xem các đơn gần đây của số đó.</p>
           </div>
         </div>
-        <form @submit.prevent="handleSearch" class="ol-form" novalidate>
+        <form @submit.prevent="guiForm" class="ol-form" novalidate>
           <div class="ol-field">
             <label class="ol-label" for="ol-ma">Mã đơn hàng</label>
             <div class="ol-input-wrap">
@@ -214,7 +279,7 @@ function traCuuLocal(code, so) {
           </div>
           <div class="ol-field">
             <label class="ol-label" for="ol-sdt">
-              Số điện thoại đặt hàng<span v-if="laKhachDangNhap()" class="ol-khong-bat-buoc"> (không bắt buộc)</span>
+              Số điện thoại đặt hàng<span v-if="laKhachDangNhap()" class="ol-khong-bat-buoc"> (không bắt buộc khi tra đơn của tài khoản)</span>
             </label>
             <div class="ol-input-wrap">
               <i class="bi bi-telephone ol-input-icon" aria-hidden="true"></i>
@@ -240,6 +305,37 @@ function traCuuLocal(code, so) {
         </form>
         <div v-if="searchError" class="alert alert-danger py-2 small mt-3 mb-0" role="alert">
           <i class="bi bi-exclamation-triangle-fill me-1"></i> {{ searchError }}
+        </div>
+      </div>
+
+      <!-- Tra theo số điện thoại: danh sách đơn gọn, bấm "Xem chi tiết" để mở đơn -->
+      <div v-if="dsDon" class="card border-0 shadow-sm rounded-4 p-4 mb-4" data-testid="ol-ds-don">
+        <h5 class="fw-bold mb-3">Đơn của số {{ dsDon.sdt }} <span class="text-muted fw-normal small">({{ dsDon.don.length }} đơn gần nhất)</span></h5>
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Mã đơn</th>
+                <th>Ngày đặt</th>
+                <th>Loại</th>
+                <th>Trạng thái</th>
+                <th class="text-end">Thành tiền</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="d in dsDon.don" :key="d.maHoaDon" :class="{ 'table-active': orderResult && orderCode === d.maHoaDon }">
+                <td class="fw-bold">{{ d.maHoaDon }}</td>
+                <td class="text-nowrap">{{ formatNgayGio(d.ngayTao) }}</td>
+                <td>{{ d.loaiDon }}</td>
+                <td><span class="badge bg-primary-subtle text-primary">{{ d.tenTrangThai }}</span></td>
+                <td class="text-end fw-semibold text-nowrap">{{ formatMoney(d.thanhTien) }}</td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-outline-primary btn-sm" :disabled="loading" data-testid="ol-xem-don" @click="xemDon(d)">Xem chi tiết</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -280,11 +376,14 @@ function traCuuLocal(code, so) {
 }
 
 /* Form tra cứu: mỗi ô có nhãn + biểu tượng, nút nằm cùng hàng */
+/* Hai ô nhập xếp hai dòng (mã đơn / số điện thoại), nút Tra cứu ở dòng dưới */
 .ol-form {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr;
   gap: 14px;
-  align-items: end;
+}
+.ol-form .ol-nut {
+  justify-self: start;
 }
 .ol-label {
   display: block;
@@ -362,11 +461,6 @@ function traCuuLocal(code, so) {
 .ol-nut:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgba(13, 110, 253, 0.36);
-}
-@media (max-width: 768px) {
-  .ol-form {
-    grid-template-columns: 1fr;
-  }
 }
 /* Kết quả dùng bố cục rộng như màn admin */
 .ol-ket-qua {
