@@ -29,14 +29,18 @@ const quantity = ref(1)
 
 // Thông báo toast nhanh
 const toastMsg = ref('')
+const toastType = ref('success') // 'success' | 'warning' | 'error'
 const showToast = ref(false)
+let toastTimer = null
 
-function notify(msg) {
+function notify(msg, type = 'success') {
   toastMsg.value = msg
+  toastType.value = type
   showToast.value = true
-  setTimeout(() => {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
     showToast.value = false
-  }, 2500)
+  }, 3000)
 }
 
 async function loadProductDetail(id) {
@@ -199,13 +203,22 @@ function changeQuantity(delta) {
   }
 }
 
+function onQuantityInput(event) {
+  const maxStock = currentVariant.value?.soLuongTon ?? 99
+  let val = parseInt(event.target.value)
+  if (isNaN(val) || val < 1) val = 1
+  if (val > maxStock) val = maxStock
+  quantity.value = val
+  event.target.value = val
+}
+
 function addToCart() {
   if (!currentVariant.value) {
-    notify('Vui lòng chọn đầy đủ phiên bản sản phẩm.')
+    notify('Vui lòng chọn đầy đủ phiên bản sản phẩm.', 'warning')
     return false
   }
   if ((currentVariant.value.soLuongTon || 0) < 1) {
-    notify('Phiên bản này hiện đã hết hàng!')
+    notify('Phiên bản này hiện đã hết hàng!', 'error')
     return false
   }
 
@@ -213,7 +226,7 @@ function addToCart() {
   const weightObj = availableWeights.value.find((w) => w.id === currentVariant.value.idTrongLuong)
   const gripObj = availableGrips.value.find((g) => g.id === currentVariant.value.idChuVi)
 
-  cartStore.addItem({
+  const result = cartStore.addItem({
     sanPhamId: product.value.id,
     sanPhamTen: product.value.ten,
     sanPhamMa: product.value.ma || `SP${product.value.id}`,
@@ -229,7 +242,14 @@ function addToCart() {
     soLuongTon: currentVariant.value.soLuongTon || 99,
   })
 
-  notify(`Đã thêm "${product.value.ten}" vào giỏ hàng!`)
+  if (result.status === 'maxed') {
+    notify(`Giỏ hàng đã đạt tối đa ${result.maxStock} sản phẩm cho phiên bản này!`, 'error')
+    return false
+  } else if (result.status === 'partial') {
+    notify(`Chỉ thêm được ${result.actualAdded} sản phẩm (đã đạt tối đa ${result.maxStock} trong kho)`, 'warning')
+  } else {
+    notify(`Đã thêm "${product.value.ten}" vào giỏ hàng!`)
+  }
   return true
 }
 
@@ -244,21 +264,28 @@ function buyNow() {
   <div class="product-detail-view py-4">
     <div class="container">
       <!-- Toast Thông báo nhanh -->
-      <div
-        v-if="showToast"
-        class="position-fixed bottom-0 end-0 p-3"
-        style="z-index: 1080;"
-      >
-        <div class="toast show align-items-center text-white bg-dark border-0 shadow-lg px-3 py-2 rounded-3">
-          <div class="d-flex align-items-center justify-content-between">
-            <div class="toast-body d-flex align-items-center gap-2 p-0">
-              <i class="bi bi-check-circle-fill text-success fs-5"></i>
-              <span>{{ toastMsg }}</span>
-            </div>
-            <button type="button" class="btn-close btn-close-white ms-3 m-auto" @click="showToast = false"></button>
+      <Transition name="toast-slide">
+        <div
+          v-if="showToast"
+          class="toast-notification"
+          :class="`toast-${toastType}`"
+        >
+          <div class="toast-icon">
+            <i v-if="toastType === 'success'" class="bi bi-check-circle-fill"></i>
+            <i v-else-if="toastType === 'warning'" class="bi bi-exclamation-triangle-fill"></i>
+            <i v-else class="bi bi-x-circle-fill"></i>
           </div>
+          <div class="toast-content">
+            <div class="toast-title">
+              {{ toastType === 'success' ? 'Thành công' : toastType === 'warning' ? 'Lưu ý' : 'Thông báo' }}
+            </div>
+            <div class="toast-message">{{ toastMsg }}</div>
+          </div>
+          <button class="toast-close" @click="showToast = false">
+            <i class="bi bi-x-lg"></i>
+          </button>
         </div>
-      </div>
+      </Transition>
 
       <!-- Breadcrumb -->
       <nav aria-label="breadcrumb" class="mb-4">
@@ -431,7 +458,16 @@ function buyNow() {
                     >
                       -
                     </button>
-                    <span class="px-3 fw-bold fs-6">{{ quantity }}</span>
+                    <input
+                      type="number"
+                      class="form-control form-control-sm text-center fw-bold fs-6 mx-1 no-spinner"
+                      style="width: 60px;"
+                      :value="quantity"
+                      :min="1"
+                      :max="currentVariant?.soLuongTon ?? 99"
+                      @change="onQuantityInput"
+                      @keydown.enter="onQuantityInput($event); $event.target.blur()"
+                    />
                     <button
                       type="button"
                       class="btn btn-outline-secondary btn-sm px-3"
@@ -533,6 +569,102 @@ function buyNow() {
 </template>
 
 <style scoped>
+/* ===== Toast Notification ===== */
+.toast-notification {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 300px;
+  max-width: 400px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(4px);
+  border-left: 4px solid;
+}
+
+.toast-success {
+  background: #ffffff;
+  border-color: #22c55e;
+  color: #15803d;
+}
+.toast-warning {
+  background: #ffffff;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+.toast-error {
+  background: #ffffff;
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+.toast-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.toast-success .toast-icon { color: #22c55e; }
+.toast-warning .toast-icon { color: #f59e0b; }
+.toast-error   .toast-icon { color: #ef4444; }
+
+.toast-content {
+  flex: 1;
+}
+.toast-title {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.toast-message {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 12px;
+  padding: 2px;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.toast-close:hover { color: #374151; }
+
+/* Animation */
+.toast-slide-enter-active,
+.toast-slide-leave-active {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.toast-slide-enter-from {
+  opacity: 0;
+  transform: translateX(60px);
+}
+.toast-slide-leave-to {
+  opacity: 0;
+  transform: translateX(60px);
+}
+
+/* Ẩn mũi tên spinner của input number */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .product-detail-view {
   background-color: #f8fafc;
   min-height: calc(100vh - 200px);

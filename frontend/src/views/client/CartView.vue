@@ -201,9 +201,6 @@ function goToCheckout() {
             </template>
             <p v-if="cartStore.loiPhieu" class="text-danger small mb-2" data-testid="gio-loi-phieu">{{ cartStore.loiPhieu }}</p>
 
-            <div class="alert alert-info py-2 px-3 small mb-3 border-0">
-              <i class="bi bi-info-circle me-1"></i> <strong>Miễn phí vận chuyển</strong> cho đơn giao tại <strong>Hà Nội</strong>; tỉnh/thành khác tính phí theo từng tỉnh.
-            </div>
 
             <hr class="my-2" />
 
