@@ -1,7 +1,7 @@
 <script setup>
 // So sánh doanh thu giữa các kỳ (tháng / quý / năm / khoảng ngày tùy chọn).
-// Kỳ mới nhất trong danh sách là kỳ đang xét, được so với kỳ liền trước: thẻ tóm tắt, phân tích chênh lệch doanh thu,
-// biểu đồ, bảng đối chiếu chỉ số, doanh thu theo thương hiệu và sản phẩm bán chạy qua các kỳ.
+// Kỳ mới nhất trong danh sách là kỳ đang xét, được so với kỳ liền trước: thẻ tóm tắt, biểu đồ,
+// bảng đối chiếu chỉ số, doanh thu theo thương hiệu và sản phẩm bán chạy qua các kỳ.
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '../../services/api'
@@ -490,11 +490,6 @@ function dinhDangPhanTram(p) {
   return '0%'
 }
 
-function tienCoDau(v) {
-  const so = Math.round(Number(v) || 0)
-  return `${so > 0 ? '+' : so < 0 ? '-' : ''}${formatMoney(Math.abs(so))}`
-}
-
 function layGiaTri(cs, c) {
   if (!cs) return 0
   if (c.k === 'tyLeHuy') {
@@ -707,53 +702,6 @@ const luuYKy = computed(() => {
     if (a !== b) return `Hai kỳ có độ dài khác nhau: ${nay.nhan} có ${a} ngày, ${truoc.nhan} có ${b} ngày.`
   }
   return ''
-})
-
-/* ----- Doanh thu thay đổi do đâu ----- */
-/** Tách chênh lệch doanh thu: phần do số đơn = (số đơn mới - số đơn cũ) x giá trị TB / đơn kỳ trước, còn lại do giá trị đơn. */
-function tachChenhLechDoanhThu(nay, truoc) {
-  const dt1 = Number(truoc.doanhThuThucTe) || 0
-  const dt2 = Number(nay.doanhThuThucTe) || 0
-  const n1 = Number(truoc.soHoanThanh) || 0
-  const n2 = Number(nay.soHoanThanh) || 0
-  const tong = dt2 - dt1
-  const doSoDon = n1 === 0 ? tong : Math.round((n2 - n1) * (dt1 / n1))
-  return { tong, doSoDon, doGiaTriDon: tong - doSoDon }
-}
-
-function sanPhamBienDong(nay, truoc) {
-  const theoSp = new Map()
-  const cong = (k, dau) => {
-    for (const sp of k?.sanPhamTrongKy || []) {
-      const khoa = sp.maSanPham || sp.tenSanPham
-      if (!khoa) continue
-      const e = theoSp.get(khoa) || { khoa, ten: sp.tenSanPham || khoa, hieu: 0 }
-      e.hieu += dau * (Number(sp.doanhThu) || 0)
-      theoSp.set(khoa, e)
-    }
-  }
-  cong(truoc, -1)
-  cong(nay, 1)
-  const ds = [...theoSp.values()]
-  return {
-    spTang: ds.filter((x) => x.hieu > 0).sort((a, b) => b.hieu - a.hieu).slice(0, 3),
-    spGiam: ds.filter((x) => x.hieu < 0).sort((a, b) => a.hieu - b.hieu).slice(0, 3),
-  }
-}
-
-const phanTichDoanhThu = computed(() => {
-  const nay = kyChinh.value
-  const truoc = kySoSanh.value
-  if (!nay || !truoc) return null
-  const tach = tachChenhLechDoanhThu(nay, truoc)
-  return {
-    ...tach,
-    donTruoc: Number(truoc.soHoanThanh) || 0,
-    donNay: Number(nay.soHoanThanh) || 0,
-    gtTruoc: Number(truoc.giaTriTrungBinh) || 0,
-    gtNay: Number(nay.giaTriTrungBinh) || 0,
-    ...sanPhamBienDong(nay, truoc),
-  }
 })
 
 /* ----- Bảng đối chiếu chỉ số (dòng = chỉ số, cột = kỳ) ----- */
@@ -1571,59 +1519,7 @@ async function guiEmail() {
         </div>
       </div>
 
-      <!-- 4. Doanh thu thay đổi do đâu -->
-      <section v-if="phanTichDoanhThu" class="ad-card ss-section-card" data-test="ss-vi-sao">
-        <div class="ss-section-head">
-          <h3 class="ss-section-title m-0">
-            <template v-if="phanTichDoanhThu.tong === 0">
-              Doanh thu {{ kyChinh.nhan }} không đổi so với {{ kySoSanh.nhan }}
-            </template>
-            <template v-else>
-              Doanh thu {{ kyChinh.nhan }}
-              <span :class="phanTichDoanhThu.tong > 0 ? 'ss-tot' : 'ss-xau'">
-                {{ phanTichDoanhThu.tong > 0 ? 'tăng' : 'giảm' }} {{ formatMoney(Math.abs(phanTichDoanhThu.tong)) }}
-              </span>
-              so với {{ kySoSanh.nhan }}
-            </template>
-          </h3>
-        </div>
-        <div class="ss-why-grid">
-          <div class="ss-why-item">
-            <div class="ss-why-lbl">Do số đơn hoàn thành</div>
-            <div class="ss-why-detail">{{ phanTichDoanhThu.donTruoc }} → {{ phanTichDoanhThu.donNay }} đơn</div>
-            <div class="ss-why-val" :class="phanTichDoanhThu.doSoDon >= 0 ? 'ss-tot' : 'ss-xau'">
-              {{ tienCoDau(phanTichDoanhThu.doSoDon) }}
-            </div>
-          </div>
-          <div class="ss-why-item">
-            <div class="ss-why-lbl">Do giá trị TB / đơn</div>
-            <div class="ss-why-detail">
-              {{ formatMoney(phanTichDoanhThu.gtTruoc) }} → {{ formatMoney(phanTichDoanhThu.gtNay) }}
-            </div>
-            <div class="ss-why-val" :class="phanTichDoanhThu.doGiaTriDon >= 0 ? 'ss-tot' : 'ss-xau'">
-              {{ tienCoDau(phanTichDoanhThu.doGiaTriDon) }}
-            </div>
-          </div>
-          <div class="ss-why-item">
-            <div class="ss-why-lbl">Sản phẩm tăng doanh thu nhiều nhất</div>
-            <div v-if="!phanTichDoanhThu.spTang.length" class="ss-why-empty">Không có</div>
-            <div v-for="sp in phanTichDoanhThu.spTang" :key="`t-${sp.khoa}`" class="ss-why-sp">
-              <span class="ss-why-sp-ten">{{ sp.ten }}</span>
-              <strong class="ss-tot">{{ tienCoDau(sp.hieu) }}</strong>
-            </div>
-          </div>
-          <div class="ss-why-item">
-            <div class="ss-why-lbl">Sản phẩm giảm doanh thu nhiều nhất</div>
-            <div v-if="!phanTichDoanhThu.spGiam.length" class="ss-why-empty">Không có</div>
-            <div v-for="sp in phanTichDoanhThu.spGiam" :key="`g-${sp.khoa}`" class="ss-why-sp">
-              <span class="ss-why-sp-ten">{{ sp.ten }}</span>
-              <strong class="ss-xau">{{ tienCoDau(sp.hieu) }}</strong>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 5. Biểu đồ doanh thu & tăng / giảm qua các kỳ -->
+      <!-- 4. Biểu đồ doanh thu & tăng / giảm qua các kỳ -->
       <section class="ad-card ss-section-card" data-test="ss-xu-huong">
         <div class="ss-section-head">
           <div class="d-flex align-items-center gap-2">
@@ -1860,7 +1756,7 @@ async function guiEmail() {
         <span class="d-none">{{ bieuDoQuaCacKy.xuHuongText }}</span>
       </section>
 
-      <!-- 6. Bảng đối chiếu chỉ số -->
+      <!-- 5. Bảng đối chiếu chỉ số -->
       <section class="ad-card ss-section-card" data-test="ss-bang-chi-so">
         <div class="ss-section-head">
           <div class="d-flex flex-wrap align-items-center gap-2">
@@ -1908,7 +1804,7 @@ async function guiEmail() {
         </p>
       </section>
 
-      <!-- 7. Doanh thu theo thương hiệu -->
+      <!-- 6. Doanh thu theo thương hiệu -->
       <section class="ad-card ss-section-card" data-test="ss-thuong-hieu">
         <div class="ss-section-head">
           <div class="d-flex flex-wrap align-items-center gap-2">
@@ -1955,7 +1851,7 @@ async function guiEmail() {
         </div>
       </section>
 
-      <!-- 8. Sản phẩm bán chạy qua các kỳ -->
+      <!-- 7. Sản phẩm bán chạy qua các kỳ -->
       <section class="ad-card ss-section-card" data-test="ss-san-pham">
         <div class="ss-section-head">
           <div class="d-flex flex-wrap align-items-center gap-2">
@@ -2750,62 +2646,6 @@ async function guiEmail() {
   color: #64748b;
 }
 
-/* ----- 4. Doanh thu thay đổi do đâu ----- */
-.ss-why-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.ss-why-item {
-  padding: 0.85rem 1rem;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  display: flex;
-  flex-direction: column;
-  gap: 0.28rem;
-  min-width: 0;
-}
-
-.ss-why-lbl {
-  font-size: 0.79rem;
-  font-weight: 600;
-  color: #64748b;
-}
-
-.ss-why-detail {
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: #334155;
-  font-variant-numeric: tabular-nums;
-}
-
-.ss-why-val {
-  font-size: 1.06rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.ss-why-sp {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  font-size: 0.82rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.ss-why-sp-ten {
-  color: var(--fs-text, #18242f);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ss-why-empty {
-  font-size: 0.82rem;
-  color: #94a3b8;
-}
-
 .ss-brand-pill {
   display: inline-block;
   padding: 0.2rem 0.62rem;
@@ -2822,15 +2662,6 @@ async function guiEmail() {
   color: var(--fs-text, #18242f);
 }
 
-.ss-tot { color: #15803d; font-weight: 700; }
-.ss-xau { color: #be123c; font-weight: 700; }
-
-@media (max-width: 1199.98px) {
-  .ss-why-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 991.98px) {
   .ss-kpi-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2838,9 +2669,6 @@ async function guiEmail() {
 }
 
 @media (max-width: 767.98px) {
-  .ss-why-grid {
-    grid-template-columns: 1fr;
-  }
   .ss-period-grid {
     grid-template-columns: 1fr;
   }
