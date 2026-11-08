@@ -425,4 +425,30 @@ export async function apDungVaiTroMoi(vaiTroMoi, trangHienTai, chuyenTrang) {
 
 router.beforeEach(kiemTraTruyCap)
 
+/** File của các màn (nạp khi cần) mà vai trò này mở được: khách / chưa đăng nhập chỉ có phần cửa hàng. */
+export function manCoTheMo(banGhi, vaiTro) {
+  return banGhi
+    .filter((r) => typeof r.components?.default === 'function')
+    .filter((r) => r.path.startsWith('/shop') || (NV.includes(vaiTro) && (!r.meta?.roles || r.meta.roles.includes(vaiTro))))
+    .map((r) => r.components.default)
+}
+
+// Trang đầu hiện xong, lúc trình duyệt rảnh thì nạp sẵn từng màn còn lại: lần đầu bấm menu không phải chờ tải file
+let vaiTroDaNapTruoc
+async function napTruocCacMan() {
+  if (typeof requestIdleCallback !== 'function') return
+  const vaiTro = useAuth().vaiTro.value
+  if (vaiTro === vaiTroDaNapTruoc) return
+  vaiTroDaNapTruoc = vaiTro
+  for (const nap of manCoTheMo(router.getRoutes(), vaiTro)) {
+    await new Promise((xong) => requestIdleCallback(xong, { timeout: 1500 }))
+    try {
+      await nap()
+    } catch {
+      // Lỗi mạng tạm thời: lúc bấm vào màn đó router sẽ nạp lại
+    }
+  }
+}
+router.afterEach(napTruocCacMan)
+
 export default router

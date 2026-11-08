@@ -99,6 +99,8 @@ function formatChiTietCuaHang(d) {
   }
 }
 
+let dangLayDanhMuc = null
+
 export const cuaHangService = {
   // 1. Lấy danh sách sản phẩm thật từ CSDL
   async getDanhSachSanPham(params = {}) {
@@ -252,7 +254,15 @@ export const cuaHangService = {
   },
 
   // 3. Lấy danh mục và thương hiệu thật từ CSDL
-  async getDanhMucVaThuongHieu() {
+  // Menu đầu trang và nội dung trang cùng cần lúc mở trang: gộp thành một lần hỏi máy chủ (không lưu lại, lần sau vẫn lấy mới)
+  getDanhMucVaThuongHieu() {
+    dangLayDanhMuc ??= cuaHangService.layMoiDanhMucVaThuongHieu().finally(() => {
+      dangLayDanhMuc = null
+    })
+    return dangLayDanhMuc
+  },
+
+  async layMoiDanhMucVaThuongHieu() {
     try {
       const res = await api.get('/cua-hang/danh-muc-va-thuong-hieu')
       if (res.data && res.data.danhMuc && res.data.danhMuc.length > 0) {

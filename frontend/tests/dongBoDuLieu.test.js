@@ -57,14 +57,14 @@ describe('Kênh báo thay đổi (services/suKien)', () => {
 })
 
 describe('Màn tự tải lại khi có tin (useAutoRefresh chuDe)', () => {
-  it('có tin đúng chủ đề thì tải ngay (sau 300ms gộp tin), không chờ chu kỳ 10 giây; tin khác chủ đề thì thôi', async () => {
+  it('có tin đúng chủ đề thì tải ngay (sau 150ms gộp tin), không chờ chu kỳ 10 giây; tin khác chủ đề thì thôi', async () => {
     const reload = vi.fn()
     const w = gan(reload, { chuDe: ['hoa-don'] })
     nhanTin(tin('san-pham'))
     await vi.advanceTimersByTimeAsync(400)
     expect(reload).not.toHaveBeenCalled()
     nhanTin(tin('hoa-don', 'ton-kho'))
-    await vi.advanceTimersByTimeAsync(299)
+    await vi.advanceTimersByTimeAsync(149)
     expect(reload).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(reload).toHaveBeenCalledTimes(1)

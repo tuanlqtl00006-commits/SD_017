@@ -5,13 +5,14 @@ import { CHE_DO_CHONG_DOT } from '../../constants/dotGiamGia'
 import { formatMoney } from '../../utils/format'
 import { formatPhanTram } from '../../utils/giamGia'
 import { dinhDangNgayGio } from '../../utils/ngayGio'
+import { useSuKien } from '../../composables/useSuKien'
 
 /*
  * Lịch giảm giá theo KHOẢNG NGÀY GIỜ của từng biến thể trong một đợt (dữ liệu tính ở backend: LichGiamGiaService).
  * Khi nhiều đợt cùng áp dụng cho một biến thể trong cùng một khoảng thời gian thì backend gộp theo cách đã cấu hình
  * (app.giam-gia.che-do-chong-dot: MAX = mức cao nhất, mặc định; CONG_DON = cộng dồn, tối đa 100%; TRUNG_BINH = trung bình cộng);
  * mức của cả ba cách đều hiển thị bên cạnh để đối chiếu, cách đang dùng được tô xanh.
- * Thay đổi gì ở đợt (ngày giờ, %, biến thể) thì bấm "Tải lại" hoặc lưu xong vào lại trang để thấy lịch mới.
+ * Đợt giảm giá đổi (ngày giờ, %, biến thể) thì lịch tự cập nhật theo tin "giam-gia"; nút "Tải lại" để dùng khi mất kết nối.
  */
 const props = defineProps({
   idDot: { type: Number, required: true },
@@ -24,15 +25,18 @@ const loi = ref('')
 const cheDo = ref('MAX') // cách gộp đang dùng (backend cấu hình)
 const moTaCheDo = ref('')
 
-async function tai() {
-  dangTai.value = true
-  loi.value = ''
+// ngam = true: tải theo tin thay đổi, giữ nguyên lịch đang hiện (không nhấp nháy "Đang tải", lỗi tạm thời thì thôi)
+async function tai(ngam = false) {
+  if (!ngam) {
+    dangTai.value = true
+    loi.value = ''
+  }
   try {
     lich.value = await dotGiamGiaService.getLichGiamGia(props.idDot)
   } catch (e) {
-    loi.value = e.message || 'Không tải được lịch giảm giá.'
+    if (!ngam) loi.value = e.message || 'Không tải được lịch giảm giá.'
   } finally {
-    dangTai.value = false
+    if (!ngam) dangTai.value = false
   }
   try {
     const kq = await dotGiamGiaService.cheDo()
@@ -44,8 +48,9 @@ async function tai() {
     // Backend cũ chưa có API này: chỉ không hiện dòng cách tính
   }
 }
-onMounted(tai)
-watch(() => props.idDot, tai)
+onMounted(() => tai())
+watch(() => props.idDot, () => tai())
+useSuKien(['giam-gia'], () => tai(true))
 
 const soBienThe = computed(() => lich.value.length)
 const coChong = (doan) => doan.cacDot.length > 1
@@ -63,7 +68,7 @@ const cacMuc = (d) => [
     <header class="ad-card-head">
       <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-calendar2-range"></i></span>
       <h2 class="ad-card-title flex-grow-1">Lịch giảm giá theo ngày giờ</h2>
-      <button type="button" class="ad-btn" :disabled="dangTai" @click="tai">
+      <button type="button" class="ad-btn" :disabled="dangTai" @click="tai()">
         <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Tải lại
       </button>
     </header>

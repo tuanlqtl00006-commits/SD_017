@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
+import { useAutoRefresh } from '../../composables/useAutoRefresh'
 import api from '../../services/api'
 import { loiMatKhau } from '../../utils/kiemTra'
 import { formatMoney, formatNgayGio } from '../../utils/format'
@@ -135,15 +136,26 @@ async function saveAddress() {
   }
 }
 
-async function loadOrders() {
-  orders.value = docDonHang()
-  // Cập nhật trạng thái thật từ cửa hàng (nhân viên xác nhận / giao hàng ở trang quản lý)
+// Cập nhật trạng thái thật từ cửa hàng (nhân viên xác nhận / giao hàng ở trang quản lý)
+async function dongBoDon(ds) {
   orders.value = [
-    ...(await dongBoTrangThaiDon(orders.value, async (ma) =>
+    ...(await dongBoTrangThaiDon(ds, async (ma) =>
       (await api.get(`/khach/don-hang/${encodeURIComponent(ma)}`)).data,
     )),
   ]
 }
+
+async function loadOrders() {
+  orders.value = docDonHang()
+  await dongBoDon(orders.value)
+}
+
+// Đang xem tab Đơn hàng: cửa hàng xác nhận / giao đơn thì trạng thái tự đổi, khách không phải F5
+useAutoRefresh(() => dongBoDon(docDonHang()), 3000, {
+  chuKyMs: 30_000,
+  chuDe: ['hoa-don'],
+  coTheTai: () => auth.daDangNhap.value && activeTab.value === 'orders',
+})
 
 const orderTabs = [
   { key: 'ALL', label: 'Tất cả' },

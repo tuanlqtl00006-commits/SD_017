@@ -391,7 +391,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(api.post).not.toHaveBeenCalled()
   })
 
-  it('quản lý vừa sửa giá / đợt giảm giá: màn quầy tự hiện "Giá mới" và chặn thanh toán, không cần bấm thử; đổi phiếu thì không tự đổi số tiền', async () => {
+  it('quản lý vừa sửa giá / đợt giảm giá: hóa đơn tự theo giá mới và báo giá cũ -> mới, không phải bấm; đổi phiếu thì không tự đổi số tiền', async () => {
     const { w, may } = await moBanHang()
     await nutThem(w).trigger('click')
     await flushPromises()
@@ -411,11 +411,13 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     nhanTin({ chuDe: ['giam-gia', 'san-pham'], nguon: 'may-khac' })
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
-    expect(w.text()).toContain('Giá mới 4.290.000')
-    expect(w.find('[data-testid="bh-cap-nhat-gia"]').exists()).toBe(true)
+    expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/cap-nhat-gia'))
+    expect(w.find('.bh-nut-tt').text()).toContain('4.290.000')
+    expect(w.find('[data-testid="bh-cap-nhat-gia"]').exists()).toBe(false)
+    expect(useToast().toasts.some((t) => /đổi từ .* thành 4\.290\.000/.test(t.message))).toBe(true)
   })
 
-  it('giá đổi sau khi thêm: máy chủ báo khi thanh toán, hiện giá mới và chỉ thanh toán được sau "Cập nhật giá"', async () => {
+  it('giá đổi đúng lúc bấm thanh toán: máy chủ chặn, hóa đơn tự theo giá mới, nhân viên bấm lại mới thu tiền', async () => {
     vi.spyOn(window, 'open').mockReturnValue(null)
     const { w, may } = await moBanHang()
     await nutThem(w).trigger('click')
@@ -426,9 +428,114 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
     await nutXacNhan().trigger('click')
     await flushPromises()
-    expect(w.text()).toContain('Giá mới 4.290.000')
-    expect(w.find('[data-testid="bh-cap-nhat-gia"]').exists()).toBe(true)
+    expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/cap-nhat-gia'))
+    expect(w.find('.bh-nut-tt').text()).toContain('4.290.000')
+    expect(may.ds).toHaveLength(1) // chưa thanh toán: phải báo khách rồi bấm lại
+
     may.loiThanhToan = null
+    await w.find('.bh-nut-tt').trigger('click')
+    await flushPromises()
+    await nutXacNhan().trigger('click')
+    await flushPromises()
+    expect(may.ds).toHaveLength(0)
+  })
+
+  it('dòng trong giỏ có nhãn giảm giá -% như bảng chọn; giá đang chờ cập nhật thì không hiện nhãn', async () => {
+    const { w, may } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    await body().find('[data-testid="bh-dong-chon-sp"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="bh-dong-giam"]').text()).toBe('-10%')
+
+    // Giá hiện tại khác giá trên hóa đơn và chưa cập nhật được: % của đợt không còn đúng với giá đang hiện
+    api.post.mockRejectedValueOnce(new Error('Lỗi mạng'))
+    may.ds[0].dong[0].giaHienTai = 4290000
+    nhanTin({ chuDe: ['san-pham'], nguon: 'may-khac' })
+    await new Promise((r) => setTimeout(r, 300))
+    await flushPromises()
+    expect(w.find('[data-testid="bh-dong-giam"]').exists()).toBe(false)
+  })
+
+  it('con trỏ ở ô quét mã: giá vẫn tự cập nhật, mã đang gõ giữ nguyên; đang gõ ô số lượng thì chờ gõ xong', async () => {
+    const { w, may } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    await body().find('[data-testid="bh-dong-chon-sp"]').trigger('click')
+    await flushPromises()
+
+    const oSoLuong = w.find('input[type="number"]')
+    oSoLuong.element.focus()
+    may.ds[0].dong[0].giaHienTai = 4290000
+    nhanTin({ chuDe: ['san-pham'], nguon: 'may-khac' })
+    await new Promise((r) => setTimeout(r, 200))
+    await flushPromises()
+    expect(api.post).not.toHaveBeenCalledWith(expect.stringContaining('/cap-nhat-gia'))
+
+    const oMa = w.find('input[aria-label="Quét mã sản phẩm"]')
+    await oMa.setValue('SP01-DE')
+    oMa.element.focus()
+    await new Promise((r) => setTimeout(r, 1100)) // đợi lượt kiểm tra lại của useAutoRefresh
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/cap-nhat-gia'))
+    expect(w.find('.bh-nut-tt').text()).toContain('4.290.000')
+    expect(oMa.element.value).toBe('SP01-DE')
+    expect(document.activeElement).toBe(oMa.element)
+  })
+
+  it('đang tải ngầm mà nhân viên vừa thêm hàng: bỏ kết quả đã cũ, không mất dòng vừa thêm', async () => {
+    const { w } = await moBanHang()
+    await body().find('[data-testid="bh-dong-chon-sp"]').trigger('click')
+    await flushPromises()
+    const goc = api.get.getMockImplementation()
+    let traKetQuaCu = null
+    api.get.mockImplementation((url, ...k) => {
+      if (url !== '/ban-hang/hoa-don-cho' || traKetQuaCu) return goc(url, ...k)
+      const cu = goc(url, ...k) // chụp danh sách lúc chưa thêm hàng
+      return new Promise((r) => {
+        traKetQuaCu = () => cu.then(r)
+      })
+    })
+    nhanTin({ chuDe: ['hoa-don'], nguon: 'may-khac' })
+    await new Promise((r) => setTimeout(r, 200))
+    await flushPromises()
+    expect(traKetQuaCu).toBeTypeOf('function')
+
+    await w.find('[data-testid="bh-chon-sp"]').trigger('click')
+    await flushPromises()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    expect(w.find('input[type="number"]').exists()).toBe(true)
+
+    traKetQuaCu()
+    await flushPromises()
+    await new Promise((r) => setTimeout(r))
+    await flushPromises()
+    expect(w.find('input[type="number"]').exists()).toBe(true)
+  })
+
+  it('tự cập nhật giá lỗi: không thử lại liên tục, vẫn còn nút "Cập nhật giá" để bấm tay', async () => {
+    const { w, may } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    await body().find('[data-testid="bh-dong-chon-sp"]').trigger('click')
+    await flushPromises()
+    const goc = api.post.getMockImplementation()
+    let loiNua = true
+    api.post.mockImplementation((u, b) => {
+      if (u.endsWith('/cap-nhat-gia') && loiNua) return Promise.reject(Object.assign(new Error('Lỗi máy chủ'), { status: 500 }))
+      return goc(u, b)
+    })
+    const soLanGoi = () => api.post.mock.calls.filter((c) => c[0].endsWith('/cap-nhat-gia')).length
+    may.ds[0].dong[0].giaHienTai = 4290000
+    for (let i = 0; i < 2; i++) {
+      nhanTin({ chuDe: ['san-pham'], nguon: 'may-khac' })
+      await new Promise((r) => setTimeout(r, 350))
+      await flushPromises()
+    }
+    expect(soLanGoi()).toBe(1)
+    expect(w.text()).toContain('Giá mới 4.290.000')
+    loiNua = false
     await w.find('[data-testid="bh-cap-nhat-gia"]').trigger('click')
     await flushPromises()
     expect(w.find('.bh-nut-tt').text()).toContain('4.290.000')

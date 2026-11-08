@@ -168,7 +168,7 @@ Khách hàng đăng nhập ở trang riêng của web bán hàng: http://localho
    - Hóa đơn chờ **lưu trong CSDL** (tối đa 10 / nhân viên), thêm sản phẩm là **trừ tồn kho ngay**, bỏ sản phẩm / hủy hóa đơn thì trả lại kho.
    - Nút **"Chọn sản phẩm"** mở hộp thoại: lọc danh mục, thương hiệu, màu, trọng lượng, chu vi, khoảng giá; mới nhất trước; phân trang; hết hàng tự ẩn; nhập số lượng lớn hơn tồn kho báo ngay. Có ô quét mã / camera.
    - Tự áp **phiếu giảm giá tốt nhất** cho khách (kể cả phiếu cá nhân), đổi được ở ô chọn phiếu.
-   - **Case khó:** giá đổi sau khi đã thêm (đợt giảm giá bắt đầu / kết thúc) → cùng sản phẩm thêm tiếp thành dòng mới, phải bấm "Cập nhật giá" mới thanh toán được; phiếu bị sửa mức giảm khi hóa đơn đang chờ → báo `PHIEU_THAY_DOI`, không tự đổi số tiền.
+   - **Case khó:** giá đổi sau khi đã thêm (đợt giảm giá bắt đầu / kết thúc) → cùng sản phẩm thêm tiếp thành dòng mới; hóa đơn tự theo giá mới và báo giá cũ → mới cho nhân viên (lỗi thì còn nút "Cập nhật giá"), máy chủ vẫn chặn thanh toán theo giá cũ; phiếu bị sửa mức giảm khi hóa đơn đang chờ → báo `PHIEU_THAY_DOI`, không tự đổi số tiền.
    - Công tắc **Giao hàng**: khách lẻ nhập một địa chỉ; phí 30.000 ₫, đơn từ 1.000.000 ₫ miễn phí; thanh toán xong đơn sang thẳng "Chờ giao hàng" (không cần xác nhận lại). Không giao hàng thì "Đã hoàn thành" ngay và in hóa đơn luôn.
    - Thanh toán tiền mặt / chuyển khoản (mã VietQR) / kết hợp.
 5. **Đơn online** (`/hoa-don/{id}`): tồn kho chỉ trừ khi chuyển **Chờ xác nhận → Đã xác nhận**.

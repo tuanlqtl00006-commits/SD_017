@@ -10,12 +10,14 @@ export const CHU_KY_DU_PHONG_MS = 60_000
 const CHO_THAO_TAC_MS = 1000
 
 /** Người dùng đang thao tác thì KHÔNG tải ngầm (tránh đè form / hộp thoại / ô đang gõ). */
-function dangThaoTac() {
+function dangThaoTac(oChanTai) {
   if (typeof document === 'undefined') return true
   if (document.visibilityState === 'hidden') return true
   if (document.querySelector('[aria-modal="true"]')) return true // đang mở hộp thoại (BaseModal...)
   const a = document.activeElement
-  return !!a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))
+  if (!a || !(a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return false
+  // Màn có ô nhập lưu riêng (tải lại không đè) tự chỉ ra ô nào mới phải chờ; không chỉ ra thì ô nào cũng chờ
+  return oChanTai ? oChanTai(a) : true
 }
 
 /**
@@ -30,7 +32,7 @@ function dangThaoTac() {
  *  - `reload` phải là bản tải NGẦM của màn: không hiện "Đang tải", không đổi trang / bộ lọc, có chống kết quả cũ đè kết quả mới.
  * minGapMs: khoảng cách tối thiểu giữa 2 lần tải (focus và visibilitychange hay nổ cùng lúc); tin thay đổi không bị giới hạn này.
  */
-export function useAutoRefresh(reload, minGapMs = 3000, { chuKyMs = CHU_KY_TU_CAP_NHAT_MS, coTheTai = () => true, chuDe = null } = {}) {
+export function useAutoRefresh(reload, minGapMs = 3000, { chuKyMs = CHU_KY_TU_CAP_NHAT_MS, coTheTai = () => true, chuDe = null, oChanTai = null } = {}) {
   let lastRun = Date.now()
   let dangChay = false
   let taiThem = false
@@ -64,7 +66,7 @@ export function useAutoRefresh(reload, minGapMs = 3000, { chuKyMs = CHU_KY_TU_CA
   function khiCoTin() {
     clearTimeout(henCho)
     if (daRoi) return
-    if (dangThaoTac() || !coTheTai()) {
+    if (dangThaoTac(oChanTai) || !coTheTai()) {
       henCho = setTimeout(khiCoTin, CHO_THAO_TAC_MS)
       return
     }
@@ -78,7 +80,7 @@ export function useAutoRefresh(reload, minGapMs = 3000, { chuKyMs = CHU_KY_TU_CA
   }
 
   function dinhKy() {
-    if (dangThaoTac() || !coTheTai()) return
+    if (dangThaoTac(oChanTai) || !coTheTai()) return
     if (Date.now() - lastRun < minGapMs) return
     if (chuDe && dangKetNoi.value && Date.now() - lastRun < CHU_KY_DU_PHONG_MS) return
     chay()

@@ -259,8 +259,9 @@ describe('Hóa đơn: bố cục chuẩn của trang quản lý, tab trạng th�
     // không có <select> nào dành cho số dòng mỗi trang
     expect(w.findAll('.ad-pager select')).toHaveLength(0)
     expect(w.find('select#hd-trang-thai').exists()).toBe(true)
-    expect(w.findAll('.s2-trigger').map((s) => s.attributes('id'))).toEqual(['hd-loai'])
-    expect(w.findAll('.hd-kenh-tab')).toHaveLength(0) // một danh sách chung, không chia tab tại quầy / online
+    // Review 05/11: ô lọc Loại đơn thay bằng 2 tab kênh bán
+    expect(w.findAll('.s2-trigger')).toHaveLength(0)
+    expect(w.findAll('.hd-kenh-tab').map((t) => t.text().trim())).toEqual([expect.stringContaining('Đơn tại quầy'), 'Đơn online'])
     w.unmount()
   })
 
@@ -509,16 +510,22 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
     }
   })
 
-  it('mặc định hiện chung mọi đơn; đổi loại đơn thì tự lọc, không cần bấm nút tìm', async () => {
+  // Review 05/11: chia 2 tab đơn tại quầy / đơn online (lọc theo kênh bán ở máy chủ, không theo cột loại đơn)
+  it('mặc định tab Đơn tại quầy; bấm tab Đơn online thì tự lọc kenh=ONLINE, về tất cả trạng thái và nhớ tab', async () => {
+    sessionStorage.clear()
     moApi()
     const w = await moTrang()
-    expect(goiDanhSach().at(-1)[1].params.loaiDon).toBe(null)
-    expect(goiDanhSach().at(-1)[1].params.kenh).toBeUndefined()
-    expect(w.findAll('.ad-card-title').map((t) => t.text())).toContain('Danh sách hóa đơn')
-    await datSelect2(w, '#hd-loai', '2')
+    expect(goiDanhSach().at(-1)[1].params).toMatchObject({ kenh: 'TAI_QUAY' })
+    expect(api.get.mock.calls.find((c) => c[0] === '/hoa-don/dem-trang-thai')[1].params.kenh).toBe('TAI_QUAY')
+    await w.find('#hd-trang-thai').setValue('6')
     await flushPromises()
-    expect(goiDanhSach().at(-1)[1].params.loaiDon).toBe('2')
+    await w.find('[data-kenh="ONLINE"]').trigger('click')
+    await flushPromises()
+    expect(goiDanhSach().at(-1)[1].params).toMatchObject({ kenh: 'ONLINE', trangThai: null, page: 0 })
+    expect(w.findAll('.ad-card-title').map((t) => t.text())).toContain('Danh sách đơn online')
+    expect(sessionStorage.getItem('footstyle_hoa_don_kenh')).toBe('ONLINE')
     w.unmount()
+    sessionStorage.clear()
   })
 
   it('CSS trang hóa đơn không ép lại cỡ chữ / chiều cao ô / bảng của trang chung', () => {

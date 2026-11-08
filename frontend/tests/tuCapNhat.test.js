@@ -53,6 +53,19 @@ describe('Tự cập nhật dữ liệu (useAutoRefresh)', () => {
     w.unmount()
   })
 
+  it('màn chỉ ra ô nào mới phải chờ (oChanTai): con trỏ ở ô khác vẫn tải, ở đúng ô đó thì chờ', async () => {
+    const reload = vi.fn()
+    let chan = false
+    const w = gan(reload, { oChanTai: () => chan })
+    w.get('#o-nhap').element.focus()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(reload).toHaveBeenCalledTimes(1)
+    chan = true
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(reload).toHaveBeenCalledTimes(1)
+    w.unmount()
+  })
+
   it('màn báo chưa tải được (vd form đang mở) thì bỏ qua; lần trước chưa xong thì không gọi chồng', async () => {
     let choPhep = false
     let xong

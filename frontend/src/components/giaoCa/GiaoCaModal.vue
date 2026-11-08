@@ -8,6 +8,7 @@ import ConfirmDialog from '../common/ConfirmDialog.vue'
 import MoneyInput from '../common/MoneyInput.vue'
 import Select2 from '../common/Select2.vue'
 import { useGiaoCa } from '../../composables/useGiaoCa'
+import { useSuKien } from '../../composables/useSuKien'
 import { useAuth } from '../../composables/useAuth'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
@@ -32,6 +33,8 @@ onMounted(async () => {
   henGio = setInterval(() => (bayGio.value = new Date()), 30000)
 })
 onBeforeUnmount(() => clearInterval(henGio))
+// Đang mở hộp mà có hóa đơn mới / đổi trạng thái: số liệu ca tự cập nhật (tiền đang đếm trong ô nhập giữ nguyên)
+useSuKien(['hoa-don'], taiLai)
 
 /* ===================== Nhận ca ===================== */
 // Vào ca làm ở trang riêng /vao-ca (đối soát tiền mặt + chuyển khoản ca trước), modal chỉ dẫn sang đó.
