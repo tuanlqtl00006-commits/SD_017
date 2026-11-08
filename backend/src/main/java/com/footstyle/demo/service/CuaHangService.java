@@ -152,7 +152,10 @@ public class CuaHangService {
                 bm.put("maSpct", bt.getMaSpct());
                 bm.put("idMauSac", bt.getMauSac() != null ? bt.getMauSac().getId() : null);
                 bm.put("tenMau", bt.getMauSac() != null ? bt.getMauSac().getTen() : "");
+                // Có cả mã (id) trọng lượng / chu vi để trang chi tiết dựng nút chọn 3U/4U, G5/G6 và tìm đúng biến thể
+                bm.put("idTrongLuong", bt.getTrongLuong() != null ? bt.getTrongLuong().getId() : null);
                 bm.put("trongLuong", bt.getTrongLuong() != null ? bt.getTrongLuong().getTen() : "");
+                bm.put("idChuVi", bt.getChuVi() != null ? bt.getChuVi().getId() : null);
                 bm.put("chuVi", bt.getChuVi() != null ? bt.getChuVi().getTen() : "");
                 bm.put("giaBanGoc", g);
                 bm.put("giaBan", gSauGiam);

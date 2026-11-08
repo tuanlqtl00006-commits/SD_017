@@ -13,6 +13,15 @@ export const KHONG_AP_DUNG = 'Không áp dụng'
 /** Mục "Không áp dụng" của các bảng thuộc tính. */
 export const laKhongApDung = (x) => !!x && normalizeText(x.ten ?? '') === 'khong ap dung'
 
+/**
+ * Giá trị thuộc tính để hiện cho khách (giỏ hàng, thanh toán, đơn hàng, thông số sản phẩm):
+ * "Không áp dụng" (balo, áo, quả cầu... không có trọng lượng / cán / độ cứng / điểm cân bằng) và rỗng -> '' để ẩn hẳn.
+ */
+export const giaTriThuocTinh = (v) => {
+  const s = v == null ? '' : String(v).trim()
+  return s && normalizeText(s) !== 'khong ap dung' ? s : ''
+}
+
 /** Id của mục "Không áp dụng" trong một danh sách thuộc tính (null nếu CSDL chưa có). */
 export const idKhongApDung = (danhSach = []) => danhSach.find(laKhongApDung)?.id ?? null
 

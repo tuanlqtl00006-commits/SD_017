@@ -2,6 +2,7 @@ import api from './api'
 import { sanPhamService, bienTheService } from './sanPhamService'
 import { dotGiamGiaService } from './dotGiamGiaService'
 import { thuocTinhService } from './thuocTinhService'
+import { giaTriThuocTinh } from '../utils/danhMuc'
 
 function formatSanPhamCuaHang(d) {
   const bts = d.bienThe || []
@@ -38,10 +39,11 @@ function formatChiTietCuaHang(d) {
     maSpct: b.maSpct || b.ma || '',
     idMauSac: b.idMauSac,
     tenMau: b.tenMau || '',
-    idTrongLuong: b.idTrongLuong,
-    trongLuong: b.trongLuong || '',
-    idChuVi: b.idChuVi,
-    chuVi: b.chuVi || '',
+    // "Không áp dụng" (balo, áo...) -> bỏ cả mã lẫn tên: không thành nút chọn, không ghi vào giỏ hàng
+    idTrongLuong: giaTriThuocTinh(b.trongLuong) ? b.idTrongLuong : null,
+    trongLuong: giaTriThuocTinh(b.trongLuong),
+    idChuVi: giaTriThuocTinh(b.chuVi) ? b.idChuVi : null,
+    chuVi: giaTriThuocTinh(b.chuVi),
     giaBan: b.giaBanGoc || b.giaBan || 0,
     giaSauGiam: b.giaBan || b.giaBanGoc || 0,
     phanTramGiam: b.phanTramGiam || 0,

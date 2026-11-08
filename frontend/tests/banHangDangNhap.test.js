@@ -421,6 +421,8 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(khoi.exists()).toBe(true)
     expect(w.find('.bh-trai [data-testid="bh-khoi-giao"]').exists()).toBe(true)
     expect(w.find('[data-testid="bh-phi-ship"]').text()).toContain('Chưa tính phí') // chưa chọn tỉnh thì chưa có phí
+    expect(khoi.text()).not.toContain('Phí giao hàng') // phí chỉ hiện ở khối thanh toán bên phải
+    expect(w.text()).not.toContain('Vui lòng nhập đủ thông tin người nhận') // không nhắc sẵn dưới nút Thanh toán
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
     expect(w.text()).toContain('Vui lòng nhập tên người nhận.')
@@ -432,8 +434,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     chonDc.vm.$emit('update:phuongXa', 'Phường Hà Đông')
     await w.find('#bh-nn-dc').setValue('Số 1 Trần Phú')
     await flushPromises()
-    expect(khoi.text()).toContain('Miễn phí') // đơn từ 1 triệu
-    expect(w.find('[data-testid="bh-phi-ship"]').text()).toContain('Miễn phí')
+    expect(w.find('[data-testid="bh-phi-ship"]').text()).toContain('Miễn phí') // đơn từ 1 triệu
     const { cuaSo } = cuaSoInGia()
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()

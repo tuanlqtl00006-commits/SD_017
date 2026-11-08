@@ -529,15 +529,18 @@ onBeforeUnmount(() => {
   clearTimeout(henCk)
 })
 
+const LOI_THIEU_NGUOI_NHAN = 'Vui lòng nhập đủ thông tin người nhận để giao hàng.'
 const lyDoKhongThanhToan = computed(() => {
   if (canVaoCa.value) return 'Bạn chưa vào ca.'
   if (!hd.value.gio.length) return 'Hóa đơn chưa có sản phẩm.'
   if (hd.value.coGiaDoi) return 'Có sản phẩm đã đổi giá. Báo khách rồi bấm "Cập nhật giá".'
   if (loiPhieu.value) return loiPhieu.value
-  if (Object.keys(loiGiao.value).length) return 'Vui lòng nhập đủ thông tin người nhận để giao hàng.'
+  if (Object.keys(loiGiao.value).length) return LOI_THIEU_NGUOI_NHAN
   if (tt.value.loi === 'Vui lòng nhập tiền khách đưa.') return ''
   return tt.value.loi
 })
+// Dòng nhắc dưới nút Thanh toán: thiếu thông tin người nhận thì không nhắc sẵn (vẫn chặn thanh toán; bấm nút mới báo lỗi từng ô)
+const goiYThanhToan = computed(() => (lyDoKhongThanhToan.value === LOI_THIEU_NGUOI_NHAN ? '' : lyDoKhongThanhToan.value))
 const xacNhan = ref(false)
 const dangGui = ref(false)
 
@@ -821,13 +824,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               <p v-if="daChamGiao && loiGiao.diaChiCuThe" class="ad-error">{{ loiGiao.diaChiCuThe }}</p>
             </div>
           </div>
-          <div class="bh-giao-phi">
-            <span>
-              Phí giao hàng:
-              <b v-if="phiShipTheoTinh === null" class="text-muted fw-normal">chọn Tỉnh/Thành phố để tính</b>
-              <b v-else>{{ phiShip ? formatMoney(phiShip) : 'Miễn phí' }}</b>
-            </span>
-          </div>
         </section>
       </div>
 
@@ -1001,7 +997,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               <i class="bi bi-check2-circle" aria-hidden="true"></i> Thanh toán {{ formatMoney(tt.phaiTra) }}
             </button>
           </div>
-          <p v-if="lyDoKhongThanhToan && hd.gio.length" class="ad-hint text-center mb-0 mt-1">{{ lyDoKhongThanhToan }}</p>
+          <p v-if="goiYThanhToan && hd.gio.length" class="ad-hint text-center mb-0 mt-1">{{ goiYThanhToan }}</p>
         </section>
       </aside>
     </div>
@@ -1155,17 +1151,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 }
 .bh-khoi-giao .bh-tieu-de-hang {
   margin-bottom: 0.75rem;
-}
-.bh-giao-phi {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.25rem 1rem;
-  margin: 0.75rem 0 0.4rem;
-  padding: 0.55rem 0.75rem;
-  border-radius: 10px;
-  background: #f1f5ff;
 }
 .bh-phieu-trong {
   padding: 0.6rem 0.75rem;

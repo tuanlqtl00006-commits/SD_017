@@ -155,4 +155,24 @@ class CuaHangServiceTest {
         assertEquals(0L, ((Number) saiMa.get("soTienGiam")).longValue());
         assertEquals(null, saiMa.get("phiVanChuyen"), "chưa chọn tỉnh thì chưa tính phí giao");
     }
+
+    /** Review 05/11 (thầy bấm ra): trang chi tiết không chọn được 3U/4U, chu vi cán vì từng biến thể thiếu mã (id) của chúng. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void sanPham_moiBienTheCoMaTrongLuongVaChuVi() {
+        List<Map<String, Object>> sps = cuaHangService.danhSachSanPham(null, null, null, null, null, null);
+        assertFalse(sps.isEmpty());
+        int soBienTheCoTrongLuong = 0;
+        for (Map<String, Object> sp : sps) {
+            for (Map<String, Object> bt : (List<Map<String, Object>>) sp.get("bienThe")) {
+                assertTrue(bt.containsKey("idTrongLuong") && bt.containsKey("idChuVi"), "biến thể phải gửi đủ mã trọng lượng / chu vi");
+                if (bt.get("trongLuong") != null && !"".equals(bt.get("trongLuong"))) {
+                    assertNotNull(bt.get("idTrongLuong"), "có trọng lượng thì phải có mã trọng lượng");
+                    soBienTheCoTrongLuong++;
+                }
+                if (bt.get("chuVi") != null && !"".equals(bt.get("chuVi"))) assertNotNull(bt.get("idChuVi"), "có chu vi thì phải có mã chu vi");
+            }
+        }
+        assertTrue(soBienTheCoTrongLuong > 0, "dữ liệu mẫu phải có biến thể chọn được trọng lượng");
+    }
 }

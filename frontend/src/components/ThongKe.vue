@@ -1023,7 +1023,7 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
           <div class="d-flex align-items-center justify-content-between mb-1">
             <div class="d-flex align-items-center gap-2">
               <span class="tk-kpi-sub-icon text-secondary"><i class="bi bi-box-seam-fill" aria-hidden="true"></i></span>
-              <span class="tk-kpi-sub-label">Doanh thu COD (Thu hộ)</span>
+              <span class="tk-kpi-sub-label">Doanh thu COD</span>
             </div>
             <span class="badge bg-secondary-subtle text-secondary fw-semibold">{{ pctGon(tyLeCod) }}</span>
           </div>

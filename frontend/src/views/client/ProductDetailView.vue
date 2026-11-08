@@ -153,6 +153,46 @@ const currentVariant = computed(() => {
   return match || variants.value[0]
 })
 
+/* ----- Chọn biến thể (màu / trọng lượng / chu vi cán) -----
+ * Bấm một nút thì giữ nguyên các lựa chọn còn lại nếu có biến thể khớp; không có thì chuyển sang biến thể gần nhất
+ * (ưu tiên còn hàng). Nút của phiên bản hết hàng được làm mờ nhưng vẫn bấm xem được. */
+const CAC_THUOC_TINH = ['idMauSac', 'idTrongLuong', 'idChuVi']
+
+function luaChonHienTai() {
+  return { idMauSac: selectedColorId.value, idTrongLuong: selectedWeightId.value, idChuVi: selectedGripId.value }
+}
+
+function chonThuocTinh(khoa, id) {
+  const dang = luaChonHienTai()
+  const ungVien = variants.value.filter((v) => v[khoa] === id)
+  if (!ungVien.length) return
+  const khac = CAC_THUOC_TINH.filter((k) => k !== khoa)
+  const diem = (v) => khac.reduce((s, k) => s + (v[k] === dang[k] ? 1 : 0), 0)
+  const conHang = (v) => ((Number(v.soLuongTon) || 0) > 0 ? 1 : 0)
+  const tot = [...ungVien].sort((a, b) => diem(b) - diem(a) || conHang(b) - conHang(a))[0]
+  selectedColorId.value = tot.idMauSac
+  selectedWeightId.value = tot.idTrongLuong
+  selectedGripId.value = tot.idChuVi
+}
+
+// Nút này hết hàng? (xét các biến thể cùng giá trị và khớp với các lựa chọn còn lại; không có biến thể khớp thì xét tất cả cùng giá trị)
+function nutHetHang(khoa, id) {
+  const dang = luaChonHienTai()
+  const cungGiaTri = variants.value.filter((v) => v[khoa] === id)
+  const khac = CAC_THUOC_TINH.filter((k) => k !== khoa)
+  const phuHop = cungGiaTri.filter((v) => khac.every((k) => v[k] === dang[k]))
+  const xet = phuHop.length ? phuHop : cungGiaTri
+  return !xet.some((v) => (Number(v.soLuongTon) || 0) > 0)
+}
+
+// Đổi sang biến thể ít hàng hơn (hoặc tồn vừa giảm): số lượng đang chọn không được vượt tồn của biến thể hiện tại
+watch(
+  () => Number(currentVariant.value?.soLuongTon) || 0,
+  (ton) => {
+    if (quantity.value > Math.max(1, ton)) quantity.value = Math.max(1, ton)
+  },
+)
+
 // Giá gốc và giá sau giảm của biến thể đang chọn
 const currentPricing = computed(() => {
   if (!currentVariant.value) {
@@ -374,8 +414,10 @@ function buyNow() {
                       v-for="c in availableColors"
                       :key="c.id"
                       class="variant-pill"
-                      :class="{ active: selectedColorId === c.id }"
-                      @click="selectedColorId = c.id"
+                      data-testid="chon-mau"
+                      :class="{ active: selectedColorId === c.id, 'het-hang': nutHetHang('idMauSac', c.id) }"
+                      :title="nutHetHang('idMauSac', c.id) ? 'Hết hàng' : ''"
+                      @click="chonThuocTinh('idMauSac', c.id)"
                     >
                       {{ c.ten }}
                     </button>
@@ -393,8 +435,10 @@ function buyNow() {
                       v-for="w in availableWeights"
                       :key="w.id"
                       class="variant-pill"
-                      :class="{ active: selectedWeightId === w.id }"
-                      @click="selectedWeightId = w.id"
+                      data-testid="chon-trong-luong"
+                      :class="{ active: selectedWeightId === w.id, 'het-hang': nutHetHang('idTrongLuong', w.id) }"
+                      :title="nutHetHang('idTrongLuong', w.id) ? 'Hết hàng' : ''"
+                      @click="chonThuocTinh('idTrongLuong', w.id)"
                     >
                       {{ w.ten }}
                     </button>
@@ -412,8 +456,10 @@ function buyNow() {
                       v-for="g in availableGrips"
                       :key="g.id"
                       class="variant-pill"
-                      :class="{ active: selectedGripId === g.id }"
-                      @click="selectedGripId = g.id"
+                      data-testid="chon-chu-vi"
+                      :class="{ active: selectedGripId === g.id, 'het-hang': nutHetHang('idChuVi', g.id) }"
+                      :title="nutHetHang('idChuVi', g.id) ? 'Hết hàng' : ''"
+                      @click="chonThuocTinh('idChuVi', g.id)"
                     >
                       {{ g.ten }}
                     </button>
@@ -573,6 +619,16 @@ function buyNow() {
   color: #c2410c;
   font-weight: 700;
   box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.2);
+}
+/* Phiên bản hết hàng: làm mờ, vẫn bấm xem được */
+.variant-pill.het-hang {
+  opacity: 0.5;
+  background-color: #f1f5f9;
+  border-style: dashed;
+  color: #64748b;
+}
+.variant-pill.het-hang.active {
+  opacity: 0.75;
 }
 .thumbnail-box {
   width: 68px;
