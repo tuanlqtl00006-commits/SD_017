@@ -1,5 +1,5 @@
 <script setup>
-// Sửa đơn online (case khó cô gửi): khách không tự sửa; nhân viên gọi xác nhận rồi sửa giúp MỘT lần khi đơn còn "Chờ xác nhận".
+// Sửa đơn online: khách không tự sửa; nhân viên gọi xác nhận rồi sửa giúp MỘT lần khi đơn còn "Chờ xác nhận".
 //  - Sửa người nhận / địa chỉ; thêm / đổi số lượng / bỏ sản phẩm.
 //  - Thêm lại cùng sản phẩm mà giá đã đổi: backend tách thành dòng mới (dòng cũ giữ giá lúc khách đặt).
 //  - Backend tính lại phiếu giảm giá + phí giao hàng; khách đã chuyển khoản trước thì ghi HOÀN PHÍ / PHỤ PHÍ.

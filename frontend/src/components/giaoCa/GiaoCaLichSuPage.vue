@@ -119,7 +119,8 @@ async function moChiTiet(g) {
 }
 /* ----- Quản lý đóng ca hộ ----- */
 const dongHo = reactive({ mo: false, tienMatThucTe: '', tienBanGiao: '', ghiChu: '', loi: '', soHoaDonCho: 0, dangGui: false })
-const coTheDongHo = computed(() => auth.laQuanLy.value && chiTiet.value?.dangTrongCa && chiTiet.value.idNhanVien !== auth.trangThai.nguoiDung?.id)
+// Kể cả ca của chính quản lý: quản lý không có nút "Ca làm việc" nên đây là cách duy nhất đóng ca cũ còn mở (ca đó chặn mọi người vào ca)
+const coTheDongHo = computed(() => auth.laQuanLy.value && chiTiet.value?.dangTrongCa)
 function moDongHo() {
   // Điền sẵn số hệ thống tính; quản lý đếm két rồi sửa lại nếu khác
   Object.assign(dongHo, {
@@ -222,24 +223,19 @@ function inBienBan() {
                 <th>Mã ca</th>
                 <th>Nhân viên</th>
                 <th>Ca theo lịch</th>
-                <th>Nhận ca</th>
-                <th>Giao ca</th>
+                <th>Thời gian</th>
                 <th>Giao cho (ca sau)</th>
-                <th class="text-end">Số HĐ</th>
                 <th class="text-end">Doanh thu</th>
-                <th class="text-end">Tiền đầu ca</th>
-                <th class="text-end">Tiền mặt HT</th>
-                <th class="text-end">Thực tế</th>
+                <th>Tiền mặt</th>
                 <th>Chênh lệch</th>
-                <th>Trạng thái</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="dangTai">
-                <td colspan="13"><div class="ad-empty">Đang tải dữ liệu…</div></td>
+                <td colspan="8"><div class="ad-empty">Đang tải dữ liệu…</div></td>
               </tr>
               <tr v-else-if="!ds.length">
-                <td colspan="13">
+                <td colspan="8">
                   <div class="ad-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
                     <strong>Chưa có ca nào trong khoảng ngày này</strong>
@@ -247,15 +243,25 @@ function inBienBan() {
                 </td>
               </tr>
               <tr v-for="g in ds" v-else :key="g.id" class="gcl-dong" tabindex="0" @click="moChiTiet(g)" @keydown.enter="moChiTiet(g)">
-                <td><span class="ad-code">{{ g.maGiaoCa }}</span></td>
-                <td>{{ g.tenNhanVien }}<br /><small class="text-muted">{{ g.maNhanVien }}</small></td>
-                <td>
+                <!-- Trạng thái đứng cùng mã ca: bảng hẹp cũng không bị cắt mất -->
+                <td class="ad-nowrap">
+                  <div class="gcl-o-ma">
+                    <span class="ad-code">{{ g.maGiaoCa }}</span>
+                    <span class="ad-pill" :class="g.dangTrongCa ? 'ad-pill-blue' : 'ad-pill-green'">{{ g.dangTrongCa ? 'Đang trong ca' : 'Đã giao ca' }}</span>
+                  </div>
+                </td>
+                <td class="ad-nowrap">{{ g.tenNhanVien }}<br /><small class="text-muted">{{ g.maNhanVien }}</small></td>
+                <td class="ad-nowrap">
                   <span v-if="g.ngoaiLich" class="ad-pill ad-pill-gray">Ngoài lịch</span>
                   <template v-else>{{ g.tenCa }}<br /><small class="text-muted">{{ g.gioCa }}</small></template>
                   <span v-if="g.diMuon" class="ad-pill ad-pill-orange ms-1">Muộn {{ g.soPhutDiMuon }}'</span>
                 </td>
-                <td class="ad-nowrap">{{ formatNgayGio(g.thoiGianNhanCa) }}</td>
-                <td class="ad-nowrap">{{ g.thoiGianKetCa ? formatNgayGio(g.thoiGianKetCa) : '—' }}</td>
+                <td class="ad-nowrap">
+                  <dl class="gcl-cap">
+                    <div><dt>Nhận</dt><dd>{{ formatNgayGio(g.thoiGianNhanCa) }}</dd></div>
+                    <div><dt>Giao</dt><dd>{{ g.thoiGianKetCa ? formatNgayGio(g.thoiGianKetCa) : '—' }}</dd></div>
+                  </dl>
+                </td>
                 <!-- Review: nhân viên giữ ca đến hết, xong ca tiếp theo đến ai nhận -->
                 <td class="ad-nowrap" data-testid="gcl-ca-sau">
                   <template v-if="g.caSau">
@@ -265,15 +271,18 @@ function inBienBan() {
                   <span v-else-if="g.dangTrongCa" class="text-muted">Đang giữ ca</span>
                   <span v-else class="text-muted">Chưa có người nhận</span>
                 </td>
-                <td class="text-end">{{ g.soHoaDon ?? '—' }}</td>
-                <td class="text-end">{{ g.doanhThu !== null ? formatMoney(g.doanhThu) : '—' }}</td>
-                <td class="text-end">{{ formatMoney(g.tienDauCa) }}</td>
-                <td class="text-end">{{ g.tienMatHeThong !== null ? formatMoney(g.tienMatHeThong) : '—' }}</td>
-                <td class="text-end">{{ g.tienMatThucTe !== null ? formatMoney(g.tienMatThucTe) : '—' }}</td>
-                <td><span :class="`gcl-cl is-${moTaChenhLech(g.chenhLech).kieu}`">{{ moTaChenhLech(g.chenhLech).nhan }}</span></td>
-                <td>
-                  <span class="ad-pill" :class="g.dangTrongCa ? 'ad-pill-blue' : 'ad-pill-green'">{{ g.dangTrongCa ? 'Đang trong ca' : 'Đã giao ca' }}</span>
+                <td class="text-end ad-nowrap">
+                  {{ g.doanhThu !== null ? formatMoney(g.doanhThu) : '—' }}
+                  <template v-if="g.soHoaDon !== null && g.soHoaDon !== undefined"><br /><small class="text-muted">{{ g.soHoaDon }} hóa đơn</small></template>
                 </td>
+                <td class="ad-nowrap">
+                  <dl class="gcl-cap gcl-cap-tien">
+                    <div><dt>Đầu ca</dt><dd>{{ formatMoney(g.tienDauCa) }}</dd></div>
+                    <div><dt>Hệ thống</dt><dd>{{ g.tienMatHeThong !== null ? formatMoney(g.tienMatHeThong) : '—' }}</dd></div>
+                    <div><dt>Thực tế</dt><dd>{{ g.tienMatThucTe !== null ? formatMoney(g.tienMatThucTe) : '—' }}</dd></div>
+                  </dl>
+                </td>
+                <td class="ad-nowrap"><span :class="`gcl-cl is-${moTaChenhLech(g.chenhLech).kieu}`">{{ moTaChenhLech(g.chenhLech).nhan }}</span></td>
               </tr>
             </tbody>
           </table>
@@ -371,6 +380,35 @@ function inBienBan() {
 }
 .gcl-dong {
   cursor: pointer;
+}
+.gcl-o-ma {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+/* Ô nhiều dòng "nhãn - giá trị" (nhận / giao ca, các khoản tiền mặt) */
+.gcl-cap {
+  margin: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+.gcl-cap > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.gcl-cap dt {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+.gcl-cap dd {
+  margin: 0;
+}
+.gcl-cap-tien dd {
+  font-variant-numeric: tabular-nums;
 }
 .gcl-cl.is-ok {
   color: #146c43;

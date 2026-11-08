@@ -23,7 +23,7 @@ public class LichSuHoaDon {
     @Column(name = "nguoi_thao_tac")
     private String nguoiThaoTac;
 
-    /** Tên hành động dạng chữ, vd "Chờ xác nhận", "Đã xác nhận", "Hủy đơn hàng" (cột NVARCHAR). */
+    /** Tên hành động dạng chữ, vd "Chờ xác nhận", "Đã xác nhận", "Đã hủy" (cột NVARCHAR). */
     @Column(name = "hanh_dong")
     private String hanhDong;
 

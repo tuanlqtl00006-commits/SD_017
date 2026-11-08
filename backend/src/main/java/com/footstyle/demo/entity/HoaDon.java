@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Bảng hoa_don. Tên cột khớp với database/SD_17_1_cau_truc.sql (ddl-auto=none nên phải khớp đúng, FileSqlTest kiểm tra). */
+/** Bảng hoa_don. Tên cột phải khớp bảng hoa_don trong database/SD_17_footstyle_full.sql (ddl-auto=none: Hibernate không tự tạo bảng). */
 @Entity
 @Table(name = "hoa_don")
 @Getter @Setter

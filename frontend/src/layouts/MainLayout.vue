@@ -24,8 +24,8 @@ const pageParentTo = computed(() => route.meta.parentTo || '')
 // to: null => chưa có trang, vẫn hiển thị nhưng chưa chuyển trang được.
 // children => mục cha có menu con (bấm để mở/đóng).
 // Vai trò theo sơ đồ use case: Quản Lý kế thừa Nhân Viên nên thấy đủ mọi chức năng.
-// roles: ['nhan-vien'] => cả Nhân Viên và Quản Lý; ['quan-ly'] => chỉ Quản Lý.
-const NV = ['nhan-vien', 'quan-ly']
+// NV => Nhân Viên, Thu Ngân và Quản Lý; QL => chỉ Quản Lý.
+const NV = ['nhan-vien', 'thu-ngan', 'quan-ly']
 const QL = ['quan-ly']
 const menuAll = [
   { key: 'thong-ke', label: 'Thống kê', icon: 'bi-grid', to: '/thong-ke', roles: QL },

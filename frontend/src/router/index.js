@@ -7,9 +7,9 @@ import { useToast } from '../composables/useToast'
 import { useGiaoCa } from '../composables/useGiaoCa'
 import { duongDanQuayLaiAnToan } from '../services/phien'
 
-// meta.roles: vai trò được vào trang ('quan-ly' | 'nhan-vien'); meta.congKhai: trang không cần đăng nhập.
+// meta.roles: vai trò được vào trang ('quan-ly' | 'nhan-vien' | 'thu-ngan'); meta.congKhai: trang không cần đăng nhập.
 const QL = ['quan-ly']
-const NV = ['nhan-vien', 'quan-ly']
+const NV = ['nhan-vien', 'thu-ngan', 'quan-ly']
 
 // meta.title / meta.parent: hiển thị trên header (kiểu "Quản lý giảm giá / Phiếu giảm giá").
 const routes = [
@@ -390,8 +390,8 @@ export async function kiemTraTruyCap(to) {
   }
   // Quản lý không vào ca / giao ca
   if (to.name === 'vao-ca' && auth.vaiTro.value === 'quan-ly') return auth.trangChu()
-  // Nhân viên bắt buộc vào ca trước khi làm bất cứ việc gì (backend cũng chặn API bằng mã CHUA_NHAN_CA)
-  if (auth.vaiTro.value === 'nhan-vien' && !to.meta?.khongCanVaoCa) {
+  // Nhân viên, Thu ngân bắt buộc vào ca trước khi làm bất cứ việc gì (backend cũng chặn API bằng mã CHUA_NHAN_CA)
+  if ((auth.vaiTro.value === 'nhan-vien' || auth.vaiTro.value === 'thu-ngan') && !to.meta?.khongCanVaoCa) {
     const giaoCa = useGiaoCa()
     if (!giaoCa.trangThai.daTai) await giaoCa.taiLai()
     if (giaoCa.trangThai.daTai && !giaoCa.dangTrongCa.value) {
@@ -411,6 +411,7 @@ export async function apDungVaiTroMoi(vaiTroMoi, trangHienTai, chuyenTrang) {
   auth.capNhatVaiTro(vaiTroMoi)
   const toast = useToast()
   if (vaiTroMoi === 'QUAN_LY') toast.success('Tài khoản của bạn vừa được chuyển sang quyền Quản lý.', 'Quyền đã thay đổi')
+  else if (vaiTroMoi === 'THU_NGAN') toast.success('Tài khoản của bạn vừa được chuyển sang quyền Thu ngân.', 'Quyền đã thay đổi')
   else toast.error('Tài khoản của bạn vừa được chuyển sang quyền Nhân viên. Các chức năng của quản lý đã bị ẩn.', 'Quyền đã thay đổi')
   const roles = trangHienTai?.meta?.roles
   if (roles && !roles.includes(auth.vaiTro.value)) {

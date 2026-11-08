@@ -1,7 +1,6 @@
 <script setup>
 // Thân màn Chi tiết hóa đơn: dòng thời gian trạng thái, tổng kết thanh toán, khách hàng, giao hàng, lịch sử thanh toán, danh sách sản phẩm.
 // Dùng chung cho màn admin (/hoa-don/:id) và màn đơn hàng của khách (/shop/tra-cuu) để hai màn luôn y hệt nhau
-// (cô review 04/11: "đồng bộ hai màn giống nhau, form không được khác nhau").
 // Màn admin truyền các nút đổi trạng thái qua slot "hanh-dong"; màn khách không có nút mà hiện gợi ý bước tiếp theo.
 import { computed, reactive, ref, useSlots, watch } from 'vue'
 import Select2 from '../common/Select2.vue'
@@ -27,7 +26,7 @@ const sanPham = computed(() => props.data?.sanPham ?? [])
 const thanhToan = computed(() => props.data?.thanhToan ?? [])
 const lichSu = computed(() => props.data?.lichSu ?? [])
 const laGiaoHang = computed(() => hd.value.loaiDon === 2)
-// Khách lẻ (không gắn hồ sơ khách hàng) và không có SĐT: không hiện dòng SĐT / email (cô: "khách lẻ tại sao có số điện thoại")
+// Khách lẻ (không gắn hồ sơ khách hàng) và không có SĐT: không hiện dòng SĐT / email
 const laKhachLe = computed(() => !!khach.value.khachLe && !khach.value.sdt)
 const moTaGiam = computed(() => moTaMucGiam(hd.value))
 
@@ -45,7 +44,7 @@ const hienThiGiamGia = computed(() => {
   return `- ${money(hd.value.soTienGiam)}`
 })
 
-// Các dòng tiền cùng tên, cùng thứ tự với bán quầy / giỏ hàng / thanh toán online / bản in (utils/tienDon.js, review 05/11).
+// Các dòng tiền cùng tên, cùng thứ tự với bán quầy / giỏ hàng / thanh toán online / bản in (utils/tienDon.js).
 // Tiền giảm theo đợt do máy chủ tính theo giá gốc LÚC BÁN (hoaDon.tienGiamTheoDot); thiếu (dữ liệu gọn của khách) thì tính từ các dòng.
 const tienDon = computed(() =>
   dongTienDon({
@@ -102,7 +101,7 @@ const timeline = computed(() => {
     return { ...s, state, time, user: state === 'todo' ? null : ls?.nguoiThaoTac }
   })
 
-  // Nhánh "Giao hàng thất bại" nằm ngay sau "Đang giao hàng" (cô: "trường hợp giao hàng thất bại chưa thể hiện")
+  // Nhánh "Giao hàng thất bại" nằm ngay sau "Đang giao hàng"
   const chenThatBai = coThatBai && viTriGiao >= 0
   if (chenThatBai) {
     const ls = lanCuoi[TT.GIAO_THAT_BAI]
@@ -433,7 +432,7 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
                 </td>
                 <td class="ad-nowrap">{{ thongSo(x) }}</td>
                 <td class="text-center fw-semibold">{{ x.soLuong }}</td>
-                <!-- Cô: không ghi "Giảm giá 0%"; có giảm thì gạch giá gốc và ghi giá mới, không giảm thì chỉ một giá -->
+                <!-- Không ghi "Giảm giá 0%"; có giảm thì gạch giá gốc và ghi giá mới, không giảm thì chỉ một giá -->
                 <td class="text-end ad-nowrap">
                   <div v-if="coGiam(x)" class="hd-old-price" data-test="hd-gia-goc">{{ money(x.giaGoc) }}</div>
                   <div :class="{ 'hd-new-price': coGiam(x) }">{{ money(x.donGia) }}</div>

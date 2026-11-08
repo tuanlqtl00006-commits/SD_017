@@ -687,9 +687,10 @@ public class CuaHangService {
     }
 
     /**
-     * Tra cứu đơn cho khách CHƯA đăng nhập: bắt buộc mã đơn + số điện thoại đặt hàng (SĐT người nhận hoặc SĐT
-     * khách hàng của đơn). Mã đơn chạy tăng dần nên dễ đoán; sai/thiếu SĐT chỉ báo "không tìm thấy", không cho
-     * biết đơn có tồn tại hay không, để khách lẻ không xem được họ tên, SĐT, địa chỉ của nhau.
+     * Tra cứu đơn cho khách CHƯA đăng nhập:
+     *  - chỉ có mã đơn: xem trạng thái, sản phẩm, số tiền; họ tên, SĐT, email, địa chỉ bị che ngay từ máy chủ
+     *    (mã đơn chạy tăng dần nên dễ đoán, khách lẻ không được xem thông tin của nhau);
+     *  - mã đơn + đúng số điện thoại đặt hàng (SĐT người nhận hoặc SĐT khách hàng của đơn): xem đầy đủ; sai số thì báo không tìm thấy.
      */
     @Transactional(readOnly = true)
     public Map<String, Object> traCuuDonHang(String maHoaDon, String sdt) {
@@ -697,15 +698,68 @@ public class CuaHangService {
         if (ma.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập mã đơn hàng để tra cứu.", null, null, null);
         }
-        String so = sdt == null ? "" : sdt.replaceAll("\\D", "");
-        if (so.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập số điện thoại đặt hàng để tra cứu.", null, null, null);
-        }
         HoaDon hd = hoaDonRepo.findFirstByMaHoaDonIgnoreCase(ma).orElse(null);
-        if (hd == null || !dungSdtDatHang(hd, so)) {
+        if (sdt == null || sdt.isBlank()) {
+            if (hd == null || laHoaDonChoTaiQuay(hd)) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma + ".", null, null, null);
+            }
+            return cheThongTinCaNhan(chiTietDon(hd));
+        }
+        String so = sdt.replaceAll("\\D", "");
+        if (so.isEmpty() || hd == null || !dungSdtDatHang(hd, so)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma + " với số điện thoại này.", null, null, null);
         }
         return chiTietDon(hd);
+    }
+
+    /** Hóa đơn chờ tại quầy chưa thanh toán: chưa phải đơn của khách, không cho tra cứu công khai. */
+    private static boolean laHoaDonChoTaiQuay(HoaDon hd) {
+        return Integer.valueOf(HoaDon.TAI_QUAY).equals(hd.getLoaiDon()) && Integer.valueOf(HoaDon.CHO_XAC_NHAN).equals(hd.getTrangThai());
+    }
+
+    static final String DA_AN = "Đã ẩn";
+
+    private static void anCacTruong(Map<String, Object> m, String... truong) {
+        for (String k : truong) if (m.get(k) != null) m.put(k, DA_AN);
+    }
+
+    /** Bản đơn cho người chỉ biết mã đơn: che thông tin cá nhân, bỏ ghi chú, mã phiếu và nội dung giao dịch; giữ trạng thái, sản phẩm, số tiền. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> cheThongTinCaNhan(Map<String, Object> don) {
+        Map<String, Object> res = new LinkedHashMap<>(don);
+        anCacTruong(res, "hoTenNguoiNhan", "sdtNguoiNhan", "diaChiGiaoHang");
+        res.put("daChe", true);
+        if (res.get("chiTietDon") == null) return res;
+
+        Map<String, Object> chiTiet = new LinkedHashMap<>((Map<String, Object>) res.get("chiTietDon"));
+        chiTiet.put("daChe", true);
+        Map<String, Object> info = new LinkedHashMap<>((Map<String, Object>) chiTiet.get("hoaDon"));
+        for (String k : List.of("ghiChu", "maPhieuGiamGia", "tenPhieuGiamGia")) info.put(k, null);
+        chiTiet.put("hoaDon", info);
+
+        Map<String, Object> khach = new LinkedHashMap<>((Map<String, Object>) chiTiet.getOrDefault("khachHang", Map.of()));
+        khach.remove("maKhachHang");
+        anCacTruong(khach, "ten", "sdt", "email");
+        chiTiet.put("khachHang", khach);
+
+        Map<String, Object> giao = new LinkedHashMap<>((Map<String, Object>) chiTiet.getOrDefault("giaoHang", Map.of()));
+        anCacTruong(giao, "hoTenNguoiNhan", "sdtNguoiNhan", "diaChi");
+        chiTiet.put("giaoHang", giao);
+
+        chiTiet.put("thanhToan", boTruong((List<Map<String, Object>>) chiTiet.getOrDefault("thanhToan", List.of()), "moTa", "maGiaoDich"));
+        chiTiet.put("lichSu", boTruong((List<Map<String, Object>>) chiTiet.getOrDefault("lichSu", List.of()), "moTa"));
+        res.put("chiTietDon", chiTiet);
+        return res;
+    }
+
+    private static List<Map<String, Object>> boTruong(List<Map<String, Object>> ds, String... truong) {
+        List<Map<String, Object>> kq = new ArrayList<>();
+        for (Map<String, Object> m : ds) {
+            Map<String, Object> ban = new LinkedHashMap<>(m);
+            for (String k : truong) ban.remove(k);
+            kq.add(ban);
+        }
+        return kq;
     }
 
     /** Số đơn tối đa trả về khi tra cứu theo số điện thoại (mới nhất trước). */
@@ -724,9 +778,7 @@ public class CuaHangService {
         }
         List<Map<String, Object>> don = new ArrayList<>();
         for (HoaDon hd : hoaDonRepo.timTheoSdt(so, org.springframework.data.domain.PageRequest.of(0, SO_DON_TRA_CUU_SDT))) {
-            boolean chuaThanhToanTaiQuay = Integer.valueOf(HoaDon.TAI_QUAY).equals(hd.getLoaiDon())
-                    && Integer.valueOf(HoaDon.CHO_XAC_NHAN).equals(hd.getTrangThai());
-            if (chuaThanhToanTaiQuay) continue;
+            if (laHoaDonChoTaiQuay(hd)) continue;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("maHoaDon", hd.getMaHoaDon());
             m.put("ngayTao", hd.getNgayTao());

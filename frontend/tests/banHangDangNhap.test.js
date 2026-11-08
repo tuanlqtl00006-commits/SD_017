@@ -23,6 +23,7 @@ vi.mock('../src/services/diaChiHanhChinhService', () => ({
 }))
 
 import BanHangPage from '../src/components/banHang/BanHangPage.vue'
+import { nhanTin } from '../src/services/suKien'
 import DiaChiHanhChinhSelect from '../src/components/common/DiaChiHanhChinhSelect.vue'
 import DangNhapPage from '../src/components/auth/DangNhapPage.vue'
 import KhachDangNhapView from '../src/views/client/KhachDangNhapView.vue'
@@ -388,6 +389,30 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await nutThem(w).trigger('click')
     await flushPromises()
     expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('quản lý vừa sửa giá / đợt giảm giá: màn quầy tự hiện "Giá mới" và chặn thanh toán, không cần bấm thử; đổi phiếu thì không tự đổi số tiền', async () => {
+    const { w, may } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    await body().find('[data-testid="bh-dong-chon-sp"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="bh-cap-nhat-gia"]').exists()).toBe(false)
+
+    // Tin đổi phiếu: màn quầy không tải lại hóa đơn chờ
+    const soLanTai = () => api.get.mock.calls.filter((c) => c[0] === '/ban-hang/hoa-don-cho').length
+    const truoc = soLanTai()
+    nhanTin({ chuDe: ['phieu-giam-gia'], nguon: 'may-khac' })
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(soLanTai()).toBe(truoc)
+
+    may.ds[0].dong[0].giaHienTai = 4290000
+    nhanTin({ chuDe: ['giam-gia', 'san-pham'], nguon: 'may-khac' })
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(w.text()).toContain('Giá mới 4.290.000')
+    expect(w.find('[data-testid="bh-cap-nhat-gia"]').exists()).toBe(true)
   })
 
   it('giá đổi sau khi thêm: máy chủ báo khi thanh toán, hiện giá mới và chỉ thanh toán được sau "Cập nhật giá"', async () => {

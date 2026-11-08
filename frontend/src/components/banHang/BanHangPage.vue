@@ -85,14 +85,15 @@ async function taiHoaDonCho() {
   }
 }
 
-// Hóa đơn chờ đổi ở cửa sổ / máy khác (thêm, bỏ, thanh toán): cập nhật ngay, không cần F5
+// Hóa đơn chờ đổi ở cửa sổ / máy khác, hoặc giá / đợt giảm giá vừa đổi (hiện cảnh báo "Giá mới" ngay): cập nhật, không cần F5.
+// Phiếu giảm giá KHÔNG tải lại ở đây: mức giảm chỉ đổi khi nhân viên đã được báo lúc thanh toán (PHIEU_THAY_DOI)
 async function taiChoNgam() {
   const ds = (await api.get('/ban-hang/hoa-don-cho')).data || []
   dsCho.value = ds
   for (const h of ds) if (!phu[h.id]) phu[h.id] = phuMoi()
   if (!ds.some((h) => h.id === dangChon.value)) dangChon.value = ds[0]?.id ?? null
 }
-useAutoRefresh(taiChoNgam, 3000, { chuKyMs: 0, chuDe: ['hoa-don'], coTheTai: () => daTaiCho.value && !dangGui.value })
+useAutoRefresh(taiChoNgam, 3000, { chuKyMs: 0, chuDe: ['hoa-don', 'san-pham', 'giam-gia'], coTheTai: () => daTaiCho.value && !dangGui.value })
 
 /** Lỗi khi thao tác hóa đơn chờ: hóa đơn đã đóng ở cửa sổ khác thì tải lại danh sách. */
 function baoLoiCho(e, macDinh) {

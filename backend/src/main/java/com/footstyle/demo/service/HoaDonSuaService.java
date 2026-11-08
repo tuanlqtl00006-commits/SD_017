@@ -30,7 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Case khó của bán hàng online (bảng cô gửi): khách KHÔNG tự sửa đơn; nhân viên gọi xác nhận rồi sửa giúp, mỗi đơn chỉ sửa MỘT lần,
+ * Sửa đơn online: khách KHÔNG tự sửa đơn; nhân viên gọi xác nhận rồi sửa giúp, mỗi đơn chỉ sửa MỘT lần,
  * và chỉ khi đơn giao hàng còn "Chờ xác nhận" (chưa trừ kho).
  *  2. Sửa người nhận / địa chỉ -> tính lại phí giao hàng, chênh lệch thành HOÀN PHÍ (trả lại khách) hoặc PHỤ PHÍ (khách trả thêm).
  *  3. Thêm / sửa / xóa sản phẩm -> tính lại tiền hàng, phiếu giảm giá, phí ship -> hoàn phí / phụ phí.

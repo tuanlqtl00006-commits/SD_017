@@ -117,6 +117,17 @@ describe('Quản lý đóng ca hộ', () => {
     expect(api.post).toHaveBeenLastCalledWith('/giao-ca/150/dong-ho', { tienMatThucTe: 1250000, tienBanGiao: 1000000, ghiChu: null })
   })
 
+  it('quản lý thấy nút Đóng ca hộ cả với ca do chính mình mở (không có cách giao ca nào khác)', async () => {
+    useAuth().trangThai.nguoiDung = { id: 1, hoTen: 'Nguyễn Hoàng Long', vaiTro: 'QUAN_LY' }
+    const caCuaMinh = { ...CHI_TIET, idNhanVien: 1 }
+    api.get.mockImplementation(async (url) => (url === '/giao-ca/150' ? { data: caCuaMinh } : { data: [caCuaMinh] }))
+    const w = ganVao(GiaoCaLichSuPage)
+    await flushPromises()
+    await w.find('.gcl-dong').trigger('click')
+    await flushPromises()
+    expect(body().find('[data-testid="gcl-mo-dong-ho"]').exists()).toBe(true)
+  })
+
   it('nhân viên không thấy nút Đóng ca hộ', async () => {
     useAuth().trangThai.nguoiDung = { id: 4, hoTen: 'Phạm Minh Anh', vaiTro: 'NHAN_VIEN' }
     api.get.mockImplementation(async (url) => (url === '/giao-ca/150' ? { data: { ...CHI_TIET } } : { data: [{ ...CHI_TIET }] }))

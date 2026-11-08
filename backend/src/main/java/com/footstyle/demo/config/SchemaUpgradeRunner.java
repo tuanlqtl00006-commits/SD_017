@@ -71,7 +71,7 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
             "IF COL_LENGTH('dot_giam_gia', 'mo_ta') IS NULL ALTER TABLE dot_giam_gia ADD mo_ta NVARCHAR(500) NULL",
             // nhan_vien.anh (khớp ERD)
             "IF COL_LENGTH('nhan_vien', 'anh') IS NULL ALTER TABLE nhan_vien ADD anh NVARCHAR(500) NULL",
-            // lich_su_thanh_toan.nguoi_nhan (khớp ERD)
+            // lich_su_thanh_toan.nguoi_nhan (cột thêm, không có trong ERD)
             "IF COL_LENGTH('lich_su_thanh_toan', 'nguoi_nhan') IS NULL ALTER TABLE lich_su_thanh_toan ADD nguoi_nhan NVARCHAR(255) NULL",
             // Mục "Không áp dụng" cho danh mục không phải vợt (Phụ kiện, Túi - balo...): không có độ cứng, điểm cân bằng, trọng lượng, chu vi
             // Mã gọn DC00, CB00, TL00, CV00 (CSDL cũ có DC000... sẽ được đổi sang mã gọn ở bước rutGonMaCu bên dưới)
@@ -113,8 +113,8 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
                     + "AND NOT EXISTS (SELECT 1 FROM khach_hang WHERE sdt IS NOT NULL AND sdt <> '' GROUP BY sdt HAVING COUNT(*) > 1) "
                     + "CREATE UNIQUE INDEX ux_khach_hang_sdt ON khach_hang (sdt) WHERE sdt IS NOT NULL AND sdt <> ''",
             // Hóa đơn: đơn TẠI QUẦY (loai_hoa_don = 1) nhận hàng ngay ở cửa hàng nên không có phí vận chuyển / đơn vị vận chuyển
-            // (cô: "tại quầy sao lại có phí vận chuyển"). Dọn dữ liệu cũ còn sót; thành tiền trừ lại phần phí đã cộng, không để âm.
-            // Giống hệt mục 4.2 trong database/SD_17_2_du_lieu.sql (SchemaUpgradeRunnerHoaDonTest kiểm tra hai bên không lệch).
+            // Dọn dữ liệu cũ còn sót; thành tiền trừ lại phần phí đã cộng, không để âm.
+            // SchemaUpgradeRunnerHoaDonTest kiểm tra nội dung lệnh này.
             "UPDATE hoa_don SET thanh_tien = CASE WHEN thanh_tien > ISNULL(phi_van_chuyen, 0) THEN thanh_tien - ISNULL(phi_van_chuyen, 0) ELSE 0 END, "
                     + "phi_van_chuyen = 0, don_vi_van_chuyen = NULL "
                     + "WHERE loai_hoa_don = 1 AND (ISNULL(phi_van_chuyen, 0) <> 0 OR don_vi_van_chuyen IS NOT NULL)",

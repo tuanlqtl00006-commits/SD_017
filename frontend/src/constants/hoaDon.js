@@ -31,7 +31,7 @@ export const TRANG_THAI_HOA_DON = {
 export const KHONG_XAC_DINH = { label: 'Không xác định', pill: 'ad-pill-gray' }
 export const trangThaiOf = (ma) => TRANG_THAI_HOA_DON[ma] ?? KHONG_XAC_DINH
 
-/** Trạng thái cuối: đã vào đây là khóa, không có nút đổi trạng thái nào nữa (cô: "đã hoàn thành rồi sao còn chuyển trạng thái"). */
+/** Trạng thái cuối: đã vào đây là khóa, không có nút đổi trạng thái nào nữa. */
 export const laTrangThaiCuoi = (ma) => ma === TT.DA_HUY || ma === TT.HOAN_THANH || ma === TT.HOAN_TIEN
 
 /** Thứ tự các tab ở trang danh sách (null = tất cả). */

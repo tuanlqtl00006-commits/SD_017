@@ -223,7 +223,7 @@ describe('Trang ca làm việc có trong router với đúng quyền', () => {
   it('Lịch làm việc, Lịch sử giao ca cho cả nhân viên; link cũ /lich-cua-toi chuyển sang tab Lịch ca làm', () => {
     for (const p of ['/lich-lam-viec', '/giao-ca']) {
       expect(router.resolve(p).name, p).not.toBeUndefined()
-      expect(quyen(p).roles, p).toEqual(['nhan-vien', 'quan-ly'])
+      expect(quyen(p).roles, p).toEqual(['nhan-vien', 'thu-ngan', 'quan-ly'])
     }
     const cu = router.resolve('/lich-cua-toi').matched.at(-1)
     expect(cu.redirect).toEqual({ path: '/lich-lam-viec', query: { tab: 'cua-toi' } })

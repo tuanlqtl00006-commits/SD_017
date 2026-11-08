@@ -54,7 +54,8 @@ class CuaHangTraCuuTest {
                 KhoGia.khongDung(DiemCanBangRepository.class), KhoGia.khongDung(MauSacRepository.class),
                 KhoGia.khongDung(TrongLuongRepository.class), KhoGia.khongDung(ChuViRepository.class),
                 KhoGia.tao(HoaDonRepository.class, (t, a) -> switch (t) {
-                    case "findFirstByMaHoaDonIgnoreCase" -> Optional.ofNullable("HD967".equalsIgnoreCase((String) a[0]) ? hd : null);
+                    case "findFirstByMaHoaDonIgnoreCase" -> Optional.ofNullable("HD967".equalsIgnoreCase((String) a[0]) ? hd
+                            : "HD968".equalsIgnoreCase((String) a[0]) ? hoaDonChoQuay : null);
                     // tra cứu theo SĐT: mới nhất trước; số 0379992712 có thêm một hóa đơn chờ tại quầy chưa thanh toán (phải bị bỏ)
                     case "timTheoSdt" -> "0379992712".equals(a[0]) ? List.of(hoaDonChoQuay, hd)
                             : "0911222333".equals(a[0]) ? List.of(hd) : List.of();
@@ -71,10 +72,62 @@ class CuaHangTraCuuTest {
         return assertThrows(ApiException.class, r::run);
     }
 
+    /** Chỉ nhập mã đơn vẫn tra được, nhưng họ tên, SĐT, địa chỉ bị che ngay từ máy chủ (mã đơn chạy tăng dần, dễ đoán). */
     @Test
-    void chiCoMaDon_khongXemDuocThongTinNguoiNhan() {
-        assertTrue(loi(() -> service.traCuuDonHang("HD967", null)).getMessage().contains("số điện thoại"));
-        assertTrue(loi(() -> service.traCuuDonHang("HD967", "  ")).getMessage().contains("số điện thoại"));
+    void chiCoMaDon_xemDuocDon_nhungCheThongTinNguoiNhan() {
+        for (String sdt : new String[] {null, "", "  "}) {
+            Map<String, Object> d = service.traCuuDonHang("HD967", sdt);
+            assertEquals("HD967", d.get("maHoaDon"));
+            assertEquals(BigDecimal.valueOf(468_000), d.get("thanhTien"));
+            assertEquals(true, d.get("daChe"));
+            for (String k : List.of("hoTenNguoiNhan", "sdtNguoiNhan", "diaChiGiaoHang")) assertEquals("Đã ẩn", d.get(k), k);
+            String tatCa = d.toString();
+            assertTrue(!tatCa.contains("tuan134") && !tatCa.contains("0379992712") && !tatCa.contains("Đồng Nai"), tatCa);
+        }
+        assertEquals("tuan134", service.traCuuDonHang("HD967", "0379992712").get("hoTenNguoiNhan"), "đúng SĐT thì xem đầy đủ");
+        assertTrue(!service.traCuuDonHang("HD967", "0379992712").containsKey("daChe"));
+    }
+
+    @Test
+    void chiCoMaDon_khongCoDonHoacHoaDonChoTaiQuay_baoKhongTimThay() {
+        assertEquals(404, loi(() -> service.traCuuDonHang("HD999", null)).getStatus().value());
+        assertEquals(404, loi(() -> service.traCuuDonHang("HD968", null)).getStatus().value(), "hóa đơn chờ tại quầy chưa thanh toán");
+        // Có nhập nhưng không phải số: không coi như "không nhập", không lọt qua so khớp với đơn thiếu SĐT
+        assertEquals(404, loi(() -> service.traCuuDonHang("HD967", "abc")).getStatus().value());
+    }
+
+    /** Bản đầy đủ cùng dạng màn admin: che cả khối khách, giao hàng; bỏ ghi chú, mã phiếu, nội dung giao dịch; giữ sản phẩm, số tiền, trạng thái. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void cheThongTinCaNhan_cheCaBanChiTietGiongAdmin() {
+        Map<String, Object> hoaDon = new java.util.HashMap<>();
+        hoaDon.put("maHoaDon", "HD971");
+        hoaDon.put("thanhTien", 468_000);
+        hoaDon.put("ghiChu", "gọi 0911222333 trước khi giao");
+        hoaDon.put("maPhieuGiamGia", "VCHRIENG");
+        hoaDon.put("tenPhieuGiamGia", "Phiếu riêng");
+        Map<String, Object> khach = new java.util.HashMap<>(Map.of("maKhachHang", "KH05", "ten", "lê quốc tuấn", "sdt", "0911222333", "email", "tuan@gmail.com", "khachLe", false));
+        Map<String, Object> giao = new java.util.HashMap<>(Map.of("hoTenNguoiNhan", "tuan134", "sdtNguoiNhan", "0379992712", "diaChi", "so, ngo, Đồng Nai"));
+        Map<String, Object> don = new java.util.LinkedHashMap<>(Map.of("maHoaDon", "HD971", "chiTietDon", new java.util.LinkedHashMap<>(Map.of(
+                "hoaDon", hoaDon, "khachHang", khach, "giaoHang", giao,
+                "sanPham", List.of(Map.of("tenSanPham", "Vợt Yonex", "soLuong", 1)),
+                "thanhToan", List.of(Map.of("soTien", 468_000, "maGiaoDich", "FT123", "moTa", "tuan134 chuyen khoan")),
+                "lichSu", List.of(Map.of("trangThai", 0, "moTa", "Khách đổi số 0911222333"))))));
+
+        Map<String, Object> kq = CuaHangService.cheThongTinCaNhan(don);
+
+        Map<String, Object> ct = (Map<String, Object>) kq.get("chiTietDon");
+        assertEquals(true, ct.get("daChe"));
+        String tatCa = kq.toString();
+        for (String lo : List.of("tuan134", "0379992712", "0911222333", "lê quốc tuấn", "tuan@gmail.com", "Đồng Nai", "KH05", "VCHRIENG", "FT123")) {
+            assertTrue(!tatCa.contains(lo), "còn lộ: " + lo);
+        }
+        assertEquals(468_000, ((Map<String, Object>) ct.get("hoaDon")).get("thanhTien"));
+        assertEquals(don.get("maHoaDon"), kq.get("maHoaDon"));
+        assertEquals(1, ((List<?>) ct.get("sanPham")).size());
+        assertEquals(468_000, ((List<Map<String, Object>>) ct.get("thanhToan")).get(0).get("soTien"));
+        assertEquals(0, ((List<Map<String, Object>>) ct.get("lichSu")).get(0).get("trangThai"));
+        assertEquals("tuan134", giao.get("hoTenNguoiNhan"), "bản gốc không bị đổi");
     }
 
     @Test

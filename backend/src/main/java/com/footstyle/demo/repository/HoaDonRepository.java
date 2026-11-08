@@ -46,7 +46,7 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Integer>, JpaSpe
             + "WHERE h.khachHang IS NOT NULL AND h.trangThai = :trangThai GROUP BY h.khachHang.id")
     List<Object[]> thongKeMuaHangTheoKhach(@Param("trangThai") Integer trangThai);
 
-    /** Tên phương thức thanh toán (bảng phuong_thuc_thanh_toan chưa có entity riêng). */
+    /** Tên phương thức thanh toán theo id. */
     @Query(value = "SELECT ten_phuong_thuc FROM phuong_thuc_thanh_toan WHERE id = :id", nativeQuery = true)
     String findTenPhuongThucThanhToan(@Param("id") Integer id);
 
