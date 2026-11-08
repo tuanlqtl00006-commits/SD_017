@@ -196,8 +196,16 @@ export const useCartStore = defineStore('cart', () => {
     const qtyToAdd = Number(itemData.soLuong) || 1
 
     if (existingIndex > -1) {
-      const newQty = items.value[existingIndex].soLuong + qtyToAdd
+      const currentQty = items.value[existingIndex].soLuong
+      if (currentQty >= maxStock) {
+        // Đã đạt tối đa tồn kho, không thêm được nữa
+        return { status: 'maxed', maxStock }
+      }
+      const newQty = currentQty + qtyToAdd
       items.value[existingIndex].soLuong = Math.min(newQty, maxStock)
+      const actualAdded = items.value[existingIndex].soLuong - currentQty
+      saveToStorage(items.value)
+      return { status: actualAdded < qtyToAdd ? 'partial' : 'added', actualAdded, maxStock }
     } else {
       items.value.push({
         sanPhamId: itemData.sanPhamId,
@@ -214,8 +222,9 @@ export const useCartStore = defineStore('cart', () => {
         soLuong: Math.min(qtyToAdd, maxStock),
         soLuongTon: maxStock,
       })
+      saveToStorage(items.value)
+      return { status: 'added', actualAdded: Math.min(qtyToAdd, maxStock), maxStock }
     }
-    saveToStorage(items.value)
   }
 
   function updateQuantity(bienTheId, newQty) {
