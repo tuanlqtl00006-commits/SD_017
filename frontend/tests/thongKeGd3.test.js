@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, DOMWrapper } from '@vue/test-utils'
 
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn() } }))
 vi.mock('vue-router', () => ({
@@ -88,7 +88,10 @@ describe('Trang thống kê: phần giai đoạn 3', () => {
     expect(sapHet).toContain('1 hết hàng')
     expect(sapHet).toContain('Hết hàng')
     expect(sapHet).toContain('Còn 4')
-    const ptTongQuan = w.find('[data-test="tk-pt-tong-quan"]').text()
+    expect(w.find('[data-test="tk-pt-tong-quan"]').exists()).toBe(false)
+    await w.get('[data-chi-tiet-dt="doanhThu"]').trigger('click')
+    const body = new DOMWrapper(document.body)
+    const ptTongQuan = body.get('[data-test="tk-pt-tong-quan"]').text()
     expect(ptTongQuan).toContain('Doanh thu tiền mặt')
     expect(ptTongQuan).toContain('3.000.000')
     expect(ptTongQuan).toContain('3 đơn thanh toán tiền mặt')
@@ -97,6 +100,7 @@ describe('Trang thống kê: phần giai đoạn 3', () => {
     expect(ptTongQuan).toContain('1.000.000')
     expect(ptTongQuan).toContain('1 đơn thanh toán chuyển khoản')
     expect(ptTongQuan).toContain('25%')
+    await body.get('.modal .btn-close').trigger('click')
     expect(w.find('[data-test="tk-phuong-thuc"]').text()).toContain('Tiền mặt')
     expect(w.find('[data-test="tk-phuong-thuc"]').text()).toContain('75%')
     expect(w.find('[data-test="tk-theo-ca"]').text()).toContain('Ca tối (17:00 - 22:00)')
@@ -141,6 +145,59 @@ describe('Trang thống kê: phần giai đoạn 3', () => {
     await flushPromises()
     expect(w.find('[data-test="tk-loi-gd3"]').text()).toBe('Bạn không có quyền xem thống kê.')
     expect(w.text()).toContain('Tổng quan cửa hàng')
+    w.unmount()
+  })
+
+  it('gộp COD vào Tiền mặt ở cả danh sách phương thức thanh toán và hộp thoại Doanh thu thực tế', async () => {
+    const gd3CoCod = {
+      ...GD3,
+      theoPhuongThuc: [
+        { ma: 'PT01', ten: 'Tiền mặt', soTien: 3000000, soDon: 3 },
+        { ma: 'PT02', ten: 'Chuyển khoản ngân hàng', soTien: 1000000, soDon: 1 },
+        { ma: 'PT03', ten: 'Thanh toán khi nhận hàng (COD)', soTien: 1000000, soDon: 2 },
+      ],
+    }
+    const w = moTrang(gd3CoCod)
+    await flushPromises()
+    const ptCard = w.find('[data-test="tk-phuong-thuc"]')
+    expect(ptCard.text()).toContain('2 phương thức')
+    expect(ptCard.text()).toContain('Tiền mặt')
+    expect(ptCard.text()).toContain('5 đơn')
+    expect(ptCard.text()).toContain('4.000.000')
+    expect(ptCard.text()).toContain('80%')
+    expect(ptCard.text()).not.toContain('COD')
+
+    await w.get('[data-chi-tiet-dt="doanhThu"]').trigger('click')
+    const pt = new DOMWrapper(document.body).get('[data-test="tk-pt-tong-quan"]')
+    expect(pt.findAll('.tk-kpi-sub-card')).toHaveLength(2)
+    expect(pt.text()).toContain('Doanh thu tiền mặt')
+    expect(pt.text()).toContain('4.000.000')
+    expect(pt.text()).toContain('5 đơn thanh toán tiền mặt (gồm 2 đơn COD)')
+    expect(pt.text()).toContain('80%')
+    expect(pt.text()).not.toContain('Doanh thu COD')
+    expect(pt.text()).toContain('Doanh thu chuyển khoản')
+    expect(pt.text()).toContain('1.000.000')
+    expect(pt.text()).toContain('20%')
+    w.unmount()
+  })
+
+  it('không gộp nhầm PT05 (Tiền mặt + chuyển khoản) hoặc phương thức lạ vào Tiền mặt / Chuyển khoản', async () => {
+    const gd3Mix = {
+      ...GD3,
+      theoPhuongThuc: [
+        { ma: 'PT01', ten: 'Tiền mặt', soTien: 2000000, soDon: 2 },
+        { ma: 'PT02', ten: 'Chuyển khoản ngân hàng', soTien: 1000000, soDon: 1 },
+        { ma: 'PT05', ten: 'Tiền mặt + chuyển khoản', soTien: 500000, soDon: 1 },
+      ],
+    }
+    const w = moTrang(gd3Mix)
+    await flushPromises()
+    await w.get('[data-chi-tiet-dt="doanhThu"]').trigger('click')
+    const body = new DOMWrapper(document.body)
+    const pt = body.get('[data-test="tk-pt-tong-quan"]')
+    expect(pt.text()).toContain('2.000.000')
+    expect(pt.text()).toContain('1.000.000')
+    expect(body.find('[data-test="tk-dt-pt-bang"]').text()).toContain('Tiền mặt + chuyển khoản')
     w.unmount()
   })
 })

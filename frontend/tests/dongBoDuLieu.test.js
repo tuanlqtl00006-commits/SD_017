@@ -54,6 +54,22 @@ describe('Kênh báo thay đổi (services/suKien)', () => {
     expect(cauHinh.headers[TIEU_DE_TAB]).toBe(TAB_ID)
     expect(TAB_ID).toMatch(/^[A-Za-z0-9-]{1,64}$/) // backend chỉ nhận chữ, số, gạch nối
   })
+
+  it('lỗi proxy 502 / 504 khi backend tắt hiển thị thông báo tiếng Việt rõ cổng 8081', async () => {
+    const xuLyLoi = api.interceptors.response.handlers[0].rejected
+    await expect(xuLyLoi({ response: { status: 502, data: '' }, message: 'Request failed with status code 502' })).rejects.toMatchObject({
+      status: 502,
+      message: 'Không kết nối được máy chủ. Hãy kiểm tra backend (cổng 8081) đã chạy chưa.',
+    })
+    await expect(xuLyLoi({ response: { status: 504 }, message: 'Request failed with status code 504' })).rejects.toMatchObject({
+      status: 504,
+      message: 'Không kết nối được máy chủ. Hãy kiểm tra backend (cổng 8081) đã chạy chưa.',
+    })
+    await expect(xuLyLoi({ response: { status: 400, data: { message: 'Kỳ không hợp lệ' } }, message: 'Bad Request' })).rejects.toMatchObject({
+      status: 400,
+      message: 'Kỳ không hợp lệ',
+    })
+  })
 })
 
 describe('Màn tự tải lại khi có tin (useAutoRefresh chuDe)', () => {

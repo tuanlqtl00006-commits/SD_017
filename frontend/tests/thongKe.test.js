@@ -374,14 +374,63 @@ describe('Trang Thống kê', () => {
     w.unmount()
   })
 
-  it('bấm "Đơn đã hủy" chỉ ra đơn hủy; thẻ doanh thu không bấm được', async () => {
+  it('bấm "Doanh thu thực tế" mở hộp thoại tiền mặt / chuyển khoản; "Đơn đã hủy" chỉ ra đơn hủy; "Doanh thu dự kiến" không bấm được', async () => {
     const w = await moTrang([hd(1, ngay(1), 2000000, 6), hd(3, ngay(3), 500000, 0, { loaiDon: 'Trực tuyến' })])
     await w.get('#tk-tu').setValue(ngay(29))
-    expect(w.findAll('[data-test="tk-kpi"]')[0].attributes('data-ds-don')).toBeUndefined()
+    const kpis = w.findAll('[data-test="tk-kpi"]')
+    expect(kpis[0].attributes('data-ds-don')).toBeUndefined()
+    expect(kpis[0].attributes('data-chi-tiet-dt')).toBe('doanhThu')
+    expect(kpis[1].attributes('data-ds-don')).toBeUndefined()
+    expect(kpis[1].attributes('data-chi-tiet-dt')).toBeUndefined()
+
+    await kpis[0].trigger('click')
+    const body = new DOMWrapper(document.body)
+    const pt = body.get('[data-test="tk-pt-tong-quan"]')
+    expect(pt.text()).toContain('Doanh thu tiền mặt')
+    expect(pt.text()).toContain('Doanh thu chuyển khoản')
+    await body.get('.modal .btn-close').trigger('click')
+    expect(body.find('[data-test="tk-pt-tong-quan"]').exists()).toBe(false)
+
     await w.get('[data-ds-don="huy"]').trigger('click')
-    const rows = new DOMWrapper(document.body).get('[data-test="tk-ds-don"]').findAll('tbody tr')
+    const rows = body.get('[data-test="tk-ds-don"]').findAll('tbody tr')
     expect(rows).toHaveLength(1)
     expect(rows[0].text()).toContain('HD03')
+    w.unmount()
+  })
+
+  it('Đơn hoàn thành hiển thị và cộng tổng theo doanhThu (trừ phí ship) khớp thẻ Doanh thu thực tế; tải đủ nhiều trang hóa đơn', async () => {
+    api.get.mockImplementation(async (url, cfg) => {
+      if (url === '/thong-ke') return { data: {} }
+      const page = cfg?.params?.page ?? 0
+      if (page === 0) {
+        return {
+          data: {
+            totalPages: 2,
+            content: [hd(1, ngay(1), 6270000, 6, { loaiDon: 'Trực tuyến', doanhThu: 6240000 })],
+          },
+        }
+      }
+      return {
+        data: {
+          totalPages: 2,
+          content: [hd(2, ngay(2), 1000000, 6, { loaiDon: 'Tại quầy', doanhThu: 1000000 })],
+        },
+      }
+    })
+    const w = mount(ThongKe, { attachTo: document.body })
+    await flushPromises()
+    await w.get('#tk-tu').setValue(ngay(29))
+
+    expect(kpiText(w)[0]).toContain('7.240.000')
+    expect(kpiText(w)[2]).toMatch(/Đơn hoàn thành\s*2\/2/)
+
+    await w.get('[data-ds-don="hoanThanh"]').trigger('click')
+    const body = new DOMWrapper(document.body)
+    const bang = body.get('[data-test="tk-ds-don"]')
+    expect(bang.find('thead').text()).toContain('Doanh thu')
+    expect(bang.text()).toContain('6.240.000')
+    expect(bang.text()).toContain('Khách trả: 6.270.000')
+    expect(body.find('.modal-footer').text()).toContain('2 đơn · Tổng doanh thu 7.240.000')
     w.unmount()
   })
 })

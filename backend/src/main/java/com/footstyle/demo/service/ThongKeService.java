@@ -174,8 +174,9 @@ public class ThongKeService {
     /* ---------------- doanh thu theo phương thức / giờ / ca ---------------- */
 
     /**
-     * Tiền thu theo phương thức: lấy từ lịch sử thanh toán (đơn tiền mặt + chuyển khoản tách đúng 2 phần); đơn cũ chưa ghi
-     * phương thức trên từng lần thanh toán thì tính cả đơn vào phương thức của hóa đơn.
+     * Doanh thu theo phương thức thanh toán (tính theo {@link DoanhThu#cua(HoaDon)}, KHÔNG gồm phí vận chuyển, đồng bộ với
+     * KPI doanh thu thực tế, {@code theoGio} và {@code theoCa}): lấy tỷ lệ từ lịch sử thanh toán (đơn tiền mặt + chuyển
+     * khoản tách đúng phần); đơn cũ chưa ghi phương thức trên từng lần thanh toán thì tính cả đơn vào phương thức của hóa đơn.
      */
     static List<Map<String, Object>> theoPhuongThuc(List<HoaDon> hoaDons, List<LichSuThanhToan> thanhToans, List<PhuongThucThanhToan> phuongThucs) {
         Map<Integer, PhuongThucThanhToan> pt = new HashMap<>();
@@ -187,17 +188,53 @@ public class ThongKeService {
         }
         Map<Integer, long[]> tong = new LinkedHashMap<>(); // idPhuongThuc (-1 = chưa rõ) -> { tiền, số đơn }
         for (HoaDon h : hoaDons) {
+            long dt = tien(DoanhThu.cua(h));
             List<LichSuThanhToan> ds = ttTheoDon.getOrDefault(h.getId(), List.of());
             if (!ds.isEmpty() && ds.stream().allMatch(t -> t.getIdPhuongThucThanhToan() != null)) {
-                Set<Integer> daDem = new HashSet<>();
+                Map<Integer, Long> theoMa = new LinkedHashMap<>();
                 for (LichSuThanhToan t : ds) {
-                    long[] x = tong.computeIfAbsent(t.getIdPhuongThucThanhToan(), k -> new long[2]);
-                    x[0] += t.getSoTien() == null ? 0 : t.getSoTien().longValue();
-                    if (daDem.add(t.getIdPhuongThucThanhToan())) x[1]++;
+                    theoMa.merge(t.getIdPhuongThucThanhToan(), tien(t.getSoTien()), Long::sum);
+                }
+                theoMa.replaceAll((k, v) -> Math.max(0L, v));
+                List<Map.Entry<Integer, Long>> duong = theoMa.entrySet().stream()
+                        .filter(e -> e.getValue() > 0)
+                        .toList();
+                long tongTra = duong.stream().mapToLong(Map.Entry::getValue).sum();
+                if (duong.isEmpty()) {
+                    Integer idPt = theoMa.keySet().iterator().next();
+                    long[] x = tong.computeIfAbsent(idPt, k -> new long[2]);
+                    x[0] += dt;
+                    x[1]++;
+                } else if (duong.size() == 1) {
+                    Integer idPt = duong.get(0).getKey();
+                    long[] x = tong.computeIfAbsent(idPt, k -> new long[2]);
+                    x[0] += dt;
+                    x[1]++;
+                } else if (tongTra == dt) {
+                    for (Map.Entry<Integer, Long> e : duong) {
+                        long[] x = tong.computeIfAbsent(e.getKey(), k -> new long[2]);
+                        x[0] += e.getValue();
+                        x[1]++;
+                    }
+                } else {
+                    long daChia = 0;
+                    for (int i = 0; i < duong.size(); i++) {
+                        Map.Entry<Integer, Long> e = duong.get(i);
+                        long phan = (i == duong.size() - 1)
+                                ? Math.max(0L, dt - daChia)
+                                : Math.round((double) dt * e.getValue() / tongTra);
+                        if (i < duong.size() - 1 && daChia + phan > dt) {
+                            phan = Math.max(0L, dt - daChia);
+                        }
+                        daChia += phan;
+                        long[] x = tong.computeIfAbsent(e.getKey(), k -> new long[2]);
+                        x[0] += phan;
+                        x[1]++;
+                    }
                 }
             } else {
                 long[] x = tong.computeIfAbsent(h.getIdPhuongThucThanhToan() == null ? -1 : h.getIdPhuongThucThanhToan(), k -> new long[2]);
-                x[0] += tien(h.getThanhTien());
+                x[0] += dt;
                 x[1]++;
             }
         }
