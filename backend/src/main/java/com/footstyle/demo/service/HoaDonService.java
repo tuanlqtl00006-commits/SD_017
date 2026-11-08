@@ -53,7 +53,7 @@ public class HoaDonService {
     private final PhieuGiamGiaRepository phieuGiamGiaRepository;
     private final PhieuGiamGiaKhachHangRepository phieuGiamGiaKhachHangRepository;
 
-    /** Gửi mail báo khách khi đơn bị tự hủy (hết hàng). Nạp bằng setter (không bắt buộc) để không đổi hàm khởi tạo của lớp. */
+    /** Gửi mail báo khách khi đơn online đổi trạng thái hoặc bị hủy. Nạp bằng setter (không bắt buộc) để không đổi hàm khởi tạo của lớp. */
     private MailService mailService;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -178,8 +178,8 @@ public class HoaDonService {
     }
 
     /**
-     * Tên khách: tên trong hồ sơ khách hàng. Đơn tại quầy không gắn hồ sơ là KHÁCH LẺ -> "Khách vãng lai" (cô: "khách lẻ tại sao có số
-     * điện thoại"). Đơn giao hàng không gắn hồ sơ thì lấy tên người nhận ghi trên hóa đơn, không có nữa thì "Khách vãng lai".
+     * Tên khách: tên trong hồ sơ khách hàng. Đơn tại quầy không gắn hồ sơ là KHÁCH LẺ -> "Khách vãng lai".
+     * Đơn giao hàng không gắn hồ sơ thì lấy tên người nhận ghi trên hóa đơn, không có nữa thì "Khách vãng lai".
      */
     private String tenKhach(HoaDon hd) {
         KhachHang kh = hd.getKhachHang();
@@ -234,7 +234,7 @@ public class HoaDonService {
             chuyenDuoc.add(m);
         }
         info.put("chuyenDuoc", chuyenDuoc);
-        // Case khó online: quản lý / nhân viên chỉ được sửa đơn MỘT lần, khi đơn giao hàng còn Chờ xác nhận (khách không tự sửa)
+        // Quản lý / nhân viên chỉ được sửa đơn MỘT lần, khi đơn giao hàng còn Chờ xác nhận (khách không tự sửa)
         boolean daSua = dsLichSu.stream()
                 .anyMatch(l -> HoaDonSuaService.HANH_DONG_SUA.equals(l.getHanhDong()));
         info.put("daChinhSua", daSua);
@@ -247,13 +247,13 @@ public class HoaDonService {
         info.put("phiVanChuyen", phiVanChuyen(hd));
         info.put("thanhTien", thanhTien(hd));
         info.put("ghiChu", hd.getGhiChu());
-        // Đơn tại quầy không có vận chuyển: không đơn vị vận chuyển, phí 0 (cô: "tại quầy sao lại có phí vận chuyển 30 nghìn")
+        // Đơn tại quầy không có vận chuyển: không đơn vị vận chuyển, phí 0
         info.put("donViVanChuyen", laTaiQuay(hd) ? null : hd.getDonViVanChuyen());
         info.put("ngayGiaoDuKien", hd.getNgayGiaoDuKien());
         info.put("ngayGiaoThucTe", hd.getNgayGiaoThucTe());
         info.put("tenNhanVien", hd.getNhanVien() != null ? hd.getNhanVien().getHoTen() : null);
         info.put("maNhanVien", hd.getNhanVien() != null ? hd.getNhanVien().getMaNhanVien() : null);
-        // Phiếu giảm giá đã dùng: mã + loại + giá trị (để in "mã X, giảm 10%" / "giảm 50.000 ₫") - cô: "giảm dùng mã nào, giảm bao nhiêu phần trăm"
+        // Phiếu giảm giá đã dùng: mã + loại + giá trị (để in "mã X, giảm 10%" / "giảm 50.000 ₫")
         PhieuGiamGia phieu = hd.getPhieuGiamGia();
         info.put("maPhieuGiamGia", phieu != null ? phieu.getMaPhieu() : null);
         info.put("tenPhieuGiamGia", phieu != null ? phieu.getTenPhieu() : null);
@@ -433,8 +433,8 @@ public class HoaDonService {
 
     /**
      * Đổi trạng thái theo bảng luật trong {@link HoaDonLuongTrangThai}: đơn giao hàng đi 1 -> 2 -> 3 -> 4 -> 5 -> 6, đơn tại quầy đi thẳng 1 -> 6;
-     * hủy được khi chưa giao cho vận chuyển; Đang giao hàng báo được "Giao hàng thất bại" rồi giao lại hoặc hủy.
-     * Hủy đơn và Giao hàng thất bại bắt buộc ghi lý do. Đã hủy / Đã hoàn thành là trạng thái cuối, không đổi nữa.
+     * chỉ hủy được khi còn Chờ xác nhận (đơn giao hàng: hoặc sau Giao hàng thất bại); Đang giao hàng báo được "Giao hàng thất bại" rồi giao lại hoặc hủy.
+     * Hủy đơn và Giao hàng thất bại bắt buộc ghi lý do. Đã hủy / Đã hoàn thành / Hoàn tiền là trạng thái cuối, không đổi nữa.
      */
     @Transactional
     public Map<String, Object> doiTrangThai(Integer idHoaDon, HoaDonTrangThaiRequest req) {
@@ -526,7 +526,7 @@ public class HoaDonService {
             }
         }
 
-        // Case khó online 1: hủy đơn khách đã trả trước (chuyển khoản) -> ghi khoản HOÀN PHÍ trả lại khách
+        // Hủy đơn khách đã trả trước (chuyển khoản) -> ghi khoản HOÀN PHÍ trả lại khách
         String hoanPhi = "";
         if (moi == HoaDon.DA_HUY) {
             BigDecimal daTra = BigDecimal.ZERO;
@@ -560,7 +560,7 @@ public class HoaDonService {
         ls.setNguoiThaoTac(nguoi.isEmpty() ? "Quản lý" : nguoi);
         lichSuHoaDonRepository.save(ls);
 
-        // Đơn online đổi trạng thái: gửi thư báo cho khách (review: "làm thêm email khi đổi trạng thái"); hủy (kể cả tự hủy
+        // Đơn online đổi trạng thái: gửi thư báo cho khách; hủy (kể cả tự hủy
         // do hết hàng) thì gửi thư hủy kèm lý do. Gửi ở luồng riêng nên không làm chậm thao tác.
         if (mailService != null && !laTaiQuay(hd)) {
             String email = emailNhanThongBao(hd);

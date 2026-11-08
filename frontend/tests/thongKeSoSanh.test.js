@@ -64,7 +64,7 @@ describe('Thống kê so sánh', () => {
     expect(the).toHaveLength(6)
     expect(the[0].text()).toContain('Doanh thu')
     expect(the[0].text()).toContain('▼ 100%')
-    expect(the[0].text()).toContain('Tháng 10/2026: 1.450.000')
+    expect(the[0].text()).not.toContain('Tháng 10/2026: 1.450.000') // thẻ chỉ hiện % biến động, không ghi lại số của kỳ trước
 
     const dong = w.findAll('[data-test="ss-chi-so"]')
     expect(dong).toHaveLength(9)

@@ -681,7 +681,6 @@ const theKpi = computed(() => {
       return {
         ...c,
         giaTriText: hienThiGiaTri(c, vNay),
-        giaTriTruocText: truoc ? hienThiGiaTri(c, vTruoc) : '',
         ss: truoc ? soSanhGiaTri(c, vNay, vTruoc) : null,
       }
     })
@@ -1555,7 +1554,6 @@ async function guiEmail() {
           <div class="ss-kpi-val">{{ t.giaTriText }}</div>
           <div v-if="t.ss" class="ss-kpi-cmp">
             <span class="ss-trend-pill" :class="t.ss.lop">{{ t.ss.bienDong }}</span>
-            <span class="ss-kpi-ref">{{ kySoSanh.nhan }}: {{ t.giaTriTruocText }}</span>
           </div>
         </div>
       </div>
@@ -2422,11 +2420,6 @@ async function guiEmail() {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem 0.5rem;
-}
-
-.ss-kpi-ref {
-  font-size: 0.8rem;
-  color: #475569;
 }
 
 .ss-kpi-icon {

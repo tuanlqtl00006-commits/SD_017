@@ -786,7 +786,7 @@ function quickAddToCart(item, event) {
           <div class="vnb-title-underline"></div>
         </div>
 
-        <div class="row g-4">
+        <div class="row g-4 justify-content-center">
           <!-- Card 1: VỢT CẦU LÔNG -->
           <div class="col-lg-3 col-6">
             <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
@@ -805,16 +805,7 @@ function quickAddToCart(item, event) {
             </div>
           </div>
 
-          <!-- Card 3: ÁO & VÁY CẦU LÔNG -->
-          <div class="col-lg-3 col-6">
-            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
-              <img src="/images/san-pham/sp34_ao_yonex_tpm3430_navy.webp" alt="Quần áo thể thao" class="dm-img" loading="lazy" />
-              <div class="vnb-cat-ribbon dm-ribbon">QUẦN ÁO THỂ THAO</div>
-              <div class="dm-sub">Thoáng khí Cool-Dry</div>
-            </div>
-          </div>
-
-          <!-- Card 4: PHỤ KIỆN & CƯỚC -->
+          <!-- Card 3: PHỤ KIỆN & CƯỚC -->
           <div class="col-lg-3 col-6">
             <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
               <img src="/images/san-pham/sp42_tui_yonex_ba92431wz.webp" alt="Phụ kiện và cước" class="dm-img" loading="lazy" />

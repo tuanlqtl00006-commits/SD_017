@@ -9,6 +9,7 @@ import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatMoney, todayIso } from '../utils/format'
 import { exportExcel } from '../utils/exportExcel'
 import DateInput from './common/DateInput.vue'
+import Select2 from './common/Select2.vue'
 import { TAB_TRANG_THAI, trangThaiOf } from '../constants/hoaDon'
 import HoaDonScannerModal from './hoaDon/HoaDonScannerModal.vue'
 
@@ -16,32 +17,11 @@ const router = useRouter()
 const toast = useToast()
 const showScannerModal = ref(false)
 const moQuetMa = () => { showScannerModal.value = true }
-/* ----- 2 tab kênh bán (review 05/11: chia riêng đơn tại quầy và đơn online) -----
- * Máy chủ lọc theo kênh bán chứ không theo cột loại đơn: đơn bán quầy có bật "Giao hàng" vẫn nằm ở tab tại quầy. */
-const DS_KENH = [
-  { value: 'TAI_QUAY', label: 'Đơn tại quầy', icon: 'bi-shop' },
-  { value: 'ONLINE', label: 'Đơn online', icon: 'bi-globe2' },
+const dsLoaiDon = [
+  { value: '', label: 'Tất cả' },
+  { value: '1', label: 'Tại quầy' },
+  { value: '2', label: 'Trực tuyến' },
 ]
-const KHOA_KENH = 'footstyle_hoa_don_kenh'
-function docKenh() {
-  try {
-    const v = sessionStorage.getItem(KHOA_KENH)
-    return DS_KENH.some((k) => k.value === v) ? v : 'TAI_QUAY'
-  } catch {
-    return 'TAI_QUAY'
-  }
-}
-const kenh = ref(docKenh())
-function chonKenh(v) {
-  if (kenh.value === v) return
-  kenh.value = v
-  activeTab.value = null // trạng thái đang chọn có thể không có ở tab kia
-  try {
-    sessionStorage.setItem(KHOA_KENH, v)
-  } catch {
-    // trình duyệt chặn bộ nhớ: bỏ qua
-  }
-}
 
 /* ----- Trạng thái hóa đơn: nhãn + màu nhãn dùng chung với trang chi tiết (constants/hoaDon.js) ----- */
 const TABS = TAB_TRANG_THAI
@@ -53,7 +33,7 @@ const TABS = TAB_TRANG_THAI
 // là "hôm nay" tự nhảy sang ngày mới và danh sách tải lại; ô người dùng đã tự chọn ngày khác thì giữ nguyên.
 const defaultFilters = () => {
   const homNay = todayIso()
-  return { maHoaDon: '', tuNgay: homNay, denNgay: homNay }
+  return { maHoaDon: '', tuNgay: homNay, denNgay: homNay, loaiDon: '' }
 }
 const filters = reactive(defaultFilters())
 let homNayDangDung = filters.tuNgay
@@ -86,12 +66,12 @@ function buildParams(pageIndex, size) {
     maHoaDon: filters.maHoaDon.trim() || null,
     tuNgay: filters.tuNgay || null,
     denNgay: filters.denNgay || null,
-    kenh: kenh.value,
+    loaiDon: filters.loaiDon !== '' ? filters.loaiDon : null,
     trangThai: activeTab.value,
   }
 }
 
-// Số hóa đơn hiện trên từng tab (lỗi thì giữ số cũ, không làm hỏng trang)
+// Số hóa đơn của từng trạng thái (lỗi thì giữ số cũ, không làm hỏng trang)
 let demSeq = 0
 async function loadDem() {
   const seq = ++demSeq
@@ -101,7 +81,7 @@ async function loadDem() {
         maHoaDon: filters.maHoaDon.trim() || null,
         tuNgay: filters.tuNgay || null,
         denNgay: filters.denNgay || null,
-        kenh: kenh.value,
+        loaiDon: filters.loaiDon !== '' ? filters.loaiDon : null,
       },
     })
     if (seq === demSeq) dem.value = data || {}
@@ -110,8 +90,6 @@ async function loadDem() {
   }
 }
 const demCua = (tab) => dem.value[tab.value === null ? 'tatCa' : String(tab.value)] ?? 0
-// Menu trạng thái chỉ hiện trạng thái có đơn ở tab kênh đang xem (vd tab tại quầy không có "Chờ xác nhận" của đơn online)
-const tabsHien = computed(() => TABS.filter((t) => t.value === null || t.value === activeTab.value || demCua(t) > 0))
 
 /* ----- Dropdown Trạng thái (#statusDropdown) ----- */
 const isStatusOpen = ref(false)
@@ -155,10 +133,10 @@ async function load(quiet = false) {
   }
 }
 
-// Đổi bộ lọc / tab: về trang 1 rồi tải lại. Ô mã hóa đơn chờ 300ms sau khi ngừng gõ.
+// Đổi bộ lọc / trạng thái: về trang 1 rồi tải lại. Ô mã hóa đơn chờ 300ms sau khi ngừng gõ.
 let timer = null
 watch(
-  () => [filters.maHoaDon, filters.tuNgay, filters.denNgay, kenh.value, activeTab.value],
+  () => [filters.maHoaDon, filters.tuNgay, filters.denNgay, filters.loaiDon, activeTab.value],
   (moi, cu) => {
     clearTimeout(timer)
     const chiDoiMa = moi[0] !== cu[0] && moi.slice(1).every((v, i) => v === cu[i + 1])
@@ -188,7 +166,7 @@ onMounted(() => {
   window.addEventListener('footstyle:don-moi', onDonMoi)
 })
 // Quay lại tab: kiểm tra ngày trước (đổi ngày thì watch tải lại), không đổi thì tải lại lặng lẽ như cũ
-// Tự tải ngầm 10 giây một lần (đơn online mới, đơn vừa đổi trạng thái hiện ra không cần F5); giữ trang / bộ lọc / tab đang xem
+// Có tin thay đổi hóa đơn thì tải ngầm ngay (đơn online mới, đơn vừa đổi trạng thái hiện ra không cần F5), kèm hỏi lại định kỳ để phòng sót (xem useAutoRefresh); giữ trang / bộ lọc đang xem
 useAutoRefresh(() => (capNhatNgayHienTai() ? undefined : load(true)), 3000, { chuDe: ['hoa-don'] })
 
 const resetFilters = () => {
@@ -224,7 +202,7 @@ async function exportFile() {
       rows.push(...data.content)
     }
     exportExcel({
-      filename: `hoa_don_${kenh.value === 'ONLINE' ? 'online' : 'tai_quay'}_${todayIso()}.xlsx`,
+      filename: `hoa_don_${todayIso()}.xlsx`,
       sheetName: 'Hóa đơn',
       columns: [
         { header: 'STT', key: 'stt', width: 6 },
@@ -293,6 +271,10 @@ async function exportFile() {
           <DateInput id="hd-den-ngay" v-model="filters.denNgay" class="form-control ad-control" :min="filters.tuNgay || undefined" />
         </div>
         <div>
+          <label class="ad-label" for="hd-loai">Loại đơn</label>
+          <Select2 id="hd-loai" v-model="filters.loaiDon" :options="dsLoaiDon" class="ad-control" />
+        </div>
+        <div>
           <label class="ad-label" for="statusDropdown">Trạng thái</label>
           <div class="st-select" id="statusDropdown" ref="statusDropdownRef" :class="{ open: isStatusOpen }">
             <button
@@ -309,7 +291,7 @@ async function exportFile() {
 
             <ul class="st-select__menu">
               <li
-                v-for="t in tabsHien"
+                v-for="t in TABS"
                 :key="String(t.value)"
                 :class="{ active: activeTab === t.value }"
                 @click="chonTrangThai(t.value)"
@@ -348,25 +330,8 @@ async function exportFile() {
     </FilterCard>
 
     <section class="ad-card">
-      <!-- 2 tab kênh bán: đơn tại quầy / đơn online -->
-      <div class="hd-kenh" role="tablist" aria-label="Kênh bán">
-        <button
-          v-for="k in DS_KENH"
-          :key="k.value"
-          type="button"
-          role="tab"
-          class="hd-kenh-tab"
-          :class="{ active: kenh === k.value }"
-          :aria-selected="kenh === k.value"
-          :data-kenh="k.value"
-          @click="chonKenh(k.value)"
-        >
-          <i class="bi" :class="k.icon" aria-hidden="true"></i> {{ k.label }}
-          <span v-if="kenh === k.value" class="hd-kenh-so">{{ demCua(TABS[0]) }}</span>
-        </button>
-      </div>
       <header class="ad-list-head">
-        <h2 class="ad-card-title">{{ kenh === 'ONLINE' ? 'Danh sách đơn online' : 'Danh sách đơn tại quầy' }}</h2>
+        <h2 class="ad-card-title">Danh sách hóa đơn</h2>
         <div class="d-flex align-items-center gap-2">
           <button type="button" class="ad-btn" @click="moQuetMa">
             <i class="bi bi-qr-code-scan" aria-hidden="true"></i> Quét mã hóa đơn
@@ -454,39 +419,6 @@ async function exportFile() {
 </template>
 
 <style scoped>
-/* Tab kênh bán */
-.hd-kenh {
-  display: flex;
-  gap: 0.25rem;
-  margin: -0.25rem 0 1rem;
-  border-bottom: 1px solid var(--fs-line-soft, #e8edf3);
-}
-.hd-kenh-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.6rem 1rem;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -1px;
-  background: none;
-  color: var(--fs-muted, #64748b);
-  font-weight: 600;
-}
-.hd-kenh-tab:hover {
-  color: var(--fs-primary, #0977ec);
-}
-.hd-kenh-tab.active {
-  border-bottom-color: var(--fs-primary, #0977ec);
-  color: var(--fs-primary, #0977ec);
-}
-.hd-kenh-so {
-  padding: 0 0.5rem;
-  border-radius: 999px;
-  background: var(--fs-primary-soft, #e8f1fd);
-  font-size: 0.78rem;
-}
-
 .hd-money {
   color: #c62836;
   font-weight: 700;

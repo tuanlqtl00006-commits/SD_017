@@ -21,7 +21,7 @@ datXuLyHetPhien((lyDo) => {
 
 // Nhân viên chưa vào ca mà gọi chức năng (backend trả 409 CHUA_NHAN_CA): về trang Vào ca, vào xong quay lại trang đang mở
 datXuLyChuaVaoCa(() => {
-  if (useAuth().vaiTro.value !== 'nhan-vien') return
+  if (!['nhan-vien', 'thu-ngan'].includes(useAuth().vaiTro.value)) return
   const hienTai = router.currentRoute.value
   if (hienTai.name === 'vao-ca') return
   datLaiGiaoCa()

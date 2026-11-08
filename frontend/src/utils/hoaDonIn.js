@@ -1,7 +1,7 @@
 // Bản in / PDF hóa đơn (mở bằng cửa sổ in của trình duyệt, chọn "Lưu dưới dạng PDF" để có file PDF).
 // Viết thành hàm thuần (nhận dữ liệu trả về HTML) để test được mà không cần mở cửa sổ.
 //
-// Theo lời cô (video review GĐ2, 11:49 - 11:53):
+// Quy tắc bản in:
 //  - KHÔNG in khối "Lịch sử thanh toán";
 //  - in mã phiếu giảm giá đã dùng và giảm bao nhiêu %, phí vận chuyển, logo đơn vị giao hàng (GHN, GHTK...), có mã QR;
 //  - đơn tại quầy không có vận chuyển (không in phí / đơn vị vận chuyển), khách lẻ không in số điện thoại.

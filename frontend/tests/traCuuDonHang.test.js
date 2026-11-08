@@ -110,21 +110,62 @@ describe('Tra cứu đơn hàng theo số điện thoại', () => {
 })
 
 describe('Tra cứu đơn hàng', () => {
-  it('khách chưa đăng nhập: chỉ nhập mã đơn thì không gọi máy chủ, bắt nhập SĐT đặt hàng', async () => {
+  const DON_CHE = { ...DON, hoTenNguoiNhan: 'Đã ẩn', sdtNguoiNhan: 'Đã ẩn', diaChiGiaoHang: 'Đã ẩn', daChe: true, chiTietDon: {
+    daChe: true,
+    hoaDon: { maHoaDon: 'HD967', loaiDon: 2, trangThai: 1, tongTien: 468000, thanhTien: 468000 },
+    khachHang: { ten: 'Đã ẩn', sdt: 'Đã ẩn', email: 'Đã ẩn' },
+    giaoHang: { hoTenNguoiNhan: 'Đã ẩn', sdtNguoiNhan: 'Đã ẩn', diaChi: 'Đã ẩn' },
+    sanPham: [{ id: 1, maSpct: 'SP53-TRG', tenSanPham: 'Vợt Yonex', soLuong: 1, donGia: 468000, thanhTien: 468000 }],
+    thanhToan: [], lichSu: [{ trangThai: 1, thoiGian: '2026-11-04T20:52:51' }], daThanhToan: 0,
+  } }
+
+  it('chưa đăng nhập, chỉ nhập mã đơn: tra được ngay, không bắt SĐT, thông tin người mua bị che và có lời nhắc', async () => {
+    api.get.mockResolvedValue({ data: DON_CHE })
     const w = mount(OrderLookupView)
     await flushPromises()
     await tra(w, 'HD967')
-    expect(api.get).not.toHaveBeenCalled()
-    expect(w.text()).toContain('Vui lòng nhập số điện thoại đặt hàng')
-    expect(w.text()).not.toContain('tuan134')
+    expect(api.get).toHaveBeenCalledWith('/cua-hang/tra-cuu', { params: { maHoaDon: 'HD967' } })
+    expect(w.text()).not.toContain('Vui lòng nhập số điện thoại đặt hàng')
+    expect(w.text()).toContain('Vợt Yonex')
+    expect(w.text()).toContain('Đã ẩn')
+    expect(w.find('[data-testid="ol-da-che"]').exists()).toBe(true)
   })
 
-  it('mở từ đường dẫn ?ma= khi chưa đăng nhập: chỉ điền mã, chưa tra', async () => {
+  it('chỉ nhập mã đơn mà không có đơn đó: báo không tìm thấy, không nhắc tới số điện thoại', async () => {
+    api.get.mockRejectedValue(loi404())
+    const w = mount(OrderLookupView)
+    await flushPromises()
+    await tra(w, 'HD999')
+    expect(w.text()).toContain('Không tìm thấy đơn hàng "HD999"')
+    expect(w.text()).not.toContain('với số điện thoại này')
+  })
+
+  it('có nhập số điện thoại thì vẫn phải đúng định dạng, không gọi máy chủ', async () => {
+    const w = mount(OrderLookupView)
+    await flushPromises()
+    await tra(w, 'HD967', '1234')
+    expect(api.get).not.toHaveBeenCalled()
+    expect(w.find('[role="alert"]').exists()).toBe(true)
+  })
+
+  it('mở từ đường dẫn ?ma= khi chưa đăng nhập: tự tra bằng mã, thông tin bị che', async () => {
     route.query = { ma: 'HD967' }
+    api.get.mockResolvedValue({ data: DON_CHE })
     const w = mount(OrderLookupView)
     await flushPromises()
     expect(w.find('input[aria-label="Mã đơn hàng"]').element.value).toBe('HD967')
-    expect(api.get).not.toHaveBeenCalled()
+    expect(api.get).toHaveBeenCalledWith('/cua-hang/tra-cuu', { params: { maHoaDon: 'HD967' } })
+    expect(w.find('[data-testid="ol-da-che"]').exists()).toBe(true)
+  })
+
+  it('đã đăng nhập, mã đơn không thuộc tài khoản: chuyển sang tra công khai, thông tin bị che', async () => {
+    auth.trangThai = reactive({ nguoiDung: { vaiTro: 'KHACH_HANG' } })
+    api.get.mockImplementation((url) => (url.startsWith('/khach/') ? Promise.reject(loi404()) : Promise.resolve({ data: DON_CHE })))
+    const w = mount(OrderLookupView)
+    await flushPromises()
+    await tra(w, 'HD967')
+    expect(api.get).toHaveBeenCalledWith('/cua-hang/tra-cuu', { params: { maHoaDon: 'HD967' } })
+    expect(w.find('[data-testid="ol-da-che"]').exists()).toBe(true)
   })
 
   it('đúng mã + SĐT thì xem được; sai SĐT báo không tìm thấy', async () => {

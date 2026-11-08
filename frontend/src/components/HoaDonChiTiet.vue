@@ -46,7 +46,7 @@ function setData(d) {
 
 onMounted(load)
 
-// Tự cập nhật 10 giây một lần (đơn vừa được người khác xác nhận / khách hủy... hiện ra không cần F5).
+// Có tin thay đổi hóa đơn thì tự cập nhật ngay (đơn vừa được người khác xác nhận / khách hủy... hiện ra không cần F5), kèm hỏi lại định kỳ để phòng sót (xem useAutoRefresh).
 // Không tải khi đang mở hộp thoại đổi trạng thái / sửa đơn / lịch sử / mã QR hoặc đang gửi thao tác.
 async function taiNgam() {
   if (loading.value || !data.value) return
@@ -165,7 +165,7 @@ async function xacNhanDoiTrangThai() {
     action.error = 'Ghi chú tối đa 500 ký tự.'
     return
   }
-  // Chuyển sang "Đã xác nhận" thì tự mở bản in / PDF hóa đơn (cô: "chuyển sang đã xác nhận thì tự động in PDF").
+  // Chuyển sang "Đã xác nhận" thì tự mở bản in / PDF hóa đơn.
   // Cửa sổ in phải mở ngay lúc người dùng bấm (trước khi chờ máy chủ) thì trình duyệt mới không chặn; có lỗi thì đóng lại.
   const tuDongIn = action.trangThai === TT.DA_XAC_NHAN
   const cuaSoIn = tuDongIn ? moCuaSoIn() : null
@@ -201,7 +201,7 @@ async function xacNhanDoiTrangThai() {
 
 const showLichSu = ref(false)
 
-/* ===================== Case khó online: sửa đơn 1 lần, xác nhận chuyển khoản ===================== */
+/* ===================== Sửa đơn online 1 lần, xác nhận chuyển khoản ===================== */
 const moSuaDon = ref(false)
 function daSuaDon(d) {
   moSuaDon.value = false

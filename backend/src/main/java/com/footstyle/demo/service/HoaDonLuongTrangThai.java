@@ -90,8 +90,8 @@
                     ds.add(HoaDon.DA_XAC_NHAN);
                     ds.add(HoaDon.DA_HUY);
                 }
-                case HoaDon.DA_XAC_NHAN -> ds.add(HoaDon.CHO_LAY_HANG);   // bỏ DA_HUY
-                case HoaDon.CHO_LAY_HANG -> ds.add(HoaDon.DANG_GIAO);     // bỏ DA_HUY
+                case HoaDon.DA_XAC_NHAN -> ds.add(HoaDon.CHO_LAY_HANG);   // bước này không hủy được
+                case HoaDon.CHO_LAY_HANG -> ds.add(HoaDon.DANG_GIAO);     // bước này không hủy được
                 case HoaDon.DANG_GIAO -> {
                     ds.add(HoaDon.DA_GIAO);
                     ds.add(HoaDon.GIAO_THAT_BAI);
@@ -99,7 +99,7 @@
                 case HoaDon.DA_GIAO -> ds.add(HoaDon.HOAN_THANH);
                 case HoaDon.GIAO_THAT_BAI -> {
                     ds.add(HoaDon.DANG_GIAO);
-                    ds.add(HoaDon.DA_HUY);   // giữ: hàng về kho thì hủy được
+                    ds.add(HoaDon.DA_HUY);   // giao không được, hàng về kho nên hủy được
                 }
                 default -> { }
             }

@@ -8,7 +8,7 @@ import { baoVaiTro, datXuLyDoiVaiTro, layPhien, xoaPhien } from '../src/services
 import { _datLaiAuth, useAuth } from '../src/composables/useAuth'
 import { _datLaiGiaoCa } from '../src/composables/useGiaoCa'
 import { useToast } from '../src/composables/useToast'
-import { apDungVaiTroMoi } from '../src/router'
+import router, { apDungVaiTroMoi, kiemTraTruyCap } from '../src/router'
 
 const NV = { id: 3, ma: 'NV03', hoTen: 'Lê Quốc Bảo', vaiTro: 'NHAN_VIEN', tenVaiTro: 'Nhân viên' }
 const QL = { id: 1, ma: 'NV01', hoTen: 'Nguyễn Hoàng Long', vaiTro: 'QUAN_LY', tenVaiTro: 'Quản lý' }
@@ -112,5 +112,50 @@ describe('Áp dụng vai trò mới cho trang đang mở', () => {
     const chuyenTrang = vi.fn()
     await apDungVaiTroMoi('NHAN_VIEN', trang('/ban-hang', ['quan-ly', 'nhan-vien']), chuyenTrang)
     expect(chuyenTrang).not.toHaveBeenCalled()
+  })
+})
+
+// Chức vụ Thu ngân: dùng đúng quyền của các trang trong router (trước đây router không nhận Thu ngân nên trang bị trắng vì chuyển trang lặp vô hạn)
+describe('Đổi sang chức vụ Thu ngân', () => {
+  const trangThat = (path) => {
+    const r = router.resolve(path)
+    return { fullPath: path, path, name: r.name, meta: r.meta, matched: r.matched, query: {} }
+  }
+  const TN = { ...NV, vaiTro: 'THU_NGAN', tenVaiTro: 'Thu ngân' }
+  const traCa = (dangMo) =>
+    mayChu.mockImplementation((c) => traVe(c, 200, c.url === '/giao-ca/hien-tai' ? { dangMo, tongKet: null, lichHomNay: [] } : {}, 'THU_NGAN'))
+
+  it('nhân viên đang bán được đổi sang Thu ngân: báo đúng tên quyền, giữ phiên, đang trong ca thì ở lại trang bán hàng', async () => {
+    dangNhap(NV)
+    traCa({ id: 7 })
+    const chuyenTrang = vi.fn()
+    await apDungVaiTroMoi('THU_NGAN', trangThat('/ban-hang'), chuyenTrang)
+    expect(useAuth().trangThai.nguoiDung).toMatchObject({ id: 3, vaiTro: 'THU_NGAN', tenVaiTro: 'Thu ngân' })
+    expect(layPhien()).toMatchObject({ nguoiDung: { vaiTro: 'THU_NGAN', tenVaiTro: 'Thu ngân' } })
+    expect(chuyenTrang).not.toHaveBeenCalled()
+    expect(toast.toasts.at(-1).message).toContain('quyền Thu ngân')
+    expect(toast.toasts.at(-1).message).not.toContain('quản lý đã bị ẩn')
+  })
+
+  it('Thu ngân vào được Bán hàng, Hóa đơn, Lịch sử giao ca; không vào được trang chỉ quản lý', async () => {
+    dangNhap(TN)
+    traCa({ id: 7 })
+    for (const p of ['/ban-hang', '/hoa-don', '/giao-ca', '/khach-hang']) expect(await kiemTraTruyCap(trangThat(p)), p).toBe(true)
+    expect(await kiemTraTruyCap(trangThat('/thong-ke'))).toBe('/ban-hang')
+  })
+
+  it('Thu ngân chưa vào ca thì về trang Vào ca, trang Vào ca mở được (không lặp chuyển trang)', async () => {
+    dangNhap(TN)
+    traCa(null)
+    expect(await kiemTraTruyCap(trangThat('/ban-hang'))).toEqual({ path: '/vao-ca', query: { quayLai: '/ban-hang' } })
+    expect(await kiemTraTruyCap(trangThat('/vao-ca'))).toBe(true)
+  })
+
+  it('Thu ngân bị đổi lại thành Nhân viên: tên quyền về Nhân viên', async () => {
+    dangNhap(TN)
+    mayChu.mockImplementation((c) => traVe(c, 200, c.url === '/giao-ca/hien-tai' ? { dangMo: { id: 7 }, tongKet: null, lichHomNay: [] } : {}, 'NHAN_VIEN'))
+    await apDungVaiTroMoi('NHAN_VIEN', trangThat('/ban-hang'), vi.fn())
+    expect(useAuth().trangThai.nguoiDung).toMatchObject({ vaiTro: 'NHAN_VIEN', tenVaiTro: 'Nhân viên' })
+    expect(useAuth().laThuNgan.value).toBe(false)
   })
 })

@@ -90,7 +90,8 @@ function ghiPhien(kq, nho = layPhien()?.nho ?? true) {
 /** Quản lý vừa đổi vai trò của tài khoản đang đăng nhập (biết qua header X-Vai-Tro): giữ phiên, đổi vai trò, tải lại ca theo vai trò mới. */
 function capNhatVaiTro(vaiTroMoi) {
   if (!trangThai.nguoiDung || trangThai.nguoiDung.vaiTro === vaiTroMoi) return
-  const nguoiDung = { ...trangThai.nguoiDung, vaiTro: vaiTroMoi, tenVaiTro: vaiTroMoi === 'QUAN_LY' ? 'Quản lý' : 'Nhân viên' }
+  const tenVaiTro = vaiTroMoi === 'QUAN_LY' ? 'Quản lý' : vaiTroMoi === 'THU_NGAN' ? 'Thu ngân' : 'Nhân viên'
+  const nguoiDung = { ...trangThai.nguoiDung, vaiTro: vaiTroMoi, tenVaiTro }
   const phien = layPhien()
   if (phien) luuPhien({ ...phien, nguoiDung })
   trangThai.nguoiDung = nguoiDung

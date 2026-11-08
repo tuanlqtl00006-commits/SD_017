@@ -14,7 +14,7 @@ const router = useRouter()
 const auth = useAuth()
 
 const orderCode = ref('')
-// Khách chưa đăng nhập phải nhập SĐT đặt hàng: mã đơn chạy tăng dần, chỉ mã đơn thì ai cũng xem được thông tin của nhau
+// Chỉ nhập mã đơn: máy chủ che họ tên, SĐT, địa chỉ (mã đơn chạy tăng dần, dễ đoán); nhập thêm đúng SĐT đặt hàng thì xem đầy đủ
 const sdt = ref('')
 const loading = ref(false)
 const orderResult = ref(null)
@@ -83,7 +83,7 @@ function guiForm() {
   return co ? handleSearch() : traCuuSdt()
 }
 
-// Khách đã đăng nhập xem đơn của chính mình bằng mã đơn; khách vãng lai cần mã đơn + SĐT đặt hàng
+// Khách đã đăng nhập xem đầy đủ đơn của chính mình chỉ bằng mã đơn
 function laKhachDangNhap() {
   return auth.trangThai.nguoiDung?.vaiTro === 'KHACH_HANG'
 }
@@ -92,8 +92,7 @@ onMounted(async () => {
   await auth.khoiTao()
   if (route.query.ma) {
     orderCode.value = String(route.query.ma).trim()
-    // Khách vãng lai còn phải nhập SĐT nên chưa tra ngay (không đưa SĐT lên đường dẫn)
-    if (laKhachDangNhap()) handleSearch()
+    handleSearch()
   }
 })
 
@@ -135,8 +134,8 @@ async function handleSearch() {
     return
   }
   const so = sdt.value.trim()
-  // Đã đăng nhập: SĐT chỉ cần khi tra đơn không thuộc tài khoản này
-  if (!laKhachDangNhap() || so) {
+  // SĐT không bắt buộc khi đã có mã đơn; có nhập thì phải đúng định dạng
+  if (so) {
     const loi = loiSdt(so, 'Vui lòng nhập số điện thoại đặt hàng để tra cứu.')
     if (loi) {
       searchError.value = loi
@@ -154,18 +153,18 @@ async function handleSearch() {
     const local = err?.status == null && so ? traCuuLocal(code, so) : null
     if (local) orderResult.value = local
     else if (err?.status == null) searchError.value = err?.message || 'Không kết nối được máy chủ.'
-    else if (laKhachDangNhap() && !so) searchError.value = `Không tìm thấy đơn hàng "${code}" trong tài khoản của bạn. Nếu là đơn đặt bằng số điện thoại khác, hãy nhập số điện thoại đó để tra cứu.`
+    else if (!so) searchError.value = `Không tìm thấy đơn hàng "${code}". Vui lòng kiểm tra lại mã đơn.`
     else searchError.value = `Không tìm thấy đơn hàng "${code}" với số điện thoại này. Vui lòng kiểm tra lại mã đơn và số điện thoại đặt hàng.`
   } finally {
     loading.value = false
   }
 }
 
-// Tra cứu từ backend: khách đăng nhập xem đơn của mình, còn lại (hoặc đơn khác) phải khớp mã đơn + SĐT
+// Tra cứu từ backend: khách đăng nhập xem đơn của mình; đơn khác hoặc chưa đăng nhập thì tra công khai (không có SĐT: máy chủ che thông tin)
 async function traCuuBackend(code, so) {
-  const traCongKhai = () => api.get('/cua-hang/tra-cuu', { params: { maHoaDon: code, sdt: so } })
+  const traCongKhai = () => api.get('/cua-hang/tra-cuu', { params: so ? { maHoaDon: code, sdt: so } : { maHoaDon: code } })
   const data = laKhachDangNhap()
-    ? (await api.get(`/khach/don-hang/${encodeURIComponent(code)}`).catch((e) => (so ? traCongKhai() : Promise.reject(e)))).data
+    ? (await api.get(`/khach/don-hang/${encodeURIComponent(code)}`).catch(() => traCongKhai())).data
     : (await traCongKhai()).data
   // Backend trả sẵn "chiTietDon" cùng dạng với màn Chi tiết hóa đơn admin (đã bỏ phần nội bộ) -> vẽ y hệt màn admin
   return data.chiTietDon || chiTietTuDonGon(data)
@@ -258,7 +257,7 @@ function traCuuLocal(code, so) {
           <div class="ol-search-icon"><i class="bi bi-search"></i></div>
           <div>
             <h4 class="fw-bold text-dark mb-0">Tra cứu đơn hàng</h4>
-            <p class="text-muted small mb-0">Nhập mã đơn hàng và số điện thoại để xem một đơn, hoặc chỉ nhập số điện thoại để xem các đơn gần đây của số đó.</p>
+            <p class="text-muted small mb-0">Nhập mã đơn hàng để xem một đơn, hoặc chỉ nhập số điện thoại để xem các đơn gần đây của số đó. Nhập cả hai để xem đầy đủ thông tin người nhận.</p>
           </div>
         </div>
         <form @submit.prevent="guiForm" class="ol-form" novalidate>
@@ -279,7 +278,7 @@ function traCuuLocal(code, so) {
           </div>
           <div class="ol-field">
             <label class="ol-label" for="ol-sdt">
-              Số điện thoại đặt hàng<span v-if="laKhachDangNhap()" class="ol-khong-bat-buoc"> (không bắt buộc khi tra đơn của tài khoản)</span>
+              Số điện thoại đặt hàng<span class="ol-khong-bat-buoc"> (không bắt buộc khi đã có mã đơn)</span>
             </label>
             <div class="ol-input-wrap">
               <i class="bi bi-telephone ol-input-icon" aria-hidden="true"></i>
@@ -337,6 +336,10 @@ function traCuuLocal(code, so) {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div v-if="orderResult?.daChe" class="alert alert-info py-2 small mb-3" role="status" data-testid="ol-da-che">
+        <i class="bi bi-shield-lock me-1" aria-hidden="true"></i> Thông tin người mua đang được ẩn để bảo mật. Nhập thêm số điện thoại đặt hàng rồi bấm Tra cứu để xem đầy đủ.
       </div>
 
       <!-- Kết quả tra cứu: cùng một component với màn Chi tiết hóa đơn admin (cô review 04/11: hai màn y hệt nhau) -->
