@@ -40,7 +40,7 @@ api.interceptors.response.use(
         const data = error.response?.data;
         if (data?.message) {
             error.message = data.message;
-        } else if (!error.response) {
+        } else if (!error.response || error.response.status === 502 || error.response.status === 504) {
             error.message = 'Không kết nối được máy chủ. Hãy kiểm tra backend (cổng 8081) đã chạy chưa.';
         }
         error.status = error.response?.status ?? null;

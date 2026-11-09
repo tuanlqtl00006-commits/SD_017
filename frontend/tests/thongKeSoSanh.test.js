@@ -49,7 +49,7 @@ const sanPhamThang10 = [
 ]
 
 describe('Thống kê so sánh', () => {
-  it('so sánh kỳ mới nhất với kỳ liền trước: thẻ tóm tắt, phân tích chênh lệch, bảng chỉ số và sản phẩm', async () => {
+  it('so sánh kỳ mới nhất với kỳ liền trước: thẻ tóm tắt, biểu đồ, bảng chỉ số và sản phẩm', async () => {
     const w = mount(ThongKeSoSanh, { attachTo: document.body })
     await flushPromises()
     expect(api.get).toHaveBeenCalledWith('/thong-ke/so-sanh', { params: { kieu: 'THANG', ky: '2026-11' } })
@@ -78,9 +78,8 @@ describe('Thống kê so sánh', () => {
     expect(dong[8].text()).toContain('25%')
     expect(dong[8].text()).toContain('-25 điểm %')
 
-    const viSao = w.find('[data-test="ss-vi-sao"]').text()
-    expect(viSao).toContain('giảm 1.450.000')
-    expect(viSao).toContain('2 → 0 đơn')
+    // Không lặp khối phân tích thừa bên dưới KPI (đã đủ số ở thẻ KPI và bảng chỉ số)
+    expect(w.find('[data-test="ss-vi-sao"]').exists()).toBe(false)
 
     expect(w.find('svg[aria-label="Biểu đồ so sánh nhóm chỉ số doanh thu"]').exists()).toBe(true)
     expect(w.find('[data-test="ss-xu-huong"]').text()).toContain('+100%')

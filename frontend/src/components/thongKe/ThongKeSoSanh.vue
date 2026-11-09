@@ -1,7 +1,7 @@
 <script setup>
 // So sánh doanh thu giữa các kỳ (tháng / quý / năm / khoảng ngày tùy chọn).
-// Kỳ mới nhất trong danh sách là kỳ đang xét, được so với kỳ liền trước: thẻ tóm tắt, phân tích chênh lệch doanh thu,
-// biểu đồ, bảng đối chiếu chỉ số, doanh thu theo thương hiệu và sản phẩm bán chạy qua các kỳ.
+// Kỳ mới nhất trong danh sách là kỳ đang xét, được so với kỳ liền trước: thẻ tóm tắt, biểu đồ,
+// bảng đối chiếu chỉ số, doanh thu theo thương hiệu và sản phẩm bán chạy qua các kỳ.
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '../../services/api'
@@ -457,15 +457,15 @@ watch(
 // the: hiện trên hàng thẻ tóm tắt; theoHoaDon: tính theo cả hóa đơn nên ẩn khi đang lọc thương hiệu / sản phẩm;
 // xauKhiTang: tăng là xấu (tô đỏ); trungTinh: không tô màu tốt / xấu.
 const CHI_SO = [
-  { k: 'doanhThuThucTe', ten: 'Doanh thu', tien: true, the: true },
-  { k: 'soHoanThanh', ten: 'Đơn hoàn thành', the: true },
-  { k: 'giaTriTrungBinh', ten: 'Giá trị TB / đơn', tien: true, the: true },
-  { k: 'soSanPhamBan', ten: 'Sản phẩm bán ra', the: true },
-  { k: 'soKhachMua', ten: 'Khách hàng mua', the: true },
+  { k: 'doanhThuThucTe', ten: 'Doanh thu', tien: true, the: true, icon: 'bi-cash-coin', tone: 'blue' },
+  { k: 'soHoanThanh', ten: 'Đơn hoàn thành', the: true, icon: 'bi-check2-circle', tone: 'green' },
+  { k: 'giaTriTrungBinh', ten: 'Giá trị TB / đơn', tien: true, the: true, icon: 'bi-receipt-cutoff', tone: 'sky' },
+  { k: 'soSanPhamBan', ten: 'Sản phẩm bán ra', the: true, icon: 'bi-box-seam', tone: 'indigo' },
+  { k: 'soKhachMua', ten: 'Khách hàng mua', the: true, icon: 'bi-people', tone: 'amber' },
   { k: 'tongGiamGia', ten: 'Tiền giảm giá', tien: true, theoHoaDon: true, trungTinh: true },
   { k: 'soDon', ten: 'Tổng đơn phát sinh', theoHoaDon: true },
   { k: 'soHuy', ten: 'Đơn hủy', theoHoaDon: true, xauKhiTang: true },
-  { k: 'tyLeHuy', ten: 'Tỷ lệ hủy đơn', phanTram: true, theoHoaDon: true, xauKhiTang: true, the: true },
+  { k: 'tyLeHuy', ten: 'Tỷ lệ hủy đơn', phanTram: true, theoHoaDon: true, xauKhiTang: true, the: true, icon: 'bi-x-circle', tone: 'rose' },
 ]
 
 const coLocSanPham = computed(() => Boolean(thuongHieuLoc.value.trim()))
@@ -488,11 +488,6 @@ function dinhDangPhanTram(p) {
   if (num > 0) return `+${soThapPhan(num)}%`
   if (num < 0) return `-${soThapPhan(Math.abs(num))}%`
   return '0%'
-}
-
-function tienCoDau(v) {
-  const so = Math.round(Number(v) || 0)
-  return `${so > 0 ? '+' : so < 0 ? '-' : ''}${formatMoney(Math.abs(so))}`
 }
 
 function layGiaTri(cs, c) {
@@ -706,53 +701,6 @@ const luuYKy = computed(() => {
     if (a !== b) return `Hai kỳ có độ dài khác nhau: ${nay.nhan} có ${a} ngày, ${truoc.nhan} có ${b} ngày.`
   }
   return ''
-})
-
-/* ----- Doanh thu thay đổi do đâu ----- */
-/** Tách chênh lệch doanh thu: phần do số đơn = (số đơn mới - số đơn cũ) x giá trị TB / đơn kỳ trước, còn lại do giá trị đơn. */
-function tachChenhLechDoanhThu(nay, truoc) {
-  const dt1 = Number(truoc.doanhThuThucTe) || 0
-  const dt2 = Number(nay.doanhThuThucTe) || 0
-  const n1 = Number(truoc.soHoanThanh) || 0
-  const n2 = Number(nay.soHoanThanh) || 0
-  const tong = dt2 - dt1
-  const doSoDon = n1 === 0 ? tong : Math.round((n2 - n1) * (dt1 / n1))
-  return { tong, doSoDon, doGiaTriDon: tong - doSoDon }
-}
-
-function sanPhamBienDong(nay, truoc) {
-  const theoSp = new Map()
-  const cong = (k, dau) => {
-    for (const sp of k?.sanPhamTrongKy || []) {
-      const khoa = sp.maSanPham || sp.tenSanPham
-      if (!khoa) continue
-      const e = theoSp.get(khoa) || { khoa, ten: sp.tenSanPham || khoa, hieu: 0 }
-      e.hieu += dau * (Number(sp.doanhThu) || 0)
-      theoSp.set(khoa, e)
-    }
-  }
-  cong(truoc, -1)
-  cong(nay, 1)
-  const ds = [...theoSp.values()]
-  return {
-    spTang: ds.filter((x) => x.hieu > 0).sort((a, b) => b.hieu - a.hieu).slice(0, 3),
-    spGiam: ds.filter((x) => x.hieu < 0).sort((a, b) => a.hieu - b.hieu).slice(0, 3),
-  }
-}
-
-const phanTichDoanhThu = computed(() => {
-  const nay = kyChinh.value
-  const truoc = kySoSanh.value
-  if (!nay || !truoc) return null
-  const tach = tachChenhLechDoanhThu(nay, truoc)
-  return {
-    ...tach,
-    donTruoc: Number(truoc.soHoanThanh) || 0,
-    donNay: Number(nay.soHoanThanh) || 0,
-    gtTruoc: Number(truoc.giaTriTrungBinh) || 0,
-    gtNay: Number(nay.giaTriTrungBinh) || 0,
-    ...sanPhamBienDong(nay, truoc),
-  }
 })
 
 /* ----- Bảng đối chiếu chỉ số (dòng = chỉ số, cột = kỳ) ----- */
@@ -1339,7 +1287,7 @@ async function guiEmail() {
             data-test="ss-excel"
             @click="xuatExcel"
           >
-            <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Xuất Excel
+            <i class="bi bi-file-earmark-excel text-success" aria-hidden="true"></i> Xuất Excel
           </button>
         </div>
       </div>
@@ -1549,8 +1497,19 @@ async function guiEmail() {
 
       <!-- 3. Thẻ tóm tắt: kỳ đang xét so với kỳ liền trước -->
       <div class="ss-kpi-strip">
-        <div v-for="t in theKpi" :key="t.k" class="ad-card ss-kpi-box" data-test="ss-kpi">
-          <div class="ss-kpi-lbl">{{ t.ten }}</div>
+        <div
+          v-for="t in theKpi"
+          :key="t.k"
+          class="ad-card ss-kpi-box"
+          :class="`is-${t.tone}`"
+          data-test="ss-kpi"
+        >
+          <div class="ss-kpi-top">
+            <span class="ss-kpi-lbl">{{ t.ten }}</span>
+            <span class="ss-kpi-icon" :class="`is-${t.tone}`" aria-hidden="true">
+              <i :class="['bi', t.icon]"></i>
+            </span>
+          </div>
           <div class="ss-kpi-val">{{ t.giaTriText }}</div>
           <div v-if="t.ss" class="ss-kpi-cmp">
             <span class="ss-trend-pill" :class="t.ss.lop">{{ t.ss.bienDong }}</span>
@@ -1558,59 +1517,7 @@ async function guiEmail() {
         </div>
       </div>
 
-      <!-- 4. Doanh thu thay đổi do đâu -->
-      <section v-if="phanTichDoanhThu" class="ad-card ss-section-card" data-test="ss-vi-sao">
-        <div class="ss-section-head">
-          <h3 class="ss-section-title m-0">
-            <template v-if="phanTichDoanhThu.tong === 0">
-              Doanh thu {{ kyChinh.nhan }} không đổi so với {{ kySoSanh.nhan }}
-            </template>
-            <template v-else>
-              Doanh thu {{ kyChinh.nhan }}
-              <span :class="phanTichDoanhThu.tong > 0 ? 'ss-tot' : 'ss-xau'">
-                {{ phanTichDoanhThu.tong > 0 ? 'tăng' : 'giảm' }} {{ formatMoney(Math.abs(phanTichDoanhThu.tong)) }}
-              </span>
-              so với {{ kySoSanh.nhan }}
-            </template>
-          </h3>
-        </div>
-        <div class="ss-why-grid">
-          <div class="ss-why-item">
-            <div class="ss-why-lbl">Do số đơn hoàn thành</div>
-            <div class="ss-why-detail">{{ phanTichDoanhThu.donTruoc }} → {{ phanTichDoanhThu.donNay }} đơn</div>
-            <div class="ss-why-val" :class="phanTichDoanhThu.doSoDon >= 0 ? 'ss-tot' : 'ss-xau'">
-              {{ tienCoDau(phanTichDoanhThu.doSoDon) }}
-            </div>
-          </div>
-          <div class="ss-why-item">
-            <div class="ss-why-lbl">Do giá trị TB / đơn</div>
-            <div class="ss-why-detail">
-              {{ formatMoney(phanTichDoanhThu.gtTruoc) }} → {{ formatMoney(phanTichDoanhThu.gtNay) }}
-            </div>
-            <div class="ss-why-val" :class="phanTichDoanhThu.doGiaTriDon >= 0 ? 'ss-tot' : 'ss-xau'">
-              {{ tienCoDau(phanTichDoanhThu.doGiaTriDon) }}
-            </div>
-          </div>
-          <div class="ss-why-item">
-            <div class="ss-why-lbl">Sản phẩm tăng doanh thu nhiều nhất</div>
-            <div v-if="!phanTichDoanhThu.spTang.length" class="ss-why-empty">Không có</div>
-            <div v-for="sp in phanTichDoanhThu.spTang" :key="`t-${sp.khoa}`" class="ss-why-sp">
-              <span class="ss-why-sp-ten">{{ sp.ten }}</span>
-              <strong class="ss-tot">{{ tienCoDau(sp.hieu) }}</strong>
-            </div>
-          </div>
-          <div class="ss-why-item">
-            <div class="ss-why-lbl">Sản phẩm giảm doanh thu nhiều nhất</div>
-            <div v-if="!phanTichDoanhThu.spGiam.length" class="ss-why-empty">Không có</div>
-            <div v-for="sp in phanTichDoanhThu.spGiam" :key="`g-${sp.khoa}`" class="ss-why-sp">
-              <span class="ss-why-sp-ten">{{ sp.ten }}</span>
-              <strong class="ss-xau">{{ tienCoDau(sp.hieu) }}</strong>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 5. Biểu đồ doanh thu & tăng / giảm qua các kỳ -->
+      <!-- 4. Biểu đồ doanh thu & tăng / giảm qua các kỳ -->
       <section class="ad-card ss-section-card" data-test="ss-xu-huong">
         <div class="ss-section-head">
           <div class="d-flex align-items-center gap-2">
@@ -1619,7 +1526,7 @@ async function guiEmail() {
 
           <div class="ss-chart-legend">
             <span class="ss-legend-item">
-              <i class="ss-legend-sq" style="background: #2563eb"></i> Doanh thu
+              <i class="ss-legend-sq" style="background: #0977ec"></i> Doanh thu
             </span>
             <span class="ss-legend-item">
               <i class="ss-legend-sq" style="background: #10b981"></i> Đơn đang xử lý
@@ -1637,7 +1544,17 @@ async function guiEmail() {
             role="img"
             aria-label="Biểu đồ so sánh nhóm chỉ số doanh thu"
           >
-            <text :x="PAD_COMBO.l - 12" :y="PAD_COMBO.t - 18" text-anchor="end" font-size="11" font-weight="600" fill="#000000">
+            <defs>
+              <linearGradient id="ssBarBlue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3b82f6" />
+                <stop offset="100%" stop-color="#0977ec" />
+              </linearGradient>
+              <linearGradient id="ssBarGreen" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#34d399" />
+                <stop offset="100%" stop-color="#10b981" />
+              </linearGradient>
+            </defs>
+            <text :x="PAD_COMBO.l - 12" :y="PAD_COMBO.t - 18" text-anchor="end" font-size="11" font-weight="600" fill="#64748b">
               (VNĐ)
             </text>
             <text :x="W_COMBO - PAD_COMBO.r + 12" :y="PAD_COMBO.t - 18" text-anchor="start" font-size="11" font-weight="600" fill="#be123c">
@@ -1673,11 +1590,11 @@ async function guiEmail() {
                 :x2="W_COMBO - PAD_COMBO.r"
                 :y1="t.y"
                 :y2="t.y"
-                :stroke="t.t === 0 ? '#cbd5e1' : '#f1f5f9'"
+                :stroke="t.t === 0 ? '#cbd5e1' : '#e2e8f0'"
                 :stroke-width="t.t === 0 ? 1.5 : 1"
                 :stroke-dasharray="t.t === 0 ? undefined : '4 4'"
               />
-              <text :x="PAD_COMBO.l - 12" :y="t.y + 4" text-anchor="end" font-size="10.5" font-weight="600" fill="#000000">
+              <text :x="PAD_COMBO.l - 12" :y="t.y + 4" text-anchor="end" font-size="10.5" font-weight="600" fill="#64748b">
                 {{ t.nhan }}
               </text>
             </g>
@@ -1695,7 +1612,7 @@ async function guiEmail() {
                 :width="Math.max(20, c.rongKhu - 8)"
                 :height="H_COMBO - PAD_COMBO.t - 8"
                 rx="8"
-                :fill="hoverKyIdx === c.idx ? 'rgba(231, 241, 253, 0.45)' : 'transparent'"
+                :fill="hoverKyIdx === c.idx ? 'rgba(231, 241, 253, 0.5)' : 'transparent'"
               />
 
               <!-- Cột nền xám nhạt khi kỳ không có doanh thu -->
@@ -1705,7 +1622,7 @@ async function guiEmail() {
                 :y="c.yZeroBar - c.caoBarMax"
                 :width="c.rongCot"
                 :height="c.caoBarMax"
-                rx="4"
+                rx="5"
                 fill="#f1f5f9"
               />
 
@@ -1716,8 +1633,8 @@ async function guiEmail() {
                 :y="c.yTong"
                 :width="c.rongCot"
                 :height="c.hTong"
-                rx="4"
-                fill="#10b981"
+                rx="5"
+                fill="url(#ssBarGreen)"
               />
 
               <rect
@@ -1726,8 +1643,8 @@ async function guiEmail() {
                 :y="c.yThucTe"
                 :width="c.rongCot"
                 :height="c.hThucTe"
-                :rx="c.hChoThu > 0 ? 0 : 4"
-                fill="#2563eb"
+                :rx="c.hChoThu > 0 ? 0 : 5"
+                fill="url(#ssBarBlue)"
               />
 
               <text
@@ -1736,7 +1653,7 @@ async function guiEmail() {
                 text-anchor="middle"
                 font-size="11"
                 font-weight="700"
-                :fill="c.hTong > 0 ? '#000000' : '#94a3b8'"
+                :fill="c.hTong > 0 ? '#18242f' : '#94a3b8'"
               >
                 {{ c.nhanCot }}
               </text>
@@ -1746,8 +1663,8 @@ async function guiEmail() {
                 :y="H_COMBO - 15"
                 text-anchor="middle"
                 font-size="11.5"
-                font-weight="700"
-                fill="#000000"
+                font-weight="600"
+                fill="#334155"
               >
                 {{ c.nhan }}
               </text>
@@ -1837,7 +1754,7 @@ async function guiEmail() {
         <span class="d-none">{{ bieuDoQuaCacKy.xuHuongText }}</span>
       </section>
 
-      <!-- 6. Bảng đối chiếu chỉ số -->
+      <!-- 5. Bảng đối chiếu chỉ số -->
       <section class="ad-card ss-section-card" data-test="ss-bang-chi-so">
         <div class="ss-section-head">
           <div class="d-flex flex-wrap align-items-center gap-2">
@@ -1885,7 +1802,7 @@ async function guiEmail() {
         </p>
       </section>
 
-      <!-- 7. Doanh thu theo thương hiệu -->
+      <!-- 6. Doanh thu theo thương hiệu -->
       <section class="ad-card ss-section-card" data-test="ss-thuong-hieu">
         <div class="ss-section-head">
           <div class="d-flex flex-wrap align-items-center gap-2">
@@ -1932,7 +1849,7 @@ async function guiEmail() {
         </div>
       </section>
 
-      <!-- 8. Sản phẩm bán chạy qua các kỳ -->
+      <!-- 7. Sản phẩm bán chạy qua các kỳ -->
       <section class="ad-card ss-section-card" data-test="ss-san-pham">
         <div class="ss-section-head">
           <div class="d-flex flex-wrap align-items-center gap-2">
@@ -2007,36 +1924,44 @@ async function guiEmail() {
 .ss-page {
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
-  color: #000000;
+  gap: 1.05rem;
+  color: var(--fs-text, #18242f);
 }
 
-/* ----- 1. Topbar (trong thẻ đầu trang) ----- */
+/* ----- 1. Topbar & Bộ lọc kỳ ----- */
+.ss-filter-card {
+  padding: 1.15rem 1.35rem;
+  border-radius: 18px;
+  border: 1px solid #e6eaf0;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+}
+
 .ss-topbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.9rem;
-  padding-bottom: 1.15rem;
-  margin-bottom: 1.15rem;
-  border-bottom: 1px solid #e2e8f0;
+  gap: 0.85rem;
+  padding-bottom: 0.9rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid #edf2f7;
 }
 
 .ss-back-circle {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   background: #e7f1fd;
-  border: 1px solid #c9def9;
+  border: 1px solid #d5e5fb;
   color: #0977ec;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 700;
-  transition: all 0.15s ease;
+  flex: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .ss-back-circle:hover {
@@ -2046,30 +1971,30 @@ async function guiEmail() {
 }
 
 .ss-main-title {
-  font-size: 1.2rem;
+  font-size: 1.08rem;
   font-weight: 700;
-  color: #18242f;
+  color: var(--fs-text, #18242f);
 }
 
 .ss-main-sub {
-  font-size: 0.88rem;
+  font-size: 0.81rem;
   color: #64748b;
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .ss-action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  height: 46px;
-  padding: 0 1.2rem;
-  border-radius: 12px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  border: 1px solid #c9def9;
+  gap: 0.45rem;
+  height: 38px;
+  padding: 0 1rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid #d5e5fb;
   background: #e7f1fd;
   color: #0977ec;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .ss-action-btn--mail {
@@ -2087,8 +2012,8 @@ async function guiEmail() {
 
 .ss-action-btn--excel {
   background: #ffffff;
-  border-color: #dce3ec;
-  color: #18242f;
+  border-color: #e2e8f0;
+  color: var(--fs-text, #18242f);
 }
 
 .ss-action-btn--excel:hover:not(:disabled) {
@@ -2098,92 +2023,61 @@ async function guiEmail() {
 }
 
 .ss-action-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-/* ----- 2. Filter & Period Card ----- */
-.ss-filter-card {
-  padding: 1.35rem 1.5rem;
-  border-radius: 18px;
-}
-
-.ss-mode-row {
+/* ----- Email Form (mở ngay dưới topbar) ----- */
+.ss-email {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.85rem;
-  padding-bottom: 1.15rem;
-  margin-bottom: 1.15rem;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.ss-mode-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.ss-mode-pill {
-  height: 42px;
-  padding: 0 1.25rem;
-  border-radius: 999px;
-  border: 1px solid #dce3ec;
-  background: #ffffff;
-  color: #475569;
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: all 0.15s ease;
-}
-
-.ss-mode-pill:hover:not(.is-active) {
-  background: #f8fafc;
-  border-color: #0977ec;
-  color: #0977ec;
-}
-
-.ss-mode-pill.is-active {
-  background: #e7f1fd;
-  border-color: #c9def9;
-  color: #0977ec;
-  font-weight: 700;
-}
-
-.ss-filter-select {
-  height: 42px;
-  min-width: 200px;
-  padding: 0.5rem 2.25rem 0.5rem 0.95rem;
-  font-size: 0.9rem;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.95rem;
+  background: #f8fbff;
+  border: 1px solid #dbeafe;
   border-radius: 12px;
-  border-color: #dce3ec;
-  color: #18242f;
-}
-
-.ss-brand-select {
-  width: auto;
 }
 
 .ss-filter-input {
-  height: 46px;
-  padding: 0.5rem 0.95rem;
-  font-size: 0.9rem;
-  border-radius: 12px;
+  height: 38px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.84rem;
+  border-radius: 10px;
   border-color: #dce3ec;
-  color: #18242f;
+  color: var(--fs-text, #18242f);
+}
+
+.ss-email-input {
+  width: 250px;
+  color: var(--fs-text, #18242f);
+}
+
+.ss-email-note {
+  width: 260px;
+  color: var(--fs-text, #18242f);
+  flex: 1 1 220px;
+}
+
+.ss-email .ad-btn {
+  height: 38px;
+  padding: 0 1rem;
+  border-radius: 10px;
+  font-size: 0.83rem;
 }
 
 .ss-reset-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  height: 46px;
-  padding: 0 1.15rem;
-  border-radius: 12px;
+  gap: 0.4rem;
+  height: 38px;
+  padding: 0 0.95rem;
+  border-radius: 10px;
   border: 1px solid #dce3ec;
   background: #ffffff;
-  color: #18242f;
-  font-size: 0.88rem;
+  color: #475569;
+  font-size: 0.83rem;
   font-weight: 600;
 }
 
@@ -2193,16 +2087,82 @@ async function guiEmail() {
   color: #0977ec;
 }
 
-/* ----- Period Box ----- */
+.ss-email-close {
+  border-color: #dce3ec;
+  background: #ffffff;
+  color: #475569;
+}
+
+/* ----- Chế độ & chọn thương hiệu ----- */
+.ss-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.9rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.ss-mode-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.22rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 0.2rem;
+  border-radius: 10px;
+}
+
+.ss-mode-pill {
+  height: 32px;
+  padding: 0 0.9rem;
+  border-radius: 7px;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 0.81rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ss-mode-pill:hover:not(.is-active) {
+  color: #0977ec;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.ss-mode-pill.is-active {
+  background: #ffffff;
+  color: #0977ec;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.ss-filter-select {
+  height: 38px;
+  min-width: 195px;
+  padding: 0.35rem 2.1rem 0.35rem 0.85rem;
+  font-size: 0.84rem;
+  border-radius: 10px;
+  border-color: #dce3ec;
+  color: var(--fs-text, #18242f);
+}
+
+.ss-brand-select {
+  width: auto;
+}
+
+/* ----- Khung chọn các kỳ ----- */
 .ss-period-box {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   width: 100%;
-  background: #f8fbff;
-  border: 1px solid #dbeafe;
-  border-radius: 16px;
-  padding: 1.2rem 1.35rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 0.9rem 1.05rem;
 }
 
 .ss-period-box-head {
@@ -2210,36 +2170,38 @@ async function guiEmail() {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.85rem;
+  gap: 0.75rem;
   width: 100%;
 }
 
 .ss-count-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.34rem 0.9rem;
+  padding: 0.22rem 0.68rem;
   border-radius: 999px;
   background: #e7f1fd;
-  border: 1px solid #c9def9;
+  border: 1px solid #d5e5fb;
   color: #0977ec;
-  font-size: 0.86rem;
+  font-size: 0.76rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .ss-add-period-btn {
-  height: 42px;
-  padding: 0 1.15rem;
-  border-radius: 10px;
+  height: 34px;
+  padding: 0 0.9rem;
+  border-radius: 9px;
   border: 1px solid #c9def9;
-  background: #e7f1fd;
+  background: #ffffff;
   color: #0977ec;
-  font-size: 0.88rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 600;
   margin-left: auto;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .ss-add-period-btn:hover:not(:disabled) {
-  background: #dbeafe;
+  background: #e7f1fd;
   border-color: #93c5fd;
   color: #075fc0;
 }
@@ -2252,7 +2214,7 @@ async function guiEmail() {
 .ss-period-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.9rem;
+  gap: 0.7rem;
   width: 100%;
 }
 
@@ -2260,68 +2222,70 @@ async function guiEmail() {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.55rem;
   background: #ffffff;
-  border: 1px solid #dce3ec;
-  border-radius: 12px;
-  padding: 0.85rem 1.1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  padding: 0.6rem 0.85rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
 .ss-ky-tag {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.36rem 0.85rem;
-  border-radius: 8px;
+  padding: 0.22rem 0.62rem;
+  border-radius: 7px;
   background: #e7f1fd;
-  border: 1px solid #c9def9;
+  border: 1px solid #d5e5fb;
   color: #0977ec;
-  font-size: 0.86rem;
+  font-size: 0.76rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .ss-period-lbl {
-  font-size: 0.9rem;
-  color: #000000;
+  font-size: 0.8rem;
+  color: #64748b;
   font-weight: 600;
   margin: 0;
 }
 
 .ss-period-select {
-  height: 44px;
-  padding: 0.4rem 2.1rem 0.4rem 0.85rem;
-  font-size: 0.9rem;
+  height: 36px;
+  padding: 0.25rem 2rem 0.25rem 0.72rem;
+  font-size: 0.83rem;
   font-weight: 600;
-  color: #000000;
-  border-radius: 10px;
+  color: var(--fs-text, #18242f);
+  border-radius: 9px;
   border-color: #dce3ec;
   width: auto;
 }
 
 .ss-period-select--month {
-  min-width: 145px;
-  flex: 1 1 145px;
+  min-width: 130px;
+  flex: 1 1 130px;
 }
 
 .ss-period-select--year {
-  min-width: 105px;
+  min-width: 92px;
 }
 
 .ss-period-date {
-  padding-right: 0.65rem;
-  min-width: 145px;
-  flex: 1 1 145px;
+  padding-right: 0.6rem;
+  min-width: 138px;
+  flex: 1 1 138px;
 }
 
 .ss-remove-period-btn {
   margin-left: auto;
-  height: 40px;
-  padding: 0 0.9rem;
-  border-radius: 10px;
+  height: 34px;
+  padding: 0 0.72rem;
+  border-radius: 9px;
   border: 1px solid #fecdd3;
   background: #fff1f2;
   color: #e11d48;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
@@ -2334,85 +2298,102 @@ async function guiEmail() {
   cursor: not-allowed;
 }
 
-/* ----- Email Form (mở ngay dưới thanh tiêu đề) ----- */
-.ss-email {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.95rem 1.15rem;
-  margin-bottom: 1.15rem;
-  background: #f8fbff;
-  border: 1px solid #dbeafe;
-  border-radius: 12px;
-}
-
-.ss-email-input {
-  width: 260px;
-  padding-left: 0.95rem;
-  color: #000000;
-}
-
-.ss-email-note {
-  width: 280px;
-  padding-left: 0.95rem;
-  color: #000000;
-  flex: 1 1 240px;
-}
-
-.ss-email-close {
-  border-color: #dce3ec;
-  background: #ffffff;
-  color: #475569;
-}
-
 /* ----- 2. Dòng "Đang so sánh ..." ----- */
 .ss-context {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.85rem 1.15rem;
-  border-radius: 14px;
-  background: #f1f7fe;
+  gap: 0.35rem;
+  padding: 0.72rem 1.1rem;
+  border-radius: 12px;
+  background: #f0f7ff;
   border: 1px solid #c9def9;
-  color: #000000;
+  color: var(--fs-text, #18242f);
 }
 
 .ss-context-main {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.75rem;
-  font-size: 0.98rem;
+  gap: 0.35rem 0.65rem;
+  font-size: 0.9rem;
 }
 
 .ss-context-loc {
-  padding: 0.18rem 0.65rem;
+  padding: 0.14rem 0.6rem;
   border-radius: 999px;
   background: #ffffff;
-  border: 1px solid #93c5fd;
-  font-size: 0.84rem;
+  border: 1px solid #bfdbfe;
+  color: #075fc0;
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
 .ss-context-warn {
-  font-size: 0.88rem;
-  color: #9a3412;
+  font-size: 0.81rem;
+  color: #b45309;
 }
 
-/* ----- 3. Thẻ tóm tắt ----- */
+/* ----- 3. Thẻ tóm tắt (2 hàng x 3 thẻ cân đối) ----- */
 .ss-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
 }
 
 .ss-kpi-box {
-  padding: 1.2rem 1.25rem;
+  padding: 0.95rem 1.15rem;
   border-radius: 16px;
+  border: 1px solid #e6eaf0;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.42rem;
+}
+
+.ss-kpi-box.is-blue { border-top: 3px solid #0977ec; }
+.ss-kpi-box.is-green { border-top: 3px solid #16a34a; }
+.ss-kpi-box.is-sky { border-top: 3px solid #0284c7; }
+.ss-kpi-box.is-indigo { border-top: 3px solid #4f46e5; }
+.ss-kpi-box.is-amber { border-top: 3px solid #d97706; }
+.ss-kpi-box.is-rose { border-top: 3px solid #e11d48; }
+
+.ss-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.ss-kpi-lbl {
+  font-size: 0.81rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.ss-kpi-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.95rem;
+  flex: none;
+}
+
+.ss-kpi-icon.is-blue { background: #e7f1fd; color: #0977ec; }
+.ss-kpi-icon.is-green { background: #dcfce7; color: #16a34a; }
+.ss-kpi-icon.is-sky { background: #e0f2fe; color: #0284c7; }
+.ss-kpi-icon.is-indigo { background: #eef2ff; color: #4f46e5; }
+.ss-kpi-icon.is-amber { background: #fef3c7; color: #d97706; }
+.ss-kpi-icon.is-rose { background: #ffe4e6; color: #e11d48; }
+
+.ss-kpi-val {
+  font-size: 1.38rem;
+  font-weight: 700;
+  color: var(--fs-text, #18242f);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
 }
 
 .ss-kpi-cmp {
@@ -2420,46 +2401,15 @@ async function guiEmail() {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem 0.5rem;
-}
-
-.ss-kpi-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.15rem;
-  margin-bottom: 0.3rem;
-}
-
-.ss-kpi-icon.is-green { background: #ecfdf5; color: #16a34a; }
-.ss-kpi-icon.is-blue { background: #eff6ff; color: #2563eb; }
-.ss-kpi-icon.is-teal { background: #f0fdfa; color: #0d9488; }
-.ss-kpi-icon.is-purple { background: #f5f3ff; color: #7c3aed; }
-.ss-kpi-icon.is-pink { background: #fdf2f8; color: #db2777; }
-.ss-kpi-icon.is-orange { background: #fff7ed; color: #ea580c; }
-
-.ss-kpi-val {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #000000;
-  line-height: 1.25;
-}
-
-.ss-val-pos { color: #16a34a; }
-.ss-val-neg { color: #dc2626; }
-
-.ss-kpi-lbl {
-  font-size: 0.85rem;
-  color: #000000;
-  font-weight: 600;
+  margin-top: 0.1rem;
 }
 
 /* ----- 4. Section Cards & Chart ----- */
 .ss-section-card {
-  padding: 1.35rem 1.5rem;
-  border-radius: 18px;
+  padding: 1.15rem 1.35rem;
+  border-radius: 16px;
+  border: 1px solid #e6eaf0;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
 }
 
 .ss-section-head {
@@ -2467,35 +2417,37 @@ async function guiEmail() {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.85rem;
-  margin-bottom: 1.1rem;
+  gap: 0.65rem;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .ss-section-title {
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 700;
-  color: #000000;
+  color: var(--fs-text, #18242f);
 }
 
 .ss-chart-legend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 1.15rem;
-  font-size: 0.88rem;
-  color: #000000;
+  gap: 1rem;
+  font-size: 0.81rem;
+  color: #475569;
   font-weight: 600;
 }
 
 .ss-legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.38rem;
 }
 
 .ss-legend-sq {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 3px;
   display: inline-block;
 }
@@ -2525,7 +2477,7 @@ async function guiEmail() {
 }
 
 .ss-combo-svg {
-  max-height: 340px;
+  max-height: 335px;
   display: block;
 }
 
@@ -2537,78 +2489,106 @@ async function guiEmail() {
   position: absolute;
   top: 8px;
   transform: translateX(-50%);
-  background: #1e293b;
+  background: rgba(24, 36, 47, 0.96);
   color: #f8fafc;
-  border-radius: 12px;
-  padding: 0.75rem 0.95rem;
-  min-width: 230px;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.25);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  min-width: 220px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.24);
   pointer-events: none;
   z-index: 5;
-  font-size: 0.82rem;
+  font-size: 0.79rem;
 }
 
 .ss-tt-title {
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   color: #ffffff;
 }
 
 .ss-tt-range {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: #94a3b8;
-  padding-bottom: 0.45rem;
-  margin-bottom: 0.45rem;
+  padding-bottom: 0.38rem;
+  margin-bottom: 0.38rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .ss-tt-row {
   display: flex;
   justify-content: space-between;
-  gap: 0.85rem;
-  margin-top: 0.25rem;
+  gap: 0.8rem;
+  margin-top: 0.22rem;
+  color: #cbd5e1;
 }
 
-/* ----- 5 & 6. Tables (Header nền xanh nhạt dịu #e7f1fd chữ đen) ----- */
+.ss-tt-row strong {
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- 5 & 6. Tables ----- */
 .ss-unit-pill {
-  padding: 0.34rem 0.85rem;
-  border-radius: 8px;
-  background: #e7f1fd;
-  border: 1px solid #93c5fd;
-  color: #000000;
-  font-size: 0.84rem;
-  font-weight: 700;
+  padding: 0.22rem 0.68rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.ss-section-card .ad-table-wrap {
+  border-radius: 12px;
+  border: 1px solid #eef2f7;
+  overflow: hidden;
 }
 
 .ss-compare-table {
-  font-size: 0.92rem;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .ss-compare-table thead th {
-  background: #e7f1fd !important;
-  color: #000000 !important;
-  font-size: 0.82rem;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.03em;
-  padding: 0.9rem 0.95rem;
-  border-bottom: 1px solid #93c5fd;
+  padding: 0.72rem 0.88rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ss-compare-table thead th.ss-col-ky {
+  background: #eff6ff !important;
+  color: #075fc0 !important;
 }
 
 .ss-compare-table tbody td {
-  padding: 0.95rem;
+  padding: 0.75rem 0.88rem;
   vertical-align: middle;
-  color: #000000;
-  font-size: 0.92rem;
+  color: var(--fs-text, #18242f);
+  font-size: 0.86rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ss-compare-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ss-compare-table tbody tr:hover td {
+  background: #f8fbff;
 }
 
 .ss-trend-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.3rem 0.75rem;
+  gap: 0.22rem;
+  padding: 0.22rem 0.62rem;
   border-radius: 999px;
-  font-size: 0.83rem;
+  font-size: 0.77rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .ss-trend-pill.is-tot {
@@ -2618,16 +2598,17 @@ async function guiEmail() {
 
 .ss-trend-pill.is-xau {
   background: #ffe4e6;
-  color: #e11d48;
+  color: #be123c;
 }
 
 .ss-trend-pill.is-flat {
-  background: #e7f1fd;
-  color: #000000;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .ss-delta {
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .ss-delta.is-tot,
@@ -2642,121 +2623,51 @@ async function guiEmail() {
 
 .ss-delta.is-flat,
 .ss-cell-sub.is-flat {
-  color: #475569;
+  color: #64748b;
 }
 
 .ss-cell-sub {
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 600;
   margin-top: 2px;
 }
 
 .ss-table-note {
   margin-top: 0.75rem;
-  font-size: 0.84rem;
-  color: #475569;
-}
-
-/* ----- 4. Doanh thu thay đổi do đâu ----- */
-.ss-why-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
-}
-
-.ss-why-item {
-  padding: 0.9rem 1rem;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  min-width: 0;
-}
-
-.ss-why-lbl {
-  font-size: 0.84rem;
-  font-weight: 700;
-  color: #000000;
-}
-
-.ss-why-detail {
-  font-size: 0.88rem;
-  color: #334155;
-}
-
-.ss-why-val {
-  font-size: 1.1rem;
-}
-
-.ss-why-sp {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  font-size: 0.86rem;
-}
-
-.ss-why-sp-ten {
-  color: #000000;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ss-why-empty {
-  font-size: 0.86rem;
-  color: #94a3b8;
-}
-
-.ss-sp-thumb {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  background: #e7f1fd;
-  border: 1px solid #93c5fd;
-  color: #000000;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: #64748b;
 }
 
 .ss-brand-pill {
   display: inline-block;
-  padding: 0.25rem 0.7rem;
-  border-radius: 8px;
-  background: #e7f1fd;
-  border: 1px solid #c9def9;
-  color: #000000;
-  font-size: 0.83rem;
+  padding: 0.2rem 0.62rem;
+  border-radius: 7px;
+  background: #f0f7ff;
+  border: 1px solid #d5e5fb;
+  color: #075fc0;
+  font-size: 0.78rem;
   font-weight: 600;
-}
-
-.ss-col-ky {
-  background: #e7f1fd !important;
-  color: #000000 !important;
 }
 
 .ss-cell-ky {
   background: transparent;
-  color: #000000;
+  color: var(--fs-text, #18242f);
 }
 
-.ss-tot { color: #15803d; font-weight: 700; }
-.ss-xau { color: #be123c; font-weight: 700; }
-
-@media (max-width: 1199.98px) {
-  .ss-why-grid {
+@media (max-width: 991.98px) {
+  .ss-kpi-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 767.98px) {
-  .ss-why-grid {
+  .ss-period-grid {
     grid-template-columns: 1fr;
   }
-  .ss-period-grid {
+}
+
+@media (max-width: 575.98px) {
+  .ss-kpi-strip {
     grid-template-columns: 1fr;
   }
 }

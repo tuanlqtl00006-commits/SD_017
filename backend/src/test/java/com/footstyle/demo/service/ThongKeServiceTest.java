@@ -205,6 +205,51 @@ class ThongKeServiceTest {
     }
 
     @Test
+    void theoPhuongThuc_khongTinhPhiShip_vaKhopTongDoanhThuTheoGioVaCa() {
+        HoaDon tm = m.hoaDon(null, 1_000_000, HoaDon.HOAN_THANH, "PT01", 1_000_000);
+        tm.setNgayTao(HOM_NAY.atTime(8, 0));
+
+        // Đơn COD giao hàng (phí ship 30k): lịch sử thanh toán không ghi phương thức (như dữ liệu mẫu) và có phương thức đều chỉ lấy DoanhThu
+        HoaDon codCu = m.hoaDon(null, 6_270_000, HoaDon.HOAN_THANH);
+        codCu.setIdPhuongThucThanhToan(3);
+        codCu.setPhiVanChuyen(BigDecimal.valueOf(30_000));
+        codCu.setNgayTao(HOM_NAY.atTime(9, 0));
+        LichSuThanhToan ttCodCu = new LichSuThanhToan();
+        ttCodCu.setHoaDon(codCu);
+        ttCodCu.setSoTien(BigDecimal.valueOf(6_270_000));
+        ttCodCu.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
+        m.thanhToans.add(ttCodCu);
+
+        HoaDon codCoPt = m.hoaDon(null, 530_000, HoaDon.HOAN_THANH, "PT03", 530_000);
+        codCoPt.setIdPhuongThucThanhToan(3);
+        codCoPt.setPhiVanChuyen(BigDecimal.valueOf(30_000));
+        codCoPt.setNgayTao(HOM_NAY.atTime(10, 0));
+
+        // Đơn giao hàng tại quầy tách tiền mặt + chuyển khoản có phí ship 30k -> phân bổ theo tỷ lệ sao cho tổng đúng 2.970.000
+        HoaDon giaoKetHop = m.hoaDon(null, 3_000_000, HoaDon.HOAN_THANH, "PT01", 1_000_000, "PT02", 2_000_000);
+        giaoKetHop.setPhiVanChuyen(BigDecimal.valueOf(30_000));
+        giaoKetHop.setNgayTao(HOM_NAY.atTime(13, 0));
+
+        Map<String, Object> kq = service.tongHop(null, null, null);
+        List<Map<String, Object>> pt = ds(kq, "theoPhuongThuc");
+        long tongPt = pt.stream().mapToLong(x -> ((Number) x.get("soTien")).longValue()).sum();
+        long tongGio = ds(kq, "theoGio").stream().mapToLong(x -> ((Number) x.get("doanhThu")).longValue()).sum();
+        long tongCa = ds(kq, "theoCa").stream().mapToLong(x -> ((Number) x.get("doanhThu")).longValue()).sum();
+
+        long expected = 1_000_000L + 6_240_000L + 500_000L + 2_970_000L;
+        assertEquals(expected, tongPt);
+        assertEquals(tongGio, tongPt);
+        assertEquals(tongCa, tongPt);
+        Map<String, Object> cod = pt.stream().filter(x -> "PT03".equals(x.get("ma"))).findFirst().orElseThrow();
+        assertEquals(6_740_000L, cod.get("soTien"));
+        assertEquals(2L, cod.get("soDon"));
+        Map<String, Object> tmPt = pt.stream().filter(x -> "PT01".equals(x.get("ma"))).findFirst().orElseThrow();
+        assertEquals(1_990_000L, tmPt.get("soTien"));
+        Map<String, Object> ckPt = pt.stream().filter(x -> "PT02".equals(x.get("ma"))).findFirst().orElseThrow();
+        assertEquals(1_980_000L, ckPt.get("soTien"));
+    }
+
+    @Test
     void theoGio_vaTheoCa() {
         HoaDon sang = m.hoaDon(null, 1_000_000, HoaDon.HOAN_THANH);
         sang.setNgayTao(HOM_NAY.atTime(7, 0));

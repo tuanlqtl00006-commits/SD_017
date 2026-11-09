@@ -1,9 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { sanPhamService, bienTheService } from '../../services/sanPhamService'
 import { cuaHangService } from '../../services/cuaHangService'
-import { dotGiamGiaService } from '../../services/dotGiamGiaService'
 import { useCartStore } from '../../stores/cart'
 import { useAuth } from '../../composables/useAuth'
 import { formatMoney } from '../../utils/format'
@@ -18,7 +16,7 @@ const products = ref([])
 const variants = ref([])
 const discounts = ref({}) // { idBienThe: phanTram }
 
-// 1. DỮ LIỆU BANNER SLIDER
+// 1. DỮ LIỆU BANNER SLIDER (Tone xanh dương đồng điệu)
 const currentBannerIndex = ref(0)
 const bannerList = [
   {
@@ -28,7 +26,7 @@ const bannerList = [
     desc: 'Công nghệ Power Cushion+ độc quyền hỗ trợ bật nhảy tối đa, giảm chấn thương hoàn hảo cho từng bước di chuyển trên sân cầu.',
     btnText: 'KHÁM PHÁ NGAY',
     btnLink: '/shop/san-pham',
-    bgGradient: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #38bdf8 100%)',
+    bgGradient: 'linear-gradient(135deg, #0c4a6e 0%, #0284c7 50%, #38bdf8 100%)',
     badgeClass: 'bg-warning text-dark',
   },
   {
@@ -38,8 +36,8 @@ const bannerList = [
     desc: 'Vũ khí tối thượng của số 1 thế giới Viktor Axelsen. Điểm cân bằng nặng đầu, đũa siêu mỏng tạo ra những cú đập cầu cắm sân không thể cản phá.',
     btnText: 'MUA NGAY - TẶNG CƯỚC BG65',
     btnLink: '/shop/san-pham?search=Astrox',
-    bgGradient: 'linear-gradient(135deg, #831843 0%, #be123c 50%, #f43f5e 100%)',
-    badgeClass: 'bg-light text-danger',
+    bgGradient: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #60a5fa 100%)',
+    badgeClass: 'bg-warning text-dark',
   },
   {
     tag: 'BỘ SƯU TẬP FOOTSTYLE PRO',
@@ -48,7 +46,7 @@ const bannerList = [
     desc: 'Chất liệu vải Cool-Dry thoáng khí kháng khuẩn, giày công nghệ chống lật cổ chân và các phụ kiện hỗ trợ tối đa cho lông thủ.',
     btnText: 'XEM BỘ SƯU TẬP',
     btnLink: '/shop/san-pham?khuyenMai=1',
-    bgGradient: 'linear-gradient(135deg, #064e3b 0%, #059669 50%, #10b981 100%)',
+    bgGradient: 'linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #7dd3fc 100%)',
     badgeClass: 'bg-warning text-dark',
   },
 ]
@@ -65,26 +63,7 @@ function setBanner(index) {
   currentBannerIndex.value = index
 }
 
-// 2. ĐẾM NGƯỢC FLASH SALE (Thời gian thực)
-const countdownHours = ref('04')
-const countdownMinutes = ref('38')
-const countdownSeconds = ref('52')
-let countdownTimer = null
-
-function updateCountdown() {
-  const now = new Date()
-  const endOfDay = new Date()
-  endOfDay.setHours(23, 59, 59, 999)
-  const diff = Math.max(0, endOfDay - now)
-  const h = Math.floor(diff / (1000 * 60 * 60))
-  const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-  const s = Math.floor((diff % (1000 * 60)) / 1000)
-  countdownHours.value = String(h).padStart(2, '0')
-  countdownMinutes.value = String(m).padStart(2, '0')
-  countdownSeconds.value = String(s).padStart(2, '0')
-}
-
-// 3. TOAST THÔNG BÁO THÊM GIỎ HÀNG
+// 2. TOAST THÔNG BÁO THÊM GIỎ HÀNG
 const toastVisible = ref(false)
 const toastText = ref('')
 let toastTimer = null
@@ -98,7 +77,7 @@ function showNotification(msg) {
   }, 3000)
 }
 
-// 4. DANH MỤC TABS Ở "SẢN PHẨM MỚI" (Dữ liệu thật từ CSDL)
+// 3. DANH MỤC TABS Ở "SẢN PHẨM MỚI" (Dữ liệu thật từ CSDL)
 const homeCategories = ref([
   { id: 'ALL', ten: 'Tất cả' },
   { id: 1, ten: 'Vợt Cầu Lông' },
@@ -110,25 +89,8 @@ const homeCategories = ref([
 ])
 const selectedCatTab = ref('ALL')
 const currentSlide = ref(0)
-const itemsPerSlide = ref(5)
 
-// 6. FLASH SALE ITEMS (lấy từ sản phẩm thật)
-const flashSaleList = computed(() => {
-  const withDiscount = enrichedProducts.value.filter((p) => p.hasDiscount && p.minPrice > 0)
-  const list = withDiscount.length > 0 ? withDiscount : enrichedProducts.value.filter((p) => p.minPrice > 0)
-  return list.slice(0, 4).map((p, idx) => ({
-    id: p.id,
-    ten: p.ten,
-    giaFlash: p.minPrice,
-    giaGoc: p.originalPrice || p.minPrice,
-    giam: p.maxDiscountPercent || 10,
-    daBan: 15 + idx * 8,
-    tongKho: 50,
-    anh: p.anhChinh || '/logo.png',
-  }))
-})
-
-// 7. BEST SELLERS LIST (Top bán chạy từ sản phẩm thật)
+// 4. BEST SELLERS LIST (Top 4 bán chạy)
 const bestSellerList = computed(() => {
   return enrichedProducts.value.slice(0, 4).map((p, idx) => ({
     rank: idx + 1,
@@ -142,63 +104,7 @@ const bestSellerList = computed(() => {
   }))
 })
 
-// 8. TIN TỨC & CẨM NANG CẦU LÔNG
-const badmintonNews = [
-  {
-    id: 1,
-    title: 'Bí quyết chọn vợt cầu lông chuẩn theo lối đánh Công - Thủ toàn diện',
-    date: '20/10/2026',
-    author: 'HLV FootStyle',
-    desc: 'Lối chơi công thủ toàn diện đòi hỏi cây vợt có điểm cân bằng vừa phải (290-295mm), đũa vợt có độ dẻo trung bình để linh hoạt chuyển đổi giữa smash và thủ cầu.',
-    tag: 'CẨM NANG CHỌN VỢT',
-  },
-  {
-    id: 2,
-    title: 'Top 5 đôi giày cầu lông bảo vệ cổ chân và giảm chấn tốt nhất 2026',
-    date: '18/10/2026',
-    author: 'FootStyle Lab',
-    desc: 'Khám phá công nghệ đệm Power Cushion+ và thanh chống xoắn TPU cao cấp giúp ngăn ngừa chấn thương lật cổ chân phổ biến khi bật nhảy đập cầu.',
-    tag: 'TƯ VẤN GIÀY',
-  },
-  {
-    id: 3,
-    title: 'Bao lâu nên căng cước vợt một lần và mức căng bao nhiêu kg là hợp lý?',
-    date: '15/10/2026',
-    author: 'Chuyên gia Đan Cước',
-    desc: 'Người mới chơi nên căng từ 9.5kg - 10.5kg (21-23 lbs) để trợ lực tốt nhất. Khám phá cách nhận biết cước đã bị giãn chùng và mất lực đẩy.',
-    tag: 'KỸ THUẬT CĂNG CƯỚC',
-  },
-]
-
-// 9. ĐÁNH GIÁ KHÁCH HÀNG (Feedback)
-const customerReviews = [
-  {
-    id: 1,
-    name: 'Nguyễn Văn An',
-    role: 'CLB Cầu Lông Cầu Giấy - Hà Nội',
-    rating: 5,
-    comment:
-      'Mình mua cây Astrox 100ZZ tại FootStyle, shop đan cước BG65 11kg rất chuẩn tay. Đập cầu đầm và cắm sân cực kỳ. Đóng gói cẩn thận 2 lớp chống sốc.',
-  },
-  {
-    id: 2,
-    name: 'Trần Thị Thu Thảo',
-    role: 'VĐV Phong Trào - TP.HCM',
-    rating: 5,
-    comment:
-      'Đôi giày Yonex Eclipsion Z3 form ôm chân, đế bám sân gỗ rất tốt. Giao hàng hỏa tốc trong 2 tiếng tại nội thành, nhân viên tư vấn chọn size rất chuẩn!',
-  },
-  {
-    id: 3,
-    name: 'Lê Hoàng Long',
-    role: 'CLB Cầu Lông Sông Hàn - Đà Nẵng',
-    rating: 5,
-    comment:
-      'Hàng chính hãng 100%, có tem cào chống giả và bảo hành điện tử rõ ràng. Rất an tâm khi mua online tại FootStyle. Sẽ tiếp tục ủng hộ shop!',
-  },
-]
-
-// 10. THƯƠNG HIỆU ĐỐI TÁC
+// 5. THƯƠNG HIỆU ĐỐI TÁC
 const brandLogos = [
   { name: 'YONEX', slogan: 'Far beyond ordinary' },
   { name: 'LINING', slogan: 'Anything is possible' },
@@ -209,11 +115,6 @@ const brandLogos = [
 ]
 
 onMounted(async () => {
-  // Chạy đồng hồ flash sale
-  updateCountdown()
-  countdownTimer = setInterval(updateCountdown, 1000)
-
-  // Chạy tự động chuyển banner
   bannerTimer = setInterval(nextBanner, 5000)
 
   try {
@@ -242,7 +143,7 @@ onMounted(async () => {
   }
 })
 
-// Giá / tồn kho / sản phẩm mới đổi ở quầy hoặc trang quản trị: cập nhật ngay, không cần F5
+// Giá / tồn kho / sản phẩm mới cập nhật ngầm
 async function taiNgam() {
   if (loading.value) return
   const ds = await cuaHangService.getDanhSachSanPham()
@@ -251,7 +152,6 @@ async function taiNgam() {
 useAutoRefresh(taiNgam, 3000, { chuKyMs: 30_000, chuDe: ['san-pham', 'ton-kho', 'giam-gia'] })
 
 onUnmounted(() => {
-  if (countdownTimer) clearInterval(countdownTimer)
   if (bannerTimer) clearInterval(bannerTimer)
   if (toastTimer) clearTimeout(toastTimer)
 })
@@ -299,7 +199,6 @@ const enrichedProducts = computed(() => {
       }
 
       const ten = sp.ten || sp.tenSanPham || 'Sản phẩm'
-      const tenLower = ten.toLowerCase()
 
       return {
         ...sp,
@@ -320,7 +219,7 @@ const enrichedProducts = computed(() => {
     })
 })
 
-// Lọc sản phẩm theo tab danh mục thật
+// Lọc sản phẩm theo tab danh mục
 const tabFilteredProducts = computed(() => {
   if (selectedCatTab.value === 'ALL') return enrichedProducts.value
   return enrichedProducts.value.filter((p) => {
@@ -335,28 +234,38 @@ const tabFilteredProducts = computed(() => {
   })
 })
 
-// Sản phẩm hiển thị trong khung carousel
-const carouselDisplayList = computed(() => {
+// Sản phẩm nổi bật (trái) và danh sách phụ (phải)
+const spmFeatured = computed(() => {
   const list = tabFilteredProducts.value
-  if (list.length === 0) return []
-  const start = currentSlide.value * itemsPerSlide.value
-  return list.slice(start, start + itemsPerSlide.value)
+  if (list.length === 0) return null
+  return list[currentSlide.value] || list[0]
 })
 
+const spmSideList = computed(() => {
+  const list = tabFilteredProducts.value
+  if (list.length === 0) return []
+  return list.slice(0, 5)
+})
+
+function selectFeaturedProduct(product) {
+  const idx = tabFilteredProducts.value.findIndex((p) => p.id === product.id)
+  if (idx !== -1) {
+    currentSlide.value = idx
+  }
+}
+
 function prevSlide() {
+  if (tabFilteredProducts.value.length === 0) return
   if (currentSlide.value > 0) {
     currentSlide.value--
   } else {
-    const maxPage =
-      Math.ceil(tabFilteredProducts.value.length / itemsPerSlide.value) - 1
-    currentSlide.value = Math.max(0, maxPage)
+    currentSlide.value = Math.max(0, tabFilteredProducts.value.length - 1)
   }
 }
 
 function nextSlide() {
-  const maxPage =
-    Math.ceil(tabFilteredProducts.value.length / itemsPerSlide.value) - 1
-  if (currentSlide.value < maxPage) {
+  if (tabFilteredProducts.value.length === 0) return
+  if (currentSlide.value < tabFilteredProducts.value.length - 1) {
     currentSlide.value++
   } else {
     currentSlide.value = 0
@@ -364,6 +273,7 @@ function nextSlide() {
 }
 
 function goToDetail(id) {
+  if (!id) return
   router.push(`/shop/san-pham/${id}`)
 }
 
@@ -371,15 +281,15 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-// Thêm nhanh vào giỏ hàng: lấy biến thể còn hàng có giá thấp nhất (giỏ hàng / đặt hàng cần đúng id biến thể và tên sản phẩm)
+// Thêm nhanh vào giỏ hàng
 function quickAddToCart(item, event) {
   if (event) event.stopPropagation()
+  if (!item) return
 
   const bt = (item.bienThe || [])
     .filter((b) => Number(b.soLuongTon) > 0)
     .sort((a, b) => Number(a.giaBan) - Number(b.giaBan))[0]
   if (!bt) {
-    // không có danh sách biến thể (hoặc đã hết hàng): mở trang chi tiết để khách chọn
     goToDetail(item.id)
     return
   }
@@ -421,11 +331,11 @@ function quickAddToCart(item, event) {
       </div>
     </transition>
 
-    <!-- 1. HERO SLIDER BANNER (Tự động chạy, có nút điều hướng & dots) -->
+    <!-- 1. HERO SLIDER BANNER (Tone Xanh Đậm Đà Đồng Bộ) -->
     <section class="vnb-hero-banner mb-4">
       <div
         class="position-relative overflow-hidden transition-bg"
-        :style="{ background: bannerList[currentBannerIndex].bgGradient, minHeight: '420px' }"
+        :style="{ background: bannerList[currentBannerIndex].bgGradient, minHeight: '400px' }"
       >
         <div class="vnb-container py-5">
           <div class="row align-items-center g-4">
@@ -466,7 +376,7 @@ function quickAddToCart(item, event) {
                   src="/logo.png"
                   alt="Banner FootStyle"
                   class="img-fluid rounded-4 shadow-lg p-3 bg-white hero-banner-img"
-                  style="max-height: 280px; object-fit: contain;"
+                  style="max-height: 270px; object-fit: contain;"
                 />
               </div>
             </div>
@@ -504,181 +414,262 @@ function quickAddToCart(item, event) {
       </div>
     </section>
 
-    <div class="vnb-container">
-      <!-- 3. FLASH SALE - GIỜ VÀNG GIÁ SỐC (Có đồng hồ đếm ngược trực tiếp) -->
-      <section class="mb-5 flash-sale-box p-3 p-md-4 rounded-4 text-white position-relative shadow">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 border-bottom border-light border-opacity-25 pb-3">
-          <div class="d-flex align-items-center gap-2">
-            <span class="flash-icon-badge">⚡</span>
+    <div class="vnb-container vnb-main-content">
+      <!-- 2. SẢN PHẨM BÁN CHẠY NHẤT (Top 4 - Giữ nguyên nút ban đầu & nền xanh dương nhạt) -->
+      <section class="vnb-section mb-4">
+        <div class="vnb-section-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="vnb-header-icon-box">
+              <i class="bi bi-fire text-danger"></i>
+            </div>
             <div>
-              <h3 class="fw-black text-uppercase m-0" style="letter-spacing: 0.5px; font-weight: 900;">
-                GIỜ VÀNG GIÁ SỐC - FLASH SALE
-              </h3>
-              <small class="text-warning fw-bold">ƯU ĐÃI CÓ HẠN - SỐ LƯỢNG GIỚI HẠN</small>
+              <div class="d-flex align-items-center gap-2">
+                <h2 class="vnb-header-title mb-0">Sản Phẩm Bán Chạy Nhất</h2>
+                <span class="badge bg-danger rounded-pill fw-bold px-2 py-1 small">HOT 🔥</span>
+              </div>
+              <p class="vnb-header-subtitle mb-0">Được khách hàng tin dùng & đánh giá cao nhất</p>
             </div>
           </div>
-
-          <!-- Đồng hồ đếm ngược -->
-          <div class="d-flex align-items-center gap-2">
-            <span class="small fw-semibold text-uppercase text-light d-none d-sm-inline">Kết thúc sau:</span>
-            <div class="countdown-digit">{{ countdownHours }}</div>
-            <span class="fw-bold">:</span>
-            <div class="countdown-digit">{{ countdownMinutes }}</div>
-            <span class="fw-bold">:</span>
-            <div class="countdown-digit">{{ countdownSeconds }}</div>
-          </div>
+          <RouterLink to="/shop/san-pham" class="vnb-view-all-link">
+            Xem tất cả <i class="bi bi-arrow-right ms-1"></i>
+          </RouterLink>
         </div>
 
-        <!-- Lưới sản phẩm Flash Sale -->
+        <!-- 4 Card Bán Chạy Đều Đặn, Thanh Lịch -->
         <div class="row g-3">
           <div
-            v-for="deal in flashSaleList"
-            :key="deal.id"
+            v-for="item in bestSellerList"
+            :key="item.id"
             class="col-xl-3 col-md-6"
           >
-            <div class="flash-item-card p-3 rounded-3 bg-white text-dark h-100 d-flex flex-column justify-content-between position-relative">
-              <span class="flash-badge-discount">-{{ deal.giam }}%</span>
-              <div class="text-center py-2">
-                <img :src="deal.anh" :alt="deal.ten" class="img-fluid flash-img mb-2" />
-                <h6 class="fw-bold text-truncate-2 small mb-2" :title="deal.ten" style="height: 2.4rem;">
-                  {{ deal.ten }}
-                </h6>
-                <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
-                  <span class="fw-bold text-danger fs-6">{{ formatMoney(deal.giaFlash) }}</span>
-                  <span class="text-muted text-decoration-line-through small">{{ formatMoney(deal.giaGoc) }}</span>
-                </div>
-
-                <!-- Thanh tiến độ đã bán -->
-                <div class="progress flash-progress mb-2" style="height: 14px;">
-                  <div
-                    class="progress-bar progress-bar-striped progress-bar-animated bg-danger"
-                    role="progressbar"
-                    :style="{ width: `${(deal.daBan / deal.tongKho) * 100}%` }"
-                  ></div>
-                  <small class="flash-progress-text">Đã bán {{ deal.daBan }}/{{ deal.tongKho }}</small>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                class="btn btn-danger btn-sm w-100 fw-bold rounded-pill shadow-sm"
-                @click="goToDetail(deal.id)"
+            <div class="bestseller-card h-100">
+              <!-- Rank badge góc trên trái -->
+              <div
+                class="rank-badge"
+                :class="{
+                  'rank-1': item.rank === 1,
+                  'rank-2': item.rank === 2,
+                  'rank-3': item.rank === 3,
+                  'rank-other': item.rank > 3,
+                }"
               >
-                <i class="bi bi-cart-plus me-1"></i> MUA NGAY
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
+                TOP {{ item.rank }}
+              </div>
 
-      <!-- 4. PHẦN SẢN PHẨM MỚI (Tabs + Carousel Frame) -->
-      <section class="mb-5 spm-section">
-        <!-- Tiêu đề có gạch xanh dưới -->
-        <div class="vnb-section-title-wrap">
-          <h2 class="vnb-section-title">Sản Phẩm Mới</h2>
-          <div class="vnb-title-underline"></div>
-        </div>
-
-        <!-- Các tab danh mục thật từ CSDL -->
-        <div class="vnb-cat-tabs">
-          <button
-            v-for="cat in homeCategories"
-            :key="cat.id"
-            class="vnb-cat-tab"
-            :class="{ active: String(selectedCatTab) === String(cat.id) }"
-            @click="selectedCatTab = cat.id; currentSlide = 0"
-          >
-            {{ cat.ten }}
-          </button>
-        </div>
-
-        <!-- Khung viền xanh dương chứa sản phẩm và mũi tên điều hướng -->
-        <div class="vnb-carousel-frame">
-          <!-- Nút Prev -->
-          <button
-            type="button"
-            class="vnb-arrow-btn vnb-arrow-prev"
-            @click="prevSlide"
-            aria-label="Xem sản phẩm trước"
-          >
-            <i class="bi bi-chevron-left"></i>
-          </button>
-
-          <!-- Nút Next -->
-          <button
-            type="button"
-            class="vnb-arrow-btn vnb-arrow-next"
-            @click="nextSlide"
-            aria-label="Xem sản phẩm kế tiếp"
-          >
-            <i class="bi bi-chevron-right"></i>
-          </button>
-
-          <div v-if="loading" class="text-center py-5">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p class="small text-muted mt-2">Đang tải sản phẩm mới...</p>
-          </div>
-
-          <div v-else-if="carouselDisplayList.length === 0" class="text-center py-5 text-muted small">
-            Không có sản phẩm nào trong danh mục này.
-          </div>
-
-          <!-- Lưới 5 sản phẩm/slide -->
-          <div v-else class="row g-0">
-            <div
-              v-for="item in carouselDisplayList"
-              :key="item.id"
-              class="col-xl-2 col-lg-3 col-md-4 col-6 product-col-flex"
-            >
-              <div class="vnb-product-item spm-card" @click="goToDetail(item.id)">
-                <div class="vnb-img-box spm-img">
-                  <span v-if="item.hasDiscount" class="vnb-badge-discount">-{{ item.maxDiscountPercent }}%</span>
-                  <span class="spm-badge-new">Mới</span>
-                  <img :src="item.anhChinh || '/logo.png'" :alt="item.ten" class="vnb-product-img" />
+              <div class="text-center pt-2">
+                <div class="bestseller-img-wrap mb-2" @click="goToDetail(item.id)">
+                  <img :src="item.anh" :alt="item.ten" class="bestseller-img" />
                 </div>
-                <div class="spm-body">
-                  <div v-if="item.brandName" class="spm-brand">{{ item.brandName }}</div>
-                  <div class="vnb-product-name spm-name" :title="item.ten">{{ item.ten }}</div>
-
-                  <!-- Sao đánh giá -->
-                  <div class="spm-rating">
-                    <i v-for="s in 5" :key="s" class="bi bi-star-fill"></i>
-                    <span>({{ item.soldCount || 100 }}+)</span>
-                  </div>
-
-                  <div class="spm-price-row">
-                    <span class="vnb-product-price">{{ formatMoney(item.minPrice) }}</span>
-                    <span v-if="item.originalPrice > item.minPrice" class="vnb-product-old-price">
-                      {{ formatMoney(item.originalPrice) }}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    class="btn btn-sm mt-auto w-100 quick-add-btn spm-add"
-                    @click="quickAddToCart(item, $event)"
-                  >
-                    <i class="bi bi-cart-plus me-1"></i> Thêm vào giỏ
-                  </button>
+                <div class="bestseller-sold-badge mb-2">
+                  <i class="bi bi-bag-check-fill me-1"></i>
+                  <span>{{ item.daBan }} lượt mua</span>
                 </div>
+                <h6 class="fw-bold text-truncate-2 small mb-1 bestseller-name" :title="item.ten" @click="goToDetail(item.id)">
+                  {{ item.ten }}
+                </h6>
+                <div class="text-warning small mb-2 d-flex align-items-center justify-content-center gap-1">
+                  <i v-for="s in 5" :key="s" class="bi bi-star-fill"></i>
+                  <span class="text-secondary fw-semibold ms-1">5.0</span>
+                </div>
+                <div class="mb-3 d-flex align-items-baseline justify-content-center gap-2">
+                  <span class="fw-bold text-danger fs-6">{{ formatMoney(item.gia) }}</span>
+                  <span v-if="item.giaGoc && item.giaGoc !== item.gia" class="text-muted text-decoration-line-through small">{{ formatMoney(item.giaGoc) }}</span>
+                </div>
+              </div>
+
+              <!-- Hai nút nguyên bản: Mua ngay (xanh dương đậm) + Xem chi tiết (mắt) -->
+              <div class="d-flex gap-2 mt-auto">
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm flex-grow-1 rounded-pill fw-bold d-flex align-items-center justify-content-center gap-1 shadow-sm"
+                  @click="goToDetail(item.id)"
+                >
+                  <i class="bi bi-cart-plus"></i> Mua ngay
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary btn-sm rounded-pill px-3"
+                  @click="goToDetail(item.id)"
+                  title="Xem chi tiết"
+                >
+                  <i class="bi bi-eye"></i>
+                </button>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 5. PHẦN SALE OFF (3 Banner khuyến mãi hàng ngang) -->
-      <section class="mb-5">
-        <div class="vnb-section-title-wrap">
-          <h2 class="vnb-section-title">Chương Trình Khuyến Mãi</h2>
-          <div class="vnb-title-underline"></div>
+      <!-- 3. PHẦN SẢN PHẨM MỚI (Split Layout Tương Tác Hài Hòa) -->
+      <section class="vnb-section mb-4">
+        <div class="vnb-section-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="vnb-header-icon-box">
+              <i class="bi bi-stars text-primary"></i>
+            </div>
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <h2 class="vnb-header-title mb-0">Khám Phá Sản Phẩm Mới</h2>
+                <span class="badge bg-primary rounded-pill fw-bold px-2 py-1 small">✦ MỚI</span>
+              </div>
+              <p class="vnb-header-subtitle mb-0">Hàng mới về — cập nhật liên tục mỗi ngày</p>
+            </div>
+          </div>
+
+          <!-- Tab danh mục thật từ CSDL -->
+          <div class="spm-tabs-wrap">
+            <button
+              v-for="cat in homeCategories"
+              :key="cat.id"
+              class="spm-tab"
+              :class="{ active: String(selectedCatTab) === String(cat.id) }"
+              @click="selectedCatTab = cat.id; currentSlide = 0"
+            >
+              {{ cat.ten }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div v-if="loading" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="small text-muted mt-2">Đang tải sản phẩm mới...</p>
+        </div>
+
+        <!-- Empty -->
+        <div v-else-if="tabFilteredProducts.length === 0" class="text-center py-5 text-muted small">
+          Không có sản phẩm nào trong danh mục này.
+        </div>
+
+        <!-- Split layout -->
+        <div v-else class="spm-split-layout">
+          <!-- LEFT: Featured product -->
+          <div class="spm-featured">
+            <!-- Badge NEW + discount -->
+            <div class="spm-featured-badges">
+              <span class="badge bg-primary rounded-pill px-3 py-1 fw-bold shadow-sm">✦ MỚI RA MẮT</span>
+              <span v-if="spmFeatured?.hasDiscount" class="badge bg-danger rounded-pill px-2 py-1 fw-bold shadow-sm">
+                -{{ spmFeatured?.maxDiscountPercent }}%
+              </span>
+            </div>
+
+            <!-- Image -->
+            <div class="spm-featured-img-wrap" @click="goToDetail(spmFeatured?.id)">
+              <img
+                :src="spmFeatured?.anhChinh || '/logo.png'"
+                :alt="spmFeatured?.ten"
+                class="spm-featured-img"
+              />
+            </div>
+
+            <!-- Info -->
+            <div class="spm-featured-info">
+              <div v-if="spmFeatured?.brandName" class="spm-featured-brand">
+                {{ spmFeatured?.brandName }}
+              </div>
+              <h4 class="spm-featured-name" @click="goToDetail(spmFeatured?.id)">
+                {{ spmFeatured?.ten }}
+              </h4>
+
+              <div class="spm-featured-stars mb-2">
+                <i v-for="s in 5" :key="s" class="bi bi-star-fill text-warning"></i>
+                <span class="ms-1 text-muted small">({{ spmFeatured?.soldCount || 100 }}+ đã bán)</span>
+              </div>
+
+              <div class="spm-featured-price-row mb-3">
+                <span class="spm-featured-price text-danger fw-bold fs-4">{{ formatMoney(spmFeatured?.minPrice) }}</span>
+                <span v-if="spmFeatured?.originalPrice > spmFeatured?.minPrice" class="text-muted text-decoration-line-through ms-2 small">
+                  {{ formatMoney(spmFeatured?.originalPrice) }}
+                </span>
+              </div>
+
+              <!-- Hai nút nguyên bản -->
+              <div class="spm-featured-actions d-flex gap-2">
+                <button
+                  type="button"
+                  class="btn btn-primary rounded-pill fw-bold px-4 py-2 shadow-sm d-flex align-items-center gap-1"
+                  @click="quickAddToCart(spmFeatured, $event)"
+                >
+                  <i class="bi bi-cart-plus"></i> Thêm vào giỏ
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold d-flex align-items-center gap-1"
+                  @click="goToDetail(spmFeatured?.id)"
+                >
+                  <i class="bi bi-eye"></i> Xem chi tiết
+                </button>
+              </div>
+            </div>
+
+            <!-- Dots navigation -->
+            <div class="spm-dots">
+              <span
+                v-for="(item, idx) in tabFilteredProducts.slice(0, Math.min(tabFilteredProducts.length, 6))"
+                :key="item.id"
+                class="spm-dot"
+                :class="{ active: idx === currentSlide }"
+                @click.stop="currentSlide = idx"
+              ></span>
+            </div>
+
+            <!-- Prev / Next arrows -->
+            <button class="spm-arrow spm-arrow-left" @click.stop="prevSlide" aria-label="Trước">
+              <i class="bi bi-chevron-left"></i>
+            </button>
+            <button class="spm-arrow spm-arrow-right" @click.stop="nextSlide" aria-label="Sau">
+              <i class="bi bi-chevron-right"></i>
+            </button>
+          </div>
+
+          <!-- RIGHT: Interactive Side list -->
+          <div class="spm-side-list">
+            <div
+              v-for="item in spmSideList"
+              :key="item.id"
+              class="spm-side-item"
+              :class="{ active: spmFeatured?.id === item.id }"
+              @click="selectFeaturedProduct(item)"
+            >
+              <div class="spm-side-img-wrap">
+                <img :src="item.anhChinh || '/logo.png'" :alt="item.ten" class="spm-side-img" />
+                <span v-if="item.hasDiscount" class="spm-side-badge">-{{ item.maxDiscountPercent }}%</span>
+              </div>
+              <div class="spm-side-info">
+                <div class="spm-side-name">{{ item.ten }}</div>
+                <div class="spm-side-price">{{ formatMoney(item.minPrice) }}</div>
+              </div>
+              <i class="bi bi-chevron-right spm-side-arrow"></i>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. PHẦN SALE OFF (3 Banner khuyến mãi hàng ngang) -->
+      <section class="vnb-section mb-4">
+        <div class="vnb-section-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="vnb-header-icon-box">
+              <i class="bi bi-tag-fill text-warning"></i>
+            </div>
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <h2 class="vnb-header-title mb-0">Chương Trình Khuyến Mãi</h2>
+                <span class="badge bg-warning text-dark rounded-pill fw-bold px-2 py-1 small">ƯU ĐÃI</span>
+              </div>
+              <p class="vnb-header-subtitle mb-0">Săn deal giá tốt cùng quà tặng chính hãng kèm theo</p>
+            </div>
+          </div>
+          <RouterLink to="/shop/san-pham?khuyenMai=1" class="vnb-view-all-link">
+            Xem ưu đãi <i class="bi bi-arrow-right ms-1"></i>
+          </RouterLink>
         </div>
 
         <div class="row g-3">
           <div class="col-md-4">
             <div
               class="promo-banner-card rounded-4 p-4 text-white text-center shadow-sm cursor-pointer position-relative overflow-hidden"
-              style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center;"
+              style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center;"
               @click="router.push('/shop/san-pham?khuyenMai=1')"
             >
               <span class="badge bg-warning text-dark fw-bold px-2 py-1 mb-2" style="font-size: 0.75rem;">SALE OFF</span>
@@ -690,7 +681,7 @@ function quickAddToCart(item, event) {
           <div class="col-md-4">
             <div
               class="promo-banner-card rounded-4 p-4 text-white text-center shadow-sm cursor-pointer position-relative overflow-hidden"
-              style="background: linear-gradient(135deg, #18181b 0%, #dc2626 100%); min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center;"
+              style="background: linear-gradient(135deg, #0f172a 0%, #dc2626 100%); min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center;"
               @click="router.push('/shop/san-pham?khuyenMai=1')"
             >
               <span class="badge bg-white text-danger fw-bold px-2 py-1 mb-2" style="font-size: 0.75rem;">DISCOUNT</span>
@@ -713,77 +704,21 @@ function quickAddToCart(item, event) {
         </div>
       </section>
 
-      <!-- 6. PHẦN SẢN PHẨM BÁN CHẠY NHẤT (Best Sellers Ranking) -->
-      <section class="mb-5">
-        <div class="vnb-section-title-wrap">
-          <div class="d-inline-flex align-items-center gap-2">
-            <h2 class="vnb-section-title mb-0">Sản Phẩm Bán Chạy Nhất</h2>
-            <span class="badge bg-danger rounded-pill fw-bold px-2 py-1">HOT 🔥</span>
-          </div>
-          <div class="vnb-title-underline"></div>
-        </div>
-
-        <div class="row g-3">
-          <div
-            v-for="item in bestSellerList"
-            :key="item.id"
-            class="col-xl-3 col-md-6"
-          >
-            <div class="bestseller-card p-3 rounded-4 bg-white shadow-sm h-100 d-flex flex-column justify-content-between position-relative">
-              <!-- Rank badge -->
-              <div
-                class="rank-badge"
-                :class="{
-                  'rank-1': item.rank === 1,
-                  'rank-2': item.rank === 2,
-                  'rank-3': item.rank === 3,
-                  'rank-other': item.rank > 3,
-                }"
-              >
-                TOP {{ item.rank }}
-              </div>
-
-              <div class="text-center pt-2">
-                <img :src="item.anh" :alt="item.ten" class="bestseller-img mb-2" />
-                <h6 class="fw-bold text-truncate-2 small mb-1" :title="item.ten" style="height: 2.3rem;">
-                  {{ item.ten }}
-                </h6>
-                <div class="text-warning small mb-1">
-                  <i class="bi bi-star-fill me-1"></i>{{ item.danhGia }} ({{ item.daBan }} đã bán)
-                </div>
-                <div class="mb-3">
-                  <span class="fw-bold text-danger fs-6">{{ formatMoney(item.gia) }}</span>
-                  <span class="text-muted text-decoration-line-through small ms-2">{{ formatMoney(item.giaGoc) }}</span>
-                </div>
-              </div>
-
-              <div class="d-flex gap-2">
-                <button
-                  type="button"
-                  class="btn btn-primary btn-sm flex-grow-1 rounded-pill fw-bold"
-                  @click="goToDetail(item.id)"
-                >
-                  <i class="bi bi-cart-plus me-1"></i> Mua ngay
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-outline-secondary btn-sm rounded-pill px-3"
-                  @click="goToDetail(item.id)"
-                  title="Xem chi tiết"
-                >
-                  <i class="bi bi-eye"></i>
-                </button>
-              </div>
+      <!-- 5. PHẦN DANH MỤC CẦU LÔNG (4 Card danh mục) -->
+      <section class="vnb-section mb-4">
+        <div class="vnb-section-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="vnb-header-icon-box">
+              <i class="bi bi-grid-fill text-primary"></i>
+            </div>
+            <div>
+              <h2 class="vnb-header-title mb-0">Danh Mục Nổi Bật</h2>
+              <p class="vnb-header-subtitle mb-0">Trang thiết bị & phụ kiện thi đấu chuyên nghiệp</p>
             </div>
           </div>
-        </div>
-      </section>
-
-      <!-- 7. PHẦN DANH MỤC CẦU LÔNG (4 Card danh mục có dải nơ chéo) -->
-      <section class="mb-5">
-        <div class="vnb-section-title-wrap">
-          <h2 class="vnb-section-title">Danh Mục Nổi Bật</h2>
-          <div class="vnb-title-underline"></div>
+          <RouterLink to="/shop/san-pham" class="vnb-view-all-link">
+            Tất cả danh mục <i class="bi bi-arrow-right ms-1"></i>
+          </RouterLink>
         </div>
 
         <div class="row g-4 justify-content-center">
@@ -816,11 +751,16 @@ function quickAddToCart(item, event) {
         </div>
       </section>
 
-      <!-- 8. THƯƠNG HIỆU HÀNG ĐẦU (Brand Partners) -->
-      <section class="mb-5 p-4 rounded-4 bg-white shadow-sm border border-light">
-        <div class="text-center mb-4">
-          <h4 class="fw-bold text-uppercase text-primary mb-1">Thương Hiệu Đồng Hành</h4>
-          <p class="small text-muted mb-0">Đại lý ủy quyền phân phối thiết bị cầu lông chính hãng 100%</p>
+      <!-- 6. THƯƠNG HIỆU HÀNG ĐẦU (Brand Partners) -->
+      <section class="vnb-section mb-4">
+        <div class="vnb-section-header text-center pb-2">
+          <div class="text-center w-100">
+            <div class="vnb-header-icon-box mx-auto mb-2">
+              <i class="bi bi-patch-check-fill text-primary"></i>
+            </div>
+            <h2 class="vnb-header-title mb-1">Thương Hiệu Đồng Hành</h2>
+            <p class="vnb-header-subtitle mb-0">Đại lý ủy quyền phân phối thiết bị cầu lông chính hãng từ các thương hiệu hàng đầu</p>
+          </div>
         </div>
 
         <div class="row g-3 justify-content-center align-items-center text-center">
@@ -841,104 +781,6 @@ function quickAddToCart(item, event) {
           </div>
         </div>
       </section>
-
-      <!-- 9. TIN TỨC & CẨM NANG CẦU LÔNG (Blog & Guides) -->
-      <section class="mb-5">
-        <div class="vnb-section-title-wrap">
-          <h2 class="vnb-section-title">Cẩm Nang & Tin Tức Cầu Lông</h2>
-          <div class="vnb-title-underline"></div>
-        </div>
-
-        <div class="row g-4">
-          <div
-            v-for="post in badmintonNews"
-            :key="post.id"
-            class="col-lg-4 col-md-6"
-          >
-            <div class="card h-100 border-0 rounded-4 shadow-sm overflow-hidden news-card cursor-pointer">
-              <div class="news-img-box position-relative">
-                <div class="news-tag-badge">{{ post.tag }}</div>
-                <div class="news-fallback-art d-flex align-items-center justify-content-center text-white">
-                  <i class="bi bi-newspaper display-4 opacity-75"></i>
-                </div>
-              </div>
-              <div class="card-body p-4 d-flex flex-column justify-content-between">
-                <div>
-                  <div class="d-flex align-items-center gap-3 small text-muted mb-2">
-                    <span><i class="bi bi-calendar3 me-1"></i> {{ post.date }}</span>
-                    <span><i class="bi bi-person me-1"></i> {{ post.author }}</span>
-                  </div>
-                  <h6 class="fw-bold text-dark news-title mb-2">
-                    {{ post.title }}
-                  </h6>
-                  <p class="small text-secondary mb-3">
-                    {{ post.desc }}
-                  </p>
-                </div>
-                <div class="text-primary fw-bold small">
-                  Đọc tiếp cẩm nang <i class="bi bi-arrow-right ms-1"></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 10. Ý KIẾN KHÁCH HÀNG (Customer Feedback / Testimonials) -->
-      <section class="mb-5 p-4 rounded-4" style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
-        <div class="text-center mb-4">
-          <h4 class="fw-bold text-uppercase text-dark mb-1">Cộng Đồng Lông Thủ Nói Gì Về FootStyle</h4>
-          <p class="small text-muted mb-0">Hơn 50.000 khách hàng tin tưởng và lựa chọn đồng hành trên mọi sân cầu</p>
-        </div>
-
-        <div class="row g-3">
-          <div
-            v-for="rv in customerReviews"
-            :key="rv.id"
-            class="col-md-4"
-          >
-            <div class="p-4 rounded-4 bg-white shadow-sm h-100 d-flex flex-column justify-content-between review-card">
-              <div>
-                <div class="d-flex align-items-center gap-1 text-warning mb-2">
-                  <i v-for="s in rv.rating" :key="s" class="bi bi-star-fill"></i>
-                </div>
-                <p class="small text-secondary fst-italic mb-3">
-                  "{{ rv.comment }}"
-                </p>
-              </div>
-              <div class="d-flex align-items-center gap-3 pt-2 border-top border-light">
-                <div class="review-avatar">
-                  {{ rv.name.charAt(0) }}
-                </div>
-                <div>
-                  <div class="fw-bold text-dark small">{{ rv.name }}</div>
-                  <div class="text-muted" style="font-size: 0.72rem;">{{ rv.role }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 11. ĐĂNG KÝ NHẬN BẢN TIN & MÃ GIẢM GIÁ 50.000₫ -->
-      <section v-if="!auth.daDangNhap.value" class="mb-5 newsletter-box p-4 p-md-5 rounded-4 text-white shadow-lg text-center position-relative overflow-hidden">
-        <div class="position-relative" style="z-index: 2; max-width: 680px; margin: 0 auto;">
-          <span class="badge bg-warning text-dark fw-bold px-3 py-1 rounded-pill mb-2">ƯU ĐÃI ĐẶC QUYỀN</span>
-          <h3 class="fw-black text-uppercase mb-2" style="font-weight: 900;">
-            ĐĂNG KÝ NHẬN VOUCHER 50.000₫
-          </h3>
-          <p class="small text-light opacity-90 mb-4">
-            Nhận ngay mã giảm giá độc quyền cho đơn hàng đầu tiên, cùng các thông tin ra mắt vợt mới và chương trình Flash Sale hàng tuần.
-          </p>
-
-          <RouterLink
-            :to="{ path: '/shop/dang-nhap', query: { tab: 'dang-ky' } }"
-            class="btn btn-warning btn-lg fw-bold rounded-pill px-5 text-dark shadow"
-          >
-            ĐĂNG KÝ NGAY
-          </RouterLink>
-        </div>
-      </section>
     </div>
 
     <!-- Nút Cuộn Lên Đầu Trang -->
@@ -954,6 +796,93 @@ function quickAddToCart(item, event) {
 </template>
 
 <style scoped>
+/* ═══════════════════════════════════════════════════════════════════════
+   LIGHT BLUE STOREFRONT DESIGN SYSTEM
+   - Màu chủ đạo: Xanh dương nhạt (#f0f7ff, #e0f2fe, #eff6ff, #bfdbfe)
+   - Nút hành động giữ nguyên màu ban đầu:
+     + btn-primary: Xanh dương chuẩn (#1d4ed8)
+     + btn-warning: Vàng (#fbbf24)
+     + btn-outline-secondary: Viền xám thanh lịch
+═══════════════════════════════════════════════════════════════════════ */
+
+/* Nền toàn trang nhẹ nhàng mát mắt */
+.home-view {
+  background: #f0f7ff;
+  min-height: 100vh;
+}
+
+.vnb-main-content {
+  background: transparent;
+  padding-top: 1rem;
+  padding-bottom: 2.5rem;
+}
+
+/* KHUNG CHUNG CHO MỌI SECTION — Thẻ trắng viền xanh nhạt đồng bộ tuyệt đối */
+.vnb-section {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1.5px solid #e0f2fe;
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.05);
+  padding: 1.75rem 2rem;
+}
+
+/* HEADER CHUNG CHO CẢ TRANG — Nhất quán từ đầu đến cuối */
+.vnb-section-header {
+  border-bottom: 1.5px solid #f0f7ff;
+  padding-bottom: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+
+.vnb-header-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 1.5px solid #dbeafe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: #1d4ed8;
+  flex-shrink: 0;
+}
+
+.vnb-header-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.2px;
+}
+
+.vnb-header-subtitle {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.vnb-view-all-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  color: #1d4ed8;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.vnb-view-all-link:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
+  transform: translateY(-1px);
+}
+
 .cursor-pointer {
   cursor: pointer;
 }
@@ -962,7 +891,9 @@ function quickAddToCart(item, event) {
   transition: background 0.6s ease-in-out;
 }
 
-/* Banner Nav Buttons */
+/* ═══════════════════════════════════════════════
+   HERO BANNER
+═══════════════════════════════════════════════ */
 .banner-nav-btn {
   position: absolute;
   top: 50%;
@@ -970,7 +901,7 @@ function quickAddToCart(item, event) {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(4px);
@@ -988,15 +919,9 @@ function quickAddToCart(item, event) {
   color: #1d4ed8;
 }
 
-.banner-prev {
-  left: 16px;
-}
+.banner-prev { left: 16px; }
+.banner-next { right: 16px; }
 
-.banner-next {
-  right: 16px;
-}
-
-/* Banner Dots */
 .banner-dots {
   position: absolute;
   bottom: 16px;
@@ -1022,266 +947,380 @@ function quickAddToCart(item, event) {
   border-radius: 9999px;
 }
 
-/* Flash Sale */
-.flash-sale-box {
-  background: linear-gradient(135deg, #b91c1c 0%, #dc2626 50%, #ea580c 100%);
-}
-
-.flash-icon-badge {
-  font-size: 2rem;
-  display: inline-block;
-  animation: pulse 1s infinite alternate;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); }
-  100% { transform: scale(1.2); }
-}
-
-.countdown-digit {
-  background: #18181b;
-  color: #facc15;
-  font-weight: 900;
-  font-size: 1.2rem;
-  padding: 4px 10px;
-  border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.flash-item-card {
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.flash-item-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-}
-
-.flash-badge-discount {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background-color: #dc2626;
-  color: white;
-  font-weight: 900;
-  font-size: 0.75rem;
-  padding: 2px 8px;
-  border-radius: 9999px;
-}
-
-.flash-img {
-  height: 140px;
-  object-fit: contain;
-}
-
-.flash-progress {
+/* ═══════════════════════════════════════════════
+   BEST SELLERS (Sản phẩm bán chạy nhất)
+═══════════════════════════════════════════════ */
+.bestseller-card {
+  background: #ffffff;
+  border: 1.5px solid #e0f2fe;
+  border-radius: 18px;
+  padding: 1.15rem;
   position: relative;
-  background-color: #fee2e2;
-  border-radius: 9999px;
-  overflow: hidden;
+  transition: all 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 }
 
-.flash-progress-text {
+.bestseller-card:hover {
+  transform: translateY(-4px);
+  border-color: #93c5fa;
+  box-shadow: 0 12px 28px rgba(29, 78, 216, 0.12);
+}
+
+.rank-badge {
   position: absolute;
-  width: 100%;
-  text-align: center;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.65rem;
+  top: 10px;
+  left: 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 6px;
+  color: white;
+  z-index: 2;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.rank-1 { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+.rank-2 { background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%); }
+.rank-3 { background: linear-gradient(135deg, #b45309 0%, #78350f 100%); }
+.rank-other { background-color: #1d4ed8; }
+
+.bestseller-img-wrap {
+  height: 165px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.bestseller-img {
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  transition: transform 0.3s;
+}
+
+.bestseller-card:hover .bestseller-img {
+  transform: scale(1.06);
+}
+
+.bestseller-sold-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #dbeafe;
+}
+
+.bestseller-name {
+  font-size: 0.92rem;
   font-weight: 700;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-}
-
-/* Product grid item */
-.product-col-flex {
-  flex: 1 0 20%;
-  max-width: 20%;
-}
-
-@media (max-width: 1200px) {
-  .product-col-flex {
-    flex: 1 0 25%;
-    max-width: 25%;
-  }
-}
-
-@media (max-width: 992px) {
-  .product-col-flex {
-    flex: 1 0 33.333%;
-    max-width: 33.333%;
-  }
-}
-
-@media (max-width: 576px) {
-  .product-col-flex {
-    flex: 1 0 50%;
-    max-width: 50%;
-  }
-}
-
-.text-truncate-2 {
+  color: #0f172a;
+  line-height: 1.35;
+  height: 2.5rem;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  cursor: pointer;
 }
 
-.quick-add-btn {
-  font-size: 0.75rem;
-  font-weight: 700;
-  transition: all 0.15s;
+.bestseller-name:hover {
+  color: #1d4ed8;
 }
 
-.quick-add-btn:hover {
-  transform: scale(1.02);
-}
-
-/* Sản phẩm mới: tab dạng viên, khung bo tròn, thẻ có khoảng cách */
-.spm-section .vnb-cat-tabs {
-  justify-content: center;
+/* ═══════════════════════════════════════════════
+   SẢN PHẨM MỚI (Split Layout)
+═══════════════════════════════════════════════ */
+.spm-tabs-wrap {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  border: none;
-  background: transparent;
-  padding: 4px 4px 16px;
 }
 
-.spm-section .vnb-cat-tab {
-  border: 1px solid #dbe3f0;
+.spm-tab {
+  border: 1.5px solid #bfdbfe;
   border-radius: 999px;
-  padding: 8px 18px;
-  background: #fff;
-  color: #334155;
+  padding: 6px 16px;
+  background: #ffffff;
+  color: #1d4ed8;
   font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.spm-section .vnb-cat-tab:hover {
+.spm-tab:hover {
   border-color: #1d4ed8;
-  color: #1d4ed8;
+  background: #eff6ff;
 }
 
-.spm-section .vnb-cat-tab.active {
+.spm-tab.active {
   background: #1d4ed8;
   border-color: #1d4ed8;
-  color: #fff;
-  box-shadow: 0 6px 14px rgba(29, 78, 216, 0.25);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
 }
 
-.spm-section .vnb-carousel-frame {
-  border: none;
+.spm-split-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  min-height: 440px;
+}
+
+@media (max-width: 991px) {
+  .spm-split-layout {
+    grid-template-columns: 1fr;
+  }
+  .spm-side-list {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
+/* Featured Card (Trái) */
+.spm-featured {
+  position: relative;
   border-radius: 18px;
-  background: linear-gradient(180deg, #eef4ff 0%, #ffffff 100%);
-  padding: 20px 44px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-}
-
-.spm-section .product-col-flex {
-  padding: 6px;
-}
-
-.spm-section .vnb-arrow-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  color: #1d4ed8;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
-  top: 50%;
-}
-
-.spm-section .vnb-arrow-btn:hover {
-  background: #1d4ed8;
-  color: #fff;
-}
-
-.spm-card {
-  border-radius: 14px;
-  border-color: #edf1f7;
-}
-
-.spm-img {
-  height: 210px;
-  background: #fff;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.spm-badge-new {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-  color: #fff;
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 3px 9px;
-  border-radius: 999px;
-  z-index: 2;
-}
-
-.spm-body {
+  overflow: hidden;
+  background: #ffffff;
+  border: 1.5px solid #e0f2fe;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.05);
+  transition: all 0.25s ease;
+}
+
+.spm-featured:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 8px 24px rgba(29, 78, 216, 0.1);
+}
+
+.spm-featured-badges {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  gap: 6px;
+  z-index: 3;
+}
+
+.spm-featured-img-wrap {
   flex: 1;
-  gap: 5px;
-  padding: 12px 14px 14px;
-  text-align: left;
-}
-
-.spm-brand {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #1d4ed8;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-}
-
-.spm-name {
-  flex: 0 0 auto;
-  min-height: 2.8em;
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.spm-rating {
   display: flex;
   align-items: center;
-  gap: 2px;
-  font-size: 0.7rem;
-  color: #f59e0b;
+  justify-content: center;
+  padding: 40px 24px 20px;
+  background: radial-gradient(ellipse at 50% 50%, #ffffff 0%, #f0f7ff 60%, #e0f2fe 100%);
+  cursor: pointer;
 }
 
-.spm-rating span {
-  margin-left: 4px;
-  color: #94a3b8;
+.spm-featured-img {
+  max-height: 230px;
+  max-width: 100%;
+  object-fit: contain;
+  transition: transform 0.4s ease;
 }
 
-.spm-price-row {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 6px;
+.spm-featured:hover .spm-featured-img {
+  transform: scale(1.05);
 }
 
-.spm-add {
-  border-radius: 999px;
-  border: 1px solid #1d4ed8;
+.spm-featured-info {
+  background: #ffffff;
+  padding: 16px 20px 48px;
+  position: relative;
+  border-top: 1px solid #f0f7ff;
+}
+
+.spm-featured-brand {
+  font-size: 0.75rem;
+  font-weight: 800;
   color: #1d4ed8;
-  background: #fff;
-  padding: 7px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 4px;
 }
 
-.spm-card:hover .spm-add,
-.spm-add:hover {
+.spm-featured-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.spm-featured-name:hover {
+  color: #1d4ed8;
+}
+
+.spm-dots {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 4;
+}
+
+.spm-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #bae6fd;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+
+.spm-dot.active {
   background: #1d4ed8;
+  width: 22px;
+}
+
+.spm-arrow {
+  position: absolute;
+  top: 42%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid #bfdbfe;
+  background: #fff;
+  color: #1d4ed8;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 4;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.12);
+}
+
+.spm-arrow:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
   color: #fff;
 }
 
-/* Danh mục nổi bật: ảnh sản phẩm thật trên nền sáng */
+.spm-arrow-left { left: 10px; }
+.spm-arrow-right { right: 10px; }
+
+/* Side list (Phải) */
+.spm-side-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.spm-side-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1.5px solid #e0f2fe;
+  position: relative;
+}
+
+.spm-side-item:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+  transform: translateX(3px);
+}
+
+.spm-side-item.active {
+  background: #eff6ff;
+  border-color: #1d4ed8;
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.12);
+}
+
+.spm-side-img-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  background: #f0f7ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.spm-side-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.spm-side-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.spm-side-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.spm-side-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+
+.spm-side-price {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #dc2626;
+}
+
+.spm-side-arrow {
+  color: #93c5fd;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.spm-side-item:hover .spm-side-arrow,
+.spm-side-item.active .spm-side-arrow {
+  color: #1d4ed8;
+}
+
+/* ═══════════════════════════════════════════════
+   DANH MỤC NỔI BẬT
+═══════════════════════════════════════════════ */
 .dm-card {
-  background: radial-gradient(circle at 50% 38%, #ffffff 0%, #eef4ff 55%, #d6e4ff 100%);
-  border: 1px solid #e0e9fb;
+  background: radial-gradient(circle at 50% 38%, #ffffff 0%, #f0f9ff 55%, #e0f2fe 100%);
+  border: 1.5px solid #bae6fd;
 }
 
 .dm-img {
@@ -1291,7 +1330,7 @@ function quickAddToCart(item, event) {
   width: 76%;
   height: 58%;
   object-fit: contain;
-  mix-blend-mode: multiply; /* ảnh sản phẩm nền trắng: hòa nền trắng vào nền thẻ */
+  mix-blend-mode: multiply;
   transition: transform 0.4s;
 }
 
@@ -1309,6 +1348,8 @@ function quickAddToCart(item, event) {
 
 .dm-ribbon {
   top: 64%;
+  background: linear-gradient(135deg, #1d4ed8 0%, #38bdf8 100%);
+  color: #fff;
 }
 
 .dm-sub {
@@ -1319,71 +1360,24 @@ function quickAddToCart(item, event) {
   text-align: center;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #1e3a8a;
+  color: #1d4ed8;
 }
 
-/* Best Seller */
-.bestseller-card {
-  transition: transform 0.2s, box-shadow 0.2s;
-  border: 1px solid #f1f5f9;
-}
-
-.bestseller-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
-}
-
-.bestseller-card {
-  overflow: hidden;
-}
-
-.bestseller-img {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  height: 160px;
-  object-fit: contain;
-}
-
-.rank-badge {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  font-size: 0.72rem;
-  font-weight: 900;
-  padding: 3px 8px;
-  border-radius: 6px;
-  color: white;
-}
-
-.rank-1 {
-  background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%);
-  box-shadow: 0 2px 6px rgba(202, 138, 4, 0.4);
-}
-
-.rank-2 {
-  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
-}
-
-.rank-3 {
-  background: linear-gradient(135deg, #b45309 0%, #78350f 100%);
-}
-
-.rank-other {
-  background-color: #1d4ed8;
-}
-
-/* Brand badge */
+/* ═══════════════════════════════════════════════
+   THƯƠNG HIỆU & TIN TỨC & TIỆN ÍCH
+═══════════════════════════════════════════════ */
 .brand-badge-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #f0f7ff;
+  border: 1.5px solid #e0f2fe;
+  border-radius: 14px;
   transition: all 0.2s;
 }
 
 .brand-badge-box:hover {
-  background: #eff6ff;
-  border-color: #1d4ed8;
+  background: #e0f2fe;
+  border-color: #93c5fd;
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.1);
 }
 
 .brand-text {
@@ -1394,73 +1388,6 @@ function quickAddToCart(item, event) {
   color: #1d4ed8 !important;
 }
 
-/* News */
-.news-card {
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.news-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
-}
-
-.news-img-box {
-  height: 180px;
-  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-}
-
-.news-tag-badge {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #facc15;
-  font-size: 0.7rem;
-  font-weight: 800;
-  padding: 3px 8px;
-  border-radius: 4px;
-}
-
-.news-fallback-art {
-  height: 100%;
-}
-
-.news-title {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  height: 2.6rem;
-}
-
-/* Testimonial avatar */
-.review-card {
-  transition: transform 0.2s;
-}
-
-.review-card:hover {
-  transform: translateY(-3px);
-}
-
-.review-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: #1d4ed8;
-  color: white;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-/* Newsletter */
-.newsletter-box {
-  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
-}
-
-/* Floating Toast */
 .vnb-floating-toast {
   position: fixed;
   top: 24px;
