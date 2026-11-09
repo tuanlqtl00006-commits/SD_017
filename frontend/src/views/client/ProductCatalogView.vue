@@ -68,15 +68,9 @@ function getCategoryIcon(name) {
   return 'bi-tag-fill'
 }
 
-// Danh mục thật từ CSDL (loại bỏ hoàn toàn các danh mục ảo và Pickleball)
+// Danh mục thật từ CSDL
 const categories = ref([
   { key: 'all', id: null, title: 'Tất cả sản phẩm', icon: 'bi-grid-fill' },
-  { key: '1', id: 1, title: 'Vợt cầu lông', icon: 'bi-record-circle' },
-  { key: '2', id: 2, title: 'Vợt cầu lông người mới', icon: 'bi-record-circle' },
-  { key: '3', id: 3, title: 'Quần áo thể thao', icon: 'bi-person-fill' },
-  { key: '4', id: 4, title: 'Túi - balo', icon: 'bi-bag-fill' },
-  { key: '5', id: 5, title: 'Phụ kiện', icon: 'bi-tools' },
-  { key: '6', id: 6, title: 'Quả cầu lông', icon: 'bi-circle' },
 ])
 
 // Trang SALE OFF: chỉ hiện sản phẩm đang giảm giá. Cần tiêu đề / banner riêng, nếu không nhìn giống hệt "Tất cả sản phẩm"
@@ -274,21 +268,23 @@ onMounted(async () => {
     if (dmThRes?.danhMuc?.length > 0) {
       categories.value = [
         { key: 'all', id: null, title: 'Tất cả sản phẩm', icon: 'bi-grid-fill' },
-        ...dmThRes.danhMuc.map((dm) => ({
-          key: String(dm.id),
-          id: dm.id,
-          title: dm.ten,
-          icon: getCategoryIcon(dm.ten),
-        })),
+        ...dmThRes.danhMuc
+          .filter((dm) => dm.trangThai !== 0 && dm.hoatDong !== false)
+          .map((dm) => ({
+            key: String(dm.id),
+            id: dm.id,
+            title: dm.ten,
+            icon: getCategoryIcon(dm.ten),
+          })),
       ]
     }
 
     attrOptions.value = dmThRes?.thuocTinh || {}
 
     if (dmThRes?.thuongHieu?.length > 0) {
-      brands.value = dmThRes.thuongHieu
+      brands.value = dmThRes.thuongHieu.filter((th) => th.trangThai !== 0 && th.hoatDong !== false)
     } else {
-      brands.value = FALLBACK_BRANDS
+      brands.value = []
     }
 
     syncFromUrl()

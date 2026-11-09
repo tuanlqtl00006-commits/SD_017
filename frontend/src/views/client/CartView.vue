@@ -26,8 +26,23 @@ const tien = computed(() =>
 const coGiamDot = (item) => Number(item.giaGoc) > Number(item.giaBan)
 const phanTramGiam = (item) => Math.round((1 - Number(item.giaBan) / Number(item.giaGoc)) * 100)
 
+const coSanPhamKhongDuHang = computed(() =>
+  cartStore.items.some(
+    (i) => (Number(i.soLuongTon) ?? 999) < Number(i.soLuong) || (Number(i.soLuongTon) ?? 999) <= 0
+  )
+)
+
 function goToCheckout() {
   router.push('/shop/thanh-toan')
+}
+
+function onQuantityInput(item, event) {
+  const maxStock = item.soLuongTon ?? 999
+  let val = parseInt(event.target.value, 10)
+  if (isNaN(val) || val < 1) val = 1
+  if (val > maxStock) val = maxStock
+  cartStore.updateQuantity(item.bienTheId, val)
+  event.target.value = val
 }
 </script>
 
@@ -116,6 +131,30 @@ function goToCheckout() {
                             <span v-if="item.trongLuong"> • Trọng lượng: <strong>{{ item.trongLuong }}</strong></span>
                             <span v-if="item.chuVi"> • Cán: <strong>{{ item.chuVi }}</strong></span>
                           </div>
+                          <!-- Số lượng tồn kho sản phẩm -->
+                          <div class="mt-1">
+                            <span
+                              v-if="(item.soLuongTon ?? 1) <= 0"
+                              class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle fw-medium"
+                              style="font-size: 0.72rem;"
+                            >
+                              <i class="bi bi-x-circle-fill me-1"></i>Hết hàng trong kho
+                            </span>
+                            <span
+                              v-else-if="item.soLuong > item.soLuongTon"
+                              class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle fw-medium"
+                              style="font-size: 0.72rem;"
+                            >
+                              <i class="bi bi-exclamation-triangle-fill me-1"></i>Kho chỉ còn {{ item.soLuongTon }} sản phẩm
+                            </span>
+                            <span
+                              v-else-if="item.soLuongTon !== undefined && item.soLuongTon !== null"
+                              class="badge rounded-pill bg-light text-secondary border fw-normal"
+                              style="font-size: 0.72rem;"
+                            >
+                              <i class="bi bi-box-seam me-1 text-primary"></i>Còn lại: <strong class="text-dark">{{ item.soLuongTon }}</strong> sản phẩm
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -136,16 +175,21 @@ function goToCheckout() {
                           -
                         </button>
                         <input
-                          type="text"
-                          class="form-control text-center px-1"
+                          type="number"
+                          class="form-control text-center px-1 no-spinner"
+                          style="min-width: 44px;"
                           :value="item.soLuong"
-                          readonly
+                          :min="1"
+                          :max="item.soLuongTon ?? 999"
+                          @change="onQuantityInput(item, $event)"
+                          @blur="onQuantityInput(item, $event)"
+                          @keydown.enter="$event.target.blur()"
                         />
                         <button
                           class="btn btn-outline-secondary"
                           type="button"
                           @click="cartStore.updateQuantity(item.bienTheId, item.soLuong + 1)"
-                          :disabled="item.soLuong >= item.soLuongTon"
+                          :disabled="item.soLuong >= (item.soLuongTon ?? 999)"
                         >
                           +
                         </button>
@@ -209,10 +253,17 @@ function goToCheckout() {
               <span class="fs-4 fw-bold text-danger" data-dong="tong-thanh-toan">{{ formatMoney(tien.tong) }}</span>
             </div>
 
+            <div v-if="coSanPhamKhongDuHang" class="alert alert-danger py-2 px-3 small mb-3 border-0">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              Có sản phẩm vượt quá tồn kho hoặc đã hết hàng. Vui lòng kiểm tra lại số lượng trước khi thanh toán.
+            </div>
+
             <button
               type="button"
               class="btn text-white btn-lg w-100 rounded-pill fw-bold shadow-sm"
-              style="background-color: #0d6efd; border-color: #0d6efd;"
+              :class="coSanPhamKhongDuHang ? 'btn-secondary disabled opacity-75' : ''"
+              :disabled="coSanPhamKhongDuHang"
+              :style="coSanPhamKhongDuHang ? '' : 'background-color: #0d6efd; border-color: #0d6efd;'"
               @click="goToCheckout"
             >
               Tiến hành thanh toán <i class="bi bi-arrow-right ms-1"></i>
@@ -223,3 +274,14 @@ function goToCheckout() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.no-spinner::-webkit-inner-spin-button,
+.no-spinner::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
+}
+</style>

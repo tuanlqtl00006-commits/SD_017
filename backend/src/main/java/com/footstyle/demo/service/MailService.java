@@ -650,6 +650,86 @@ public class MailService {
         luongGui.submit(() -> gui(den, thu, logoGan));
     }
 
+    /**
+     * Báo cho khách biết đơn hàng đã bị hủy và cửa hàng đang tiến hành hoàn tiền thanh toán (chuyển khoản).
+     * Gửi ở luồng riêng (không làm chậm hệ thống); không có email hợp lệ thì bỏ qua;
+     * chưa cấu hình Gmail thì chỉ ghi log (như các thư khác).
+     */
+    public void guiThongBaoHoanTien(String hoTen, String email, String maHoaDon, String lyDo, String soTienHoan, String phuongThuc) {
+        if (email == null || !email.contains("@")) return;
+        final String den = email.trim();
+        String ten = hoTen == null || hoTen.isBlank() ? "quý khách" : hoTen.trim();
+        String ly = lyDo == null || lyDo.isBlank() ? "Sản phẩm trong đơn hàng đã hết hàng tồn kho" : lyDo.trim();
+        String ma = String.valueOf(maHoaDon);
+        String tienHoan = soTienHoan == null || soTienHoan.isBlank() ? "Toàn bộ số tiền đã thanh toán" : soTienHoan.trim();
+        String hinhThuc = phuongThuc == null || phuongThuc.isBlank() ? "Chuyển khoản ngân hàng" : phuongThuc.trim();
+        String tieuDe = "[" + tenCuaHang + "] Thông báo hủy đơn và hoàn tiền - Đơn hàng " + ma;
+
+        String banChu = "Xin chào " + ten + ",\n\n"
+                + "Cửa hàng " + tenCuaHang + " xin thông báo đơn hàng " + ma + " của bạn đã được hủy do: " + ly + ".\n\n"
+                + "THÔNG TIN HOÀN TIỀN:\n"
+                + "- Mã đơn hàng: " + ma + "\n"
+                + "- Số tiền hoàn lại: " + tienHoan + "\n"
+                + "- Hình thức hoàn: " + hinhThuc + "\n"
+                + "- Thời gian xử lý: Trong vòng 24h - 48h làm việc\n\n"
+                + "Bộ phận chăm sóc khách hàng sẽ liên hệ với bạn qua số điện thoại hoặc email này để xác nhận thông tin nhận hoàn tiền (nếu cần).\n"
+                + "Chúng tôi vô cùng xin lỗi vì sự bất tiện này. Cảm ơn bạn đã luôn tin tưởng và đồng hành cùng " + tenCuaHang + ".\n";
+
+        final byte[] logoGan = logo;
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        StringBuilder h = new StringBuilder(5000);
+        moKhungHtml(h, tieuDe,
+                "Đơn hàng " + ma + " đã hủy — Số tiền hoàn: " + tienHoan,
+                "#ea580c", logoGan != null, "XÁC NHẬN HOÀN TIỀN", "Thông báo hủy đơn & hoàn tiền");
+
+        // Lời chào
+        h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
+                .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>")
+                .append("Cửa hàng <strong>").append(esc(tenCuaHang)).append("</strong> rất tiếc phải thông báo rằng đơn hàng <strong>")
+                .append(esc(ma)).append("</strong> của bạn không thể thực hiện và đã được hủy.")
+                .append("</td></tr>\n");
+
+        // Bảng lý do hủy
+        h.append("<tr><td style=\"padding:8px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#fff7ed;border:1.5px dashed #ea580c;border-radius:12px;\">")
+                .append("<tr><td style=\"padding:14px 18px;").append(phong).append("font-size:14px;line-height:22px;color:#9a3412;\">")
+                .append("<strong>Lý do hủy đơn:</strong> ").append(esc(ly))
+                .append("</td></tr></table></td></tr>\n");
+
+        // Bảng chi tiết hoàn tiền
+        h.append("<tr><td style=\"padding:14px 28px 6px 28px;\">")
+                .append("<div style=\"").append(phong).append("font-size:13px;font-weight:bold;color:#111827;letter-spacing:0.5px;margin-bottom:8px;\">THÔNG TIN HOÀN TIỀN</div>")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;\">")
+                .append("<tr><td style=\"padding:14px 18px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;\">");
+        dongThongTinDon(h, "Mã đơn hàng", ma, true);
+        dongThongTinDonHtml(h, "Số tiền hoàn lại", "<span style=\"color:#dc2626;font-size:16px;font-weight:bold;\">" + esc(tienHoan) + "</span>", false);
+        dongThongTinDon(h, "Phương thức hoàn", hinhThuc, false);
+        dongThongTinDon(h, "Thời gian xử lý", "Trong vòng 24 - 48 giờ làm việc", false);
+        h.append("</table></td></tr></table></td></tr>\n");
+
+        // Ghi chú & chăm sóc khách hàng
+        h.append("<tr><td style=\"padding:10px 28px 16px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;\">")
+                .append("<tr><td style=\"padding:14px 18px;").append(phong).append("font-size:13.5px;line-height:22px;color:#166534;\">")
+                .append("<strong>Quý khách lưu ý:</strong><br>")
+                .append("• Bộ phận CSKH sẽ chủ động liên hệ qua điện thoại hoặc email này để xác nhận thông tin tài khoản thụ hưởng của quý khách.<br>")
+                .append("• Quý khách cũng có thể phản hồi trực tiếp email này hoặc liên hệ hotline cửa hàng để được hỗ trợ nhanh nhất.<br>")
+                .append("Chân thành xin lỗi quý khách vì sự bất tiện này!")
+                .append("</td></tr></table></td></tr>\n");
+
+        if (linkCuaHang != null) {
+            h.append("<tr><td align=\"center\" style=\"padding:10px 28px 8px 28px;\">")
+                    .append("<a href=\"").append(esc(linkCuaHang)).append("\" target=\"_blank\" style=\"").append(phong)
+                    .append("display:inline-block;background-color:#ea580c;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;\">")
+                    .append("Tiếp tục mua sắm tại cửa hàng</a></td></tr>\n");
+        }
+
+        dongKhungHtml(h);
+        final ThuMail thu = new ThuMail(tieuDe, banChu, h.toString());
+        luongGui.submit(() -> gui(den, thu, logoGan));
+    }
+
     /* ===================== Thư báo đổi trạng thái đơn online ===================== */
 
     /** Đầu dòng ghi email nhận thông báo trong lịch sử "Đặt hàng trực tuyến" (hóa đơn không có cột email; không đổi SQL). */
@@ -842,6 +922,16 @@ public class MailService {
                 .append(esc(nhan)).append("</td>")
                 .append("<td valign=\"top\" align=\"right\" style=\"padding:").append(padTop).append(" 0 0 0;").append(phong).append("font-size:14px;font-weight:bold;color:#111827;\">")
                 .append(esc(giaTri)).append("</td></tr>\n");
+    }
+
+    private static void dongThongTinDonHtml(StringBuilder h, String nhan, String giaTriHtml, boolean dongDau) {
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        String padTop = dongDau ? "0" : "10px";
+        h.append("<tr>")
+                .append("<td valign=\"top\" style=\"padding:").append(padTop).append(" 12px 0 0;white-space:nowrap;").append(phong).append("font-size:14px;color:#6b7280;\">")
+                .append(esc(nhan)).append("</td>")
+                .append("<td valign=\"top\" align=\"right\" style=\"padding:").append(padTop).append(" 0 0 0;").append(phong).append("font-size:14px;font-weight:bold;color:#111827;\">")
+                .append(giaTriHtml).append("</td></tr>\n");
     }
 
     /**

@@ -528,12 +528,14 @@ public class HoaDonService {
 
         // Hủy đơn khách đã trả trước (chuyển khoản) -> ghi khoản HOÀN PHÍ trả lại khách
         String hoanPhi = "";
+        BigDecimal tienHoan = BigDecimal.ZERO;
         if (moi == HoaDon.DA_HUY) {
             BigDecimal daTra = BigDecimal.ZERO;
             for (LichSuThanhToan tt : lichSuThanhToanRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
                 if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN) daTra = daTra.add(soTien(tt.getSoTien()));
             }
             if (daTra.signum() > 0) {
+                tienHoan = daTra;
                 LichSuThanhToan tt = new LichSuThanhToan();
                 tt.setHoaDon(hd);
                 tt.setSoTien(daTra.negate());
@@ -561,14 +563,21 @@ public class HoaDonService {
         lichSuHoaDonRepository.save(ls);
 
         // Đơn online đổi trạng thái: gửi thư báo cho khách; hủy (kể cả tự hủy
-        // do hết hàng) thì gửi thư hủy kèm lý do. Gửi ở luồng riêng nên không làm chậm thao tác.
+        // do hết hàng) thì gửi thư hủy kèm lý do. Nếu đã thanh toán thì gửi thư hoàn tiền. Gửi ở luồng riêng nên không làm chậm thao tác.
         if (mailService != null && !laTaiQuay(hd)) {
             String email = emailNhanThongBao(hd);
             if (email != null) {
                 String ten = hd.getHoTenNguoiNhan() != null ? hd.getHoTenNguoiNhan()
                         : hd.getKhachHang() != null ? hd.getKhachHang().getHoTen() : null;
                 if (moi == HoaDon.DA_HUY) {
-                    mailService.guiThongBaoHuyDon(ten, email, hd.getMaHoaDon(), ghiChu.isEmpty() ? null : ghiChu);
+                    if (tienHoan.signum() > 0) {
+                        mailService.guiThongBaoHoanTien(ten, email, hd.getMaHoaDon(),
+                                ghiChu.isEmpty() ? null : ghiChu,
+                                GiaoCaService.dinhDangTien(tienHoan),
+                                "Chuyển khoản ngân hàng");
+                    } else {
+                        mailService.guiThongBaoHuyDon(ten, email, hd.getMaHoaDon(), ghiChu.isEmpty() ? null : ghiChu);
+                    }
                 } else {
                     mailService.guiCapNhatTrangThai(ten, email, hd.getMaHoaDon(), moi, ghiChu,
                             GiaoCaService.dinhDangTien(thanhTien(hd)), hd.getDiaChiGiaoHang());
@@ -607,9 +616,9 @@ public class HoaDonService {
         }
         List<String> thieu = new ArrayList<>();
         for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
-            SanPhamChiTiet spct = bienThe.get(e.getKey());
-            int ton = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
-            if (ton < e.getValue()) thieu.add(spct.getMaSpct() + " (còn " + ton + ", đơn cần " + e.getValue() + ")");
+            SanPhamChiTiet fresh = sanPhamChiTietRepository.findById(e.getKey()).orElse(bienThe.get(e.getKey()));
+            int ton = fresh == null || fresh.getSoLuongTon() == null ? 0 : fresh.getSoLuongTon();
+            if (ton < e.getValue()) thieu.add((fresh != null ? fresh.getMaSpct() : "") + " (còn " + ton + ", đơn cần " + e.getValue() + ")");
         }
         return thieu;
     }
@@ -630,16 +639,17 @@ public class HoaDonService {
         }
         List<String> thieu = new ArrayList<>();
         for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
-            SanPhamChiTiet spct = bienThe.get(e.getKey());
-            int ton = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
-            if (ton < e.getValue()) thieu.add(spct.getMaSpct() + " (còn " + ton + ", đơn cần " + e.getValue() + ")");
+            SanPhamChiTiet fresh = sanPhamChiTietRepository.findById(e.getKey()).orElse(bienThe.get(e.getKey()));
+            int ton = fresh == null || fresh.getSoLuongTon() == null ? 0 : fresh.getSoLuongTon();
+            if (ton < e.getValue()) thieu.add((fresh != null ? fresh.getMaSpct() : "") + " (còn " + ton + ", đơn cần " + e.getValue() + ")");
         }
         if (!thieu.isEmpty()) {
             throw ApiException.conflict("Không đủ hàng để xác nhận đơn: " + String.join("; ", thieu) + ". Hãy nhập thêm hàng hoặc liên hệ khách.");
         }
         for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
             if (sanPhamChiTietRepository.truTonKho(e.getKey(), e.getValue()) == 0) {
-                throw ApiException.conflict("Sản phẩm " + bienThe.get(e.getKey()).getMaSpct() + " vừa hết hàng (đơn khác vừa được xác nhận). Hãy tải lại rồi thử lại.");
+                SanPhamChiTiet fresh = sanPhamChiTietRepository.findById(e.getKey()).orElse(bienThe.get(e.getKey()));
+                throw ApiException.conflict("Sản phẩm " + (fresh != null ? fresh.getMaSpct() : "") + " vừa hết hàng (đơn khác vừa được xác nhận). Hãy tải lại rồi thử lại.");
             }
         }
     }

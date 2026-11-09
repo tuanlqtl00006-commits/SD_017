@@ -55,6 +55,13 @@ public class HoaDonSuaService {
     private final GiamGiaApDungService giamGiaService;
     private final HoaDonService hoaDonService;
 
+    private MailService mailService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMailService(MailService mailService) {
+        this.mailService = mailService;
+    }
+
     private Clock dongHo = Clock.systemDefaultZone();
 
     void datDongHo(Clock dongHo) {
@@ -255,6 +262,49 @@ public class HoaDonSuaService {
         return kq;
     }
 
+    /** Kiểm tra các sản phẩm trong đơn có đủ hàng trong kho không (rỗng nếu đủ hàng). */
+    public List<String> danhSachThieuHang(HoaDon hd) {
+        Map<Integer, Integer> canTru = new LinkedHashMap<>();
+        Map<Integer, SanPhamChiTiet> bienThe = new LinkedHashMap<>();
+        for (HoaDonChiTiet ct : chiTietRepo.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
+            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
+            int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
+            if (spct == null || spct.getId() == null || sl <= 0) continue;
+            bienThe.putIfAbsent(spct.getId(), spct);
+            canTru.merge(spct.getId(), sl, Integer::sum);
+        }
+        List<String> thieu = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
+            SanPhamChiTiet fresh = spctRepo.findById(e.getKey()).orElse(bienThe.get(e.getKey()));
+            int ton = fresh == null || fresh.getSoLuongTon() == null ? 0 : fresh.getSoLuongTon();
+            if (ton < e.getValue()) {
+                String ten = fresh != null && fresh.getSanPham() != null ? fresh.getSanPham().getTenSanPham() : (fresh != null ? fresh.getMaSpct() : "SP");
+                thieu.add(ten + " (" + (fresh != null ? fresh.getMaSpct() : "") + ", kho còn " + ton + ", đơn cần " + e.getValue() + ")");
+            }
+        }
+        return thieu;
+    }
+
+    /** Trừ tồn kho có điều kiện cho các sản phẩm trong đơn. */
+    public void truTonKho(HoaDon hd) {
+        Map<Integer, Integer> canTru = new LinkedHashMap<>();
+        Map<Integer, SanPhamChiTiet> bienThe = new LinkedHashMap<>();
+        for (HoaDonChiTiet ct : chiTietRepo.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
+            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
+            int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
+            if (spct == null || spct.getId() == null || sl <= 0) continue;
+            bienThe.putIfAbsent(spct.getId(), spct);
+            canTru.merge(spct.getId(), sl, Integer::sum);
+        }
+        for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
+            if (spctRepo.truTonKho(e.getKey(), e.getValue()) == 0) {
+                SanPhamChiTiet fresh = spctRepo.findById(e.getKey()).orElse(bienThe.get(e.getKey()));
+                int ton = fresh == null || fresh.getSoLuongTon() == null ? 0 : fresh.getSoLuongTon();
+                throw ApiException.conflict("Sản phẩm " + (fresh != null ? fresh.getMaSpct() : "") + " không đủ tồn kho (kho còn " + ton + ", đơn cần " + e.getValue() + ").");
+            }
+        }
+    }
+
     /** Đơn online chuyển khoản: nhân viên đối chiếu sao kê rồi xác nhận đã nhận đủ tiền (ghi khoản đã thanh toán). */
     @Transactional
     public Map<String, Object> xacNhanThanhToan(Integer id, XacNhanThanhToanRequest req) {
@@ -267,6 +317,16 @@ public class HoaDonSuaService {
         if (tt == HoaDon.DA_HUY || tt == HoaDon.HOAN_THANH || tt == HoaDon.HOAN_TIEN) throw ApiException.conflict("Đơn đã kết thúc.");
         long con = (hd.getThanhTien() == null ? 0 : hd.getThanhTien().longValue()) - daTra(hd);
         if (con <= 0) throw ApiException.conflict("Đơn đã được thanh toán đủ.");
+
+        boolean chuaTruKho = tt == HoaDon.CHO_XAC_NHAN;
+        if (chuaTruKho) {
+            List<String> thieu = danhSachThieuHang(hd);
+            if (!thieu.isEmpty()) {
+                throw ApiException.conflict("Không thể thanh toán do sản phẩm trong đơn đã hết hàng: "
+                        + String.join("; ", thieu) + ". Hãy hủy đơn hoặc liên hệ khách.");
+            }
+        }
+
         String ma = req == null || req.maGiaoDich() == null ? null : req.maGiaoDich().trim();
         if (ma != null && ma.length() > 100) throw ApiException.badRequest("Mã giao dịch tối đa 100 ký tự.");
         LocalDateTime luc = bayGio();
@@ -286,6 +346,22 @@ public class HoaDonSuaService {
         ls.setThoiGian(luc);
         ls.setMoTa("Đã nhận chuyển khoản " + tien(con) + (t.getMaGiaoDich() == null ? "" : " (mã GD " + t.getMaGiaoDich() + ")"));
         lichSuRepo.save(ls);
+
+        if (chuaTruKho) {
+            truTonKho(hd);
+            hd.setTrangThai(HoaDon.DA_XAC_NHAN);
+            hd.setNgayCapNhat(luc);
+            hoaDonRepo.save(hd);
+
+            LichSuHoaDon lsXn = new LichSuHoaDon();
+            lsXn.setHoaDon(hd);
+            lsXn.setHanhDong("Đã xác nhận");
+            lsXn.setNguoiThaoTac(nd.hoTen() == null ? "Nhân viên" : nd.hoTen());
+            lsXn.setThoiGian(luc);
+            lsXn.setMoTa("Tự động xác nhận đơn hàng và trừ tồn kho sau khi đã nhận đủ thanh toán chuyển khoản.");
+            lichSuRepo.save(lsXn);
+        }
+
         return hoaDonService.getChiTietHoaDon(hd.getId());
     }
 
@@ -307,6 +383,64 @@ public class HoaDonSuaService {
         if (tt == HoaDon.DA_HUY || tt == HoaDon.HOAN_THANH || tt == HoaDon.HOAN_TIEN) {
             return "Bỏ qua: đơn " + hd.getMaHoaDon() + " đã kết thúc (cần hoàn tiền thủ công nếu khách đã chuyển).";
         }
+
+        LocalDateTime luc = bayGio();
+        boolean chuaTruKho = tt == HoaDon.CHO_XAC_NHAN;
+        if (chuaTruKho) {
+            List<String> thieu = danhSachThieuHang(hd);
+            if (!thieu.isEmpty()) {
+                String ma = maGiaoDich == null ? null : maGiaoDich.trim();
+                if (ma != null && ma.length() > 100) ma = ma.substring(0, 100);
+
+                // Ghi nhận tiền chuyển khoản của khách
+                LichSuThanhToan t = new LichSuThanhToan();
+                t.setHoaDon(hd);
+                t.setSoTien(BigDecimal.valueOf(soTien));
+                t.setMaGiaoDich(ma == null || ma.isEmpty() ? null : ma);
+                t.setThoiGian(luc);
+                t.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
+                t.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
+                t.setMoTa("Khách chuyển khoản nhưng sản phẩm đã hết hàng tồn kho");
+                thanhToanRepo.save(t);
+
+                // Ghi nhận hoàn phí trả lại khách
+                long tongDaTra = daTra(hd);
+                long soTienHoan = tongDaTra > 0 ? tongDaTra : soTien;
+                LichSuThanhToan hoan = new LichSuThanhToan();
+                hoan.setHoaDon(hd);
+                hoan.setSoTien(BigDecimal.valueOf(soTienHoan).negate());
+                hoan.setThoiGian(luc);
+                hoan.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
+                hoan.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
+                hoan.setMoTa("Hoàn tiền cho khách do hết hàng tồn kho");
+                thanhToanRepo.save(hoan);
+
+                hd.setTrangThai(HoaDon.DA_HUY);
+                hd.setNgayCapNhat(luc);
+                hoaDonRepo.save(hd);
+
+                String lyDoHuy = "Tự động hủy do hết hàng: " + String.join("; ", thieu) + " (đơn khác đã thanh toán trước).";
+                LichSuHoaDon lsHuy = new LichSuHoaDon();
+                lsHuy.setHoaDon(hd);
+                lsHuy.setHanhDong("Đã hủy");
+                lsHuy.setNguoiThaoTac("Hệ thống");
+                lsHuy.setThoiGian(luc);
+                lsHuy.setMoTa(lyDoHuy + " - Cần hoàn trả khách " + tien(soTienHoan));
+                lichSuRepo.save(lsHuy);
+
+                if (mailService != null) {
+                    String email = emailNhanThongBao(hd);
+                    if (email != null) {
+                        String ten = tenNhanThongBao(hd);
+                        mailService.guiThongBaoHoanTien(ten, email, hd.getMaHoaDon(), lyDoHuy, tien(soTienHoan), "Chuyển khoản ngân hàng");
+                    }
+                }
+
+                return "Không thể nhận hàng do sản phẩm đã hết hàng tồn kho: " + String.join("; ", thieu)
+                        + ". Hệ thống đã tự động hủy đơn và gửi email thông báo hoàn tiền " + tien(soTienHoan) + " cho khách.";
+            }
+        }
+
         String ma = maGiaoDich == null ? null : maGiaoDich.trim();
         if (ma != null && ma.length() > 100) ma = ma.substring(0, 100);
         if (ma != null && !ma.isEmpty()) {
@@ -314,7 +448,6 @@ public class HoaDonSuaService {
                 if (ma.equals(x.getMaGiaoDich())) return "Bỏ qua: giao dịch " + ma + " đã ghi nhận trước đó.";
             }
         }
-        LocalDateTime luc = bayGio();
         LichSuThanhToan t = new LichSuThanhToan();
         t.setHoaDon(hd);
         t.setSoTien(BigDecimal.valueOf(soTien));
@@ -334,6 +467,22 @@ public class HoaDonSuaService {
                 + (conLai > 0 ? " - còn thiếu " + tien(conLai) : conLai < 0 ? " - khách chuyển dư " + tien(-conLai) : "");
         ls.setMoTa(ghiChu.length() > 480 ? ghiChu.substring(0, 480) : ghiChu);
         lichSuRepo.save(ls);
+
+        if (chuaTruKho && conLai <= 0) {
+            truTonKho(hd);
+            hd.setTrangThai(HoaDon.DA_XAC_NHAN);
+            hd.setNgayCapNhat(luc);
+            hoaDonRepo.save(hd);
+
+            LichSuHoaDon lsXn = new LichSuHoaDon();
+            lsXn.setHoaDon(hd);
+            lsXn.setHanhDong("Đã xác nhận");
+            lsXn.setNguoiThaoTac("Hệ thống");
+            lsXn.setThoiGian(luc);
+            lsXn.setMoTa("Tự động xác nhận đơn hàng và trừ tồn kho sau khi khách chuyển khoản đủ.");
+            lichSuRepo.save(lsXn);
+        }
+
         return "Đã ghi nhận " + tien(soTien) + " cho đơn " + hd.getMaHoaDon() + (conLai > 0 ? " (còn thiếu " + tien(conLai) + ")" : "");
     }
 
@@ -351,5 +500,22 @@ public class HoaDonSuaService {
 
     private static String tien(long v) {
         return GiaoCaService.dinhDangTien(BigDecimal.valueOf(v));
+    }
+
+    private String emailNhanThongBao(HoaDon hd) {
+        for (LichSuHoaDon ls : lichSuRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+            String e = MailService.emailTrongMoTa(ls.getMoTa());
+            if (e != null) return e;
+        }
+        String e = hd.getKhachHang() == null ? null : hd.getKhachHang().getEmail();
+        return e != null && e.contains("@") ? e.trim() : null;
+    }
+
+    private String tenNhanThongBao(HoaDon hd) {
+        if (hd.getHoTenNguoiNhan() != null && !hd.getHoTenNguoiNhan().isBlank()) return hd.getHoTenNguoiNhan().trim();
+        if (hd.getKhachHang() != null && hd.getKhachHang().getHoTen() != null && !hd.getKhachHang().getHoTen().isBlank()) {
+            return hd.getKhachHang().getHoTen().trim();
+        }
+        return "quý khách";
     }
 }

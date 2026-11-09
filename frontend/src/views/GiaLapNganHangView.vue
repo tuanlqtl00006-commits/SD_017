@@ -32,8 +32,9 @@ async function xacNhan() {
   dangGui.value = true
   loi.value = ''
   try {
-    thongTin.value = (await api.post(`${goc.value}/${encodeURIComponent(ma.value)}/xac-nhan`)).data
-    xong.value = true
+    const res = await api.post(`${goc.value}/${encodeURIComponent(ma.value)}/xac-nhan`)
+    thongTin.value = res.data
+    xong.value = !res.data.daHuy
   } catch (e) {
     loi.value = e?.message || 'Không xác nhận được. Vui lòng thử lại.'
   } finally {
@@ -74,7 +75,26 @@ onMounted(tai)
 
       <div v-else-if="thongTin.daHuy" class="gl-card text-center">
         <i class="bi bi-x-circle-fill gl-icon-err"></i>
-        <p class="mb-0">Đơn hàng <strong>{{ thongTin.maHoaDon }}</strong> đã bị hủy nên không thể thanh toán.</p>
+        <h5 class="fw-bold mt-3 text-danger">Đơn hàng đã được xử lý hủy</h5>
+        <p class="mb-2 text-muted">Đơn hàng <strong>{{ thongTin.maHoaDon }}</strong> không thể hoàn tất (do sản phẩm đã hết hàng hoặc đơn đã hủy).</p>
+        <div class="alert alert-warning small text-start mb-0">
+          <i class="bi bi-info-circle-fill me-1"></i>
+          Nếu bạn đã chuyển khoản tiền thanh toán, hệ thống đã ghi nhận và tự động gửi <strong>Email thông báo hoàn tiền</strong> đến hòm thư của bạn. Vui lòng kiểm tra email.
+        </div>
+      </div>
+
+      <div v-else-if="thongTin.hetHang" class="gl-card text-center">
+        <i class="bi bi-exclamation-triangle-fill gl-icon-err" style="color: #ea580c;"></i>
+        <h5 class="fw-bold mt-3 text-danger">Sản phẩm đã hết hàng</h5>
+        <p class="mb-1 text-muted">Sản phẩm trong đơn <strong>{{ thongTin.maHoaDon }}</strong> đã hết hàng do đơn hàng khác vừa thanh toán trước.</p>
+        <p v-if="thongTin.lyDoHetHang" class="small text-danger mb-3">{{ thongTin.lyDoHetHang }}</p>
+        <div class="alert alert-warning small text-start mb-3">
+          Nếu khách đã chuyển khoản tại app ngân hàng, hệ thống sẽ tự động hủy đơn và gửi email thông báo hoàn trả tiền cho khách.
+        </div>
+        <button type="button" class="gl-btn" style="background:#ea580c;" :disabled="dangGui" @click="xacNhan">
+          <span v-if="dangGui" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          Thử chuyển khoản (Kiểm tra gửi mail hoàn tiền)
+        </button>
       </div>
 
       <div v-else class="gl-card">

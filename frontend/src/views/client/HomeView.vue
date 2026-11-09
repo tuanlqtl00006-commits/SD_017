@@ -80,12 +80,6 @@ function showNotification(msg) {
 // 3. DANH MỤC TABS Ở "SẢN PHẨM MỚI" (Dữ liệu thật từ CSDL)
 const homeCategories = ref([
   { id: 'ALL', ten: 'Tất cả' },
-  { id: 1, ten: 'Vợt Cầu Lông' },
-  { id: 2, ten: 'Vợt Cầu Lông Người Mới' },
-  { id: 3, ten: 'Quần Áo Thể Thao' },
-  { id: 4, ten: 'Túi - Balo' },
-  { id: 5, ten: 'Phụ Kiện' },
-  { id: 6, ten: 'Quả Cầu Lông' },
 ])
 const selectedCatTab = ref('ALL')
 const currentSlide = ref(0)
@@ -133,7 +127,9 @@ onMounted(async () => {
     if (dmThRes?.danhMuc?.length > 0) {
       homeCategories.value = [
         { id: 'ALL', ten: 'Tất cả' },
-        ...dmThRes.danhMuc.map((dm) => ({ id: dm.id, ten: dm.ten })),
+        ...dmThRes.danhMuc
+          .filter((dm) => dm.trangThai !== 0 && dm.hoatDong !== false)
+          .map((dm) => ({ id: dm.id, ten: dm.ten })),
       ]
     }
   } catch (err) {

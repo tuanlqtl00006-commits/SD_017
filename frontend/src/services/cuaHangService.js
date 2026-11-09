@@ -265,8 +265,16 @@ export const cuaHangService = {
   async layMoiDanhMucVaThuongHieu() {
     try {
       const res = await api.get('/cua-hang/danh-muc-va-thuong-hieu')
-      if (res.data && res.data.danhMuc && res.data.danhMuc.length > 0) {
-        return res.data
+      if (res.data) {
+        return {
+          danhMuc: (res.data.danhMuc || []).filter(
+            (d) => d.trangThai !== 0 && d.trangThai !== false && d.hoatDong !== false
+          ),
+          thuongHieu: (res.data.thuongHieu || []).filter(
+            (t) => t.trangThai !== 0 && t.trangThai !== false && t.hoatDong !== false
+          ),
+          thuocTinh: res.data.thuocTinh || {},
+        }
       }
     } catch {
       // fallback
@@ -279,48 +287,22 @@ export const cuaHangService = {
       ])
 
       const activeDm = (dmList || [])
-        .filter((d) => d.trangThai !== 0 && d.trangThai !== false && d.hoatDong !== 0)
-        .map((d) => ({ id: d.id, ten: d.ten || d.tenDanhMuc || '' }))
+        .filter((d) => d.trangThai !== 0 && d.trangThai !== false && d.hoatDong !== 0 && d.hoatDong !== false)
+        .map((d) => ({ id: d.id, ten: d.ten || d.tenDanhMuc || '', trangThai: 1, hoatDong: true }))
 
       const activeTh = (thList || [])
-        .filter((t) => t.trangThai !== 0 && t.trangThai !== false && t.hoatDong !== 0)
-        .map((t) => ({ id: t.id, ten: t.ten || t.tenThuongHieu || '' }))
+        .filter((t) => t.trangThai !== 0 && t.trangThai !== false && t.hoatDong !== 0 && t.hoatDong !== false)
+        .map((t) => ({ id: t.id, ten: t.ten || t.tenThuongHieu || '', trangThai: 1, hoatDong: true }))
 
       return {
-        danhMuc: activeDm.length > 0 ? activeDm : [
-          { id: 1, ten: 'Vợt cầu lông' },
-          { id: 2, ten: 'Vợt cầu lông người mới' },
-          { id: 3, ten: 'Quần áo thể thao' },
-          { id: 4, ten: 'Túi - balo' },
-          { id: 5, ten: 'Phụ kiện' },
-          { id: 6, ten: 'Quả cầu lông' },
-        ],
-        thuongHieu: activeTh.length > 0 ? activeTh : [
-          { id: 1, ten: 'Yonex' },
-          { id: 2, ten: 'Lining' },
-          { id: 3, ten: 'Victor' },
-          { id: 4, ten: 'Mizuno' },
-          { id: 5, ten: 'Kumpoo' },
-        ],
+        danhMuc: activeDm,
+        thuongHieu: activeTh,
       }
     } catch (err) {
       console.error('Lỗi khi lấy danh mục & thương hiệu:', err)
       return {
-        danhMuc: [
-          { id: 1, ten: 'Vợt cầu lông' },
-          { id: 2, ten: 'Vợt cầu lông người mới' },
-          { id: 3, ten: 'Quần áo thể thao' },
-          { id: 4, ten: 'Túi - balo' },
-          { id: 5, ten: 'Phụ kiện' },
-          { id: 6, ten: 'Quả cầu lông' },
-        ],
-        thuongHieu: [
-          { id: 1, ten: 'Yonex' },
-          { id: 2, ten: 'Lining' },
-          { id: 3, ten: 'Victor' },
-          { id: 4, ten: 'Mizuno' },
-          { id: 5, ten: 'Kumpoo' },
-        ],
+        danhMuc: [],
+        thuongHieu: [],
       }
     }
   },

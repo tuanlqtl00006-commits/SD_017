@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../stores/cart'
 import { useAuth } from '../composables/useAuth'
@@ -16,74 +16,8 @@ const cartStore = useCartStore()
 const auth = useAuth()
 
 const searchQuery = ref('')
-const showProductDropdown = ref(false)
-let megaMenuTimer = null
-
-function openProductDropdown() {
-  if (megaMenuTimer) {
-    clearTimeout(megaMenuTimer)
-    megaMenuTimer = null
-  }
-  showProductDropdown.value = true
-}
-
-function closeProductDropdown() {
-  if (megaMenuTimer) clearTimeout(megaMenuTimer)
-  megaMenuTimer = setTimeout(() => {
-    showProductDropdown.value = false
-  }, 150)
-}
-const showGuideDropdown = ref(false)
-const showLookupDropdown = ref(false)
 const showAccountDropdown = ref(false)
 const showCartDropdown = ref(false)
-
-// Danh mục và thương hiệu thật từ CSDL
-const danhMucList = ref([])
-const thuongHieuList = ref([])
-
-onMounted(async () => {
-  try {
-    const res = await cuaHangService.getDanhMucVaThuongHieu()
-    if (res?.danhMuc?.length > 0) {
-      danhMucList.value = res.danhMuc
-    }
-    if (res?.thuongHieu?.length > 0) {
-      thuongHieuList.value = res.thuongHieu
-    }
-  } catch (err) {
-    console.error('Lỗi khi tải danh mục client layout:', err)
-  }
-})
-
-// Dữ liệu menu sản phẩm chỉ lấy từ CSDL thật (loại bỏ hoàn toàn tất cả danh mục ảo và biến thể ảo)
-const menuCategories = computed(() => {
-  const dms = danhMucList.value.length > 0 ? danhMucList.value : [
-    { id: 1, ten: 'Vợt cầu lông' },
-    { id: 2, ten: 'Vợt cầu lông người mới' },
-    { id: 3, ten: 'Quần áo thể thao' },
-    { id: 4, ten: 'Túi - balo' },
-    { id: 5, ten: 'Phụ kiện' },
-    { id: 6, ten: 'Quả cầu lông' },
-  ]
-  const ths = thuongHieuList.value.length > 0 ? thuongHieuList.value : [
-    { id: 1, ten: 'Yonex' },
-    { id: 2, ten: 'Lining' },
-    { id: 3, ten: 'Victor' },
-    { id: 4, ten: 'Mizuno' },
-    { id: 5, ten: 'Kumpoo' },
-  ]
-
-  return dms.map((dm) => ({
-    id: dm.id,
-    title: (dm.ten || '').toUpperCase(),
-    query: { danhMuc: dm.id },
-    links: ths.map((th) => ({
-      label: `${dm.ten} ${th.ten}`,
-      query: { danhMuc: dm.id, thuongHieu: th.id },
-    })),
-  }))
-})
 
 // ===== Gợi ý tìm kiếm =====
 const showSuggest = ref(false)
@@ -180,11 +114,7 @@ function handleSearch() {
             <li class="vnb-nav-item">
               <RouterLink to="/shop" class="vnb-nav-link">TRANG CHỦ</RouterLink>
             </li>
-            <li
-              class="vnb-nav-item vnb-mega-trigger"
-              @mouseenter="openProductDropdown"
-              @mouseleave="closeProductDropdown"
-            >
+            <li class="vnb-nav-item">
               <RouterLink to="/shop/san-pham" class="vnb-nav-link" :class="{ 'vnb-no-active': dangXemKhuyenMai }">SẢN PHẨM</RouterLink>
             </li>
             <li class="vnb-nav-item">
@@ -423,83 +353,6 @@ function handleSearch() {
           </div>
         </div>
       </nav>
-
-      <!-- MEGA MENU PANEL (hover SẢN PHẨM) -->
-      <div
-        class="vnb-mega-menu"
-        v-show="showProductDropdown"
-        @mouseenter="openProductDropdown"
-        @mouseleave="closeProductDropdown"
-      >
-        <div class="vnb-container">
-          <div class="vnb-mega-grid">
-            <div
-              v-for="cat in menuCategories"
-              :key="cat.id"
-              class="vnb-mega-col"
-            >
-              <RouterLink
-                :to="{ path: '/shop/san-pham', query: cat.query }"
-                class="vnb-mega-title"
-                @click="showProductDropdown = false"
-              >
-                {{ cat.title }}
-              </RouterLink>
-              <ul class="vnb-mega-links">
-                <li v-for="link in cat.links" :key="link.label">
-                  <RouterLink
-                    :to="{ path: '/shop/san-pham', query: link.query }"
-                    class="vnb-mega-link"
-                    @click="showProductDropdown = false"
-                  >
-                    {{ link.label }}
-                  </RouterLink>
-                </li>
-                <li>
-                  <RouterLink
-                    :to="{ path: '/shop/san-pham', query: cat.query }"
-                    class="vnb-mega-more"
-                    @click="showProductDropdown = false"
-                  >
-                    Xem thêm
-                  </RouterLink>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Cột thương hiệu chính hãng thật -->
-            <div v-if="thuongHieuList && thuongHieuList.length > 0" class="vnb-mega-col">
-              <RouterLink
-                to="/shop/san-pham"
-                class="vnb-mega-title"
-                @click="showProductDropdown = false"
-              >
-                THƯƠNG HIỆU
-              </RouterLink>
-              <ul class="vnb-mega-links">
-                <li v-for="brand in thuongHieuList" :key="brand.id">
-                  <RouterLink
-                    :to="{ path: '/shop/san-pham', query: { thuongHieu: brand.id } }"
-                    class="vnb-mega-link"
-                    @click="showProductDropdown = false"
-                  >
-                    {{ brand.ten }}
-                  </RouterLink>
-                </li>
-                <li>
-                  <RouterLink
-                    to="/shop/san-pham"
-                    class="vnb-mega-more"
-                    @click="showProductDropdown = false"
-                  >
-                    Xem thêm
-                  </RouterLink>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Main Content -->

@@ -1,10 +1,13 @@
 package com.footstyle.demo.controller;
 
+import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.exception.ApiException;
+import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.service.CuaHangService;
 import com.footstyle.demo.service.HoaDonSuaService;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,7 @@ public class ThanhToanGiaLapController {
 
     private final CuaHangService cuaHangService;
     private final HoaDonSuaService hoaDonSuaService;
+    private final HoaDonRepository hoaDonRepo;
 
     @Value("${app.thanh-toan.gia-lap:false}")
     private boolean giaLap;
@@ -69,6 +73,21 @@ public class ThanhToanGiaLapController {
         BigDecimal daTra = don.get("daTra") instanceof BigDecimal b ? b : BigDecimal.ZERO;
         long conLai = Math.max(0, thanhTien.subtract(daTra).longValue());
         int tt = don.get("trangThai") instanceof Number n ? n.intValue() : 1;
+
+        HoaDon hd = hoaDonRepo.findFirstByMaHoaDonIgnoreCase(ma.trim()).orElse(null);
+        boolean hetHang = false;
+        String lyDoHetHang = null;
+        if (hd != null) {
+            int trangThai = hd.getTrangThai() == null ? 1 : hd.getTrangThai();
+            if (trangThai == HoaDon.CHO_XAC_NHAN) {
+                List<String> thieu = hoaDonSuaService.danhSachThieuHang(hd);
+                if (!thieu.isEmpty()) {
+                    hetHang = true;
+                    lyDoHetHang = "Sản phẩm trong đơn hàng đã hết hàng: " + String.join("; ", thieu);
+                }
+            }
+        }
+
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("maHoaDon", don.get("maHoaDon"));
         m.put("thanhTien", thanhTien);
@@ -76,6 +95,8 @@ public class ThanhToanGiaLapController {
         m.put("daThanhToanDu", Boolean.TRUE.equals(don.get("daThanhToanDu")));
         m.put("laChuyenKhoan", Integer.valueOf(2).equals(don.get("idPhuongThucThanhToan")));
         m.put("daHuy", tt == 0);
+        m.put("hetHang", hetHang);
+        m.put("lyDoHetHang", lyDoHetHang);
         return m;
     }
 

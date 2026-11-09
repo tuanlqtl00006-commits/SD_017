@@ -112,6 +112,8 @@ public class CuaHangService {
 
         for (SanPham sp : dsSanPham) {
             if (!Integer.valueOf(1).equals(sp.getTrangThai())) continue;
+            if (sp.getDanhMuc() != null && !dangDung(sp.getDanhMuc())) continue;
+            if (sp.getThuongHieu() != null && !dangDung(sp.getThuongHieu())) continue;
 
             if (idDanhMuc != null && (sp.getDanhMuc() == null || !idDanhMuc.equals(sp.getDanhMuc().getId()))) continue;
             if (idThuongHieu != null && (sp.getThuongHieu() == null || !idThuongHieu.equals(sp.getThuongHieu().getId()))) continue;
@@ -229,19 +231,27 @@ public class CuaHangService {
         List<DanhMuc> dms = danhMucRepo.findAll();
         List<ThuongHieu> ths = thuongHieuRepo.findAll();
 
-        List<Map<String, Object>> dmList = dms.stream().map(d -> {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", d.getId());
-            m.put("ten", d.getTen());
-            return m;
-        }).toList();
+        List<Map<String, Object>> dmList = dms.stream()
+                .filter(CuaHangService::dangDung)
+                .map(d -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", d.getId());
+                    m.put("ten", d.getTen());
+                    m.put("trangThai", d.getTrangThai());
+                    m.put("hoatDong", true);
+                    return m;
+                }).toList();
 
-        List<Map<String, Object>> thList = ths.stream().map(t -> {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", t.getId());
-            m.put("ten", t.getTen());
-            return m;
-        }).toList();
+        List<Map<String, Object>> thList = ths.stream()
+                .filter(CuaHangService::dangDung)
+                .map(t -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", t.getId());
+                    m.put("ten", t.getTen());
+                    m.put("trangThai", t.getTrangThai());
+                    m.put("hoatDong", true);
+                    return m;
+                }).toList();
 
         // Danh sách thuộc tính (công khai) để cửa hàng làm bộ lọc theo từng danh mục, kể cả khi danh mục chưa có sản phẩm
         Map<String, Object> thuocTinh = new LinkedHashMap<>();
@@ -269,7 +279,8 @@ public class CuaHangService {
     }
 
     private static boolean dangDung(ThuocTinh t) {
-        return t.getTen() != null && (t.getTrangThai() == null || t.getTrangThai() != 0)
+        if (t == null || t.getTen() == null) return false;
+        return (t.getTrangThai() == null || t.getTrangThai() != 0)
                 && !"Không áp dụng".equalsIgnoreCase(t.getTen().trim());
     }
 

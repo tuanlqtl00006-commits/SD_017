@@ -30,6 +30,17 @@ const laGiaoHang = computed(() => hd.value.loaiDon === 2)
 const laKhachLe = computed(() => !!khach.value.khachLe && !khach.value.sdt)
 const moTaGiam = computed(() => moTaMucGiam(hd.value))
 
+// Thông tin giao nhận hiển thị ở chế độ khách tra cứu (gộp thành 1 bảng, bỏ thông tin trùng)
+const tenHienThi = computed(() => giao.value.hoTenNguoiNhan || khach.value.ten || '—')
+const sdtHienThi = computed(() => giao.value.sdtNguoiNhan || khach.value.sdt || '—')
+const coNguoiDatRieng = computed(() => {
+  const tenNhan = (giao.value.hoTenNguoiNhan || '').trim()
+  const tenDat = (khach.value.ten || '').trim()
+  const sdtNhan = (giao.value.sdtNguoiNhan || '').trim()
+  const sdtDat = (khach.value.sdt || '').trim()
+  return (tenDat && tenNhan && tenDat !== tenNhan) || (sdtDat && sdtNhan && sdtDat !== sdtNhan)
+})
+
 const money = (v) => formatMoney(v ?? 0)
 const fmtTime = formatGio
 const fmtDay = formatNgay
@@ -288,8 +299,64 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
       </section>
     </div>
 
-    <!-- Hàng 2: Khách hàng / Giao hàng / Thanh toán (3 khối cân đối) -->
-    <div class="hd-grid hd-grid--3">
+    <!-- Hàng 2: Ở chế độ khách tra cứu: 1 bảng thông tin nhận hàng gọn gàng, loại bỏ thông tin trùng -->
+    <section v-if="cheDoKhach" class="ad-card hd-info-card hd-info-card--unified" aria-labelledby="hd-info-title">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="ad-icon-box hd-icon-box--customer">
+          <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+        </span>
+        <div>
+          <h2 id="hd-info-title" class="ad-card-title mb-0">Thông tin nhận hàng</h2>
+          <div class="text-muted small">Chi tiết người nhận và phương thức giao hàng</div>
+        </div>
+      </div>
+
+      <div class="row g-2">
+        <!-- Cột 1: Thông tin người nhận -->
+        <div class="col-md-6 d-flex flex-column gap-2">
+          <div class="hd-info-row">
+            <span class="hd-info-label">Người nhận:</span>
+            <strong class="hd-info-value text-dark">{{ tenHienThi }}</strong>
+          </div>
+          <div class="hd-info-row">
+            <span class="hd-info-label">Số điện thoại:</span>
+            <span class="hd-info-value fw-bold text-primary font-monospace">{{ sdtHienThi }}</span>
+          </div>
+          <div class="hd-info-row">
+            <span class="hd-info-label">Email:</span>
+            <span class="hd-info-value text-dark text-break">{{ khach.email || 'Không có' }}</span>
+          </div>
+          <div v-if="coNguoiDatRieng" class="hd-info-row">
+            <span class="hd-info-label">Người đặt:</span>
+            <span class="hd-info-value text-secondary">{{ khach.ten }} <span v-if="khach.sdt && khach.sdt !== sdtHienThi">({{ khach.sdt }})</span></span>
+          </div>
+        </div>
+
+        <!-- Cột 2: Thông tin giao hàng & vận chuyển -->
+        <div class="col-md-6 d-flex flex-column gap-2">
+          <div class="hd-info-row align-items-start">
+            <span class="hd-info-label flex-shrink-0 pt-0.5">Địa chỉ:</span>
+            <span class="hd-info-value text-end text-break fw-medium text-dark ps-2">
+              {{ giao.diaChi || (laGiaoHang ? 'Chưa có địa chỉ cụ thể' : 'Nhận hàng tại cửa hàng') }}
+            </span>
+          </div>
+          <div class="hd-info-row">
+            <span class="hd-info-label">Vận chuyển:</span>
+            <span class="hd-info-value">
+              <VanChuyenLogo v-if="laGiaoHang" :ten="hd.donViVanChuyen" />
+              <span v-else class="badge bg-light text-dark border">Nhận tại quầy</span>
+            </span>
+          </div>
+          <div class="hd-info-row">
+            <span class="hd-info-label">Ghi chú:</span>
+            <span class="hd-info-value text-dark fst-italic">{{ hd.ghiChu || '—' }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Màn quản trị admin: giữ 3 khối riêng biệt cân đối -->
+    <div v-else class="hd-grid hd-grid--3">
       <section class="ad-card" aria-labelledby="hd-kh-title">
         <div class="ad-card-head">
           <span class="ad-icon-box"><i class="bi bi-person" aria-hidden="true"></i></span>
@@ -464,14 +531,79 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
 .hd-summary-card {
   align-self: start;
 }
+.hd-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .hd-grid--3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 @media (max-width: 1199.98px) {
   .hd-grid--top,
+  .hd-grid--2,
   .hd-grid--3 {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* Card nổi bật cho màn tra cứu đơn hàng */
+.hd-info-card {
+  position: relative;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hd-info-card:hover {
+  box-shadow: 0 18px 36px -8px rgba(15, 23, 42, 0.1);
+}
+.hd-info-card--unified,
+.hd-info-card--customer {
+  border-top: 4px solid var(--fs-primary);
+}
+.hd-info-card--delivery {
+  border-top: 4px solid #10b981;
+}
+
+.hd-icon-box--unified,
+.hd-icon-box--customer {
+  background: rgba(9, 119, 236, 0.12) !important;
+  color: var(--fs-primary) !important;
+  border: 1px solid rgba(9, 119, 236, 0.2);
+}
+.hd-icon-box--delivery {
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #10b981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.hd-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  min-height: 48px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.hd-info-row:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+.hd-info-label {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+}
+.hd-info-value {
+  font-size: 0.92rem;
+  text-align: right;
 }
 
 .hd-card-head {
