@@ -161,7 +161,7 @@ class HoaDonSuaServiceTest {
     @Test
     void themCungSanPhamKhiGiaDaDoi_tachDongMoi_vaChiSuaDuocMotLan() {
         phanTramDot.put(1L, 20.0); // cầu đang giảm 20%: 200.000
-        service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội",
+        service.suaDon(1, sua("Số 16 Trần Phú, Hà Đông, Hà Nội",
                 new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 1, 1)));
         assertEquals(2, dong.size(), "dòng cũ giữ giá lúc đặt 250.000, dòng mới theo giá 200.000");
         assertEquals(0, BigDecimal.valueOf(200_000).compareTo(dong.get(1).getDonGia()));
@@ -192,6 +192,12 @@ class HoaDonSuaServiceTest {
     }
 
     @Test
+    void giuNguyenDiaChi_giuPhiShipCuaDon() {
+        service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1)));
+        assertEquals(0, BigDecimal.valueOf(30_000).compareTo(hd.getPhiVanChuyen()), "chỉ sửa số lượng thì giữ phí nhân viên đã nhập lúc bán");
+    }
+
+    @Test
     void diaChiKhongNhanRaTinh_giuPhiShipCu() {
         service.suaDon(1, sua("Số 15 Trần Phú, khu phố 3", new HoaDonSuaService.DongSua(1, 1, 2)));
         assertEquals(0, BigDecimal.valueOf(30_000).compareTo(hd.getPhiVanChuyen()), "không biết tỉnh nên giữ phí cũ");
@@ -200,7 +206,7 @@ class HoaDonSuaServiceTest {
     @Test
     void khachDaTraTruoc_themSanPham_phuPhiThuKhiGiao_mienShip() {
         daChuyenKhoan(530_000);
-        service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội",
+        service.suaDon(1, sua("Số 16 Trần Phú, Hà Đông, Hà Nội",
                 new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 2, 1)));
         assertEquals(0, BigDecimal.ZERO.compareTo(hd.getPhiVanChuyen()), "giao Hà Nội miễn phí giao hàng");
         assertEquals(0, BigDecimal.valueOf(1_700_000).compareTo(hd.getThanhTien()));

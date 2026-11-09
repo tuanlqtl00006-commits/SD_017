@@ -304,6 +304,7 @@ class HoaDonChoServiceTest {
 
     @Test
     void nhanVien_chuaNhanCa_vanBiChan() {
+        m.giaoCas.clear(); // quầy chưa mở ca nào; có ca đang mở thì nhân viên khác được bán trong ca đó
         CaLamMau.dangNhap(m.anh);
         ApiException e = loi(this::taoHoaDon);
         assertEquals("CHUA_NHAN_CA", e.getCode());
@@ -430,6 +431,21 @@ class HoaDonChoServiceTest {
     }
 
     @Test
+    void giaoHang_nhanVienNhapPhi_layDungSoDaNhap_khongDuocAm() {
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
+        ApiException e = loi(() -> banHang.thanhToanHoaDonCho(id, tra(320_000L,
+                new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 15 ngõ 120 Trần Phú", "Thành phố Hà Nội", "Phường Hà Đông", -1L), null)));
+        assertEquals("Phí vận chuyển không được âm.", e.getMessage());
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(320_000L,
+                new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 15 ngõ 120 Trần Phú", "Thành phố Hà Nội", "Phường Hà Đông", 70_000L), null));
+        assertEquals(70_000L, kq.get("phiVanChuyen"), "lấy số nhân viên nhập, dù Hà Nội miễn phí");
+        assertEquals(320_000L, kq.get("thanhTien"), "250.000 + 70.000");
+        HoaDon h = m.hoaDons.stream().filter(x -> x.getId().equals(id)).findFirst().orElseThrow();
+        assertEquals(70_000L, h.getPhiVanChuyen().longValue());
+    }
+
+    @Test
     void phiGiaoHangTheoTinh() {
         assertEquals(0L, PhiVanChuyenTinh.phi("Thành phố Hà Nội"), "Hà Nội miễn phí");
         assertEquals(0L, PhiVanChuyenTinh.phi("Ha Noi"));
@@ -443,6 +459,7 @@ class HoaDonChoServiceTest {
         Integer id = taoHoaDon();
         service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
         GiaoCaService giaoCa = new GiaoCaService(m.giaoCaRepo(), m.nhanVienRepo(), m.lichRepo(), hoaDonRepo(), thanhToanRepo(), m.phuongThucRepo());
+        CaLamMau.dangNhapThuNgan(m.bao);
         ApiException e = loi(() -> giaoCa.ketCa(new GiaoCaService.KetCaRequest(BigDecimal.ZERO, BigDecimal.ZERO, null, null)));
         assertEquals("CON_HOA_DON_CHO", e.getCode());
         assertEquals(0, giaoCa.tongKet(m.giaoCas.get(m.giaoCas.size() - 1)).get("soHoaDon"), "hóa đơn chờ chưa tính vào tổng kết ca");

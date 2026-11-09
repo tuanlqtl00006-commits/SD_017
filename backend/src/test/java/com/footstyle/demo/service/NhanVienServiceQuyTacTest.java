@@ -144,7 +144,7 @@ class NhanVienServiceQuyTacTest {
         List<VaiTroResponse> ds = service.getVaiTro();
         assertEquals(List.of("Quản lý", "Nhân viên"), ds.stream().map(VaiTroResponse::ten).toList(),
                 "'Kế toán' đang dùng trong CSDL nhưng không phải quyền hợp lệ nên không hiện trong danh sách");
-        assertEquals("Chỉ có hai vai trò: Quản lý và Nhân viên.", loiO(voi("idVaiTro", 3), "idVaiTro"));
+        assertEquals("Vai trò không hợp lệ.", loiO(voi("idVaiTro", 3), "idVaiTro"));
         assertEquals("Vai trò này đang ngưng sử dụng.", loiO(voi("idVaiTro", 4), "idVaiTro"));
         assertEquals("Vai trò không tồn tại.", loiO(voi("idVaiTro", 99), "idVaiTro"));
         assertEquals("Chọn vai trò.", loiO(voi("idVaiTro", null), "idVaiTro"));

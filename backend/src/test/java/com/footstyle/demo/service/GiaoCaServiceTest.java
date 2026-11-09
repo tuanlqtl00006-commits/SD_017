@@ -183,7 +183,7 @@ class GiaoCaServiceTest {
 
     @Test
     void ketCa_lechTienBatBuocGhiLyDo_banGiaoKhongQuaThucTe() {
-        CaLamMau.dangNhap(m.bao);
+        CaLamMau.dangNhapThuNgan(m.bao);
         nhanCa("07:00", 1_000_000, null);
         int id = m.giaoCas.get(0).getId();
         m.hoaDon(id, 400_000, HoaDon.HOAN_THANH, "PT01", 400_000);
@@ -203,15 +203,15 @@ class GiaoCaServiceTest {
         assertEquals(0, ((BigDecimal) xong.get("chenhLech")).signum());
         assertEquals("Phạm Minh Anh", xong.get("tenNguoiNhanBanGiao"));
         assertEquals(1, ((List<?>) xong.get("hoaDons")).size());
-        // ca sau gợi ý tiền đầu ca = 1.000.000 vừa bàn giao
-        CaLamMau.dangNhap(m.anh);
+        // ca sau gợi ý tiền đầu ca = 1.000.000 vừa bàn giao; Thu ngân chưa có ca nào đang mở thì không chốt được
+        CaLamMau.dangNhapThuNgan(m.anh);
         assertEquals(tien(1_000_000), service.hienTai().get("goiYTienDauCa"));
         assertEquals(HttpStatus.CONFLICT, loi(() -> service.ketCa(new GiaoCaService.KetCaRequest(tien(0), tien(0), null, null))).getStatus());
     }
 
     @Test
     void ketCa_thuaTien_coGhiChuThiDuoc() {
-        CaLamMau.dangNhap(m.bao);
+        CaLamMau.dangNhapThuNgan(m.bao);
         nhanCa("07:00", 0, null);
         Map<String, Object> xong = service.ketCa(new GiaoCaService.KetCaRequest(tien(20_000), tien(0), null, "Khách không lấy tiền thừa"));
         assertEquals(tien(20_000), xong.get("chenhLech"));
@@ -232,7 +232,7 @@ class GiaoCaServiceTest {
         assertEquals("CA_KHAC_DANG_MO", e.getCode());
         assertTrue(e.getMessage().contains("GC02") && e.getMessage().contains("Lê Quốc Bảo"), e.getMessage());
         // Bảo giao ca xong thì Ánh vào được, nhận đúng tiền Bảo để lại
-        CaLamMau.dangNhap(m.bao);
+        CaLamMau.dangNhapThuNgan(m.bao);
         service.ketCa(new GiaoCaService.KetCaRequest(tien(2_000_000), tien(2_000_000), null, null));
         CaLamMau.dangNhap(m.anh);
         assertNull(service.hienTai().get("caKhacDangMo"));
@@ -298,7 +298,7 @@ class GiaoCaServiceTest {
 
     @Test
     void lichSu_nhanVienChiThayCaCuaMinh_quanLyThayHet() {
-        CaLamMau.dangNhap(m.bao);
+        CaLamMau.dangNhapThuNgan(m.bao);
         nhanCa("07:00", 0, null);
         service.ketCa(new GiaoCaService.KetCaRequest(tien(0), tien(0), null, null));
         CaLamMau.dangNhap(m.anh);
@@ -317,7 +317,7 @@ class GiaoCaServiceTest {
     /** Review: lịch sử giao ca cho biết nhân viên giữ ca đến hết rồi ca tiếp theo đến ai nhận. */
     @Test
     void lichSu_moiCaDaGiaoBietCaSauDoAiNhan() {
-        CaLamMau.dangNhap(m.bao);
+        CaLamMau.dangNhapThuNgan(m.bao);
         nhanCa("07:00", 0, null);
         service.ketCa(new GiaoCaService.KetCaRequest(tien(0), tien(0), null, null));
         CaLamMau.dangNhap(m.anh);
@@ -341,7 +341,7 @@ class GiaoCaServiceTest {
     @Test
     void caDaGiao_khongVaoLaiDuoc_duLaTuGiaoHayQuanLyDongHo() {
         Integer idLich = m.lich(m.bao, m.sang, CaLamMau.HOM_NAY).getId();
-        CaLamMau.dangNhap(m.bao);
+        CaLamMau.dangNhapThuNgan(m.bao);
         assertEquals(16, nhanCa("07:16", 1_000_000, null).get("soPhutDiMuon"));
         service.ketCa(new GiaoCaService.KetCaRequest(tien(1_000_000), tien(1_000_000), null, null));
         // tự giao rồi vào lại: cả chọn đúng ca lẫn tự chọn theo giờ đều bị chặn, không ghi thêm "muộn"

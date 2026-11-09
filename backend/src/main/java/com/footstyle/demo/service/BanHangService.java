@@ -463,10 +463,15 @@ public class BanHangService {
     /**
      * Thông tin người nhận khi bán tại quầy nhưng giao hàng (khách lẻ chỉ có một địa chỉ).
      * Có tỉnh/thành thì diaChi là số nhà, đường và phí giao tính theo tỉnh; không có thì diaChi là cả địa chỉ.
+     * phiVanChuyen: số nhân viên nhập ở ô phí vận chuyển; null thì tính theo tỉnh.
      */
-    public record GiaoHangRequest(String hoTen, String sdt, String diaChi, String tinhThanh, String phuongXa) {
+    public record GiaoHangRequest(String hoTen, String sdt, String diaChi, String tinhThanh, String phuongXa, Long phiVanChuyen) {
         public GiaoHangRequest(String hoTen, String sdt, String diaChi) {
-            this(hoTen, sdt, diaChi, null, null);
+            this(hoTen, sdt, diaChi, null, null, null);
+        }
+
+        public GiaoHangRequest(String hoTen, String sdt, String diaChi, String tinhThanh, String phuongXa) {
+            this(hoTen, sdt, diaChi, tinhThanh, phuongXa, null);
         }
     }
 
@@ -575,9 +580,12 @@ public class BanHangService {
                 loi.nemNeuCoLoi();
             }
         }
-        // Phí giao theo tỉnh ở cuối địa chỉ (Hà Nội miễn phí, tỉnh khác tùy tỉnh); không nhận ra tỉnh thì tính phí mặc định
+        // Nhân viên nhập phí thì lấy số đó; không nhập thì theo tỉnh ở cuối địa chỉ (Hà Nội miễn phí, tỉnh khác tùy tỉnh), không nhận ra tỉnh thì tính phí mặc định
+        Long phiNhap = giao ? gh.phiVanChuyen() : null;
+        if (phiNhap != null && phiNhap < 0) throw ApiException.badRequest("Phí vận chuyển không được âm.");
+        if (phiNhap != null && phiNhap > TIEN_TOI_DA) throw ApiException.badRequest("Số tiền quá lớn.");
         Long phiTheoTinh = giao ? PhiVanChuyenTinh.phiTheoDiaChi(diaChi) : null;
-        long phi = !giao ? 0 : phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH;
+        long phi = !giao ? 0 : phiNhap != null ? phiNhap : phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH;
         long thanhTien = tongTienHang - kp.giam() + phi;
 
         // 4. Tiền khách trả, phiếu

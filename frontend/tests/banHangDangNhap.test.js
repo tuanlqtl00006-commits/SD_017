@@ -372,7 +372,19 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
     expect(may.ton).toBe(0)
     expect(body().findAll('.bh-dong-chon')).toHaveLength(0)
+    // Bấm thùng rác chỉ hỏi lại: chưa xóa gì; Hủy thì giữ nguyên, xác nhận "Bỏ" mới trả hàng về kho
+    const nutTrongHop = (ten) => body().findAll('.modal button').find((b) => b.text() === ten)
     await w.find('.bh-gio .ad-icon-btn.is-danger').trigger('click')
+    await flushPromises()
+    expect(body().text()).toContain('Bỏ Yonex Astrox 99 Pro (Đen · 4U · G5), số lượng 1, khỏi HD100? Sản phẩm sẽ được trả lại kho.')
+    expect(api.delete).not.toHaveBeenCalled()
+    await nutTrongHop('Hủy').trigger('click')
+    await flushPromises()
+    expect(api.delete).not.toHaveBeenCalled()
+    expect(may.ton).toBe(0)
+    await w.find('.bh-gio .ad-icon-btn.is-danger').trigger('click')
+    await flushPromises()
+    await nutTrongHop('Bỏ').trigger('click')
     await flushPromises()
     expect(may.ton).toBe(1)
     expect(body().findAll('.bh-dong-chon')).toHaveLength(1)
@@ -552,7 +564,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     const khoi = w.find('[data-testid="bh-khoi-giao"]')
     expect(khoi.exists()).toBe(true)
     expect(w.find('.bh-trai [data-testid="bh-khoi-giao"]').exists()).toBe(true)
-    expect(w.find('[data-testid="bh-phi-ship"]').text()).toContain('Chưa tính phí') // chưa chọn tỉnh thì chưa có phí
+    expect(w.find('#bh-phi-ship').attributes('placeholder')).toBe('Chưa tính phí') // chưa chọn tỉnh thì chưa có phí
     expect(khoi.text()).not.toContain('Phí giao hàng') // phí chỉ hiện ở khối thanh toán bên phải
     expect(w.text()).not.toContain('Vui lòng nhập đủ thông tin người nhận') // không nhắc sẵn dưới nút Thanh toán
     await w.find('.bh-nut-tt').trigger('click')
@@ -566,16 +578,70 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     chonDc.vm.$emit('update:phuongXa', 'Phường Hà Đông')
     await w.find('#bh-nn-dc').setValue('Số 1 Trần Phú')
     await flushPromises()
-    expect(w.find('[data-testid="bh-phi-ship"]').text()).toContain('Miễn phí') // đơn từ 1 triệu
+    expect(w.find('#bh-phi-ship').attributes('placeholder')).toBe('Miễn phí') // Hà Nội miễn phí
+    expect(w.find('#bh-phi-ship').element.value).toBe('')
     const { cuaSo } = cuaSoInGia()
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
     await nutXacNhan().trigger('click')
     await flushPromises()
-    expect(may.thanhToan.giaoHang).toEqual({ hoTen: 'Trần Văn Hùng', sdt: '0901000002', diaChi: 'Số 1 Trần Phú', tinhThanh: 'Thành phố Hà Nội', phuongXa: 'Phường Hà Đông' })
+    expect(may.thanhToan.giaoHang).toEqual({ hoTen: 'Trần Văn Hùng', sdt: '0901000002', diaChi: 'Số 1 Trần Phú', tinhThanh: 'Thành phố Hà Nội', phuongXa: 'Phường Hà Đông', phiVanChuyen: null })
     // Thanh toán xong đơn giao hàng cũng tự in và chuyển sang trang chi tiết luôn, không hỏi lại
     expect(push).toHaveBeenCalledWith('/hoa-don/9')
     // tạo mã QR để in chạy bất đồng bộ qua nhiều tick, máy chậm thì lâu hơn nên chờ tới khi in xong
+    await vi.waitFor(() => expect(cuaSo.document.write).toHaveBeenCalledTimes(1))
+  })
+
+  it('phí vận chuyển là một ô nhập: tự điền theo tỉnh, sửa được, đổi tỉnh thì tính lại; hộp xác nhận ghi đủ thông tin', async () => {
+    const { w, may } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="bh-giao-hang"]').setValue(true)
+    await flushPromises()
+    const oPhi = () => w.find('#bh-phi-ship')
+    const tong = () => w.find('.bh-nut-tt').text()
+    expect(w.find('[data-testid="bh-phi-ship"] button').exists()).toBe(false)
+    await w.find('#bh-nn-ten').setValue('Trần Văn Hùng')
+    await w.find('#bh-nn-sdt').setValue('0901000002')
+    await w.find('#bh-nn-dc').setValue('Số 1 Trần Phú')
+    const chonDc = w.findComponent(DiaChiHanhChinhSelect)
+    chonDc.vm.$emit('update:tinhThanh', 'Thành phố Hồ Chí Minh')
+    chonDc.vm.$emit('update:phuongXa', 'Phường Bến Nghé')
+    await flushPromises()
+    expect(oPhi().element.value).toBe('50.000')
+    expect(tong()).toContain('3.911.000')
+
+    await oPhi().setValue('70000')
+    await flushPromises()
+    expect(oPhi().element.value).toBe('70.000')
+    expect(tong()).toContain('3.931.000')
+    // Xóa trống ô: về phí theo tỉnh, ô vẫn trống để gõ số mới
+    await oPhi().setValue('')
+    await flushPromises()
+    expect(oPhi().element.value).toBe('')
+    expect(oPhi().attributes('placeholder')).toBe('50.000 ₫')
+    expect(tong()).toContain('3.911.000')
+    await oPhi().setValue('70000')
+    await flushPromises()
+    // Đổi tỉnh: bỏ số đã nhập, tính lại theo tỉnh mới
+    chonDc.vm.$emit('update:tinhThanh', 'Tỉnh Phú Thọ')
+    chonDc.vm.$emit('update:phuongXa', 'Phường Việt Trì')
+    await flushPromises()
+    expect(oPhi().element.value).toBe('25.000')
+    await oPhi().setValue('40000')
+    await flushPromises()
+
+    await w.find('#bh-ghi-chu').setValue('Giao giờ hành chính')
+    const { cuaSo } = cuaSoInGia()
+    await w.find('.bh-nut-tt').trigger('click')
+    await flushPromises()
+    const noiDung = body().find('.bh-xn-modal').text().replace(/\s+/g, ' ')
+    for (const chu of ['HD100', 'Khách lẻ', 'Trần Văn Hùng · 0901000002', 'Số 1 Trần Phú, Phường Việt Trì, Tỉnh Phú Thọ', 'Giao giờ hành chính',
+      'Yonex Astrox 99 Pro', 'SP01-DEN-4U-G5 · Đen · 4U · G5', '1 × 3.861.000', 'Phí vận chuyển', '40.000', 'Tiền mặt', '3.901.000']) expect(noiDung).toContain(chu)
+    await nutXacNhan().trigger('click')
+    await flushPromises()
+    expect(may.thanhToan.giaoHang.phiVanChuyen).toBe(40000)
+    expect(may.thanhToan.tienMat).toBe(3901000)
     await vi.waitFor(() => expect(cuaSo.document.write).toHaveBeenCalledTimes(1))
   })
 
@@ -618,10 +684,10 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     may.ck = { maHoaDon: 'HD100', soTien: 3861000, daNhan: false, maGiaoDich: null, diaChiLan: null }
     await nutThem(w).trigger('click')
     await flushPromises()
-    cuaSoInGia()
+    const { open } = cuaSoInGia()
     await w.find('#bh-pt-CHUYEN_KHOAN').setValue(true)
-    await new Promise((r) => setTimeout(r, 500))
-    await flushPromises()
+    // Chờ theo kết quả, không canh giờ cứng: chạy song song trên máy bận thì mã QR và lần hỏi 3 giây có thể đến muộn
+    await vi.waitFor(() => expect(w.find('[data-testid="bh-qr-gia-lap"] .bh-qr-anh img').exists()).toBe(true), { timeout: 8000, interval: 50 })
     expect(api.post).toHaveBeenCalledWith('/ban-hang/hoa-don-cho/100/chuyen-khoan', { soTien: 3861000 })
     expect(w.find('[data-testid="bh-qr-gia-lap"]').text()).toContain('Đang chờ khách chuyển khoản')
     // Review: ô chuyển khoản ghi đủ thông tin, mã QR to hơn (210px), bấm để phóng to
@@ -637,12 +703,15 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(may.thanhToan).toBeNull()
     // khách bấm "Xác nhận chuyển tiền" trên trang ngân hàng giả
     may.ck = { ...may.ck, daNhan: true, maGiaoDich: 'GIALAP-HD100-1' }
-    await new Promise((r) => setTimeout(r, 3200))
-    await flushPromises()
-    expect(may.thanhToan).toEqual(expect.objectContaining({ tienMat: 0, chuyenKhoan: 3861000, maGiaoDich: 'GIALAP-HD100-1' }))
-  }, 10000)
+    await vi.waitFor(() => expect(may.thanhToan).toEqual(expect.objectContaining({ tienMat: 0, chuyenKhoan: 3861000, maGiaoDich: 'GIALAP-HD100-1' })), { timeout: 12000, interval: 100 })
+    // Khách quét mã xong là tự in: không có cú bấm nên không mở cửa sổ mới (trình duyệt sẽ chặn), in qua khung ẩn trong trang
+    expect(open).not.toHaveBeenCalled()
+    const khungIn = () => document.querySelector('iframe[aria-hidden="true"]')
+    await vi.waitFor(() => expect(khungIn()?.contentDocument.body.textContent).toContain('HD100'), { timeout: 5000 })
+    khungIn().remove()
+  }, 30000)
 
-  it('phiếu: tự áp phiếu tốt nhất; hộp thoại chỉ liệt kê phiếu đủ điều kiện, gợi ý mua thêm; bỏ phiếu được', async () => {
+  it('phiếu: luôn tự áp phiếu tốt nhất, không cho chọn; ghi chú mua thêm bao nhiêu tiền / sản phẩm thì được phiếu mới', async () => {
     const PHIEUS = [
       { id: 1, ma: 'GIAM50K', ten: 'Giảm 50k', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 },
       {
@@ -654,41 +723,35 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await nutThem().trigger('click')
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
-    // Cô review 04/11: không còn combo box; hiện luôn phiếu tốt nhất đang áp dụng, đổi phiếu qua pop-up
     expect(w.find('.bh-o-phieu').exists()).toBe(false)
     const apDung = () => w.find('[data-testid="bh-phieu-ap-dung"]')
     expect(apDung().text()).toContain('Đang áp dụng phiếu GIAM50K (giảm 50.000')
     expect(apDung().text()).toContain('Tốt nhất')
-    // Không có nút "Đổi phiếu": bấm vào chính dòng phiếu (có mũi tên) để đổi / bỏ phiếu
-    const the = w.find('#bh-phieu')
-    expect(the.text()).not.toContain('Đổi phiếu')
-    expect(the.attributes('role')).toBe('button')
-    expect(the.find('.bh-phieu-mui').exists()).toBe(true)
-    expect(w.find('button.bh-phieu-doi').exists()).toBe(false)
     expect(w.find('.bh-tien-giam').text()).toContain('-50.000')
-    expect(w.find('[data-testid="bh-goi-y-ngan"]').text()).toContain('Mua thêm 1.139.000')
+    // Dòng phiếu chỉ để xem: không bấm được, không mũi tên, bấm hay Enter cũng không mở pop-up
+    const the = w.find('#bh-phieu')
+    expect(the.attributes('role')).toBeUndefined()
+    expect(the.attributes('tabindex')).toBeUndefined()
+    expect(the.find('.bi-chevron-right').exists()).toBe(false)
     await the.trigger('click')
+    await the.trigger('keydown.enter')
     await flushPromises()
-    const muc = body().findAll('.bh-phieu-muc')
-    expect(muc).toHaveLength(2) // "Không dùng phiếu" + GIAM50K; VIP10 chưa đủ điều kiện nên không nằm trong danh sách chọn
-    expect(muc[1].text()).toContain('Tốt nhất')
-    expect(body().find('.bh-phieu-ds').text()).not.toContain('VIP10')
-    expect(body().find('[data-testid="bh-goi-y-mua-them"]').text()).toContain('Mua thêm 1.139.000 ₫ để dùng VIP10, giảm 500.000 ₫')
-    await muc[0].trigger('click')
-    await flushPromises()
-    expect(body().find('.bh-phieu-ds').exists()).toBe(false)
-    expect(apDung().text()).toContain('Không dùng phiếu (1 phiếu dùng được)')
-    expect(w.find('#bh-phieu').text()).not.toContain('Chọn phiếu')
-    expect(w.find('#bh-phieu').attributes('role')).toBe('button') // bỏ phiếu rồi vẫn bấm vào dòng để chọn lại
-    expect(w.find('.bh-tien-giam').text()).toContain('Không dùng phiếu')
-    expect(w.find('.bh-nut-tt').text()).toContain('3.861.000')
-    // chọn lại bằng bàn phím: Enter trên dòng phiếu mở pop-up
-    await w.find('#bh-phieu').trigger('keydown.enter')
-    await flushPromises()
-    expect(body().find('.bh-phieu-ds').exists()).toBe(true)
-    await body().findAll('.bh-phieu-muc')[1].trigger('click')
-    await flushPromises()
+    expect(body().text()).not.toContain('Chọn phiếu giảm giá')
     expect(apDung().text()).toContain('Đang áp dụng phiếu GIAM50K')
+    // Ghi chú: thiếu 1.139.000 ₫, giỏ có giá 3.861.000 ₫ nên thêm 1 sản phẩm là đủ
+    const ghiChu = w.find('[data-testid="bh-goi-y-ngan"]').text().replace(/\s+/g, ' ')
+    expect(ghiChu).toContain('Mua thêm 1.139.000 ₫ (thêm 1 sản phẩm Yonex Astrox 99 Pro là đủ) để dùng phiếu VIP10 (giảm 500.000 ₫)')
+  })
+
+  it('phiếu: đã kịch mức giảm cao nhất thì không hiện ghi chú', async () => {
+    const { w } = await moBanHang({
+      phieus: () => [{ id: 1, ma: 'GIAM50K', ten: 'Giảm 50k', loaiGiam: 'TIEN_MAT', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 }],
+    })
+    await nutThem().trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(w.find('[data-testid="bh-phieu-ap-dung"]').text()).toContain('Đang áp dụng phiếu GIAM50K')
+    expect(w.find('[data-testid="bh-goi-y-ngan"]').exists()).toBe(false)
   })
 
   it('phiếu bị sửa mức giảm lúc đang chờ: gửi mức giảm đang hiện, máy chủ báo thì tải lại phiếu và hiện số tiền mới', async () => {

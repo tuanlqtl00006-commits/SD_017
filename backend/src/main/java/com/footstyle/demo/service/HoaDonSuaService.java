@@ -188,8 +188,9 @@ public class HoaDonSuaService {
                 giam = PhieuApDung.soTienGiam(phieu, tienHang);
             }
         }
-        // Phí theo tỉnh ghi ở cuối địa chỉ mới; không nhận ra tỉnh thì giữ phí cũ của đơn
-        Long phiTheoTinh = PhiVanChuyenTinh.phiTheoDiaChi(diaChi);
+        // Đổi địa chỉ thì tính lại phí theo tỉnh ở cuối địa chỉ mới (không nhận ra tỉnh thì giữ phí cũ);
+        // địa chỉ giữ nguyên thì giữ phí của đơn, vì phí có thể do nhân viên nhập lúc bán tại quầy
+        Long phiTheoTinh = diaChi.equals(gon(hd.getDiaChiGiaoHang())) ? null : PhiVanChuyenTinh.phiTheoDiaChi(diaChi);
         long phi = phiTheoTinh != null ? phiTheoTinh : phiCu;
         long thanhTien = Math.max(0, tienHang - giam + phi);
         boolean doiNguoiNhan = !hoTen.equals(gon(hd.getHoTenNguoiNhan())) || !sdt.equals(gon(hd.getSdtNguoiNhan())) || !diaChi.equals(gon(hd.getDiaChiGiaoHang()));

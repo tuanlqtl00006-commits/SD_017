@@ -312,7 +312,7 @@ class NhanVienImportServiceTest {
         assertEquals("Nhân viên phải từ đủ 18 tuổi.", loi.get("5:ngaySinh"));
         assertEquals("Email đã được sử dụng.", loi.get("6:email"));
         assertEquals("Ngày sinh không đúng định dạng (viết dd/mm/yyyy, ví dụ 25/12/2000).", loi.get("7:ngaySinh"));
-        assertEquals("Vai trò chỉ gồm Quản lý hoặc Nhân viên.", loi.get("8:idVaiTro"));
+        assertEquals("Vai trò không hợp lệ.", loi.get("8:idVaiTro"));
         assertEquals("Nhập địa chỉ cụ thể (số nhà, đường...).", loi.get("9:diaChiCuThe"));
         assertEquals(QuyTacDuLieu.LOI_HO_TEN_KY_TU, loi.get("10:hoTen"));
         assertEquals("Số điện thoại trùng với dòng 4 trong file (mỗi số điện thoại chỉ được dùng một lần).", loi.get("11:soDienThoai"));
@@ -592,7 +592,7 @@ class NhanVienImportServiceTest {
         }
         for (String vt : new String[] {"Kế toán", "Admin", "Đã ngưng"}) {
             ApiException e2 = tuChoi(motDong(C_VAITRO, vt), true);
-            assertEquals("Vai trò chỉ gồm Quản lý hoặc Nhân viên.", loiTheoDong(e2).get("2:idVaiTro"), vt);
+            assertEquals("Vai trò không hợp lệ.", loiTheoDong(e2).get("2:idVaiTro"), vt);
         }
     }
 

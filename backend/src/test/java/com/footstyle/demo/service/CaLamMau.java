@@ -16,6 +16,7 @@ import com.footstyle.demo.repository.LichLamViecRepository;
 import com.footstyle.demo.repository.LichSuThanhToanRepository;
 import com.footstyle.demo.repository.NhanVienRepository;
 import com.footstyle.demo.repository.PhuongThucThanhToanRepository;
+import com.footstyle.demo.security.NguoiDung;
 import com.footstyle.demo.security.XacThuc;
 import com.footstyle.demo.security.XacThucInterceptor;
 import java.math.BigDecimal;
@@ -120,6 +121,11 @@ class CaLamMau {
         XacThuc.dat(XacThucInterceptor.tuNhanVien(n));
     }
 
+    /** Đăng nhập với vai trò Thu ngân: GiaoCaService.ketCa chỉ cho Thu ngân và Quản lý chốt ca, nhân viên bán hàng bị từ chối. */
+    static void dangNhapThuNgan(NhanVien n) {
+        XacThuc.dat(new NguoiDung(NguoiDung.LOAI_NHAN_VIEN, n.getId(), n.getMaNhanVien(), n.getHoTen(), NguoiDung.THU_NGAN, n.getEmail()));
+    }
+
     /* ---------- kho giả ---------- */
 
     NhanVienRepository nhanVienRepo() {
@@ -182,6 +188,9 @@ class CaLamMau {
                     .filter(g -> g.getNhanVien().getId().equals(a[0]) && g.getTrangThai().equals(a[1])).findFirst();
             case "findFirstByTrangThaiOrderByThoiGianNhanCaAsc" -> giaoCas.stream().filter(g -> g.getTrangThai().equals(a[0]))
                     .min(Comparator.comparing(GiaoCa::getThoiGianNhanCa));
+            case "findFirstByTrangThaiOrderByThoiGianNhanCaDescIdDesc" -> giaoCas.stream().filter(g -> g.getTrangThai().equals(a[0]))
+                    .max(Comparator.comparing(GiaoCa::getThoiGianNhanCa).thenComparing(GiaoCa::getId));
+            case "existsByTrangThai" -> giaoCas.stream().anyMatch(g -> g.getTrangThai().equals(a[0]));
             case "findFirstByTrangThaiOrderByThoiGianKetCaDescIdDesc" -> giaoCas.stream().filter(g -> g.getTrangThai().equals(a[0]))
                     .max(Comparator.comparing(GiaoCa::getThoiGianKetCa).thenComparing(GiaoCa::getId));
             case "findByThoiGianNhanCaBetweenOrderByThoiGianNhanCaDesc" -> giaoCas.stream()

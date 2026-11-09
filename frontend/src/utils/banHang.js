@@ -2,8 +2,66 @@
 // Backend vẫn tính lại khi thanh toán, ở đây chỉ để hiển thị và báo lỗi sớm.
 
 import { phiVanChuyenTheoTinh } from './phiVanChuyenTinh'
+import { tinhGiamPhieu } from './tinhPhieu'
 
 export const SO_LUONG_TOI_DA = 999
+
+/* ===================== Gợi ý phiếu mới ===================== */
+
+const giamTai = (p, tong) => (p ? tinhGiamPhieu(p, tong).giam : 0)
+
+// Tiền giảm lớn nhất phiếu có thể đạt (phiếu % không có trần thì không giới hạn)
+function tranGiam(p) {
+  if (!p) return 0
+  if (p.loaiGiam !== 'PHAN_TRAM') return Number(p.giaTri) || 0
+  return Number(p.giamToiDa) > 0 ? Number(p.giamToiDa) : Infinity
+}
+
+// Tổng đơn nhỏ nhất (lớn hơn `tong`) mà phiếu p giảm nhiều hơn phiếu đang dùng; null nếu mua thêm bao nhiêu cũng không vượt
+function tongDeVuot(p, dangDung, tong) {
+  const tu = Math.max(tong + 1, Number(p.donToiThieu) || 0)
+  if (giamTai(p, tu) > giamTai(dangDung, tu)) return tu
+  // Chưa vượt ngay: chỉ còn trường hợp phiếu đang dùng đã chạm trần, phiếu % này tăng theo tiền đơn rồi vượt qua
+  const tran = tranGiam(dangDung)
+  const phanTram = Math.min(100, Number(p.giaTri) || 0)
+  if (p.loaiGiam !== 'PHAN_TRAM' || phanTram <= 0 || tran === Infinity) return null
+  const t = Math.max(tu, Math.ceil(((tran + 1) * 100) / phanTram))
+  return giamTai(p, t) > giamTai(dangDung, t) ? t : null
+}
+
+/**
+ * Ghi chú "mua thêm bao nhiêu thì được phiếu mới". Màn quầy luôn tự áp phiếu giảm nhiều nhất, nên phiếu mới là phiếu sẽ thay
+ * phiếu đang dùng ở mức tiền đơn gần nhất. Phiếu chỉ xét theo tiền đơn; số sản phẩm là quy đổi số tiền còn thiếu theo giá và
+ * tồn kho của các dòng đang có trong giỏ, ít sản phẩm nhất trước (không dòng nào đủ thì sanPham = null).
+ * Trả về { ma, canThem, giam, sanPham: { ten, soLuong } | null }, hoặc null khi mua thêm cũng không có phiếu nào giảm nhiều hơn.
+ */
+export function goiYPhieuMoi(phieus, tong, gio, dangDung) {
+  const dungDuoc = phieus.filter((p) => p.apDungDuoc || p.canMuaThem > 0)
+  let tot = null
+  for (const p of dungDuoc) {
+    if (p.ma === dangDung?.ma) continue
+    const t = tongDeVuot(p, dangDung, tong)
+    if (t === null) continue
+    const giam = giamTai(p, t)
+    if (!tot || t < tot.t || (t === tot.t && giam > tot.giam)) tot = { p, t, giam }
+  }
+  if (!tot) return null
+
+  const canThem = tot.t - tong
+  let sanPham = null
+  for (const d of gio) {
+    if (!(d.donGia > 0)) continue
+    const soLuong = Math.ceil(canThem / d.donGia)
+    if (soLuong > Number(d.tonKho || 0) || d.soLuong + soLuong > SO_LUONG_TOI_DA) continue
+    // Thêm đúng số này mà có phiếu khác giảm nhiều hơn thì câu "để dùng phiếu ..." không còn đúng: bỏ qua dòng này
+    const sau = tong + soLuong * d.donGia
+    if (giamTai(tot.p, sau) < Math.max(...dungDuoc.map((p) => giamTai(p, sau)))) continue
+    if (!sanPham || soLuong < sanPham.soLuong || (soLuong === sanPham.soLuong && d.donGia < sanPham.donGia)) {
+      sanPham = { ten: d.ten, soLuong, donGia: d.donGia }
+    }
+  }
+  return { ma: tot.p.ma, canThem, giam: tot.giam, sanPham }
+}
 
 /* ===================== Giỏ hàng ===================== */
 

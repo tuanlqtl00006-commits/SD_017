@@ -34,6 +34,17 @@ class CuaHangServiceTest {
     @Autowired
     private HoaDonRepository hoaDonRepo;
 
+    /** Biến thể đầu tiên đủ hàng: test chạy trên CSDL thật, sản phẩm đứng đầu danh sách có thể đã bán hết. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> bienTheConHang(int soLuong) {
+        for (Map<String, Object> sp : cuaHangService.danhSachSanPham(null, null, null, null, null, null)) {
+            for (Map<String, Object> bt : (List<Map<String, Object>>) sp.get("bienThe")) {
+                if ((Integer) bt.get("soLuongTon") >= soLuong) return bt;
+            }
+        }
+        return fail("Không còn biến thể nào đủ " + soLuong + " sản phẩm");
+    }
+
     @Test
     void danhSachSanPham_vaDanhMucThuongHieu() {
         Map<String, Object> dmTh = cuaHangService.danhMucVaThuongHieu();
@@ -57,16 +68,9 @@ class CuaHangServiceTest {
 
     @Test
     void datHangOnline_thanhCong_vaTraCuu() {
-        List<Map<String, Object>> sps = cuaHangService.danhSachSanPham(null, null, null, null, null, null);
-        assertFalse(sps.isEmpty());
-
-        Map<String, Object> sp = sps.get(0);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> bts = (List<Map<String, Object>>) sp.get("bienThe");
-        assertFalse(bts.isEmpty());
-
-        Integer idBt = (Integer) bts.get(0).get("id");
-        int tonCu = (Integer) bts.get(0).get("soLuongTon");
+        Map<String, Object> bt = bienTheConHang(1);
+        Integer idBt = (Integer) bt.get("id");
+        int tonCu = (Integer) bt.get("soLuongTon");
 
         CuaHangService.DatHangOnlineRequest req = new CuaHangService.DatHangOnlineRequest(
                 "Khách Hàng Thử Nghiệm",
@@ -102,12 +106,7 @@ class CuaHangServiceTest {
 
     @Test
     void datHangOnline_chuyenKhoanVietQR() {
-        List<Map<String, Object>> sps = cuaHangService.danhSachSanPham(null, null, null, null, null, null);
-        assertFalse(sps.isEmpty());
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> bts = (List<Map<String, Object>>) sps.get(0).get("bienThe");
-        Integer idBt = (Integer) bts.get(0).get("id");
+        Integer idBt = (Integer) bienTheConHang(1).get("id");
 
         CuaHangService.DatHangOnlineRequest req = new CuaHangService.DatHangOnlineRequest(
                 "Trần Văn Cầu Lông",
@@ -131,9 +130,7 @@ class CuaHangServiceTest {
     /** Review 05/11: giỏ hàng hiện số do máy chủ tính trước, phải khớp đúng số khi đặt hàng thật. */
     @Test
     void tinhTien_khopVoiDatHangThat_vaPhieuSaiChiBaoLoi() {
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> bts = (List<Map<String, Object>>) cuaHangService.danhSachSanPham(null, null, null, null, null, null).get(0).get("bienThe");
-        Integer idBt = (Integer) bts.get(0).get("id");
+        Integer idBt = (Integer) bienTheConHang(2).get("id");
         List<CuaHangService.DatHangOnlineRequest.ItemRequest> gio = List.of(new CuaHangService.DatHangOnlineRequest.ItemRequest(idBt, 2));
 
         Map<String, Object> xem = cuaHangService.tinhTien(new CuaHangService.TinhTienRequest(gio, null, null, "Thành phố Hà Nội"));

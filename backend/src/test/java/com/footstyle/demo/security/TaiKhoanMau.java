@@ -99,6 +99,7 @@ public class TaiKhoanMau {
     public GiaoCaRepository giaoCaRepo() {
         return KhoGia.tao(GiaoCaRepository.class, (ten, a) -> switch (ten) {
             case "findFirstByNhanVienIdAndTrangThai" -> chuaVaoCa.contains(a[0]) ? Optional.empty() : Optional.of(new GiaoCa());
+            case "existsByTrangThai" -> chuaVaoCa.isEmpty(); // có người chưa vào ca: coi như quầy chưa mở ca nào
             default -> KhoGia.KHONG_CO;
         });
     }
