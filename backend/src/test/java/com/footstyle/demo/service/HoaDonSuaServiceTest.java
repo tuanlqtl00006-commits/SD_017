@@ -99,8 +99,17 @@ class HoaDonSuaServiceTest {
             }
             default -> KhoGia.KHONG_CO;
         });
-        SanPhamChiTietRepository spctRepo = KhoGia.tao(SanPhamChiTietRepository.class, (t, a) ->
-                "findById".equals(t) ? bienThes.stream().filter(c -> c.getId().equals(a[0])).findFirst() : KhoGia.KHONG_CO);
+        SanPhamChiTietRepository spctRepo = KhoGia.tao(SanPhamChiTietRepository.class, (t, a) -> {
+            if ("findById".equals(t)) return bienThes.stream().filter(c -> c.getId().equals(a[0])).findFirst();
+            if ("truTonKho".equals(t)) { // giống câu UPDATE có điều kiện: chỉ trừ khi còn đủ
+                SanPhamChiTiet b = bienThes.stream().filter(c -> c.getId().equals(a[0])).findFirst().orElseThrow();
+                int sl = (Integer) a[1];
+                if (b.getSoLuongTon() == null || b.getSoLuongTon() < sl) return 0;
+                b.setSoLuongTon(b.getSoLuongTon() - sl);
+                return 1;
+            }
+            return KhoGia.KHONG_CO;
+        });
         HoaDonService hoaDonService = new HoaDonService(hdRepo, ctRepo, lsRepo, ttRepo,
                 KhoGia.tao(HinhAnhSanPhamRepository.class, (t, a) -> "findByTrangThaiOrderByLaAnhChinhDescIdAsc".equals(t) ? List.of() : KhoGia.KHONG_CO), spctRepo,
                 KhoGia.khongDung(PhieuGiamGiaRepository.class),

@@ -521,12 +521,6 @@ function layIconPhuongThuc(p) {
   return 'bi bi-wallet2 text-dark'
 }
 
-function layMauPhuongThuc(p) {
-  if (laTienMat(p)) return 'bg-success'
-  if (laChuyenKhoan(p)) return 'bg-primary'
-  if (laCod(p)) return 'bg-secondary'
-  return 'bg-info'
-}
 const theoCa = computed(() => {
   const ds = Array.isArray(gd3.value.theoCa) ? gd3.value.theoCa : []
   const max = Math.max(1, ...ds.map((x) => Number(x.doanhThu) || 0))
@@ -1409,41 +1403,8 @@ const mauTyLe = (v) => (v === null ? '' : v >= 90 ? 'tk-tot' : v >= 70 ? 'tk-vua
         </section>
       </div>
 
-      <!-- Doanh thu theo phương thức thanh toán & Doanh thu theo loại đơn -->
-      <div class="col-12 col-lg-6">
-        <section class="ad-card tk-section-card h-100 mb-0" data-test="tk-phuong-thuc">
-          <div class="tk-sec-head">
-            <h3 class="tk-sec-title m-0">Doanh thu theo phương thức thanh toán</h3>
-            <span v-if="!dangTaiGd3 && theoPt.length" class="tk-sec-badge">{{ theoPt.length }} phương thức</span>
-          </div>
-          <div v-if="dangTaiGd3" class="ad-empty">Đang tải…</div>
-          <div v-else-if="!theoPt.length" class="ad-empty">Chưa có dữ liệu.</div>
-          <div v-else class="tk-pt-list">
-            <div v-for="p in theoPt" :key="p.ten" class="tk-loai-item">
-              <div class="d-flex justify-content-between align-items-center small mb-2">
-                <span class="fw-semibold text-dark d-flex align-items-center gap-1">
-                  <i :class="layIconPhuongThuc(p)" class="me-1" aria-hidden="true"></i>
-                  <span>{{ p.ten }}</span>
-                  <small class="text-muted fw-normal">({{ p.soDon }} đơn)</small>
-                </span>
-                <span class="fw-semibold text-dark tk-num">
-                  {{ formatMoney(p.soTien) }}
-                  <small class="text-muted fw-normal">({{ pctGon(p.pct) }})</small>
-                </span>
-              </div>
-              <div class="progress tk-progress">
-                <div
-                  class="progress-bar"
-                  :class="layMauPhuongThuc(p)"
-                  :style="{ width: Math.min(100, Math.max(0, p.pct || 0)) + '%' }"
-                ></div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <div class="col-12 col-lg-6">
+      <!-- Doanh thu theo loại đơn. Doanh thu theo phương thức thanh toán chỉ còn một chỗ: bấm thẻ "Doanh thu thực tế" ở trên để xem -->
+      <div class="col-12">
         <section class="ad-card tk-section-card h-100 mb-0">
           <div class="tk-sec-head">
             <h3 class="tk-sec-title m-0">Doanh thu theo loại đơn</h3>

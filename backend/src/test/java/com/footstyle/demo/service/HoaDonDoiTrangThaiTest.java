@@ -74,6 +74,9 @@ class HoaDonDoiTrangThaiTest {
                 daLuuBienThe.add((SanPhamChiTiet) a[0]);
                 return a[0];
             }
+            if ("findById".equals(ten)) { // xác nhận đơn đọc lại tồn kho mới nhất của biến thể
+                return dong.stream().map(HoaDonChiTiet::getSanPhamChiTiet).filter(x -> x != null && x.getId().equals(a[0])).findFirst();
+            }
             if ("truTonKho".equals(ten)) { // giống câu UPDATE có điều kiện: chỉ trừ khi còn đủ
                 SanPhamChiTiet b = dong.stream().map(HoaDonChiTiet::getSanPhamChiTiet).filter(x -> x != null && x.getId().equals(a[0])).findFirst().orElseThrow();
                 int sl = (Integer) a[1];

@@ -231,7 +231,8 @@ describe('Màn đơn hàng của khách đồng bộ với Chi tiết hóa đơn
     await flushPromises()
     await tra(w, 'HD971')
     const text = w.text()
-    for (const khoi of ['Trạng thái đơn hàng', 'Tổng Kết Thanh Toán', 'Thông tin khách hàng', 'Thông tin giao hàng', 'Lịch sử thanh toán', 'Danh sách sản phẩm (1)']) {
+    // Màn của khách gộp khách hàng + giao hàng thành một khối 'Thông tin nhận hàng' (nhóm sửa 10/11), không còn khối lịch sử thanh toán
+    for (const khoi of ['Trạng thái đơn hàng', 'Tổng Kết Thanh Toán', 'Thông tin nhận hàng', 'Danh sách sản phẩm (1)']) {
       expect(text).toContain(khoi)
     }
     expect(text).toContain('SP53-TRG')

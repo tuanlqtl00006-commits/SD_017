@@ -101,8 +101,9 @@ describe('Trang thống kê: phần giai đoạn 3', () => {
     expect(ptTongQuan).toContain('1 đơn thanh toán chuyển khoản')
     expect(ptTongQuan).toContain('25%')
     await body.get('.modal .btn-close').trigger('click')
-    expect(w.find('[data-test="tk-phuong-thuc"]').text()).toContain('Tiền mặt')
-    expect(w.find('[data-test="tk-phuong-thuc"]').text()).toContain('75%')
+    // Doanh thu theo phương thức chỉ còn một chỗ (hộp thoại của thẻ Doanh thu thực tế), không lặp lại thành một khối trên trang
+    expect(w.find('[data-test="tk-phuong-thuc"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('Doanh thu theo phương thức thanh toán')
     expect(w.find('[data-test="tk-theo-ca"]').text()).toContain('Ca tối (17:00 - 22:00)')
     expect(w.find('[data-test="tk-theo-gio"]').text()).toContain('Đông nhất 19h - 20h (6 đơn)')
     const cc = w.find('[data-test="tk-chuyen-can"]').text()
@@ -148,7 +149,7 @@ describe('Trang thống kê: phần giai đoạn 3', () => {
     w.unmount()
   })
 
-  it('gộp COD vào Tiền mặt ở cả danh sách phương thức thanh toán và hộp thoại Doanh thu thực tế', async () => {
+  it('gộp COD vào Tiền mặt trong hộp thoại Doanh thu thực tế', async () => {
     const gd3CoCod = {
       ...GD3,
       theoPhuongThuc: [
@@ -159,14 +160,6 @@ describe('Trang thống kê: phần giai đoạn 3', () => {
     }
     const w = moTrang(gd3CoCod)
     await flushPromises()
-    const ptCard = w.find('[data-test="tk-phuong-thuc"]')
-    expect(ptCard.text()).toContain('2 phương thức')
-    expect(ptCard.text()).toContain('Tiền mặt')
-    expect(ptCard.text()).toContain('5 đơn')
-    expect(ptCard.text()).toContain('4.000.000')
-    expect(ptCard.text()).toContain('80%')
-    expect(ptCard.text()).not.toContain('COD')
-
     await w.get('[data-chi-tiet-dt="doanhThu"]').trigger('click')
     const pt = new DOMWrapper(document.body).get('[data-test="tk-pt-tong-quan"]')
     expect(pt.findAll('.tk-kpi-sub-card')).toHaveLength(2)
