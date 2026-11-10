@@ -727,15 +727,9 @@ const soLuongTab = (h) => tongSoLuong(h.items)
     <div v-if="giaoCa.trangThai.daTai && canVaoCa" class="bh-chua-ca" role="alert">
       <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
       <span>
-        Bạn chưa vào ca.
-        <template v-if="auth.laNhanVienBanHang.value">
-          Quầy thu ngân chưa mở ca bán hàng hôm nay. Vui lòng nhờ <b>Thu ngân mở ca</b> trước khi tạo đơn và thanh toán.
-        </template>
-        <template v-else>
-          Vui lòng <b>vào ca</b> (nhập tiền đầu ca) trước khi bán hàng.
-        </template>
+        Bạn chưa vào ca nên mới chỉ xem được. Vui lòng <b>vào ca</b> (nhập tiền đầu ca) trước khi bán hàng.
       </span>
-      <button v-if="!auth.laNhanVienBanHang.value" type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="moCa = true">Vào ca</button>
+      <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="moCa = true">Vào ca</button>
     </div>
     <!-- Quá giờ kết thúc ca: nhắc giao ca để người ca sau vào được (cửa hàng một két tiền) -->
     <div v-else-if="giaoCa.quaGioCa.value" class="bh-chua-ca bh-qua-gio" role="alert" data-testid="bh-qua-gio">

@@ -118,10 +118,9 @@ public class XacThucInterceptor implements HandlerInterceptor {
             return new KetQua(403, "KHONG_DU_QUYEN", PhanQuyen.lyDoTuChoi(nd), nd);
         }
         if (PhanQuyen.canVaoCa(nd, method, path)) {
-            boolean coCa = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA).isPresent()
-                    || giaoCaRepo.existsByTrangThai(GiaoCa.DANG_TRONG_CA);
+            boolean coCa = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA).isPresent();
             if (!coCa) {
-                return new KetQua(409, "CHUA_NHAN_CA", "Quầy thu ngân chưa mở ca bán hàng hôm nay. Vui lòng mở ca trước khi làm việc.", nd);
+                return new KetQua(409, "CHUA_NHAN_CA", "Bạn chưa nhận ca nên mới chỉ xem được. Vui lòng nhận ca trước khi thao tác.", nd);
             }
         }
         return KetQua.choQua(nd);

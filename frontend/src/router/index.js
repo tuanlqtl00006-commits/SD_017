@@ -390,21 +390,15 @@ export async function kiemTraTruyCap(to) {
   }
   // Quản lý không vào ca / giao ca
   if (to.name === 'vao-ca' && auth.vaiTro.value === 'quan-ly') return auth.trangChu()
-  // Nhân viên, Thu ngân bắt buộc vào ca trước khi làm bất cứ việc gì (backend cũng chặn API bằng mã CHUA_NHAN_CA)
-  if ((auth.vaiTro.value === 'nhan-vien' || auth.vaiTro.value === 'thu-ngan') && !to.meta?.khongCanVaoCa) {
-    const giaoCa = useGiaoCa()
-    if (!giaoCa.trangThai.daTai) await giaoCa.taiLai()
-    if (giaoCa.trangThai.daTai && !giaoCa.dangTrongCa.value) {
-      return { path: '/vao-ca', query: to.fullPath && to.fullPath !== '/' ? { quayLai: to.fullPath } : {} }
-    }
-  }
+  // Nhân viên chưa vào ca vẫn mở được các trang trong quyền của mình để XEM; thêm / sửa / xóa thì backend chặn bằng mã CHUA_NHAN_CA
+  // cho tới khi nhận ca (xem PhanQuyen.canVaoCa).
   return true
 }
 
 /**
  * Case khó "chuyển quyền nhân viên": quản lý đổi vai trò của người đang làm việc (vd đang bán tại quầy).
  * Backend đã áp quyền mới ngay (đọc vai trò từ CSDL ở mỗi request); ở đây đổi menu theo vai trò mới, báo cho người dùng
- * và rời trang không còn quyền vào (thành nhân viên mà chưa vào ca thì về trang Vào ca). Hóa đơn chờ vẫn giữ nguyên.
+ * và rời trang không còn quyền vào (thành nhân viên mà chưa vào ca thì vẫn ở lại xem, muốn thao tác phải nhận ca). Hóa đơn chờ vẫn giữ nguyên.
  */
 export async function apDungVaiTroMoi(vaiTroMoi, trangHienTai, chuyenTrang) {
   const auth = useAuth()

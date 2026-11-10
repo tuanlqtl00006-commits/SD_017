@@ -94,6 +94,7 @@ public class LichLamViecImportService {
         List<DongHopLe> hopLe = new ArrayList<>();
         Map<String, Integer> daGap = new HashMap<>(); // "idNv|ngay|idCa" -> dòng
         Map<String, List<DongHopLe>> theoNguoiNgay = new HashMap<>();
+        Map<String, DongHopLe> theoNgayCa = new HashMap<>(); // "ngay|idCa" -> dòng đã nhận (mỗi ca trong ngày chỉ một nhân viên)
         int soDongLoi = 0;
         for (Dong d : duLieu) {
             Map<Cot, String> loiDong = new LinkedHashMap<>();
@@ -110,6 +111,11 @@ public class LichLamViecImportService {
                             break;
                         }
                     }
+                    DongHopLe cungCa = theoNgayCa.get(h.ngay() + "|" + h.ca().getId());
+                    if (loiDong.isEmpty() && cungCa != null) {
+                        loiDong.put(Cot.CA, h.ca().getTenCa() + " ngày này đã xếp cho " + cungCa.nv().getHoTen() + " ở dòng " + cungCa.soDong()
+                                + " (mỗi ca chỉ một nhân viên).");
+                    }
                 }
                 if (loiDong.isEmpty()) {
                     String lyDo = lichService.lyDoKhongXepDuoc(h.nv(), h.ca(), h.ngay());
@@ -119,6 +125,7 @@ public class LichLamViecImportService {
             if (loiDong.isEmpty()) {
                 hopLe.add(h);
                 theoNguoiNgay.computeIfAbsent(h.nv().getId() + "|" + h.ngay(), k -> new ArrayList<>()).add(h);
+                theoNgayCa.put(h.ngay() + "|" + h.ca().getId(), h);
                 continue;
             }
             soDongLoi++;

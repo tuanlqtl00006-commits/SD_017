@@ -148,10 +148,7 @@ public class LichLamViecService {
 
     /* ===================== Lịch làm việc ===================== */
 
-    public record XepLichRequest(List<Integer> idNhanViens, Integer idCa, List<String> ngays, String ghiChu, Integer idThuNgan) {
-        public XepLichRequest(List<Integer> idNhanViens, Integer idCa, List<String> ngays, String ghiChu) {
-            this(idNhanViens, idCa, ngays, ghiChu, null);
-        }
+    public record XepLichRequest(List<Integer> idNhanViens, Integer idCa, List<String> ngays, String ghiChu) {
     }
 
     /** Lịch trong khoảng ngày (idNhanVien = null: mọi nhân viên). */
@@ -175,11 +172,17 @@ public class LichLamViecService {
         return lich(tuNgay, denNgay, XacThuc.nhanVien().id());
     }
 
-    /** Nhân viên đang hoạt động (các hàng của bảng xếp lịch). */
+    /** Quản lý không nhận ca / giao ca (GiaoCaService.nhanCa) nên không xếp vào ca bán hàng. */
+    private static boolean laQuanLy(NhanVien n) {
+        return n.getVaiTro() != null && VaiTro.TEN_QUAN_LY.equalsIgnoreCase(n.getVaiTro().getTenVaiTro());
+    }
+
+    /** Nhân viên đang hoạt động (các hàng của bảng xếp lịch); không gồm quản lý. */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> nhanVienDangLam() {
         List<Map<String, Object>> kq = new ArrayList<>();
         for (NhanVien n : nhanVienRepo.findByTrangThaiOrderByHoTenAsc(NhanVien.HOAT_DONG)) {
+            if (laQuanLy(n)) continue;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", n.getId());
             m.put("maNhanVien", n.getMaNhanVien());
@@ -191,7 +194,8 @@ public class LichLamViecService {
     }
 
     /**
-     * Xếp lịch: mỗi nhân viên x mỗi ngày được chọn x một ca. Ô nào không hợp lệ thì bỏ qua và ghi lý do (không làm hỏng cả lần xếp).
+     * Xếp lịch: MỘT nhân viên x mỗi ngày được chọn x một ca (mỗi ca trong ngày chỉ một nhân viên, người đó nhận ca, bán, giữ két, giao ca).
+     * Ô nào không hợp lệ thì bỏ qua và ghi lý do (không làm hỏng cả lần xếp).
      * Trả về { daThem, boQua: [{ hoTen, ngay, lyDo }] }.
      */
     @Transactional
@@ -199,7 +203,8 @@ public class LichLamViecService {
         LoiForm loi = new LoiForm();
         List<Integer> idNvs = req == null || req.idNhanViens() == null ? List.of()
                 : req.idNhanViens().stream().filter(java.util.Objects::nonNull).distinct().toList();
-        if (idNvs.isEmpty()) loi.them("idNhanViens", "Vui lòng chọn ít nhất một nhân viên.");
+        if (idNvs.isEmpty()) loi.them("idNhanViens", "Vui lòng chọn nhân viên.");
+        else if (idNvs.size() > 1) loi.them("idNhanViens", "Mỗi ca chỉ xếp một nhân viên.");
         if (req == null || req.idCa() == null) loi.them("idCa", "Vui lòng chọn ca làm việc.");
         Set<LocalDate> ngays = new LinkedHashSet<>();
         if (req == null || req.ngays() == null || req.ngays().isEmpty()) {
@@ -238,11 +243,7 @@ public class LichLamViecService {
                 l.setNhanVien(nv);
                 l.setCaLamViec(ca);
                 l.setNgayLam(ngay);
-                String noteCa = ghiChu == null || ghiChu.isEmpty() ? null : ghiChu;
-                if (idNv.equals(req.idThuNgan())) {
-                    noteCa = noteCa == null ? "Thu ngân" : "[Thu ngân] " + noteCa;
-                }
-                l.setGhiChu(noteCa);
+                l.setGhiChu(ghiChu == null || ghiChu.isEmpty() ? null : ghiChu);
                 l.setTrangThai(1);
                 lichRepo.save(l);
                 daThem++;
@@ -258,12 +259,19 @@ public class LichLamViecService {
     String lyDoKhongXepDuoc(NhanVien nv, CaLamViec ca, LocalDate ngay) {
         if (nv == null) return "Không tìm thấy nhân viên.";
         if (!Integer.valueOf(NhanVien.HOAT_DONG).equals(nv.getTrangThai())) return "Nhân viên đang ngừng hoạt động.";
+        if (laQuanLy(nv)) return "Nhân viên này là Quản lý, không nhận ca nên không xếp lịch ca được.";
         if (ngay.isBefore(homNay())) return "Ngày đã qua, không xếp lịch được.";
         for (LichLamViec co : lichRepo.findByNhanVienIdAndNgayLam(nv.getId(), ngay)) {
             CaLamViec khac = co.getCaLamViec();
             if (khac.getId().equals(ca.getId())) return "Đã có lịch " + ca.getTenCa() + " ngày này.";
             if (chongGio(ca, khac)) {
                 return "Trùng giờ với " + khac.getTenCa() + " (" + khac.getGioBatDau().format(GIO) + " - " + khac.getGioKetThuc().format(GIO) + ").";
+            }
+        }
+        // Mỗi ca trong ngày chỉ một nhân viên
+        for (LichLamViec co : lichRepo.findByNgayLamBetween(ngay, ngay)) {
+            if (co.getCaLamViec().getId().equals(ca.getId()) && !co.getNhanVien().getId().equals(nv.getId())) {
+                return ca.getTenCa() + " ngày này đã xếp cho " + co.getNhanVien().getHoTen() + " (mỗi ca chỉ một nhân viên).";
             }
         }
         return null;
@@ -283,36 +291,6 @@ public class LichLamViecService {
             throw ApiException.conflict("Nhân viên đã nhận ca theo lịch này nên không xóa được.");
         }
         lichRepo.delete(l);
-    }
-
-    /** Đổi vai trò Thu ngân cho một ca đã xếp (không cần xếp lại lịch, không đổi vai trò nhân sự). */
-    @Transactional
-    public Map<String, Object> doiThuNganLich(Integer id) {
-        LichLamViec l = lichRepo.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy lịch làm việc."));
-        if (l.getNgayLam().isBefore(homNay())) {
-            throw ApiException.badRequest("Lịch đã qua không thể đổi vai trò.");
-        }
-        boolean dangLaThuNgan = l.getGhiChu() != null && l.getGhiChu().contains("Thu ngân");
-        if (dangLaThuNgan) {
-            String gcMoi = l.getGhiChu().replace("[Thu ngân]", "").replace("Thu ngân", "").trim();
-            l.setGhiChu(gcMoi.isEmpty() ? null : gcMoi);
-        } else {
-            // Gỡ vai trò thu ngân của nhân viên khác trong cùng ca và cùng ngày
-            List<LichLamViec> cungCa = lichRepo.findByNgayLamBetween(l.getNgayLam(), l.getNgayLam()).stream()
-                    .filter(o -> o.getCaLamViec().getId().equals(l.getCaLamViec().getId()))
-                    .toList();
-            for (LichLamViec khac : cungCa) {
-                if (!khac.getId().equals(l.getId()) && khac.getGhiChu() != null && khac.getGhiChu().contains("Thu ngân")) {
-                    String gc = khac.getGhiChu().replace("[Thu ngân]", "").replace("Thu ngân", "").trim();
-                    khac.setGhiChu(gc.isEmpty() ? null : gc);
-                    lichRepo.save(khac);
-                }
-            }
-            String gc = l.getGhiChu();
-            l.setGhiChu(gc == null || gc.isBlank() ? "Thu ngân" : "[Thu ngân] " + gc);
-        }
-        LichLamViec daLuu = lichRepo.save(l);
-        return lichDto(daLuu);
     }
 
     /**
@@ -382,9 +360,6 @@ public class LichLamViecService {
         m.put("gioKetThuc", ca.getGioKetThuc().format(GIO));
         m.put("ghiChu", l.getGhiChu());
         m.put("vaiTro", nv.getVaiTro() == null ? null : nv.getVaiTro().getTenVaiTro());
-        boolean laThuNganCa = (nv.getVaiTro() != null && VaiTro.TEN_THU_NGAN.equalsIgnoreCase(nv.getVaiTro().getTenVaiTro()))
-                || (l.getGhiChu() != null && l.getGhiChu().contains("Thu ngân"));
-        m.put("laThuNgan", laThuNganCa);
         m.put("daQua", l.getNgayLam().isBefore(homNay()));
         return m;
     }

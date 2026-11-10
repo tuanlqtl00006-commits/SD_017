@@ -105,7 +105,7 @@ onMounted(() => {
   }, CHU_KY_KIEM_TRA_MS)
 })
 onBeforeUnmount(() => clearInterval(henGio))
-// Người ca trước vừa giao ca / thu ngân vừa mở ca / quản lý vừa xếp lịch: cập nhật ngay, không chờ 10 giây
+// Người ca trước vừa giao ca / quản lý vừa xếp lịch: cập nhật ngay, không chờ 10 giây
 useSuKien(['giao-ca'], () => {
   if (!dangGui.value) taiLai()
 })

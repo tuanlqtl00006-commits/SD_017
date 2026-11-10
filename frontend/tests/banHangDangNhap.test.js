@@ -397,7 +397,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
 
   it('chưa vào ca: không tạo hóa đơn, nhắc vào ca', async () => {
     const { w } = await moBanHang({ dangMo: null })
-    expect(w.text()).toContain('Bạn chưa vào ca.')
+    expect(w.text()).toContain('Bạn chưa vào ca nên mới chỉ xem được.')
     await nutThem(w).trigger('click')
     await flushPromises()
     expect(api.post).not.toHaveBeenCalled()

@@ -1,5 +1,5 @@
 <script setup>
-// Xếp lịch làm việc: chọn ca, chọn ngày, chọn nhân viên và phân công Thu ngân giữ két ngay trong ca.
+// Xếp lịch làm việc: chọn MỘT nhân viên, chọn ca, chọn ngày. Mỗi ca trong ngày chỉ một nhân viên (người đó nhận ca, bán, giữ két, giao ca).
 import { computed, reactive, ref } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import Select2 from '../common/Select2.vue'
@@ -24,7 +24,6 @@ const f = reactive({
   idCa: '',
   ngays: props.chonSan ? [props.chonSan.ngay] : [],
   ghiChu: '',
-  idThuNgan: null,
 })
 const timNv = ref('')
 const dangGui = ref(false)
@@ -58,34 +57,11 @@ const nvLoc = computed(() => {
   })
 })
 
-const nhanViensDaChon = computed(() => {
-  return props.nhanViens.filter((n) => f.idNhanViens.includes(n.id))
-})
-
 const ngayCon = computed(() => props.ngays.filter((d) => d.iso >= homNay))
 
-function chonTatCaNv(chon) {
-  f.idNhanViens = chon ? nvLoc.value.map((n) => n.id) : []
-  // Nếu người đang giữ két bị bỏ chọn, reset idThuNgan
-  if (!f.idNhanViens.includes(f.idThuNgan)) {
-    f.idThuNgan = f.idNhanViens.length > 0 ? f.idNhanViens[0] : null
-  }
-  sua('idNhanViens')
-}
-
+// Chỉ chọn một nhân viên: bấm người khác là đổi sang người đó, bấm lại người đang chọn là bỏ chọn
 function toggleChonNv(id) {
-  const idx = f.idNhanViens.indexOf(id)
-  if (idx >= 0) {
-    f.idNhanViens.splice(idx, 1)
-    if (f.idThuNgan === id) {
-      f.idThuNgan = f.idNhanViens.length > 0 ? f.idNhanViens[0] : null
-    }
-  } else {
-    f.idNhanViens.push(id)
-    if (f.idThuNgan === null) {
-      f.idThuNgan = id
-    }
-  }
+  f.idNhanViens = f.idNhanViens.includes(id) ? [] : [id]
   sua('idNhanViens')
 }
 
@@ -97,7 +73,7 @@ function chonNgay(kieu) {
 
 const { loi, sua, batDauGui, datLoiMayChu } = useLoiForm(() => {
   const e = {}
-  if (!f.idNhanViens.length) e.idNhanViens = 'Vui lòng chọn ít nhất một nhân viên.'
+  if (!f.idNhanViens.length) e.idNhanViens = 'Vui lòng chọn nhân viên.'
   if (!f.idCa) e.idCa = 'Vui lòng chọn ca làm việc.'
   if (!f.ngays.length) e.ngays = 'Vui lòng chọn ít nhất một ngày.'
   if (f.ghiChu.trim().length > 255) e.ghiChu = 'Ghi chú tối đa 255 ký tự.'
@@ -114,7 +90,6 @@ async function gui() {
       idCa: Number(f.idCa),
       ngays: [...f.ngays].sort(),
       ghiChu: f.ghiChu.trim(),
-      idThuNgan: f.idThuNgan ? Number(f.idThuNgan) : null,
     })
     if (ketQua.value.daThem > 0) toast.success(`Đã xếp ${ketQua.value.daThem} ca làm việc.`)
     emit('xong')
@@ -150,13 +125,9 @@ async function gui() {
         <div class="col-md-6 border-end">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="ad-label mb-0">
-              Nhân viên đi làm <span class="ad-required">*</span>
-              <span v-if="f.idNhanViens.length" class="badge bg-primary ms-1">{{ f.idNhanViens.length }}</span>
+              Nhân viên làm ca <span class="ad-required">*</span>
             </span>
-            <span class="small">
-              <button type="button" class="xl-lk" @click="chonTatCaNv(true)">Chọn tất cả</button> ·
-              <button type="button" class="xl-lk" @click="chonTatCaNv(false)">Bỏ chọn</button>
-            </span>
+            <small class="text-muted">Mỗi ca một nhân viên</small>
           </div>
 
           <input
@@ -167,7 +138,7 @@ async function gui() {
             aria-label="Tìm nhân viên"
           />
 
-          <div class="xl-ds" :class="{ 'is-invalid': loi.idNhanViens }" role="group" aria-label="Chọn nhân viên">
+          <div class="xl-ds" :class="{ 'is-invalid': loi.idNhanViens }" role="radiogroup" aria-label="Chọn nhân viên">
             <div
               v-for="n in nvLoc"
               :key="n.id"
@@ -176,9 +147,11 @@ async function gui() {
               @click="toggleChonNv(n.id)"
             >
               <input
-                type="checkbox"
+                type="radio"
+                name="xl-nhan-vien"
                 class="form-check-input mt-0 me-2"
                 :checked="f.idNhanViens.includes(n.id)"
+                :aria-label="n.hoTen"
                 @click.stop="toggleChonNv(n.id)"
               />
               <div class="d-flex align-items-center justify-content-between flex-fill">
@@ -200,7 +173,7 @@ async function gui() {
           <p v-if="loi.idNhanViens" class="ad-error mt-1">{{ loi.idNhanViens }}</p>
         </div>
 
-        <!-- Cột phải: Ca, Ngày & Phân công Thu ngân -->
+        <!-- Cột phải: Ca, Ngày -->
         <div class="col-md-6">
           <label class="ad-label" for="xl-ca">Ca làm việc <span class="ad-required">*</span></label>
           <Select2 id="xl-ca" v-model="f.idCa" :options="luaChonCa" :min-search="99" class="ad-control" :invalid="!!loi.idCa" @change="sua('idCa')" />
@@ -221,45 +194,6 @@ async function gui() {
           </div>
           <p v-if="loi.ngays" class="ad-error">{{ loi.ngays }}</p>
 
-          <!-- Phân công Thu ngân giữ két cho ca -->
-          <div v-if="nhanViensDaChon.length > 0" class="xl-role-assign mt-3">
-            <div class="xl-role-assign-head">
-              <span class="fw-semibold text-dark">Chỉ định Thu ngân giữ két:</span>
-              <small class="text-muted">Chọn 1 người giữ két cho ca này</small>
-            </div>
-            <div class="xl-role-options">
-              <label class="xl-role-item" :class="{ 'is-selected': f.idThuNgan === null }">
-                <input
-                  v-model="f.idThuNgan"
-                  type="radio"
-                  class="form-check-input me-2"
-                  :value="null"
-                />
-                <span class="flex-fill">Chưa chỉ định (tất cả là Bán hàng)</span>
-              </label>
-
-              <label
-                v-for="nv in nhanViensDaChon"
-                :key="nv.id"
-                class="xl-role-item"
-                :class="{ 'is-selected': f.idThuNgan === nv.id }"
-              >
-                <input
-                  v-model="f.idThuNgan"
-                  type="radio"
-                  class="form-check-input me-2"
-                  :value="nv.id"
-                />
-                <span class="flex-fill fw-medium">{{ nv.hoTen }}</span>
-                <span v-if="f.idThuNgan === nv.id" class="badge bg-success">Thu ngân giữ két</span>
-                <span v-else class="badge bg-light text-secondary">Bán hàng</span>
-              </label>
-            </div>
-            <p class="xl-role-hint mt-2 mb-0">
-              Nhân viên được chọn sẽ phụ trách mở ca và giữ két tiền; các nhân viên còn lại trong ca là Nhân viên bán hàng.
-            </p>
-          </div>
-
           <label class="ad-label mt-3" for="xl-ghi-chu">Ghi chú</label>
           <input
             id="xl-ghi-chu"
@@ -273,7 +207,7 @@ async function gui() {
           <p v-if="loi.ghiChu" class="ad-error">{{ loi.ghiChu }}</p>
 
           <p class="ad-hint mt-2 mb-0">
-            Sẽ xếp <b>{{ soO }}</b> ca ({{ f.idNhanViens.length }} nhân viên × {{ f.ngays.length }} ngày). Ô trùng ca sẽ được tự động bỏ qua.
+            Sẽ xếp <b>{{ soO }}</b> ca ({{ f.ngays.length }} ngày). Nhân viên này tự nhận ca, bán hàng, giữ két và giao ca. Ngày mà ca đã có người khác sẽ được bỏ qua.
           </p>
         </div>
       </div>
@@ -359,53 +293,6 @@ async function gui() {
 }
 .xl-lk:hover {
   text-decoration: underline;
-}
-
-/* Card phân công Thu ngân giữ két */
-.xl-role-assign {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 0.75rem;
-}
-.xl-role-assign-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-  font-size: 0.82rem;
-}
-.xl-role-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  max-height: 140px;
-  overflow-y: auto;
-}
-.xl-role-item {
-  display: flex;
-  align-items: center;
-  padding: 0.35rem 0.5rem;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
-  margin: 0;
-}
-.xl-role-item:hover {
-  border-color: #94a3b8;
-}
-.xl-role-item.is-selected {
-  border-color: #059669;
-  background: #f0fdf4;
-}
-.xl-role-hint {
-  font-size: 0.74rem;
-  color: #64748b;
-  line-height: 1.35;
 }
 
 .xl-bo-qua {

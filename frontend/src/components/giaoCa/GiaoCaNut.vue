@@ -12,7 +12,7 @@ const mo = ref(false)
 onMounted(() => {
   if (!trangThai.daTai) taiLai()
 })
-// Thu ngân / người khác vừa nhận ca, giao ca, xếp lịch: trạng thái ca (và màn bán hàng) cập nhật ngay, không cần F5
+// Người khác vừa nhận ca, giao ca, quản lý vừa xếp lịch / đóng ca hộ: trạng thái ca (và màn bán hàng) cập nhật ngay, không cần F5
 useSuKien(['giao-ca'], taiLai)
 </script>
 

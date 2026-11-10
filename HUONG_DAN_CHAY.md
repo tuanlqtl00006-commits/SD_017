@@ -151,8 +151,8 @@ Giao diện quản trị chạy với vai trò **Quản lý** (thấy toàn bộ
 ### Tài khoản demo (mật khẩu `Footstyle@123`)
 | Tài khoản | Vai trò | Ghi chú |
 |---|---|---|
-| `NV01`, `NV02` | Quản lý | Thấy mọi menu, không bắt buộc vào ca (vẫn cần vào ca nếu tự bán tại quầy) |
-| `NV03` - `NV10` | Nhân viên | Đăng nhập xong **bắt buộc vào ca** mới dùng được chức năng khác |
+| `NV01` | Quản lý | Thấy mọi menu, không nhận ca / giao ca; xếp lịch mỗi ca một nhân viên |
+| `NV03`, `NV04`, `NV05` | Nhân viên | Chưa vào ca: đăng nhập **xem** được các trang trong quyền. **Nhận ca** rồi mới bán hàng, xử lý hóa đơn, sửa khách hàng; hết ca tự đếm két và **giao ca** |
 
 Đăng nhập bằng mã nhân viên, email hoặc số điện thoại. Khi chạy `npm run dev`, trang đăng nhập có 3 nút điền nhanh NV01 / NV03 / NV04.
 Khách hàng đăng nhập ở trang riêng của web bán hàng: http://localhost:5173/shop/dang-nhap.
@@ -161,7 +161,7 @@ Khách hàng đăng nhập ở trang riêng của web bán hàng: http://localho
 1. **Đăng nhập** (`/dang-nhap`): một trang chung cho quản lý và nhân viên, vào trong tự phân quyền (nhân viên không thấy Thống kê, Sản phẩm, Giảm giá, Nhân viên, Xếp lịch).
    Sai mật khẩu 5 lần liên tiếp bị khóa 5 phút. Phiên đăng nhập hết hạn sau 12 giờ (`app.auth.thoi-han-gio`).
 2. **Vào ca** (`/vao-ca`, bắt buộc với nhân viên): đếm tiền mặt trong két và đối soát chuyển khoản của ca trước (nút "Dùng số tiền này"); số khác ca trước thì phải ghi lý do.
-   Chưa vào ca thì mọi trang chuyển về `/vao-ca` và backend trả 409 `CHUA_NHAN_CA` cho mọi API (trừ đăng nhập, giao ca, xem lịch của mình).
+   Chưa vào ca thì vẫn mở trang để xem (GET); thêm / sửa / xóa thì backend trả 409 `CHUA_NHAN_CA` (trừ đăng nhập, nhận ca, lịch của mình). Mỗi ca một nhân viên: người nhận ca tự bán, giữ két và giao ca, không bán nhờ ca của người khác. Tài khoản mẫu chỉ còn 4 người sau khi chạy `database/SD_17_gon_4_nhan_vien.sql`.
    **Kết ca / giao ca** ở nút "Ca làm việc" trên header: hệ thống tổng kết tiền mặt / chuyển khoản, lệch thì bắt buộc ghi lý do; còn hóa đơn chờ thì không kết ca được. Kết ca xong in được biên bản giao ca.
 3. **Lịch làm việc** (menu "Ca làm việc"): quản lý xếp lịch theo ngày / tuần / tháng, nhập - xuất Excel; ca phải nằm trong giờ mở cửa **07:00 - 22:00**. Nhân viên xem "Lịch làm của tôi" và "Lịch sử giao ca".
 4. **Bán tại quầy** (`/ban-hang`):

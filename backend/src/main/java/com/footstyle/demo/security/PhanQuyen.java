@@ -65,8 +65,9 @@ public final class PhanQuyen {
             new String[] {"DELETE", "/api/khach-hang"});
 
     /**
-     * Nhân viên CHƯA VÀO CA chỉ gọi được các API này (đăng nhập / đăng xuất, vào ca, xem lịch của mình).
-     * Mọi chức năng khác bắt buộc vào ca trước (cô: "nhân viên không bấm vào ca thì vẫn làm được à?").
+     * Nhân viên CHƯA VÀO CA: xem (GET) được mọi thứ trong quyền của mình; còn thêm / sửa / xóa thì chỉ các API này
+     * (đăng nhập / đăng xuất / đổi mật khẩu, nhận ca, lịch của mình). Bán hàng, xử lý hóa đơn, sửa khách hàng... phải nhận ca trước
+     * (cô: "nhân viên không bấm vào ca thì vẫn làm được à?").
      */
     private static final List<String> KHONG_CAN_VAO_CA = List.of(
             "/api/auth",
@@ -123,6 +124,7 @@ public final class PhanQuyen {
     public static boolean canVaoCa(NguoiDung nd, String method, String path) {
         if (nd == null || !nd.laNhanVien() || nd.laQuanLy()) return false;
         if (congKhai(method, path)) return false;
+        if ("GET".equalsIgnoreCase(method)) return false; // chưa vào ca vẫn xem được
         String p = chuanHoa(path);
         for (String g : KHONG_CAN_VAO_CA) if (thuoc(p, g)) return false;
         return true;

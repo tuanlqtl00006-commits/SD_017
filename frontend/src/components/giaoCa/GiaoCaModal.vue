@@ -282,11 +282,11 @@ const tieuDe = computed(() => {
       </template>
       <template v-else-if="trangThai.daTai && !dangTrongCa">
         <button type="button" class="ad-btn" @click="emit('close')">Đóng</button>
-        <button v-if="!auth.laNhanVienBanHang.value" type="button" class="ad-btn ad-btn-primary" @click="sangTrangVaoCa"><i class="bi bi-door-open" aria-hidden="true"></i> Đi tới trang vào ca</button>
+        <button v-if="!auth.laQuanLy.value" type="button" class="ad-btn ad-btn-primary" @click="sangTrangVaoCa"><i class="bi bi-door-open" aria-hidden="true"></i> Đi tới trang vào ca</button>
       </template>
       <template v-else-if="trangThai.daTai">
         <button type="button" class="ad-btn" @click="emit('close')">Đóng</button>
-        <button v-if="!auth.laNhanVienBanHang.value" type="submit" form="gc-ket-form" class="ad-btn ad-btn-danger" :disabled="dangGui">Giao ca</button>
+        <button type="submit" form="gc-ket-form" class="ad-btn ad-btn-danger" :disabled="dangGui">Giao ca</button>
       </template>
     </template>
   </BaseModal>

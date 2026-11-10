@@ -1,6 +1,6 @@
 <script setup>
 // Lịch làm việc. Quản lý: xếp lịch theo tuần (hàng là nhân viên, cột là ngày, ngày đã qua chỉ xem), ca làm việc, lịch ca làm của mình.
-// Phân công Thu ngân giữ két ngay trong ca làm việc.
+// Mỗi ca trong ngày chỉ một nhân viên (tự nhận ca, bán, giữ két, giao ca); quản lý không nhận ca nên không có trong bảng xếp lịch.
 // Nhân viên chỉ thấy tab Lịch ca làm (lịch của mình).
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
@@ -57,7 +57,7 @@ onMounted(async () => {
   }
   await taiLich()
 })
-// Máy khác xếp / sửa lịch, đổi ca, đánh dấu thu ngân: cập nhật ngay (giữ tuần đang xem)
+// Máy khác xếp / sửa lịch, đổi ca: cập nhật ngay (giữ tuần đang xem)
 async function taiLichNgam() {
   if (!laQuanLy.value || dangTai.value) return
   const tuan = thu2.value
@@ -73,17 +73,6 @@ function doiTuan(soTuan) {
   taiLich()
 }
 
-/* ----- Đổi Thu ngân giữ két trực tiếp trên ca ----- */
-async function toggleThuNgan(l) {
-  if (l.daQua) return
-  try {
-    const kq = await lichLamViecService.doiThuNgan(l.id)
-    await taiLich()
-    toast.success(kq.laThuNgan ? `Đã chỉ định ${l.hoTen} làm Thu ngân (giữ két).` : `Đã chuyển ${l.hoTen} sang vị trí Bán hàng.`)
-  } catch (e) {
-    toast.error(e.message || 'Không đổi được vị trí Thu ngân.')
-  }
-}
 
 /* ----- Xếp lịch ----- */
 const moXep = ref(false)
@@ -182,7 +171,7 @@ async function saoChep() {
             {{ c.tenCa }} ({{ c.gioBatDau }} - {{ c.gioKetThuc }})
           </span>
         </div>
-        <span class="text-muted small">Mỗi ca trực có 1 Thu ngân giữ két, các nhân viên còn lại là Bán hàng.</span>
+        <span class="text-muted small">Mỗi ca một nhân viên: tự nhận ca, bán hàng, giữ két và giao ca.</span>
       </div>
 
       <div class="ad-table-wrap">
@@ -220,23 +209,6 @@ async function saoChep() {
                     >
                       <div class="d-flex align-items-center gap-1 flex-fill text-truncate">
                         <span>{{ l.tenCa }}</span>
-                        <span
-                          v-if="l.laThuNgan || /thu ngân/i.test(l.ghiChu || '')"
-                          class="ll-badge-tn"
-                          title="Thu ngân giữ két ca này (bấm để đổi sang Bán hàng)"
-                          @click.stop="toggleThuNgan(l)"
-                        >
-                          Thu ngân
-                        </span>
-                        <button
-                          v-else-if="!l.daQua"
-                          type="button"
-                          class="ll-btn-giao-ket"
-                          title="Chỉ định làm Thu ngân giữ két"
-                          @click.stop="toggleThuNgan(l)"
-                        >
-                          Giao két
-                        </button>
                       </div>
                       <button v-if="!l.daQua" type="button" class="ll-bo" :aria-label="`Bỏ ${l.tenCa} của ${nv.hoTen} ngày ${formatDate(d.iso)}`" @click="xoa = l">
                         &times;
@@ -372,34 +344,6 @@ th.is-hom-nay {
   border-radius: 6px;
   padding: 0.2rem 0.4rem;
   font-size: 0.76rem;
-}
-.ll-badge-tn {
-  font-size: 0.6rem;
-  font-weight: 700;
-  padding: 0.1rem 0.3rem;
-  border-radius: 4px;
-  background: #047857;
-  color: #fff;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ll-btn-giao-ket {
-  display: none;
-  font-size: 0.6rem;
-  font-weight: 600;
-  padding: 0.08rem 0.25rem;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.08);
-  border: 0;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ll-chip-o:hover .ll-btn-giao-ket {
-  display: inline-block;
-}
-.ll-btn-giao-ket:hover {
-  background: #047857;
-  color: #fff;
 }
 .ll-bo {
   border: 0;

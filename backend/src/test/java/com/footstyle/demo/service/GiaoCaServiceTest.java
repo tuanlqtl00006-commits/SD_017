@@ -209,6 +209,19 @@ class GiaoCaServiceTest {
         assertEquals(HttpStatus.CONFLICT, loi(() -> service.ketCa(new GiaoCaService.KetCaRequest(tien(0), tien(0), null, null))).getStatus());
     }
 
+    /** Mỗi ca một nhân viên làm hết: nhân viên thường (không cần vai trò Thu ngân) tự giao ca của mình; ca của người khác thì không. */
+    @Test
+    void nhanVienTuGiaoCaCuaMinh_khongGiaoHoCaNguoiKhac() {
+        CaLamMau.dangNhap(m.bao);
+        nhanCa("07:00", 500_000, null);
+        CaLamMau.dangNhap(m.anh);
+        assertEquals("CHUA_NHAN_CA", loi(() -> service.ketCa(new GiaoCaService.KetCaRequest(tien(500_000), tien(500_000), null, null))).getCode());
+        assertEquals("CHUA_NHAN_CA", loi(() -> service.caDangMoBatBuoc(m.anh.getId())).getCode(), "không bán nhờ ca của người khác");
+        CaLamMau.dangNhap(m.bao);
+        Map<String, Object> xong = service.ketCa(new GiaoCaService.KetCaRequest(tien(500_000), tien(500_000), null, null));
+        assertEquals(false, xong.get("dangTrongCa"));
+    }
+
     @Test
     void ketCa_thuaTien_coGhiChuThiDuoc() {
         CaLamMau.dangNhapThuNgan(m.bao);

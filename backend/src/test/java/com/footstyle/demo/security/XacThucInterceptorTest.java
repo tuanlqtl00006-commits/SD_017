@@ -79,14 +79,22 @@ class XacThucInterceptorTest {
     }
 
     @Test
-    void nhanVienChuaVaoCa_chiVaoCaXemLichDuoc_conLaiBiChan409() {
+    void nhanVienChuaVaoCa_xemDuoc_themSuaXoaBiChan409() {
         mau.chuaVaoCa.add(mau.nhanVien.getId());
         String t = mau.tokenCua(mau.nhanVien);
-        XacThucInterceptor.KetQua chan = it.xacThuc("GET", "/api/hoa-don", bearer(t));
+        // Xem thì được (trong quyền của nhân viên); trang của quản lý vẫn 403
+        assertEquals(0, it.xacThuc("GET", "/api/hoa-don", bearer(t)).status());
+        assertEquals(0, it.xacThuc("GET", "/api/san-pham", bearer(t)).status());
+        assertEquals(0, it.xacThuc("GET", "/api/khach-hang", bearer(t)).status());
+        assertEquals(0, it.xacThuc("GET", "/api/chat/hoi-thoai", bearer(t)).status());
+        assertEquals(403, it.xacThuc("GET", "/api/thong-ke/tong-quan", bearer(t)).status());
+        // Thêm / sửa / xóa thì phải nhận ca trước
+        XacThucInterceptor.KetQua chan = it.xacThuc("POST", "/api/ban-hang/thanh-toan", bearer(t));
         assertEquals(409, chan.status());
         assertEquals("CHUA_NHAN_CA", chan.code());
-        assertEquals(409, it.xacThuc("POST", "/api/ban-hang/thanh-toan", bearer(t)).status());
-        assertEquals(409, it.xacThuc("GET", "/api/chat/hoi-thoai", bearer(t)).status());
+        assertEquals(409, it.xacThuc("PUT", "/api/khach-hang/5", bearer(t)).status());
+        assertEquals(409, it.xacThuc("PUT", "/api/hoa-don/9/trang-thai", bearer(t)).status());
+        assertEquals(409, it.xacThuc("POST", "/api/chat/hoi-thoai", bearer(t)).status());
         assertEquals(0, it.xacThuc("GET", "/api/giao-ca/hien-tai", bearer(t)).status());
         assertEquals(0, it.xacThuc("POST", "/api/giao-ca/nhan-ca", bearer(t)).status());
         assertEquals(0, it.xacThuc("GET", "/api/auth/toi", bearer(t)).status());

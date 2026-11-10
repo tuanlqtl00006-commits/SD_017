@@ -201,9 +201,10 @@ describe('Kiểm tra truy cập trang', () => {
     expect(useAuth().trangChu()).toBe('/thong-ke')
   })
 
-  it('nhân viên chưa vào ca: mọi trang đều chuyển về /vao-ca (kèm trang định mở); quản lý không bắt buộc', async () => {
+  it('nhân viên chưa vào ca: vẫn mở được trang trong quyền của mình để xem, không vào được trang của quản lý', async () => {
     dangNhapLa(NV, false)
-    expect(await kiemTraTruyCap(trang('/hoa-don', { roles: ['quan-ly', 'nhan-vien'] }))).toEqual({ path: '/vao-ca', query: { quayLai: '/hoa-don' } })
+    expect(await kiemTraTruyCap(trang('/hoa-don', { roles: ['quan-ly', 'nhan-vien'] }))).toBe(true)
+    expect(await kiemTraTruyCap(trang('/thong-ke', { roles: ['quan-ly'] }))).toBe('/ban-hang')
     expect(await kiemTraTruyCap(trang('/vao-ca', { roles: ['quan-ly', 'nhan-vien'], khongCanVaoCa: true }, 'vao-ca'))).toBe(true)
     dangNhapLa(QL, false)
     expect(await kiemTraTruyCap(trang('/hoa-don', { roles: ['quan-ly', 'nhan-vien'] }))).toBe(true)

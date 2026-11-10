@@ -6,7 +6,7 @@ import App from './App.vue'
 import router, { apDungVaiTroMoi } from './router'
 import { datXuLyChuaVaoCa, datXuLyDoiVaiTro, datXuLyHetPhien } from './services/phien'
 import { useAuth } from './composables/useAuth'
-import { datLaiGiaoCa } from './composables/useGiaoCa'
+import { datLaiGiaoCa, useGiaoCa } from './composables/useGiaoCa'
 
 // API báo hết phiên (401): xóa phiên, về trang đăng nhập kèm lý do, đăng nhập lại xong quay về đúng trang đang mở
 datXuLyHetPhien((lyDo) => {
@@ -19,13 +19,12 @@ datXuLyHetPhien((lyDo) => {
   })
 })
 
-// Nhân viên chưa vào ca mà gọi chức năng (backend trả 409 CHUA_NHAN_CA): về trang Vào ca, vào xong quay lại trang đang mở
+// Nhân viên chưa vào ca mà thêm / sửa / xóa (backend trả 409 CHUA_NHAN_CA): màn đang mở tự báo câu của máy chủ, vẫn ở lại để xem tiếp.
+// Ở đây chỉ tải lại trạng thái ca (vd ca vừa bị quản lý đóng hộ) để nút "Ca làm việc" và màn bán hàng hiện đúng.
 datXuLyChuaVaoCa(() => {
   if (!['nhan-vien', 'thu-ngan'].includes(useAuth().vaiTro.value)) return
-  const hienTai = router.currentRoute.value
-  if (hienTai.name === 'vao-ca') return
   datLaiGiaoCa()
-  router.replace({ path: '/vao-ca', query: { quayLai: hienTai.fullPath } })
+  useGiaoCa().taiLai()
 })
 
 // Quản lý đổi vai trò của người đang làm việc (case khó "chuyển quyền nhân viên"): xem apDungVaiTroMoi

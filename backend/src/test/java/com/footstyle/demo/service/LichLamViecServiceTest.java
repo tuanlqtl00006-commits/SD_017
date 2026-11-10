@@ -52,12 +52,30 @@ class LichLamViecServiceTest {
 
     @Test
     void xepLich_boQuaNgayDaQua_conLaiThemDuoc() {
-        Map<String, Object> kq = service.xepLich(new LichLamViecService.XepLichRequest(List.of(3, 4), 1,
+        Map<String, Object> kq = service.xepLich(new LichLamViecService.XepLichRequest(List.of(3), 1,
                 List.of(HOM_NAY.minusDays(1).toString(), HOM_NAY.toString(), HOM_NAY.plusDays(1).toString()), " Mở cửa "));
-        assertEquals(4, kq.get("daThem"));
-        assertEquals(2, boQua(kq).size());
+        assertEquals(2, kq.get("daThem"));
+        assertEquals(1, boQua(kq).size());
         assertTrue(boQua(kq).stream().allMatch(b -> b.get("lyDo").toString().contains("Ngày đã qua")));
         assertEquals("Mở cửa", m.lichs.get(0).getGhiChu());
+    }
+
+    /** Mỗi ca trong ngày chỉ một nhân viên: người đó nhận ca, bán, giữ két và giao ca. */
+    @Test
+    void xepLich_moiCaChiMotNhanVien() {
+        ApiException e = loi(() -> service.xepLich(new LichLamViecService.XepLichRequest(List.of(3, 4), 1, List.of(HOM_NAY.toString()), null)));
+        assertEquals("Mỗi ca chỉ xếp một nhân viên.", e.getLoiTheoTruong().get("idNhanViens"));
+        assertEquals(1, service.xepLich(new LichLamViecService.XepLichRequest(List.of(3), 1, List.of(HOM_NAY.toString()), null)).get("daThem"));
+        Map<String, Object> nguoiKhac = service.xepLich(new LichLamViecService.XepLichRequest(List.of(4), 1,
+                List.of(HOM_NAY.toString(), HOM_NAY.plusDays(1).toString()), null));
+        assertEquals(1, nguoiKhac.get("daThem"), "hôm sau ca sáng còn trống nên vẫn xếp được");
+        assertEquals("Ca sáng ngày này đã xếp cho Lê Quốc Bảo (mỗi ca chỉ một nhân viên).", boQua(nguoiKhac).get(0).get("lyDo"));
+        assertEquals(1, service.xepLich(new LichLamViecService.XepLichRequest(List.of(4), 2, List.of(HOM_NAY.toString()), null)).get("daThem"),
+                "ca chiều cùng ngày là ca khác, xếp cho người khác được");
+        // Quản lý không nhận ca nên không xếp vào ca, cũng không nằm trong danh sách để xếp
+        Map<String, Object> quanLy = service.xepLich(new LichLamViecService.XepLichRequest(List.of(1), 3, List.of(HOM_NAY.toString()), null));
+        assertEquals("Nhân viên này là Quản lý, không nhận ca nên không xếp lịch ca được.", boQua(quanLy).get(0).get("lyDo"));
+        assertTrue(service.nhanVienDangLam().stream().noneMatch(n -> "NV01".equals(n.get("maNhanVien"))));
     }
 
     @Test
@@ -74,10 +92,11 @@ class LichLamViecServiceTest {
 
     @Test
     void xepLich_nhanVienNghiViec_vaCaNgungDung() {
-        Map<String, Object> kq = service.xepLich(new LichLamViecService.XepLichRequest(List.of(10, 99), 1, List.of(HOM_NAY.toString()), null));
+        Map<String, Object> kq = service.xepLich(new LichLamViecService.XepLichRequest(List.of(10), 1, List.of(HOM_NAY.toString()), null));
         assertEquals(0, kq.get("daThem"));
         assertEquals("Nhân viên đang ngừng hoạt động.", boQua(kq).get(0).get("lyDo"));
-        assertEquals("Không tìm thấy nhân viên.", boQua(kq).get(1).get("lyDo"));
+        kq = service.xepLich(new LichLamViecService.XepLichRequest(List.of(99), 1, List.of(HOM_NAY.toString()), null));
+        assertEquals("Không tìm thấy nhân viên.", boQua(kq).get(0).get("lyDo"));
         m.toi.setTrangThai(0);
         ApiException e = loi(() -> service.xepLich(new LichLamViecService.XepLichRequest(List.of(3), 3, List.of(HOM_NAY.toString()), null)));
         assertTrue(e.getMessage().contains("ngừng sử dụng"));
@@ -95,9 +114,8 @@ class LichLamViecServiceTest {
 
     @Test
     void xepLich_quaNhieuO_bichan() {
-        List<Integer> nvs = java.util.stream.IntStream.rangeClosed(1, 30).boxed().toList();
-        List<String> ngays = java.util.stream.IntStream.range(0, 20).mapToObj(i -> HOM_NAY.plusDays(i).toString()).toList();
-        ApiException e = loi(() -> service.xepLich(new LichLamViecService.XepLichRequest(nvs, 1, ngays, null)));
+        List<String> ngays = java.util.stream.IntStream.range(0, 501).mapToObj(i -> HOM_NAY.plusDays(i).toString()).toList();
+        ApiException e = loi(() -> service.xepLich(new LichLamViecService.XepLichRequest(List.of(3), 1, ngays, null)));
         assertTrue(e.getLoiTheoTruong().get("ngays").contains("500"));
     }
 

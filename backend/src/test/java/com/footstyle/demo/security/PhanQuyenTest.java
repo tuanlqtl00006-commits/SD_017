@@ -93,6 +93,23 @@ class PhanQuyenTest {
         assertTrue(PhanQuyen.duocPhep(NV, "GET", "/api/hoa-don?page=0"));
     }
 
+    /** Chưa vào ca: xem (GET) không đòi ca; thêm / sửa / xóa đòi ca, trừ đăng nhập, nhận ca, lịch của mình. Quản lý không bao giờ đòi ca. */
+    @Test
+    void chuaVaoCa_xemKhongCanCa_thaoTacCanCa() {
+        NguoiDung nv = new NguoiDung(NguoiDung.LOAI_NHAN_VIEN, 3, "NV03", "Lê Quốc Bảo", NguoiDung.NHAN_VIEN, null);
+        NguoiDung ql = new NguoiDung(NguoiDung.LOAI_NHAN_VIEN, 1, "NV01", "Nguyễn Hoàng Long", NguoiDung.QUAN_LY, null);
+        for (String p : new String[] {"/api/hoa-don", "/api/khach-hang/5", "/api/san-pham", "/api/ban-hang/hoa-don-cho", "/api/giao-ca"}) {
+            assertFalse(PhanQuyen.canVaoCa(nv, "GET", p), p);
+        }
+        for (String[] r : new String[][] {{"POST", "/api/ban-hang/hoa-don-cho"}, {"PUT", "/api/hoa-don/9/trang-thai"}, {"POST", "/api/khach-hang"},
+                {"PUT", "/api/dia-chi/3"}, {"POST", "/api/ho-tro/hoi-thoai/1/tin-nhan"}}) {
+            assertTrue(PhanQuyen.canVaoCa(nv, r[0], r[1]), r[0] + " " + r[1]);
+            assertFalse(PhanQuyen.canVaoCa(ql, r[0], r[1]), "quản lý " + r[0] + " " + r[1]);
+        }
+        assertFalse(PhanQuyen.canVaoCa(nv, "POST", "/api/giao-ca/nhan-ca"));
+        assertFalse(PhanQuyen.canVaoCa(nv, "POST", "/api/auth/doi-mat-khau"));
+    }
+
     @Test
     void khachHang_chiApiTaiKhoan() {
         assertTrue(PhanQuyen.duocPhep(KH, "GET", "/api/auth/toi"));

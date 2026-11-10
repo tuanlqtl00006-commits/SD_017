@@ -98,12 +98,12 @@ describe('Áp dụng vai trò mới cho trang đang mở', () => {
     expect(toast.toasts.at(-1).message).toContain('quyền Nhân viên')
   })
 
-  it('quản lý bị hạ xuống nhân viên khi đang bán tại quầy mà chưa vào ca: về trang Vào ca rồi quay lại', async () => {
+  it('quản lý bị hạ xuống nhân viên khi đang bán tại quầy mà chưa vào ca: ở lại xem, không bị đẩy sang trang Vào ca', async () => {
     dangNhap(QL)
     mayChu.mockImplementation((c) => traVe(c, 200, c.url === '/giao-ca/hien-tai' ? { dangMo: null, tongKet: null, lichHomNay: [] } : {}, 'NHAN_VIEN'))
     const chuyenTrang = vi.fn()
     await apDungVaiTroMoi('NHAN_VIEN', trang('/ban-hang', ['quan-ly', 'nhan-vien']), chuyenTrang)
-    expect(chuyenTrang).toHaveBeenCalledWith({ path: '/vao-ca', query: { quayLai: '/ban-hang' } })
+    expect(chuyenTrang).not.toHaveBeenCalled()
   })
 
   it('bị hạ xuống nhân viên nhưng đang trong ca: ở lại bán hàng, hóa đơn chờ không mất', async () => {
@@ -144,10 +144,10 @@ describe('Đổi sang chức vụ Thu ngân', () => {
     expect(await kiemTraTruyCap(trangThat('/thong-ke'))).toBe('/ban-hang')
   })
 
-  it('Thu ngân chưa vào ca thì về trang Vào ca, trang Vào ca mở được (không lặp chuyển trang)', async () => {
+  it('Thu ngân chưa vào ca vẫn mở được trang để xem, trang Vào ca mở được (không lặp chuyển trang)', async () => {
     dangNhap(TN)
     traCa(null)
-    expect(await kiemTraTruyCap(trangThat('/ban-hang'))).toEqual({ path: '/vao-ca', query: { quayLai: '/ban-hang' } })
+    expect(await kiemTraTruyCap(trangThat('/ban-hang'))).toBe(true)
     expect(await kiemTraTruyCap(trangThat('/vao-ca'))).toBe(true)
   })
 

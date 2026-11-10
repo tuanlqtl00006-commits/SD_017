@@ -11,7 +11,7 @@ export const lichLamViecService = {
   lichCuaToi: (tuNgay, denNgay) => api.get('/lich-lam-viec/cua-toi', { params: { tuNgay, denNgay } }).then((r) => r.data),
   nhanVien: () => api.get('/lich-lam-viec/nhan-vien').then((r) => r.data),
   xepLich: (body) => api.post('/lich-lam-viec', body).then((r) => r.data),
-  doiThuNgan: (id) => api.put(`/lich-lam-viec/${id}/thu-ngan`).then((r) => r.data),
+
   xoaLich: (id) => api.delete(`/lich-lam-viec/${id}`).then((r) => r.data),
   saoChepTuan: (tuanNguon, tuanDich) => api.post('/lich-lam-viec/sao-chep-tuan', { tuanNguon, tuanDich }).then((r) => r.data),
   importExcel: (file, { chiKiemTra = false } = {}) => {

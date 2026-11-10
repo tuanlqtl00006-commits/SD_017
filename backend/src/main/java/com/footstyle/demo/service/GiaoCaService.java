@@ -125,10 +125,10 @@ public class GiaoCaService {
      */
     @Transactional(readOnly = true)
     public GiaoCa caDangMoBatBuoc(Integer idNhanVien) {
+        // Mỗi ca một nhân viên: người bán phải đang giữ ca của chính mình (không bán nhờ ca của người khác)
         GiaoCa gc = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(idNhanVien, GiaoCa.DANG_TRONG_CA)
-                .or(() -> giaoCaRepo.findFirstByTrangThaiOrderByThoiGianNhanCaDescIdDesc(GiaoCa.DANG_TRONG_CA))
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
-                        "Quầy thu ngân chưa mở ca bán hàng hôm nay. Vui lòng nhờ Thu ngân mở ca trước khi thanh toán.", "CHUA_NHAN_CA", null));
+                        "Bạn chưa nhận ca. Vui lòng nhận ca (nhập tiền đầu ca) trước khi bán hàng.", "CHUA_NHAN_CA", null));
         if (gc.getThoiGianNhanCa() != null && gc.getThoiGianNhanCa().toLocalDate().isBefore(bayGio().toLocalDate())) {
             throw new ApiException(HttpStatus.CONFLICT, "Ca " + gc.getMaGiaoCa() + " nhận ngày " + gc.getThoiGianNhanCa().format(NGAY)
                     + " chưa giao. Vui lòng giao ca đó rồi vào ca mới trước khi bán hàng.", "CA_CU_CHUA_GIAO", null);
@@ -301,12 +301,8 @@ if (nd.laQuanLy()) {
 
     @Transactional
     public Map<String, Object> ketCa(KetCaRequest req) {
+        // Mỗi ca một nhân viên làm hết: người nhận ca tự bán, giữ két, đếm tiền và giao ca của chính mình
         NguoiDung nd = XacThuc.nhanVien();
-        if (nd.laNhanVienBanHang()) {
-            throw new ApiException(HttpStatus.FORBIDDEN,
-                    "Nhân viên bán hàng không quản lý két tiền. Chỉ Thu ngân hoặc Quản lý mới được chốt ca bán hàng.",
-                    "KHONG_CO_QUYEN", null);
-        }
         GiaoCa gc = giaoCaRepo.findFirstByNhanVienIdAndTrangThai(nd.id(), GiaoCa.DANG_TRONG_CA)
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "Bạn không có ca nào đang mở để giao.", "CHUA_NHAN_CA", null));
         return ketCaCua(gc, req, null);
