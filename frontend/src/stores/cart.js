@@ -113,6 +113,7 @@ export const useCartStore = defineStore('cart', () => {
       // lần hỏi cũ về chậm, hoặc giỏ đã đổi trong lúc chờ: bỏ, không đè số mới
       if (lan !== lanBaoGia || khoa !== khoaBaoGia.value || !data) return null
       let doiGia = false
+      let doiTon = false
       for (const d of data.dong || []) {
         const it = items.value.find((x) => x.bienTheId === d.idSanPhamChiTiet)
         if (!it || !d.conBan) continue
@@ -121,9 +122,12 @@ export const useCartStore = defineStore('cart', () => {
           it.giaGoc = Number(d.giaGoc) || it.giaBan
           doiGia = true
         }
-        if (d.soLuongTon !== undefined) it.soLuongTon = d.soLuongTon
+        if (d.soLuongTon !== undefined && it.soLuongTon !== d.soLuongTon) {
+          it.soLuongTon = d.soLuongTon
+          doiTon = true
+        }
       }
-      if (doiGia) saveToStorage(items.value)
+      if (doiGia || doiTon) saveToStorage(items.value)
       baoGia.value = { ...data, khoa, doiGia }
       return baoGia.value
     } catch {

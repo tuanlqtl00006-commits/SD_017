@@ -32,6 +32,11 @@ const tien = computed(() =>
   }),
 )
 const coGiamDot = (item) => Number(item.giaGoc) > Number(item.giaBan)
+const coSanPhamKhongDuHang = computed(() =>
+  cartStore.items.some(
+    (i) => (Number(i.soLuongTon) ?? 999) < Number(i.soLuong) || (Number(i.soLuongTon) ?? 999) <= 0
+  )
+)
 const auth = useAuth()
 
 // Khách vãng lai (chưa đăng nhập/đăng ký) vẫn được mua hàng; đăng nhập chỉ để tự điền thông tin và dùng sổ địa chỉ
@@ -143,6 +148,11 @@ function validate() {
   // Địa chỉ đã lưu (dữ liệu cũ) thiếu tỉnh / phường: nhắc chọn địa chỉ khác vì các ô chọn tỉnh đang ẩn
   if (diaChiDangChon.value && (errs.tinhThanh || errs.phuongXa || errs.diaChiCuThe)) {
     errs.soDiaChi = 'Địa chỉ đã lưu này thiếu thông tin. Vui lòng bấm "Thay đổi" để chọn địa chỉ khác hoặc thêm địa chỉ mới.'
+  }
+
+  if (coSanPhamKhongDuHang.value) {
+    submitError.value = 'Một số sản phẩm trong đơn đã hết hoặc không đủ tồn kho (do quầy hoặc đơn khác vừa mua). Vui lòng kiểm tra lại.'
+    return false
   }
 
   errors.value = errs
@@ -492,6 +502,12 @@ async function handleOrderSubmit() {
                   <div class="co-item-unit" data-testid="co-don-gia">
                     <s v-if="coGiamDot(item)" class="me-1">{{ formatMoney(item.giaGoc) }}</s>{{ formatMoney(item.giaBan) }} x {{ item.soLuong }}
                   </div>
+                  <div v-if="(item.soLuongTon ?? 1) <= 0" class="text-danger small mt-1 fw-semibold">
+                    <i class="bi bi-x-circle me-1"></i>Hết hàng (quầy vừa bán hết)
+                  </div>
+                  <div v-else-if="item.soLuong > item.soLuongTon" class="text-danger small mt-1 fw-semibold">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Kho chỉ còn {{ item.soLuongTon }} sản phẩm
+                  </div>
                 </div>
                 <div class="co-item-total">{{ formatMoney(item.giaBan * item.soLuong) }}</div>
               </div>
@@ -521,9 +537,15 @@ async function handleOrderSubmit() {
               <span class="co-total-val">{{ formatMoney(tien.tong) }}</span>
             </div>
 
+            <div v-if="coSanPhamKhongDuHang" class="alert alert-danger py-2 small mb-3 border-0">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              Có sản phẩm vượt quá tồn kho hoặc đã hết hàng (do quầy hoặc đơn khác vừa mua). Vui lòng quay lại
+              <RouterLink to="/shop/gio-hang" class="fw-bold text-danger text-decoration-underline">giỏ hàng</RouterLink> để điều chỉnh số lượng.
+            </div>
+
             <div v-if="submitError" class="alert alert-danger py-2 small mb-3">{{ submitError }}</div>
 
-            <button type="button" class="co-submit" :disabled="submitting" @click="handleOrderSubmit">
+            <button type="button" class="co-submit" :disabled="submitting || coSanPhamKhongDuHang" @click="handleOrderSubmit">
               <span v-if="submitting" class="spinner-border spinner-border-sm me-2"></span>
               <span>ĐẶT HÀNG</span>
             </button>

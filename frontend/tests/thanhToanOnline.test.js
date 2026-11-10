@@ -145,4 +145,23 @@ describe('Thanh toán online', () => {
     expect(dong('tong-thanh-toan')).toContain('960.000')
     expect(w.find('[data-testid="co-don-gia"]').text()).toContain('600.000')
   })
+
+  it('quầy vừa bán hết hoặc không đủ tồn kho: cảnh báo và khóa nút ĐẶT HÀNG, không cho gửi đơn', async () => {
+    api.post.mockImplementation(async (url) => (url === '/cua-hang/tinh-tien'
+      ? { data: {
+        dong: [{ idSanPhamChiTiet: 52, conBan: true, giaGoc: 480000, donGia: 480000, soLuong: 2, soLuongTon: 0 }],
+        tongTienGoc: 960000, tienGiamTheoDot: 0, tongTien: 960000, maPhieu: null, soTienGiam: 0, loiPhieu: null, phiVanChuyen: null, thanhTien: 960000,
+      } }
+      : { data: {} }))
+    const { w } = await moTrang({ tien: 480000, soLuong: 2 })
+    await new Promise((r) => setTimeout(r, 300))
+    await flushPromises()
+
+    const nutDat = w.findAll('button').find((b) => b.text().includes('ĐẶT HÀNG') || b.text().includes('Đặt hàng'))
+    expect(nutDat.attributes('disabled')).toBeDefined()
+    expect(w.text()).toContain('Hết hàng')
+    await nutDat.trigger('click')
+    await flushPromises()
+    expect(api.post.mock.calls.some((c) => c[0] === '/cua-hang/dat-hang')).toBe(false)
+  })
 })
