@@ -18,7 +18,7 @@
         VỀ CHÚNG TÔI - FOOTSTYLE BADMINTON
       </h2>
       <p class="lead small opacity-90 mx-auto" style="max-width: 720px;">
-        Đồng hành cùng hàng triệu lông thủ Việt Nam từ năm 2018. Chúng tôi tự hào là đại lý phân phối chính thức các thương hiệu vợt, giày và trang bị thể thao cầu lông hàng đầu thế giới.
+        Đồng hành cùng hàng triệu lông thủ Việt Nam từ năm 2018. Chúng tôi tự hào là đại lý phân phối chính thức các thương hiệu vợt cầu lông hàng đầu thế giới.
       </p>
     </div>
 

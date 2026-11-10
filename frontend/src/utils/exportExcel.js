@@ -179,7 +179,7 @@ function reportSheetXml(sh, report = {}) {
   const columns = Array.isArray(sh.columns) && sh.columns.length ? sh.columns : [{ header: 'Nội dung', key: 'text', width: 60 }]
   const colCount = columns.length
   const lastCol = columnName(colCount - 1)
-  const brand = sh.brand || report.brand || 'HỆ THỐNG CỬA HÀNG GIÀY THỂ THAO FOOTSTYLE — BÁO CÁO QUẢN TRỊ'
+  const brand = sh.brand || report.brand || 'CỬA HÀNG VỢT CẦU LÔNG FOOTSTYLE — BÁO CÁO QUẢN TRỊ'
   const title = sh.title || report.title || sh.sheetName || 'BÁO CÁO THỐNG KÊ'
   const subtitle = sh.subtitle || report.subtitle || ''
 

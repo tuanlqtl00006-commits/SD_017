@@ -6,7 +6,7 @@ const contactForm = ref({
   hoTen: '',
   sdt: '',
   email: '',
-  chuDe: 'Tư vấn chọn vợt / giày',
+  chuDe: 'Tư vấn chọn vợt',
   noiDung: '',
 })
 
@@ -91,7 +91,7 @@ function handleSendContact() {
             <div class="mb-3">
               <label class="form-label small fw-bold">Chủ đề cần hỗ trợ</label>
               <select v-model="contactForm.chuDe" class="form-select">
-                <option value="Tư vấn chọn vợt / giày">Tư vấn chọn vợt / giày cầu lông</option>
+                <option value="Tư vấn chọn vợt">Tư vấn chọn vợt cầu lông</option>
                 <option value="Hỏi về tiến độ đơn hàng">Hỏi về tiến độ đơn hàng</option>
                 <option value="Hỗ trợ bảo hành / đổi trả">Hỗ trợ bảo hành / đổi trả</option>
                 <option value="Hợp tác nhượng quyền / đại lý">Hợp tác nhượng quyền / đại lý</option>
@@ -151,7 +151,7 @@ function handleSendContact() {
           </div>
 
           <div class="p-3 bg-light rounded-3 text-secondary small border-start border-4 border-primary">
-            Quý khách có thể ghé trực tiếp bất kỳ cửa hàng FootStyle trong hệ thống để trải nghiệm vợt, thử giày và đan cước lấy ngay trong 20 phút!
+            Quý khách có thể ghé trực tiếp bất kỳ cửa hàng FootStyle trong hệ thống để trải nghiệm vợt và đan cước lấy ngay trong 20 phút!
           </div>
         </div>
       </div>

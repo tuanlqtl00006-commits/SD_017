@@ -106,7 +106,7 @@ const currentBanner = computed(() => {
     badge: 'FOOTSTYLE STORE',
     title: title,
     highlight: 'CHÍNH HÃNG',
-    tag: 'DỤNG CỤ, PHỤ KIỆN & THỜI TRANG CẦU LÔNG CHUYÊN NGHIỆP',
+    tag: 'CỬA HÀNG VỢT CẦU LÔNG',
     priceText: 'Cam kết chất lượng 100%',
     bg: 'linear-gradient(90deg, #18181b 0%, #b91c1c 45%, #18181b 100%)',
   }

@@ -122,7 +122,7 @@ function khiTha(e) {
       <div class="col-lg-4">
         <section class="gy-the">
           <h1 class="gy-tieu-de"><i class="bi bi-stars" aria-hidden="true"></i> Gợi ý AI từ hình ảnh</h1>
-          <p class="text-muted small mb-3">Tải ảnh cây vợt, đôi giày, chiếc áo... bạn thích. AI sẽ phân tích màu sắc và gợi ý sản phẩm giống nhất đang có tại FootStyle.</p>
+          <p class="text-muted small mb-3">Tải ảnh cây vợt bạn thích. AI sẽ phân tích màu sắc và gợi ý sản phẩm giống nhất đang có tại FootStyle.</p>
 
           <label
             class="gy-tha"

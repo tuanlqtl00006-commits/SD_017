@@ -367,7 +367,7 @@ function handleSearch() {
           <div class="col-lg-4 col-md-6">
             <img src="/logo.png" alt="FootStyle" class="mb-3" style="height: 42px; filter: brightness(0) invert(1);" />
             <p class="small text-secondary mb-3">
-              FootStyle - Hệ thống shop cầu lông toàn quốc chuyên phân phối vợt cầu lông, giày, trang phục và phụ kiện thể thao chính hãng.
+              FootStyle - Hệ thống shop cầu lông toàn quốc chuyên phân phối vợt cầu lông chính hãng.
             </p>
             <div class="small text-secondary">
               <p class="mb-1"><i class="bi bi-geo-alt-fill text-warning me-2"></i> Trụ sở: 123 Đường Cầu Diễn, Bắc Từ Liêm, Hà Nội</p>
@@ -414,11 +414,7 @@ function handleSearch() {
                   Hướng dẫn chọn vợt
                 </RouterLink>
               </li>
-              <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'size-giay' } }" class="text-secondary text-decoration-none hover-white">
-                  Bảng quy đổi size giày
-                </RouterLink>
-              </li>
+
               <li>
                 <RouterLink to="/shop/huong-dan" class="text-secondary text-decoration-none hover-white">
                   Câu hỏi thường gặp

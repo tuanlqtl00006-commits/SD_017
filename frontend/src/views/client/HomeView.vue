@@ -20,12 +20,12 @@ const discounts = ref({}) // { idBienThe: phanTram }
 const currentBannerIndex = ref(0)
 const bannerList = [
   {
-    tag: 'NEW ARRIVAL 2026',
-    title: 'NEW ECLIPSION Z3',
-    subtitle: 'CONFIDENCE. FROM EVERY DIRECTION. TO EVERY DIRECTION.',
-    desc: 'Công nghệ Power Cushion+ độc quyền hỗ trợ bật nhảy tối đa, giảm chấn thương hoàn hảo cho từng bước di chuyển trên sân cầu.',
-    btnText: 'KHÁM PHÁ NGAY',
-    btnLink: '/shop/san-pham',
+    tag: 'DANH MỤC',
+    title: 'VỢT CHO NGƯỜI MỚI',
+    subtitle: 'DÀNH CHO NGƯỜI MỚI BẮT ĐẦU CHƠI',
+    desc: 'Các mẫu vợt trong danh mục Vợt cầu lông người mới đang bán tại FootStyle.',
+    btnText: 'XEM DANH MỤC',
+    btnLink: '/shop/san-pham?danhMuc=2',
     bgGradient: 'linear-gradient(135deg, #0c4a6e 0%, #0284c7 50%, #38bdf8 100%)',
     badgeClass: 'bg-warning text-dark',
   },
@@ -40,11 +40,11 @@ const bannerList = [
     badgeClass: 'bg-warning text-dark',
   },
   {
-    tag: 'BỘ SƯU TẬP FOOTSTYLE PRO',
-    title: 'SPEED & POWER 2026',
-    subtitle: 'TRANG PHỤC & PHỤ KIỆN CHÍNH HÃNG TIÊU CHUẨN THI ĐẤU',
-    desc: 'Chất liệu vải Cool-Dry thoáng khí kháng khuẩn, giày công nghệ chống lật cổ chân và các phụ kiện hỗ trợ tối đa cho lông thủ.',
-    btnText: 'XEM BỘ SƯU TẬP',
+    tag: 'ƯU ĐÃI',
+    title: 'VỢT ĐANG GIẢM GIÁ',
+    subtitle: 'CÁC ĐỢT GIẢM GIÁ ĐANG DIỄN RA',
+    desc: 'Xem các mẫu vợt đang được giảm giá theo đợt tại FootStyle.',
+    btnText: 'XEM ƯU ĐÃI',
     btnLink: '/shop/san-pham?khuyenMai=1',
     bgGradient: 'linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #7dd3fc 100%)',
     badgeClass: 'bg-warning text-dark',
@@ -222,10 +222,6 @@ const tabFilteredProducts = computed(() => {
     if (p.idDanhMuc != null && String(p.idDanhMuc) === String(selectedCatTab.value)) return true
     if (String(selectedCatTab.value) === '1' && (p.idDanhMuc === 1 || p.ten?.toLowerCase().includes('vợt'))) return true
     if (String(selectedCatTab.value) === '2' && (p.idDanhMuc === 2 || p.ten?.toLowerCase().includes('mới'))) return true
-    if (String(selectedCatTab.value) === '3' && (p.idDanhMuc === 3 || p.ten?.toLowerCase().includes('áo') || p.ten?.toLowerCase().includes('quần'))) return true
-    if (String(selectedCatTab.value) === '4' && (p.idDanhMuc === 4 || p.ten?.toLowerCase().includes('túi') || p.ten?.toLowerCase().includes('balo'))) return true
-    if (String(selectedCatTab.value) === '5' && (p.idDanhMuc === 5 || p.ten?.toLowerCase().includes('phụ kiện') || p.ten?.toLowerCase().includes('cước'))) return true
-    if (String(selectedCatTab.value) === '6' && (p.idDanhMuc === 6 || p.ten?.toLowerCase().includes('cầu'))) return true
     return false
   })
 })
@@ -662,7 +658,7 @@ function quickAddToCart(item, event) {
         </div>
 
         <div class="row g-3">
-          <div class="col-md-4">
+          <div class="col-12">
             <div
               class="promo-banner-card rounded-4 p-4 text-white text-center shadow-sm cursor-pointer position-relative overflow-hidden"
               style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center;"
@@ -674,29 +670,6 @@ function quickAddToCart(item, event) {
             </div>
           </div>
 
-          <div class="col-md-4">
-            <div
-              class="promo-banner-card rounded-4 p-4 text-white text-center shadow-sm cursor-pointer position-relative overflow-hidden"
-              style="background: linear-gradient(135deg, #0f172a 0%, #dc2626 100%); min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center;"
-              @click="router.push('/shop/san-pham?khuyenMai=1')"
-            >
-              <span class="badge bg-white text-danger fw-bold px-2 py-1 mb-2" style="font-size: 0.75rem;">DISCOUNT</span>
-              <h5 class="fw-black text-uppercase mb-1" style="font-weight: 900;">GIÀY CẦU LÔNG CAO CẤP</h5>
-              <div class="text-white opacity-90 fw-bold small">GIẢM SỐC CÔNG NGHỆ POWER CUSHION+</div>
-            </div>
-          </div>
-
-          <div class="col-md-4">
-            <div
-              class="promo-banner-card rounded-4 p-4 text-dark text-center shadow-sm cursor-pointer position-relative overflow-hidden"
-              style="background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%); min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center;"
-              @click="router.push('/shop/san-pham?khuyenMai=1')"
-            >
-              <span class="badge bg-danger text-white fw-bold px-2 py-1 mb-2" style="font-size: 0.75rem;">COMBO HOT</span>
-              <h5 class="fw-black text-uppercase mb-1 text-danger" style="font-weight: 900;">QUẦN ÁO THỂ THAO</h5>
-              <div class="text-dark fw-bold small">MUA 2 ÁO TẶNG 1 QUẤN CÁN FOOTSTYLE</div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -709,7 +682,7 @@ function quickAddToCart(item, event) {
             </div>
             <div>
               <h2 class="vnb-header-title mb-0">Danh Mục Nổi Bật</h2>
-              <p class="vnb-header-subtitle mb-0">Trang thiết bị & phụ kiện thi đấu chuyên nghiệp</p>
+              <p class="vnb-header-subtitle mb-0">Vợt cầu lông chính hãng</p>
             </div>
           </div>
           <RouterLink to="/shop/san-pham" class="vnb-view-all-link">
@@ -727,21 +700,12 @@ function quickAddToCart(item, event) {
             </div>
           </div>
 
-          <!-- Card 2: GIÀY CẦU LÔNG -->
+          <!-- Card 2: VỢT CẦU LÔNG NGƯỜI MỚI (cửa hàng chỉ bán vợt: hai danh mục) -->
           <div class="col-lg-3 col-6">
-            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
-              <img src="/images/danh-muc/giay_yonex_power_cushion_88_dial.webp" alt="Giày cầu lông" class="dm-img" loading="lazy" />
-              <div class="vnb-cat-ribbon dm-ribbon">GIÀY CẦU LÔNG</div>
-              <div class="dm-sub">Bật nhảy, giảm chấn</div>
-            </div>
-          </div>
-
-          <!-- Card 3: PHỤ KIỆN & CƯỚC -->
-          <div class="col-lg-3 col-6">
-            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
-              <img src="/images/san-pham/sp42_tui_yonex_ba92431wz.webp" alt="Phụ kiện và cước" class="dm-img" loading="lazy" />
-              <div class="vnb-cat-ribbon dm-ribbon">PHỤ KIỆN & CƯỚC</div>
-              <div class="dm-sub">Cước đan, túi, quấn cán</div>
+            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham?danhMuc=2')">
+              <img src="/images/san-pham/sp25_yonex_astrox_10.webp" alt="Vợt cầu lông người mới" class="dm-img dm-img-vot" loading="lazy" />
+              <div class="vnb-cat-ribbon dm-ribbon">VỢT NGƯỜI MỚI</div>
+              <div class="dm-sub">Dành cho người mới chơi</div>
             </div>
           </div>
         </div>

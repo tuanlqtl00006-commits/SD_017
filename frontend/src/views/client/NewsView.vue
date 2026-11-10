@@ -27,7 +27,7 @@ const categories = ref([
     hasChildren: true,
     children: ['Kỹ thuật giao bóng', 'Chọn vợt tennis', 'Lối đánh hiện đại'],
   },
-  { id: 'hieu-dung', name: 'Hiểu đúng về giày & dụng cụ', hasChildren: false },
+  { id: 'hieu-dung', name: 'Hiểu đúng về dụng cụ', hasChildren: false },
   { id: 'song-khoe', name: 'Sống khoẻ cùng FootStyle Sports', hasChildren: false },
   { id: 'san-pickleball', name: 'Sân pickleball', hasChildren: false },
   { id: 'kien-thuc-pickleball', name: 'Kiến thức pickleball', hasChildren: false },
@@ -483,32 +483,14 @@ function onImageError(e) {
           </div>
           <ul class="list-unstyled p-2 m-0 news-quick-links small">
             <li class="py-2 px-2 border-bottom">
-              <RouterLink to="/shop/san-pham" class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
+              <RouterLink to="/shop/san-pham?danhMuc=1" class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
                 <span>🏸 Vợt cầu lông chính hãng</span>
                 <i class="bi bi-chevron-right text-muted small"></i>
               </RouterLink>
             </li>
-            <li class="py-2 px-2 border-bottom">
-              <RouterLink to="/shop/san-pham" class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
-                <span>👟 Giày cầu lông chuyên dụng</span>
-                <i class="bi bi-chevron-right text-muted small"></i>
-              </RouterLink>
-            </li>
-            <li class="py-2 px-2 border-bottom">
-              <RouterLink to="/shop/san-pham" class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
-                <span>👕 Quần áo thể thao cầu lông</span>
-                <i class="bi bi-chevron-right text-muted small"></i>
-              </RouterLink>
-            </li>
-            <li class="py-2 px-2 border-bottom">
-              <RouterLink to="/shop/san-pham" class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
-                <span>🎒 Balo & Túi đựng vợt</span>
-                <i class="bi bi-chevron-right text-muted small"></i>
-              </RouterLink>
-            </li>
             <li class="py-2 px-2">
-              <RouterLink to="/shop/san-pham" class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
-                <span>🏓 Vợt & Phụ kiện Pickleball</span>
+              <RouterLink to="/shop/san-pham?danhMuc=2" class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
+                <span>🏸 Vợt cầu lông người mới</span>
                 <i class="bi bi-chevron-right text-muted small"></i>
               </RouterLink>
             </li>

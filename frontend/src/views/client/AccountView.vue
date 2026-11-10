@@ -342,7 +342,7 @@ function deleteAddress(id) {
 const LY_DO_HUY = [
   'Muốn thay đổi địa chỉ giao hàng',
   'Muốn nhập/thay đổi mã giảm giá',
-  'Muốn đổi sản phẩm (size, màu, số lượng…)',
+  'Muốn đổi sản phẩm (trọng lượng, màu, số lượng…)',
   'Thủ tục thanh toán quá rắc rối',
   'Tìm thấy giá rẻ hơn ở chỗ khác',
   'Đổi ý, không muốn mua nữa',

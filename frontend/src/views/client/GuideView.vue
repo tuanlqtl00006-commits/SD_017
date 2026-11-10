@@ -3,7 +3,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 
 const route = useRoute()
-const currentTab = ref('thanh-toan') // 'thanh-toan' | 'mua-hang' | 'chon-vot' | 'cong-nghe' | 'size-giay' | 'bao-hanh'
+const currentTab = ref('thanh-toan') // 'thanh-toan' | 'mua-hang' | 'chon-vot' | 'cong-nghe' | 'bao-hanh'
 
 function syncTab() {
   if (route.query.tab) {
@@ -70,13 +70,7 @@ watch(
       >
         <i class="bi bi-cpu me-1"></i> Công Nghệ Sản Phẩm
       </button>
-      <button
-        class="vnb-cat-tab"
-        :class="{ active: currentTab === 'size-giay' }"
-        @click="currentTab = 'size-giay'"
-      >
-        <i class="bi bi-rulers me-1"></i> Bảng Size Giày
-      </button>
+
       <button
         class="vnb-cat-tab"
         :class="{ active: currentTab === 'bao-hanh' }"
@@ -271,16 +265,7 @@ watch(
 
         <div class="col-md-6">
           <div class="p-3 bg-light rounded-3 border h-100">
-            <h6 class="fw-bold text-primary mb-1">3. Đệm Giày POWER CUSHION+™</h6>
-            <p class="small text-secondary mb-0">
-              Công nghệ đế đệm cao cấp hấp thụ sốc tối đa khi tiếp đất và chuyển hóa thành lực bật nảy cho bước di chuyển tiếp theo. Quả trứng sống thả từ độ cao 12m xuống đệm không hề bị vỡ mà còn nảy ngược lại 6m.
-            </p>
-          </div>
-        </div>
-
-        <div class="col-md-6">
-          <div class="p-3 bg-light rounded-3 border h-100">
-            <h6 class="fw-bold text-primary mb-1">4. Đũa Vợt Siêu Mỏng Super Slim Shaft</h6>
+            <h6 class="fw-bold text-primary mb-1">3. Đũa Vợt Siêu Mỏng Super Slim Shaft</h6>
             <p class="small text-secondary mb-0">
               Thân vợt được thu gọn tối đa đường kính giúp xé gió nhanh hơn, giảm sức cản không khí, tăng tốc độ vung vợt và độ xoay linh hoạt của cổ tay trong các pha cầu tốc độ cao.
             </p>
@@ -289,38 +274,7 @@ watch(
       </div>
     </div>
 
-    <!-- 5. TAB BẢNG SIZE GIÀY -->
-    <div v-else-if="currentTab === 'size-giay'" class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white mb-5">
-      <h4 class="fw-bold text-primary mb-3">Bảng Quy Đổi Size Giày Cầu Lông (Yonex, Lining, Victor)</h4>
-      <p class="small text-secondary mb-4">
-        <em>Mẹo chọn size:</em> Đo chiều dài bàn chân từ gót chân đến đầu ngón chân dài nhất (cm), sau đó <strong>cộng thêm 0.5cm - 1.0cm</strong> để đi tất vớ thể thao dày và chống cấn ngón chân khi dậm nhảy!
-      </p>
-
-      <div class="table-responsive">
-        <table class="table table-bordered table-striped text-center align-middle small">
-          <thead class="table-primary">
-            <tr>
-              <th>Chiều dài bàn chân (cm)</th>
-              <th>Size EU (Việt Nam)</th>
-              <th>Size US (Nam)</th>
-              <th>Size UK</th>
-              <th>Khuyến nghị</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>24.0 cm</td><td><strong>38</strong></td><td>6.0</td><td>5.5</td><td>Chân nữ hoặc chân nam nhỏ</td></tr>
-            <tr><td>24.5 cm</td><td><strong>39</strong></td><td>6.5</td><td>6.0</td><td>Phù hợp chân 23.5 - 24.0 cm</td></tr>
-            <tr><td>25.0 cm</td><td><strong>40</strong></td><td>7.5</td><td>7.0</td><td>Phù hợp chân 24.0 - 24.5 cm</td></tr>
-            <tr><td>25.5 cm</td><td><strong>41</strong></td><td>8.0</td><td>7.5</td><td>Size phổ biến nam</td></tr>
-            <tr><td>26.0 cm</td><td><strong>42</strong></td><td>8.5</td><td>8.0</td><td>Size phổ biến nam</td></tr>
-            <tr><td>26.5 cm</td><td><strong>43</strong></td><td>9.5</td><td>9.0</td><td>Phù hợp chân 25.5 - 26.0 cm</td></tr>
-            <tr><td>27.0 cm</td><td><strong>44</strong></td><td>10.0</td><td>9.5</td><td>Chân to, mu bàn chân dày</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- 6. TAB BẢO HÀNH & ĐỔI TRẢ -->
+    <!-- 5. TAB BẢO HÀNH & ĐỔI TRẢ -->
     <div v-else class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white mb-5">
       <h4 class="fw-bold text-primary mb-3">Chính Sách Bảo Hành & Đổi Trả Sản Phẩm</h4>
 
@@ -328,8 +282,7 @@ watch(
         <h6 class="fw-bold text-dark"><i class="bi bi-arrow-repeat text-primary me-1"></i> Chính Sách Đổi Mới 1-1 Trong 7 Ngày:</h6>
         <ul class="small text-secondary ps-3">
           <li>Áp dụng cho mọi sản phẩm còn nguyên tem mác, chưa qua sử dụng trên sân.</li>
-          <li>Đổi size giày, đổi mẫu áo nếu không vừa kích thước hoàn toàn miễn phí.</li>
-          <li>Sản phẩm lỗi do nhà sản xuất (bung keo, xước sơn ban đầu, lỗi may mặc) đổi mới ngay lập tức.</li>
+          <li>Sản phẩm lỗi do nhà sản xuất (bung keo, xước sơn ban đầu) đổi mới ngay lập tức.</li>
         </ul>
       </div>
 

@@ -14,7 +14,7 @@ const allJobs = ref([
     ngayDang: '21/10/2026',
     image: 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=700&auto=format&fit=crop&q=80',
     hinhThuc: 'Toàn thời gian (Xoay ca 8 tiếng)',
-    moTa: 'Tư vấn bán hàng các sản phẩm vợt, giày và phụ kiện cầu lông chính hãng cho khách ghé showroom. Sắp xếp, kiểm kê hàng hóa trên quầy kệ gọn gàng, bắt mắt.',
+    moTa: 'Tư vấn bán hàng các sản phẩm vợt cầu lông chính hãng cho khách ghé showroom. Sắp xếp, kiểm kê hàng hóa trên quầy kệ gọn gàng, bắt mắt.',
     yeuCau: [
       'Nam/Nữ từ đủ 18 đến 28 tuổi.',
       'Yêu thích hoặc có hiểu biết cơ bản về môn cầu lông là một lợi thế lớn.',
@@ -77,7 +77,7 @@ const allJobs = ref([
     ngayDang: '19/10/2026',
     image: 'https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?w=700&auto=format&fit=crop&q=80',
     hinhThuc: 'Toàn thời gian (Ca sáng / Ca chiều tối)',
-    moTa: 'Phụ trách khu vực trưng bày vợt cầu lông và giày chuyên dụng. Tư vấn kỹ thuật chọn vợt phù hợp với cổ tay và lối chơi cho khách hàng.',
+    moTa: 'Phụ trách khu vực trưng bày vợt cầu lông. Tư vấn kỹ thuật chọn vợt phù hợp với cổ tay và lối chơi cho khách hàng.',
     yeuCau: [
       'Biết chơi cầu lông hoặc thường xuyên xem thi đấu cầu lông.',
       'Ngoại hình sáng sủa, tác phong nhanh nhẹn, chuyên nghiệp.',
