@@ -378,9 +378,10 @@ public class SanPhamService {
 
     private String kiemTraUrl(String url) {
         loi(url.length() > 500, "Đường dẫn ảnh tối đa 500 ký tự.");
-        // Ảnh hợp lệ: ảnh tải lên từ máy (/api/uploads/...) hoặc link http(s)
+        // Ảnh hợp lệ: ảnh tải lên từ máy (/api/uploads/...), ảnh có sẵn của sản phẩm mẫu (/images/san-pham/..., nằm trong
+        // frontend/public, do các file database/SD_17_*.sql ghi) hoặc link http(s). Thiếu loại ảnh mẫu thì sửa sản phẩm mẫu nào cũng bị từ chối.
         boolean laLinkNgoai = url.matches("(?i)^https?://\\S+$");
-        boolean laAnhNoiBo = url.matches("^/api/uploads/[A-Za-z0-9._-]+$") && !url.contains("..");
+        boolean laAnhNoiBo = url.matches("^/(api/uploads|images/san-pham)/[A-Za-z0-9._-]+$") && !url.contains("..");
         loi(!laLinkNgoai && !laAnhNoiBo, "Ảnh phải được tải lên từ máy hoặc là đường dẫn http:// hoặc https://.");
         return url;
     }

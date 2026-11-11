@@ -232,6 +232,20 @@ class SanPhamAnhBatBuocTest {
         assertEquals(0, soAnhDangDung(), "ảnh cũ được tắt hoạt động");
     }
 
+    /** Sản phẩm mẫu dùng ảnh có sẵn /images/san-pham/...: sửa sản phẩm phải lưu được, đường dẫn lạ vẫn bị từ chối. */
+    @Test
+    void anhCoSanCuaSanPhamMau_luuDuoc_duongDanLaBiTuChoi() {
+        SanPhamResponse r = service.them(req("Vợt mẫu", "/images/san-pham/sp25_yonex_astrox_10.webp", null,
+                List.of(anhMau(DEN, "/images/san-pham/sp01_astrox99_den.jpg")), null));
+        assertEquals("/images/san-pham/sp25_yonex_astrox_10.webp", r.anhChinh());
+        SanPhamResponse sua = service.sua(r.id(), req("Vợt mẫu đổi tên", "/images/san-pham/sp25_yonex_astrox_10.webp", null, null, null));
+        assertEquals("/images/san-pham/sp25_yonex_astrox_10.webp", sua.anhChinh());
+        for (String sai : new String[] {"/images/san-pham/../../bi-mat.png", "/images/khac/a.png", "C:\\anh\\a.png", "javascript:alert(1)"}) {
+            ApiException e = assertThrows(ApiException.class, () -> service.them(req("Vợt sai ảnh", sai, null, null, null)), sai);
+            assertEquals("Ảnh phải được tải lên từ máy hoặc là đường dẫn http:// hoặc https://.", e.getMessage(), sai);
+        }
+    }
+
     @Test
     void suaDoiAnhChungSangAnhKhacVanDuoc() {
         SanPhamResponse r = service.them(req("Cuốn cán", ANH_CHUNG, null, null, null));
