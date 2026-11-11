@@ -428,18 +428,33 @@ public class CuaHangService {
         long tongTien = 0;
         List<HoaDonChiTiet> dsChiTiet = new ArrayList<>();
 
+        // 1. Kiểm tra giỏ hàng và gộp số lượng theo biến thể để validate tồn kho tổng thể
+        Map<Integer, Integer> tongCanMua = new LinkedHashMap<>();
         for (DatHangOnlineRequest.ItemRequest item : req.chiTiet()) {
             if (item.idSanPhamChiTiet() == null || item.soLuong() == null || item.soLuong() <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Sản phẩm hoặc số lượng trong giỏ không hợp lệ.", null, null, null);
             }
-            SanPhamChiTiet spct = spctRepo.findById(item.idSanPhamChiTiet())
-                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Sản phẩm không tồn tại.", null, null, null));
+            tongCanMua.merge(item.idSanPhamChiTiet(), item.soLuong(), Integer::sum);
+        }
 
-            int slTon = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
-            if (slTon < item.soLuong()) {
+        Map<Integer, SanPhamChiTiet> spctMap = new HashMap<>();
+        for (Map.Entry<Integer, Integer> e : tongCanMua.entrySet()) {
+            SanPhamChiTiet spct = spctRepo.findById(e.getKey())
+                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Sản phẩm không tồn tại.", null, null, null));
+            if (!Integer.valueOf(1).equals(spct.getTrangThai()) || (spct.getSanPham() != null && !Integer.valueOf(1).equals(spct.getSanPham().getTrangThai()))) {
                 String ten = (spct.getSanPham() != null ? spct.getSanPham().getTenSanPham() : "") + " (" + (spct.getMauSac() != null ? spct.getMauSac().getTen() : "") + ")";
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Sản phẩm \"" + ten + "\" chỉ còn " + slTon + " sản phẩm, không đủ đáp ứng.", null, null, null);
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Sản phẩm \"" + ten + "\" đã ngừng kinh doanh.", null, null, null);
             }
+            int slTon = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
+            if (slTon < e.getValue()) {
+                String ten = (spct.getSanPham() != null ? spct.getSanPham().getTenSanPham() : "") + " (" + (spct.getMauSac() != null ? spct.getMauSac().getTen() : "") + ")";
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Sản phẩm \"" + ten + "\" chỉ còn " + slTon + " sản phẩm trong kho, không đủ đáp ứng.", null, null, null);
+            }
+            spctMap.put(e.getKey(), spct);
+        }
+
+        for (DatHangOnlineRequest.ItemRequest item : req.chiTiet()) {
+            SanPhamChiTiet spct = spctMap.get(item.idSanPhamChiTiet());
 
             // Theo yêu cầu của cô: CHƯA trừ tồn kho lúc khách đặt; trừ khi nhân viên chuyển đơn Chờ xác nhận -> Đã xác nhận (HoaDonService)
 
