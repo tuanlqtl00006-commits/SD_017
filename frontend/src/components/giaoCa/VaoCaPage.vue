@@ -1,5 +1,5 @@
 <script setup>
-// Trang vào ca: nhân viên chưa vào ca thì chỉ ở trang này.
+// Trang vào ca: nhân viên chỉ nhận ca theo lịch quản lý đã xếp, đúng giờ ca. Chưa nhận được thì trang báo lý do và khóa nút.
 // Nhập lại tiền mặt và chuyển khoản ca trước, khác hệ thống thì phải ghi lý do.
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -61,7 +61,13 @@ function trangTiepTheo() {
 // Ca đã giao (kể cả quản lý đóng hộ) thì không vào lại; hết ca trong lịch thì phải nhờ quản lý xếp thêm lịch
 const lichChuaGiao = computed(() => trangThai.lichHomNay.filter((l) => !l.daGiao))
 const hetCaTrongLich = computed(() => trangThai.lichHomNay.length > 0 && lichChuaGiao.value.length === 0)
-const loiChanCa = ref('') // câu báo của máy chủ khi bị chặn (ngoài lịch / ca đã giao), giữ trên màn hình
+const loiChanCa = ref('') // câu báo của máy chủ khi bấm vào ca mà bị chặn (không có lịch / chưa tới giờ / ca đã giao), giữ trên màn hình
+// Lý do máy chủ báo sẵn: không lặp lại khi khối "Ca làm việc" đã ghi đúng lý do đó (không có lịch / mọi ca đã giao)
+const lyDoDuoiNut = computed(() => {
+  if (loiChanCa.value) return loiChanCa.value
+  if (!trangThai.lichHomNay.length || hetCaTrongLich.value) return ''
+  return trangThai.lyDoChuaNhanCa || ''
+})
 
 // Ca cần nhận hôm nay: ca đầu tiên trong lịch chưa giao và chưa kết thúc; nhận được từ 15 phút trước giờ bắt đầu
 const PHUT_NHAN_SOM = 15
@@ -78,14 +84,18 @@ const caCanNhan = computed(() => {
   return { ...ca, nhanTu: gio(tu), chuaDenGio: bayGioPhut.value < tu }
 })
 
+function capNhatGio() {
+  const now = new Date()
+  bayGioPhut.value = now.getHours() * 60 + now.getMinutes()
+}
+
 onMounted(async () => {
   await taiLai()
   if (dangTrongCa.value) {
     router.replace(trangTiepTheo())
     return
   }
-  const now = new Date()
-  bayGioPhut.value = now.getHours() * 60 + now.getMinutes()
+  capNhatGio()
   // Tự điền số ca trước bàn giao để nhân viên đếm két / kiểm sao kê; khác thì sửa và ghi lý do
   if (coCaTruoc.value) {
     f.tienDauCa = Number(trangThai.goiYTienDauCa ?? 0)
@@ -96,12 +106,14 @@ onMounted(async () => {
   }
 })
 
-// Đang chờ người ca trước giao ca: tự kiểm tra lại mỗi 10 giây, giao xong thì điền sẵn tiền bàn giao và vào ca được ngay
+// Tự kiểm tra lại mỗi 10 giây khi đang chờ: người ca trước chưa giao ca, hoặc chưa tới giờ nhận ca (máy chủ báo lyDoChuaNhanCa).
+// Tới giờ thì nút "Bắt đầu ca làm việc" tự mở, không phải tải lại trang.
 const CHU_KY_KIEM_TRA_MS = 10_000
 let henGio = null
 onMounted(() => {
   henGio = setInterval(() => {
-    if (!document.hidden && trangThai.caKhacDangMo && !dangGui.value) taiLai()
+    capNhatGio()
+    if (!document.hidden && (trangThai.caKhacDangMo || trangThai.lyDoChuaNhanCa) && !dangGui.value) taiLai()
   }, CHU_KY_KIEM_TRA_MS)
 })
 onBeforeUnmount(() => clearInterval(henGio))
@@ -134,7 +146,7 @@ async function batDauCa() {
       ghiChu: f.ghiChu.trim(),
       idLichLamViec: f.idLichLamViec,
     })
-    toast.success(`Đã vào ca ${gc.maGiaoCa}${gc.ngoaiLich ? ' (ngoài lịch)' : ` - ${gc.tenCa}`}. Chúc bạn một ca làm việc thuận lợi!`)
+    toast.success(`Đã vào ca ${gc.maGiaoCa} - ${gc.tenCa}. Chúc bạn một ca làm việc thuận lợi!`)
     await router.replace(trangTiepTheo())
   } catch (e) {
     if (e.code === 'DANG_TRONG_CA') {
@@ -183,7 +195,7 @@ function dangXuat() {
         <div class="vc-bieu-tuong" aria-hidden="true"><i class="bi bi-door-open"></i></div>
         <h1 id="vc-tieu-de" class="vc-tieu-de">Vào ca làm việc</h1>
         <p class="vc-phu">
-          Xin chào <b>{{ auth.trangThai.nguoiDung?.hoTen }}</b>. Bạn cần vào ca trước khi bắt đầu bán hàng và dùng các chức năng khác.
+          Xin chào <b>{{ auth.trangThai.nguoiDung?.hoTen }}</b>. Bạn nhận ca theo lịch quản lý đã xếp rồi mới bán hàng và thao tác được.
         </p>
 
         <div v-if="!trangThai.daTai && trangThai.loi" class="vc-loi-tai" role="alert">
@@ -233,7 +245,9 @@ function dangXuat() {
           <!-- Ca trong lịch hôm nay -->
           <fieldset class="vc-khoi">
             <legend class="vc-khoi-ten"><i class="bi bi-calendar-week" aria-hidden="true"></i> Ca làm việc</legend>
-            <p v-if="!trangThai.lichHomNay.length" class="ad-hint mb-0">Hôm nay bạn không có lịch làm. Ca sẽ được ghi là <b>ngoài lịch</b>.</p>
+            <p v-if="!trangThai.lichHomNay.length" class="vc-het-ca" role="alert" data-testid="vc-khong-lich">
+              Hôm nay bạn không có lịch làm nên không nhận ca được. Nhờ quản lý xếp lịch cho bạn.
+            </p>
             <p v-else-if="hetCaTrongLich" class="vc-het-ca" role="alert" data-testid="vc-het-ca">
               Các ca trong lịch hôm nay của bạn đã giao rồi, không vào lại được. Cần làm thêm giờ thì nhờ quản lý xếp thêm lịch cho bạn.
             </p>
@@ -297,8 +311,13 @@ function dangXuat() {
             </div>
           </div>
 
-          <p v-if="loiChanCa" class="vc-chan-ca" role="alert" data-testid="vc-chan-ca">{{ loiChanCa }}</p>
-          <button type="submit" class="ad-btn ad-btn-primary vc-nut" :disabled="dangGui || !!trangThai.caKhacDangMo || hetCaTrongLich" data-testid="vc-bat-dau">
+          <p v-if="lyDoDuoiNut" class="vc-chan-ca" role="alert" data-testid="vc-chan-ca">{{ lyDoDuoiNut }}</p>
+          <button
+            type="submit"
+            class="ad-btn ad-btn-primary vc-nut"
+            :disabled="dangGui || !!trangThai.caKhacDangMo || hetCaTrongLich || !!trangThai.lyDoChuaNhanCa"
+            data-testid="vc-bat-dau"
+          >
             <span v-if="dangGui" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
             <i v-else class="bi bi-play-circle" aria-hidden="true"></i>
             {{ dangGui ? 'Đang vào ca…' : 'Bắt đầu ca làm việc' }}

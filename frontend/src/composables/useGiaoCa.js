@@ -15,6 +15,7 @@ const trangThai = reactive({
   chuyenKhoanCaTruoc: null, // chuyển khoản ca trước hệ thống ghi nhận (người vào ca phải đối soát)
   lichHomNay: [],
   caKhacDangMo: null, // ca của người khác chưa giao (cửa hàng một két: phải giao xong mới vào ca được)
+  lyDoChuaNhanCa: null, // máy chủ báo vì sao lúc này chưa nhận ca được (không có lịch, chưa tới giờ, hết giờ, ca đã giao); null = nhận được
   loi: '',
 })
 
@@ -33,6 +34,7 @@ async function taiLai() {
       chuyenKhoanCaTruoc: res.data?.chuyenKhoanCaTruoc ?? null,
       lichHomNay: res.data?.lichHomNay ?? [],
       caKhacDangMo: res.data?.caKhacDangMo ?? null,
+      lyDoChuaNhanCa: res.data?.lyDoChuaNhanCa ?? null,
       loi: '',
       daTai: true,
     })
@@ -83,7 +85,7 @@ export function useGiaoCa() {
 
 /** Xóa trạng thái ca (đăng xuất / đổi tài khoản). */
 export function datLaiGiaoCa() {
-  Object.assign(trangThai, { daTai: false, dangTai: false, dangMo: null, tongKet: null, goiYTienDauCa: null, nguoiBanGiao: null, thoiGianBanGiao: null, maCaTruoc: null, tienMatCaTruoc: null, chuyenKhoanCaTruoc: null, lichHomNay: [], caKhacDangMo: null, loi: '' })
+  Object.assign(trangThai, { daTai: false, dangTai: false, dangMo: null, tongKet: null, goiYTienDauCa: null, nguoiBanGiao: null, thoiGianBanGiao: null, maCaTruoc: null, tienMatCaTruoc: null, chuyenKhoanCaTruoc: null, lichHomNay: [], caKhacDangMo: null, lyDoChuaNhanCa: null, loi: '' })
 }
 
 /** Chỉ dùng trong test. */

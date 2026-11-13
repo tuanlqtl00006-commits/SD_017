@@ -116,6 +116,8 @@ public class GiaoCaService {
             lich.add(m);
         }
         kq.put("lichHomNay", lich);
+        // Lý do lúc này chưa nhận ca được theo lịch (null = nhận được): trang Vào ca báo sẵn và khóa nút, không đợi bấm mới biết
+        kq.put("lyDoChuaNhanCa", mo.isPresent() || nd.laQuanLy() ? null : lyDoChuaNhanCa(nd.id(), bayGio()));
         return kq;
     }
 
@@ -226,8 +228,13 @@ if (nd.laQuanLy()) {
             }
         }
         loi.nemNeuCoLoi();
-        if (lich == null) lich = chonLichTuDong(nd.id(), now);
-        if (lich == null) chanNgoaiLichNeuCoLich(nd.id());
+        // Chỉ nhận ca theo lịch quản lý đã xếp và đúng giờ ca: không còn ca "ngoài lịch" (trước đây người không có lịch nhận ca được cả lúc đêm)
+        if (lich == null) {
+            List<LichLamViec> homNay = lichHomNay(nd.id());
+            List<LichLamViec> chuaGiao = lichChuaGiao(homNay);
+            lich = caNhanDuoc(chuaGiao, now);
+            if (lich == null) throw new ApiException(HttpStatus.CONFLICT, lyDoChuaNhanCa(homNay, chuaGiao), "NGOAI_LICH_BI_CHAN", null);
+        }
 
         GiaoCa gc = new GiaoCa();
         gc.setMaGiaoCa(MaUtil.tiepTheo("GC", giaoCaRepo.findAllMaGiaoCa()));
@@ -248,23 +255,22 @@ if (nd.laQuanLy()) {
     }
 
     /**
-     * Hôm nay nhân viên có lịch làm mà không chọn được ca nào thì không cho vào "ngoài lịch":
-     * ca đã giao rồi, chưa tới giờ nhận (sớm nhất 15 phút trước giờ bắt đầu) hoặc đã hết giờ.
-     * Chỉ người hôm nay không có lịch (làm đột xuất) mới được ghi ca ngoài lịch.
+     * Lý do lúc `now` nhân viên chưa nhận ca được (null = đang có ca trong lịch nhận được). Nhân viên chỉ nhận ca theo lịch quản lý xếp:
+     * hôm nay không có lịch, ca đã giao rồi, chưa tới giờ nhận (sớm nhất 15 phút trước giờ bắt đầu) hoặc đã hết giờ ca thì đều không nhận được.
      */
-    private void chanNgoaiLichNeuCoLich(Integer idNhanVien) {
+    String lyDoChuaNhanCa(Integer idNhanVien, LocalDateTime now) {
         List<LichLamViec> ds = lichHomNay(idNhanVien);
-        if (ds.isEmpty()) return;
-        List<LichLamViec> chuaGiao = ds.stream().filter(l -> !giaoCaRepo.existsByLichLamViecId(l.getId())).toList();
-        String ngoaiLich = "Cần làm thêm giờ hoặc làm ngoài lịch thì nhờ quản lý xếp thêm lịch cho bạn.";
-        String msg;
-        if (chuaGiao.isEmpty()) {
-            msg = "Các ca trong lịch hôm nay của bạn (" + moTaCaLich(ds) + ") đã giao rồi, không vào lại được. " + ngoaiLich;
-        } else {
-            msg = "Hôm nay bạn có lịch " + moTaCaLich(chuaGiao) + ". Chỉ nhận ca được từ " + PHUT_DEN_SOM
-                    + " phút trước giờ bắt đầu tới hết giờ ca, nên lúc này chưa vào ca được. " + ngoaiLich;
-        }
-        throw new ApiException(HttpStatus.CONFLICT, msg, "NGOAI_LICH_BI_CHAN", null);
+        List<LichLamViec> chuaGiao = lichChuaGiao(ds);
+        return caNhanDuoc(chuaGiao, now) != null ? null : lyDoChuaNhanCa(ds, chuaGiao);
+    }
+
+    /** Câu báo khi không có ca nào nhận được (ds: lịch hôm nay, chuaGiao: phần chưa giao của ds). */
+    private String lyDoChuaNhanCa(List<LichLamViec> ds, List<LichLamViec> chuaGiao) {
+        String nhoQuanLy = "Cần làm thêm giờ hoặc làm ngoài lịch thì nhờ quản lý xếp thêm lịch cho bạn.";
+        if (ds.isEmpty()) return "Hôm nay bạn không có lịch làm nên không nhận ca được. Nhờ quản lý xếp lịch cho bạn rồi nhận ca đúng giờ ca.";
+        if (chuaGiao.isEmpty()) return "Các ca trong lịch hôm nay của bạn (" + moTaCaLich(ds) + ") đã giao rồi, không vào lại được. " + nhoQuanLy;
+        return "Hôm nay bạn có lịch " + moTaCaLich(chuaGiao) + ". Chỉ nhận ca được từ " + PHUT_DEN_SOM
+                + " phút trước giờ bắt đầu tới hết giờ ca, nên lúc này chưa vào ca được. " + nhoQuanLy;
     }
 
     private static String moTaCaLich(List<LichLamViec> ds) {
@@ -279,10 +285,14 @@ if (nd.laQuanLy()) {
         return ds;
     }
 
-    /** Ca chưa giao trong lịch hôm nay đang diễn ra (cho phép nhận sớm 15 phút); không có thì null. */
-    LichLamViec chonLichTuDong(Integer idNhanVien, LocalDateTime now) {
-        for (LichLamViec l : lichHomNay(idNhanVien)) {
-            if (giaoCaRepo.existsByLichLamViecId(l.getId())) continue; // ca này đã giao rồi
+    /** Các ca trong ds chưa ai nhận theo (đã giao, kể cả quản lý đóng hộ, thì không vào lại). Mỗi ca hỏi CSDL đúng một lần. */
+    private List<LichLamViec> lichChuaGiao(List<LichLamViec> ds) {
+        return ds.stream().filter(l -> !giaoCaRepo.existsByLichLamViecId(l.getId())).toList();
+    }
+
+    /** Ca đầu tiên trong chuaGiao đang trong giờ nhận lúc now (từ 15 phút trước giờ bắt đầu tới trước giờ kết thúc); không có thì null. */
+    private static LichLamViec caNhanDuoc(List<LichLamViec> chuaGiao, LocalDateTime now) {
+        for (LichLamViec l : chuaGiao) {
             CaLamViec ca = l.getCaLamViec();
             LocalDateTime bd = l.getNgayLam().atTime(ca.getGioBatDau());
             LocalDateTime kt = l.getNgayLam().atTime(ca.getGioKetThuc());

@@ -221,6 +221,49 @@ describe('Trang Vào ca: ca đã giao và ngoài lịch', () => {
     expect(w.find('[data-testid="vc-ca-can-nhan"]').text()).toContain('Ca tối')
   })
 
+  it('không có lịch hôm nay (vd đăng nhập buổi tối): báo lý do, khóa nút Bắt đầu ca, bấm gửi cũng không gọi nhận ca', async () => {
+    useAuth().trangThai.nguoiDung = { id: 4, hoTen: 'Phạm Minh Anh', vaiTro: 'NHAN_VIEN' }
+    const lyDo = 'Hôm nay bạn không có lịch làm nên không nhận ca được. Nhờ quản lý xếp lịch cho bạn rồi nhận ca đúng giờ ca.'
+    api.get.mockResolvedValue({ data: { dangMo: null, lichHomNay: [], lyDoChuaNhanCa: lyDo } })
+    const w = ganVao(VaoCaPage)
+    await flushPromises()
+    expect(w.text()).not.toContain('ngoài lịch')
+    expect(w.find('[data-testid="vc-khong-lich"]').text()).toContain('không nhận ca được')
+    // Cùng một lý do chỉ hiện một lần (khối Ca làm việc đã ghi), không lặp ở dưới nút
+    expect(w.find('[data-testid="vc-chan-ca"]').exists()).toBe(false)
+    expect(w.find('[data-testid="vc-bat-dau"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('đang chờ tới giờ nhận ca: tự hỏi lại máy chủ, tới giờ thì nút Bắt đầu ca tự mở, không phải tải lại trang', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 10, 4, 6, 30))
+    useAuth().trangThai.nguoiDung = { id: 3, hoTen: 'Lê Quốc Bảo', vaiTro: 'NHAN_VIEN' }
+    const lyDo = 'Hôm nay bạn có lịch Ca sáng 07:00 - 12:00. Chỉ nhận ca được từ 15 phút trước giờ bắt đầu tới hết giờ ca, nên lúc này chưa vào ca được.'
+    api.get.mockResolvedValue({ data: { dangMo: null, lichHomNay: [{ ...CA_SANG, daGiao: false }], lyDoChuaNhanCa: lyDo } })
+    const w = ganVao(VaoCaPage)
+    await flushPromises()
+    expect(w.find('[data-testid="vc-bat-dau"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-testid="vc-ca-can-nhan"]').text()).toContain('chưa đến giờ nhận ca')
+    // 06:45: máy chủ cho nhận
+    api.get.mockResolvedValue({ data: { dangMo: null, lichHomNay: [{ ...CA_SANG, daGiao: false }], lyDoChuaNhanCa: null } })
+    vi.setSystemTime(new Date(2026, 10, 4, 6, 45))
+    await vi.advanceTimersByTimeAsync(10_000)
+    await flushPromises()
+    expect(w.find('[data-testid="vc-bat-dau"]').attributes('disabled')).toBeUndefined()
+    expect(w.find('[data-testid="vc-chan-ca"]').exists()).toBe(false)
+    expect(w.find('[data-testid="vc-ca-can-nhan"]').text()).not.toContain('chưa đến giờ nhận ca')
+  })
+
+  it('có lịch nhưng chưa tới giờ / đã hết giờ ca: máy chủ báo lý do thì khóa nút ngay, không đợi bấm', async () => {
+    useAuth().trangThai.nguoiDung = { id: 3, hoTen: 'Lê Quốc Bảo', vaiTro: 'NHAN_VIEN' }
+    const lyDo = 'Hôm nay bạn có lịch Ca sáng 07:00 - 12:00. Chỉ nhận ca được từ 15 phút trước giờ bắt đầu tới hết giờ ca, nên lúc này chưa vào ca được.'
+    api.get.mockResolvedValue({ data: { dangMo: null, lichHomNay: [{ ...CA_SANG, daGiao: false }], lyDoChuaNhanCa: lyDo } })
+    const w = ganVao(VaoCaPage)
+    await flushPromises()
+    expect(w.find('[data-testid="vc-chan-ca"]').text()).toContain('Ca sáng 07:00 - 12:00')
+    expect(w.find('[data-testid="vc-bat-dau"]').attributes('disabled')).toBeDefined()
+  })
+
   it('máy chủ chặn vào ngoài lịch: giữ câu báo trên màn hình, không chuyển trang', async () => {
     useAuth().trangThai.nguoiDung = { id: 5, hoTen: 'Vũ Hoàng Nam', vaiTro: 'NHAN_VIEN' }
     api.get.mockResolvedValue({ data: { dangMo: null, lichHomNay: [{ ...CA_TOI, daGiao: false }] } })

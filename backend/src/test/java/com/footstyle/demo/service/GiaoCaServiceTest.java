@@ -7,9 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.footstyle.demo.entity.GiaoCa;
 import com.footstyle.demo.entity.HoaDon;
+import com.footstyle.demo.entity.NhanVien;
 import com.footstyle.demo.exception.ApiException;
+import com.footstyle.demo.security.NguoiDung;
 import com.footstyle.demo.security.XacThuc;
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -35,7 +38,18 @@ class GiaoCaServiceTest {
         return BigDecimal.valueOf(v);
     }
 
+    /** Nhân viên chỉ nhận ca theo lịch: người đang đăng nhập chưa có lịch hôm nay thì xếp cho ca đang diễn ra lúc `gio`. */
+    private void xepLichNeuChua(String gio) {
+        NguoiDung nd = XacThuc.nhanVien();
+        if (nd.laQuanLy()) return;
+        NhanVien nv = m.nhanViens.stream().filter(n -> n.getId().equals(nd.id())).findFirst().orElseThrow();
+        if (m.lichs.stream().anyMatch(l -> l.getNhanVien() == nv && l.getNgayLam().equals(CaLamMau.HOM_NAY))) return;
+        LocalTime t = LocalTime.parse(gio);
+        m.lich(nv, t.isBefore(LocalTime.of(11, 45)) ? m.sang : t.isBefore(LocalTime.of(16, 45)) ? m.chieu : m.toi, CaLamMau.HOM_NAY);
+    }
+
     private Map<String, Object> nhanCa(String gio, long tienDau, String ghiChu) {
+        xepLichNeuChua(gio);
         service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, gio));
         return service.nhanCa(new GiaoCaService.NhanCaRequest(tien(tienDau), ghiChu, null, tien(0)));
     }
@@ -89,11 +103,23 @@ class GiaoCaServiceTest {
     }
 
     @Test
-    void khongCoLich_vanNhanDuoc_ghiNgoaiLich() {
+    void khongCoLich_khongNhanCaDuoc_ngayLanDem_trangVaoCaBietTruocLyDo() {
         CaLamMau.dangNhap(m.anh);
-        Map<String, Object> gc = nhanCa("09:00", 500_000, null);
-        assertEquals(true, gc.get("ngoaiLich"));
-        assertNull(gc.get("soPhutDiMuon"));
+        for (String gio : new String[] {"09:00", "21:30", "23:15"}) {
+            service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, gio));
+            ApiException e = loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(tien(500_000), null, null, tien(0))));
+            assertEquals("NGOAI_LICH_BI_CHAN", e.getCode(), gio);
+            assertTrue(e.getMessage().startsWith("Hôm nay bạn không có lịch làm nên không nhận ca được."), e.getMessage());
+            assertEquals(e.getMessage(), service.hienTai().get("lyDoChuaNhanCa"), "trang Vào ca nhận sẵn lý do để khóa nút");
+        }
+        assertTrue(m.giaoCas.isEmpty());
+        // Có lịch ca tối: 21:30 nhận được (lý do = null), 22:00 hết giờ ca thì không
+        m.lich(m.anh, m.toi, CaLamMau.HOM_NAY);
+        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "21:30"));
+        assertNull(service.hienTai().get("lyDoChuaNhanCa"));
+        service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "22:00"));
+        assertTrue(String.valueOf(service.hienTai().get("lyDoChuaNhanCa")).contains("Ca tối"));
+        assertEquals("NGOAI_LICH_BI_CHAN", loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(tien(0), null, null, tien(0)))).getCode());
     }
 
     @Test
@@ -108,6 +134,7 @@ class GiaoCaServiceTest {
     @Test
     void tienDauCa_kiemTra() {
         CaLamMau.dangNhap(m.bao);
+        xepLichNeuChua("07:00");
         service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "07:00"));
         for (BigDecimal sai : new BigDecimal[] {null, tien(-1), new BigDecimal("100.5"), tien(1_000_000_001L)}) {
             ApiException e = loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(sai, null, null)));
@@ -147,6 +174,7 @@ class GiaoCaServiceTest {
         caTruocBanGiao(2_000_000);
         m.giaoCas.get(m.giaoCas.size() - 1).setChuyenKhoanThu(tien(1_200_000));
         CaLamMau.dangNhap(m.bao);
+        xepLichNeuChua("07:00");
         service.datDongHo(CaLamMau.luc(CaLamMau.HOM_NAY, "07:00"));
         assertEquals(tien(1_200_000), service.hienTai().get("chuyenKhoanCaTruoc"));
         ApiException e = loi(() -> service.nhanCa(new GiaoCaService.NhanCaRequest(tien(2_000_000), null, null, null)));
