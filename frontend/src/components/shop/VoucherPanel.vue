@@ -191,11 +191,17 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
     <div ref="comboRef" class="vp-combo">
       <div class="vp-input">
         <input
+          id="voucher-code-input"
+          name="voucher_code_input"
           v-model="voucherCode"
           type="text"
           class="text-uppercase"
           placeholder="Nhập hoặc chọn mã giảm giá..."
-          autocomplete="off"
+          autocomplete="one-time-code"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          autocorrect="off"
+          spellcheck="false"
           @focus="moDanhSach = true; loi = ''"
           @click="moDanhSach = true"
           @keyup.enter="apDung()"

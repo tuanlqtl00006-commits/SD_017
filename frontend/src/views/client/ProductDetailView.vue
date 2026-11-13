@@ -154,39 +154,124 @@ const currentVariant = computed(() => {
       (!selectedWeightId.value || v.idTrongLuong === selectedWeightId.value) &&
       (!selectedGripId.value || v.idChuVi === selectedGripId.value)
   )
-  return match || variants.value[0]
+  return match || null
 })
 
 /* ----- Chọn biến thể (màu / trọng lượng / chu vi cán) -----
- * Bấm một nút thì giữ nguyên các lựa chọn còn lại nếu có biến thể khớp; không có thì chuyển sang biến thể gần nhất
- * (ưu tiên còn hàng). Nút của phiên bản hết hàng được làm mờ nhưng vẫn bấm xem được. */
-const CAC_THUOC_TINH = ['idMauSac', 'idTrongLuong', 'idChuVi']
+ * Những tổ hợp không có trong kho hoặc hết hàng sẽ bị vô hiệu hóa (viền nét đứt, mờ, không bấm được).
+ * Người dùng có thể bấm vào nút đang chọn để bỏ chọn (toggle) nhằm linh hoạt đổi sang thuộc tính khác. */
+function nutVoHieuHoa(khoa, id) {
+  if (!variants.value || variants.value.length === 0) return true
 
-function luaChonHienTai() {
-  return { idMauSac: selectedColorId.value, idTrongLuong: selectedWeightId.value, idChuVi: selectedGripId.value }
+  if (khoa === 'idMauSac') {
+    // Màu sắc là thuộc tính chính: chỉ bị khóa nếu màu này KHÔNG CÒN BẤT KỲ BIẾN THỂ NÀO CÒN HÀNG trong kho
+    return !variants.value.some((v) => v.idMauSac === id && (Number(v.soLuongTon) || 0) > 0)
+  }
+
+  if (khoa === 'idTrongLuong') {
+    // Trọng lượng / Size: chỉ cho phép chọn những Trọng lượng có hàng thuộc Màu sắc đang chọn (nếu có)
+    return !variants.value.some((v) => {
+      if (v.idTrongLuong !== id) return false
+      if ((Number(v.soLuongTon) || 0) <= 0) return false
+      if (selectedColorId.value && v.idMauSac !== selectedColorId.value) return false
+      return true
+    })
+  }
+
+  if (khoa === 'idChuVi') {
+    // Chu vi cán: chỉ cho phép chọn những Chu vi có hàng khớp với Màu sắc và Trọng lượng đang chọn (nếu có)
+    return !variants.value.some((v) => {
+      if (v.idChuVi !== id) return false
+      if ((Number(v.soLuongTon) || 0) <= 0) return false
+      if (selectedColorId.value && v.idMauSac !== selectedColorId.value) return false
+      if (selectedWeightId.value && v.idTrongLuong !== selectedWeightId.value) return false
+      return true
+    })
+  }
+
+  return false
+}
+
+// Giữ lại hàm nutHetHang để tương thích
+function nutHetHang(khoa, id) {
+  return nutVoHieuHoa(khoa, id)
 }
 
 function chonThuocTinh(khoa, id) {
-  const dang = luaChonHienTai()
-  const ungVien = variants.value.filter((v) => v[khoa] === id)
-  if (!ungVien.length) return
-  const khac = CAC_THUOC_TINH.filter((k) => k !== khoa)
-  const diem = (v) => khac.reduce((s, k) => s + (v[k] === dang[k] ? 1 : 0), 0)
-  const conHang = (v) => ((Number(v.soLuongTon) || 0) > 0 ? 1 : 0)
-  const tot = [...ungVien].sort((a, b) => diem(b) - diem(a) || conHang(b) - conHang(a))[0]
-  selectedColorId.value = tot.idMauSac
-  selectedWeightId.value = tot.idTrongLuong
-  selectedGripId.value = tot.idChuVi
-}
+  if (nutVoHieuHoa(khoa, id)) return
 
-// Nút này hết hàng? (xét các biến thể cùng giá trị và khớp với các lựa chọn còn lại; không có biến thể khớp thì xét tất cả cùng giá trị)
-function nutHetHang(khoa, id) {
-  const dang = luaChonHienTai()
-  const cungGiaTri = variants.value.filter((v) => v[khoa] === id)
-  const khac = CAC_THUOC_TINH.filter((k) => k !== khoa)
-  const phuHop = cungGiaTri.filter((v) => khac.every((k) => v[k] === dang[k]))
-  const xet = phuHop.length ? phuHop : cungGiaTri
-  return !xet.some((v) => (Number(v.soLuongTon) || 0) > 0)
+  // Bấm lại chính nút đang chọn -> cho phép bỏ chọn (toggle unselect)
+  if (khoa === 'idMauSac' && selectedColorId.value === id) {
+    selectedColorId.value = null
+    return
+  }
+  if (khoa === 'idTrongLuong' && selectedWeightId.value === id) {
+    selectedWeightId.value = null
+    return
+  }
+  if (khoa === 'idChuVi' && selectedGripId.value === id) {
+    selectedGripId.value = null
+    return
+  }
+
+  // 1. Khi chọn MÀU SẮC mới:
+  if (khoa === 'idMauSac') {
+    selectedColorId.value = id
+
+    // Kiểm tra xem Trọng lượng và Cán hiện tại có còn hợp lệ với màu mới này không
+    const hopLe = variants.value.some(
+      (v) =>
+        v.idMauSac === id &&
+        (!selectedWeightId.value || v.idTrongLuong === selectedWeightId.value) &&
+        (!selectedGripId.value || v.idChuVi === selectedGripId.value) &&
+        (Number(v.soLuongTon) || 0) > 0
+    )
+
+    // Nếu tổ hợp cũ không có ở màu mới -> tự động chuyển sang biến thể hợp lệ còn hàng của màu này
+    if (!hopLe) {
+      const best = variants.value.find((v) => v.idMauSac === id && (Number(v.soLuongTon) || 0) > 0)
+      if (best) {
+        selectedWeightId.value = best.idTrongLuong
+        selectedGripId.value = best.idChuVi
+      } else {
+        selectedWeightId.value = null
+        selectedGripId.value = null
+      }
+    }
+    return
+  }
+
+  // 2. Khi chọn TRỌNG LƯỢNG mới:
+  if (khoa === 'idTrongLuong') {
+    selectedWeightId.value = id
+
+    // Tự động kiểm tra Chu vi cán cầm (nếu có)
+    if (availableGrips.value.length > 0 && !isFootwearOrApparel.value) {
+      const gripHopLe = variants.value.some(
+        (v) =>
+          (!selectedColorId.value || v.idMauSac === selectedColorId.value) &&
+          v.idTrongLuong === id &&
+          v.idChuVi === selectedGripId.value &&
+          (Number(v.soLuongTon) || 0) > 0
+      )
+      if (!gripHopLe) {
+        const match = variants.value.find(
+          (v) =>
+            (!selectedColorId.value || v.idMauSac === selectedColorId.value) &&
+            v.idTrongLuong === id &&
+            (Number(v.soLuongTon) || 0) > 0
+        )
+        selectedGripId.value = match ? match.idChuVi : null
+      }
+    }
+    return
+  }
+
+  // 3. Khi chọn CHU VI CÁN CẦM mới:
+  if (khoa === 'idChuVi') {
+    selectedGripId.value = id
+    return
+  }
 }
 
 // Đổi sang biến thể ít hàng hơn (hoặc tồn vừa giảm): số lượng đang chọn không được vượt tồn của biến thể hiện tại
@@ -200,7 +285,9 @@ watch(
 // Giá gốc và giá sau giảm của biến thể đang chọn
 const currentPricing = computed(() => {
   if (!currentVariant.value) {
-    return { original: 0, sale: 0, discountPercent: 0 }
+    const prices = variants.value.map((v) => Number(v.giaBan) || 0).filter((p) => p > 0)
+    const minPrice = prices.length ? Math.min(...prices) : Number(product.value?.gia) || 0
+    return { original: minPrice, sale: minPrice, discountPercent: 0 }
   }
   const original = Number(currentVariant.value.giaBan) || 0
   const ptGiam = Number(discounts.value[currentVariant.value.id]) || Number(currentVariant.value.phanTramGiam) || 0
@@ -442,8 +529,13 @@ function buyNow() {
                       :key="c.id"
                       class="variant-pill"
                       data-testid="chon-mau"
-                      :class="{ active: selectedColorId === c.id, 'het-hang': nutHetHang('idMauSac', c.id) }"
-                      :title="nutHetHang('idMauSac', c.id) ? 'Hết hàng' : ''"
+                      :class="{
+                        active: selectedColorId === c.id,
+                        'het-hang': nutVoHieuHoa('idMauSac', c.id),
+                        'is-disabled': nutVoHieuHoa('idMauSac', c.id),
+                      }"
+                      :disabled="nutVoHieuHoa('idMauSac', c.id)"
+                      :title="nutVoHieuHoa('idMauSac', c.id) ? 'Phiên bản này không có sẵn hoặc hết hàng' : (selectedColorId === c.id ? 'Bấm để bỏ chọn' : c.ten)"
                       @click="chonThuocTinh('idMauSac', c.id)"
                     >
                       {{ c.ten }}
@@ -463,8 +555,13 @@ function buyNow() {
                       :key="w.id"
                       class="variant-pill"
                       data-testid="chon-trong-luong"
-                      :class="{ active: selectedWeightId === w.id, 'het-hang': nutHetHang('idTrongLuong', w.id) }"
-                      :title="nutHetHang('idTrongLuong', w.id) ? 'Hết hàng' : ''"
+                      :class="{
+                        active: selectedWeightId === w.id,
+                        'het-hang': nutVoHieuHoa('idTrongLuong', w.id),
+                        'is-disabled': nutVoHieuHoa('idTrongLuong', w.id),
+                      }"
+                      :disabled="nutVoHieuHoa('idTrongLuong', w.id)"
+                      :title="nutVoHieuHoa('idTrongLuong', w.id) ? 'Phiên bản này không có sẵn hoặc hết hàng' : (selectedWeightId === w.id ? 'Bấm để bỏ chọn' : w.ten)"
                       @click="chonThuocTinh('idTrongLuong', w.id)"
                     >
                       {{ w.ten }}
@@ -484,8 +581,13 @@ function buyNow() {
                       :key="g.id"
                       class="variant-pill"
                       data-testid="chon-chu-vi"
-                      :class="{ active: selectedGripId === g.id, 'het-hang': nutHetHang('idChuVi', g.id) }"
-                      :title="nutHetHang('idChuVi', g.id) ? 'Hết hàng' : ''"
+                      :class="{
+                        active: selectedGripId === g.id,
+                        'het-hang': nutVoHieuHoa('idChuVi', g.id),
+                        'is-disabled': nutVoHieuHoa('idChuVi', g.id),
+                      }"
+                      :disabled="nutVoHieuHoa('idChuVi', g.id)"
+                      :title="nutVoHieuHoa('idChuVi', g.id) ? 'Phiên bản này không có sẵn hoặc hết hàng' : (selectedGripId === g.id ? 'Bấm để bỏ chọn' : g.ten)"
                       @click="chonThuocTinh('idChuVi', g.id)"
                     >
                       {{ g.ten }}
@@ -525,11 +627,16 @@ function buyNow() {
                   </div>
 
                   <div class="small">
-                    <span v-if="(currentVariant?.soLuongTon || 0) > 0" class="text-success fw-semibold">
-                      <i class="bi bi-check-circle me-1"></i> Còn {{ currentVariant.soLuongTon }} sản phẩm trong kho
-                    </span>
-                    <span v-else class="text-danger fw-semibold">
-                      <i class="bi bi-x-circle me-1"></i> Tạm hết hàng phiên bản này
+                    <template v-if="currentVariant">
+                      <span v-if="(currentVariant.soLuongTon || 0) > 0" class="text-success fw-semibold">
+                        <i class="bi bi-check-circle me-1"></i> Còn {{ currentVariant.soLuongTon }} sản phẩm trong kho
+                      </span>
+                      <span v-else class="text-danger fw-semibold">
+                        <i class="bi bi-x-circle me-1"></i> Tạm hết hàng phiên bản này
+                      </span>
+                    </template>
+                    <span v-else class="text-muted fw-semibold">
+                      <i class="bi bi-info-circle me-1"></i> Vui lòng chọn đầy đủ phiên bản
                     </span>
                   </div>
                 </div>
@@ -741,7 +848,7 @@ function buyNow() {
   transition: all 0.2s ease;
   font-weight: 500;
 }
-.variant-pill:hover {
+.variant-pill:hover:not(:disabled) {
   border-color: #ea580c;
   color: #ea580c;
 }
@@ -752,15 +859,24 @@ function buyNow() {
   font-weight: 700;
   box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.2);
 }
-/* Phiên bản hết hàng: làm mờ, vẫn bấm xem được */
-.variant-pill.het-hang {
-  opacity: 0.5;
-  background-color: #f1f5f9;
-  border-style: dashed;
-  color: #64748b;
+/* Phiên bản không có / hết hàng: nét đứt mờ, không bấm chọn được */
+.variant-pill:disabled,
+.variant-pill.het-hang,
+.variant-pill.is-disabled {
+  opacity: 0.45;
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #94a3b8;
+  cursor: not-allowed !important;
+  text-decoration: none;
+  box-shadow: none !important;
 }
-.variant-pill.het-hang.active {
-  opacity: 0.75;
+.variant-pill:disabled:hover,
+.variant-pill.het-hang:hover,
+.variant-pill.is-disabled:hover {
+  border-color: #cbd5e1 !important;
+  color: #94a3b8 !important;
+  background-color: #f8fafc !important;
 }
 .thumbnail-box {
   width: 68px;

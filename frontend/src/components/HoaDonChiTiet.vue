@@ -180,16 +180,35 @@ async function xacNhanDoiTrangThai() {
     action.open = false
     useChatChuaDoc().taiLai()
     const ma = hd.value.maHoaDon
-    if (action.trangThai === TT.DA_HUY) toast.success(`Đã hủy hóa đơn ${ma}`)
-    else if (action.trangThai === TT.GIAO_THAT_BAI) toast.success(`Hóa đơn ${ma}: đã ghi nhận giao hàng thất bại`)
-    else toast.success(`Hóa đơn ${ma}: ${trangThaiOf(action.trangThai).label.toLowerCase()}`)
-    if (tuDongIn) {
+    const ttThucTe = hd.value.trangThai
+
+    // Nếu người dùng bấm xác nhận nhưng máy chủ phát hiện hết hàng và tự động hủy đơn
+    if (action.trangThai === TT.DA_XAC_NHAN && ttThucTe === TT.DA_HUY) {
+      cuaSoIn?.close?.()
+      toast.error(`Hóa đơn ${ma} đã bị tự động hủy do không đủ hàng trong kho!`)
+      return
+    }
+
+    if (ttThucTe === TT.DA_HUY) {
+      cuaSoIn?.close?.()
+      toast.success(`Đã hủy hóa đơn ${ma}`)
+    } else if (ttThucTe === TT.GIAO_THAT_BAI) {
+      cuaSoIn?.close?.()
+      toast.success(`Hóa đơn ${ma}: đã ghi nhận giao hàng thất bại`)
+    } else {
+      toast.success(`Hóa đơn ${ma}: ${trangThaiOf(ttThucTe).label.toLowerCase()}`)
+    }
+
+    // Chỉ tự động in khi đơn hàng THỰC SỰ được chuyển sang Đã xác nhận thành công
+    if (tuDongIn && ttThucTe === TT.DA_XAC_NHAN) {
       if (cuaSoIn) {
         inVaoCuaSo(cuaSoIn)
         toast.success('Đã mở bản in hóa đơn. Chọn "Lưu dưới dạng PDF" trong hộp thoại in để lưu file.')
       } else {
         toast.error('Đã xác nhận đơn nhưng trình duyệt chặn cửa sổ in. Cho phép cửa sổ bật lên rồi bấm "In hóa đơn".')
       }
+    } else {
+      cuaSoIn?.close?.()
     }
   } catch (e) {
     cuaSoIn?.close?.()
@@ -350,9 +369,6 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
         </template>
         <template v-else>Chuyển hóa đơn <strong>{{ hd.maHoaDon }}</strong> sang <strong>{{ trangThaiOf(action.trangThai).label }}</strong>?</template>
       </p>
-      <p v-if="action.trangThai === TT.DA_XAC_NHAN" class="hd-in-tu-dong">
-        <i class="bi bi-printer" aria-hidden="true"></i> Sau khi xác nhận, hệ thống tự mở bản in hóa đơn (chọn "Lưu dưới dạng PDF" để lưu file).
-      </p>
       <label class="ad-label" for="hd-ghi-chu">
         {{ NHAN_GHI_CHU[action.trangThai] ?? 'Ghi chú' }}
         <span v-if="action.batBuoc" class="ad-required">*</span>
@@ -460,13 +476,5 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
   border: 1px dashed var(--fs-line);
   color: var(--fs-text-2);
   font-size: 0.88rem;
-}
-.hd-in-tu-dong {
-  margin: -0.5rem 0 1rem;
-  padding: 0.55rem 0.8rem;
-  border-radius: 10px;
-  background: var(--fs-primary-soft);
-  color: var(--fs-primary-dark);
-  font-size: 0.85rem;
 }
 </style>
