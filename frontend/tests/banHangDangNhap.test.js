@@ -726,27 +726,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('#bh-phi-ship').element.value).toBe('25.000')
     expect(useToast().toasts.at(-1)).toMatchObject({ type: 'success', message: 'Đã áp dụng địa chỉ giao hàng.' })
 
-    // Bấm nút Xóa trắng -> xóa sạch thông tin giao hàng
-    const nutXoaTrang = w.find('[data-testid="bh-btn-xoa-trang-dc"]')
-    expect(nutXoaTrang.exists()).toBe(true)
-    await nutXoaTrang.trigger('click')
-    await flushPromises()
-    expect(w.vm.hd.p.nguoiNhan.hoTen).toBe('')
-    expect(w.vm.hd.p.nguoiNhan.sdt).toBe('')
-    expect(w.vm.hd.p.nguoiNhan.tinhThanh).toBe('')
-    expect(w.vm.hd.p.nguoiNhan.phuongXa).toBe('')
-    expect(w.vm.hd.p.nguoiNhan.diaChiCuThe).toBe('')
-
-    // Áp dụng lại địa chỉ, sau đó đổi về Khách lẻ -> thông tin giao hàng cũng tự động bị xóa trắng
-    w.vm.apDungDiaChiGiao({
-      id: 1,
-      tenNguoiNhan: 'Lê Quốc Tuấn',
-      sdtNguoiNhan: '0379992712',
-      tinhThanhPho: 'Tỉnh Phú Thọ',
-      phuongXa: 'Phường Vĩnh Phúc',
-      diaChiCuThe: 'Số 18 Đầm Vạc',
-    })
-    await flushPromises()
+    // Đang có địa chỉ giao hàng, sau đó đổi về Khách lẻ -> thông tin giao hàng tự động bị xóa trắng
     expect(w.vm.hd.p.nguoiNhan.hoTen).toBe('Lê Quốc Tuấn')
 
     // Bỏ khách về Khách lẻ

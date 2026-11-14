@@ -947,17 +947,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                 <i class="bi bi-geo-alt-fill text-primary" aria-hidden="true"></i>
                 <span>Địa chỉ khách hàng</span>
               </button>
-              <button
-                v-if="hd.p.nguoiNhan.hoTen || hd.p.nguoiNhan.sdt || hd.p.nguoiNhan.tinhThanh || hd.p.nguoiNhan.diaChiCuThe"
-                type="button"
-                class="ad-btn ad-btn-sm bh-btn-dc"
-                title="Xóa trắng thông tin giao hàng"
-                data-testid="bh-btn-xoa-trang-dc"
-                @click="xoaTrangDiaChiGiao"
-              >
-                <i class="bi bi-eraser text-danger" aria-hidden="true"></i>
-                <span>Xóa trắng</span>
-              </button>
               <VanChuyenLogo :ten="DON_VI_VAN_CHUYEN" />
             </div>
           </div>
