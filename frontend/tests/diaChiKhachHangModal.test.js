@@ -179,4 +179,49 @@ describe('Cửa sổ địa chỉ: lỗi trùng địa chỉ từ máy chủ', (
     expect(document.body.querySelector('#kh-dc-chi-tiet-msg').textContent).toBe(LOI_DIA_CHI_CHI_TIET_CHU_SO)
     w.unmount()
   })
+
+  it('chế độ chọn (chon=true): hiện nút Chọn, bấm thì phát select và close', async () => {
+    api.get.mockResolvedValue({ data: [dc(1, true), dc(2)] })
+    const w = mount(KhachHangAddressModal, { attachTo: document.body, props: { customer: KHACH, chon: true } })
+    await flushPromises()
+    const nutChonList = [...document.body.querySelectorAll('button')].filter((b) => b.textContent.includes('Chọn'))
+    expect(nutChonList.length).toBeGreaterThanOrEqual(2)
+    nutChonList[0].click()
+    await flushPromises()
+    expect(w.emitted('select')).toHaveLength(1)
+    expect(w.emitted('select')[0][0]).toMatchObject({ id: 1, tenNguoiNhan: 'Người 1' })
+    expect(w.emitted('close')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('chế độ mở thêm mới (moThemMoi=true): tự mở form thêm mới ngay khi mount', async () => {
+    api.get.mockResolvedValue({ data: [dc(1, true)] })
+    const w = mount(KhachHangAddressModal, { attachTo: document.body, props: { customer: KHACH, chon: true, moThemMoi: true } })
+    await flushPromises()
+    expect(document.body.querySelector('#kh-dc-form')).toBeTruthy()
+    expect(document.body.querySelector('.kh-dc-form-title').textContent).toContain('Thêm địa chỉ mới')
+    w.unmount()
+  })
+
+  it('thêm địa chỉ mới trong chế độ chọn (chon=true): lưu xong tự phát select và đóng modal', async () => {
+    api.get.mockResolvedValue({ data: [] })
+    const w = mount(KhachHangAddressModal, { attachTo: document.body, props: { customer: KHACH, chon: true, moThemMoi: true } })
+    await flushPromises()
+    Object.assign(w.vm.f, {
+      tenNguoiNhan: 'Lê Minh Tuấn',
+      sdtNguoiNhan: '0901000003',
+      tinhThanhPho: 'Thành phố Hà Nội',
+      phuongXa: 'Phường Hà Đông',
+      diaChiCuThe: '15 Trần Phú',
+    })
+    const dcMoi = dc(10, true, { diaChiCuThe: '15 Trần Phú' })
+    api.post.mockResolvedValue({ data: dcMoi })
+    document.body.querySelector('#kh-dc-form').dispatchEvent(new Event('submit'))
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledTimes(1)
+    expect(w.emitted('select')).toHaveLength(1)
+    expect(w.emitted('select')[0][0]).toMatchObject({ id: 10, diaChiCuThe: '15 Trần Phú' })
+    expect(w.emitted('close')).toHaveLength(1)
+    w.unmount()
+  })
 })

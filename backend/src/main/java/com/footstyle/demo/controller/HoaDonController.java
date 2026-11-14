@@ -86,4 +86,11 @@ public class HoaDonController {
                                                 @RequestBody(required = false) HoaDonSuaService.XacNhanThanhToanRequest req) {
         return hoaDonSuaService.xacNhanThanhToan(id, req);
     }
+
+    /** Đơn đã hủy có tiền của khách: nhân viên xác nhận đã hoàn trả tiền cho khách. */
+    @PostMapping("/{id}/xac-nhan-hoan-tien")
+    public Map<String, Object> xacNhanHoanTien(@PathVariable Integer id,
+                                               @RequestBody(required = false) HoaDonSuaService.XacNhanThanhToanRequest req) {
+        return hoaDonSuaService.xacNhanHoanTien(id, req);
+    }
 }

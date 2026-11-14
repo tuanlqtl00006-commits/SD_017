@@ -24,7 +24,7 @@ export const TRANG_THAI_HOA_DON = {
   [TT.DANG_GIAO]: { label: 'Đang giao hàng', pill: 'ad-pill-blue' },
   [TT.DA_GIAO]: { label: 'Đã giao hàng', pill: 'ad-pill-green' },
   [TT.HOAN_THANH]: { label: 'Đã hoàn thành', pill: 'ad-pill-green' },
-  [TT.HOAN_TIEN]: { label: 'Hoàn tiền', pill: 'ad-pill-gray' },
+  [TT.HOAN_TIEN]: { label: 'Hoàn tiền', pill: 'ad-pill-purple' },
   [TT.GIAO_THAT_BAI]: { label: 'Giao hàng thất bại', pill: 'ad-pill-orange' },
 }
 
@@ -75,6 +75,7 @@ export const BUOC_DA_HUY = { code: TT.DA_HUY, label: 'Đã hủy', icon: 'bi-x-c
  */
 export function nutChuyen(loaiDon, hienTai, sang) {
   if (sang === TT.DA_HUY) return { text: 'Hủy đơn', icon: 'bi-x-circle', kieu: 'nguyhiem' }
+  if (sang === TT.HOAN_TIEN) return { text: 'Xác nhận hoàn tiền', icon: 'bi-cash-stack', kieu: 'canhbao' }
   if (sang === TT.GIAO_THAT_BAI) return { text: 'Giao hàng thất bại', icon: 'bi-exclamation-triangle', kieu: 'canhbao' }
   if (sang === TT.DANG_GIAO && hienTai === TT.GIAO_THAT_BAI) return { text: 'Giao lại', icon: 'bi-arrow-repeat', kieu: 'chinh' }
   if (sang === TT.HOAN_THANH && loaiDon !== 2) return { text: 'Xác nhận thanh toán', icon: 'bi-cash-coin', kieu: 'chinh' }

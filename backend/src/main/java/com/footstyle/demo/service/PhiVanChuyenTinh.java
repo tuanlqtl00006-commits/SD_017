@@ -64,6 +64,16 @@ public final class PhiVanChuyenTinh {
         return phi != null ? phi : PHI_MAC_DINH;
     }
 
+    /** Mức phí thấp nhất trong các tỉnh/thành CÓ tính phí (không kể nơi miễn phí). */
+    public static long phiThapNhat() {
+        return BANG_PHI.values().stream().filter(p -> p > 0).mapToLong(Long::longValue).min().orElse(PHI_MAC_DINH);
+    }
+
+    /** Mức phí cao nhất trong bảng phí theo tỉnh. */
+    public static long phiCaoNhat() {
+        return BANG_PHI.values().stream().mapToLong(Long::longValue).max().orElse(PHI_MAC_DINH);
+    }
+
     /** Có nhận ra tên tỉnh/thành trong bảng phí không. */
     public static boolean nhanRa(String tinhThanh) {
         return BANG_PHI.containsKey(khoa(tinhThanh));

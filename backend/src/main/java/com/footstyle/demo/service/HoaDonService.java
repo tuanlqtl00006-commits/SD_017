@@ -316,6 +316,11 @@ public class HoaDonService {
         // Đơn online khách chọn chuyển khoản: nhân viên kiểm tra sao kê rồi bấm "Xác nhận đã nhận chuyển khoản"
         response.put("duocXacNhanThanhToan", !laTaiQuay(hd) && HoaDonSuaService.CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())
                 && !HoaDonLuongTrangThai.laTrangThaiCuoi(trangThai) && daThanhToan.compareTo(thanhTien(hd)) < 0);
+        // Đơn đã hủy mà khách đã thanh toán tiền (chưa hoàn trả): nhân viên có nút "Xác nhận đã hoàn tiền"
+        boolean canHoanTien = (trangThai == HoaDon.DA_HUY) && daThanhToan.compareTo(BigDecimal.ZERO) > 0;
+        response.put("duocXacNhanHoanTien", canHoanTien);
+        response.put("canHoanTien", canHoanTien);
+        response.put("soTienCanHoan", canHoanTien ? daThanhToan : BigDecimal.ZERO);
 
         // Lịch sử thao tác (cũ -> mới)
         List<Map<String, Object>> lichSu = new ArrayList<>();
@@ -479,17 +484,9 @@ public class HoaDonService {
         LocalDateTime now = LocalDateTime.now();
         // Đơn online chỉ trừ tồn kho khi nhân viên xác nhận (lúc khách đặt chưa trừ) - tránh tồn kho âm khi nhiều đơn cùng chờ
         boolean chuaTruKho = !laTaiQuay(hd) && hienTai == HoaDon.CHO_XAC_NHAN;
-        // Luồng bán hàng: kiểm tra tồn kho khi xác nhận; không đủ hàng thì tự hủy đơn (kèm lý do cho khách xem ở mục tra cứu)
-        // và hoàn tiền nếu khách đã chuyển khoản. Đơn chưa trừ kho nên không cộng lại tồn.
-        boolean tuHuyHetHang = false;
-        if (chuaTruKho && moi == HoaDon.DA_XAC_NHAN) {
-            List<String> thieu = danhSachThieuHang(hd);
-            if (!thieu.isEmpty()) {
-                moi = HoaDon.DA_HUY;
-                tuHuyHetHang = true;
-                ghiChu = "Tự động hủy do hết hàng: " + String.join("; ", thieu) + ". Cửa hàng xin lỗi quý khách.";
-            }
-        }
+        // Xác nhận mà không đủ hàng: KHÔNG tự hủy đơn (review 05/11 và 14/11: "tại sao xác nhận cái là hủy đơn luôn").
+        // truTonKhoKhiXacNhan báo rõ từng món thiếu và giữ nguyên đơn ở Chờ xác nhận, nhân viên tự quyết: nhập thêm hàng rồi xác nhận lại,
+        // hoặc bấm Hủy đơn (ghi lý do; khách đã chuyển khoản thì nhận thư hoàn tiền).
         if (chuaTruKho && moi == HoaDon.DA_XAC_NHAN) {
             truTonKhoKhiXacNhan(hd);
         }
@@ -603,26 +600,6 @@ public class HoaDonService {
         return e != null && e.contains("@") ? e.trim() : null;
     }
 
-    /** Các dòng của đơn mà tồn kho hiện tại không đủ (rỗng nếu đủ hàng). */
-    private List<String> danhSachThieuHang(HoaDon hd) {
-        Map<Integer, Integer> canTru = new LinkedHashMap<>();
-        Map<Integer, SanPhamChiTiet> bienThe = new LinkedHashMap<>();
-        for (HoaDonChiTiet ct : hoaDonChiTietRepository.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
-            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
-            int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
-            if (spct == null || spct.getId() == null || sl <= 0) continue;
-            bienThe.putIfAbsent(spct.getId(), spct);
-            canTru.merge(spct.getId(), sl, Integer::sum);
-        }
-        List<String> thieu = new ArrayList<>();
-        for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
-            SanPhamChiTiet fresh = sanPhamChiTietRepository.findById(e.getKey()).orElse(bienThe.get(e.getKey()));
-            int ton = fresh == null || fresh.getSoLuongTon() == null ? 0 : fresh.getSoLuongTon();
-            if (ton < e.getValue()) thieu.add((fresh != null ? fresh.getMaSpct() : "") + " (còn " + ton + ", đơn cần " + e.getValue() + ")");
-        }
-        return thieu;
-    }
-
     /**
      * Xác nhận đơn online: kiểm tra đủ hàng cho TẤT CẢ dòng trước (báo hết các dòng thiếu một lần), rồi trừ có điều kiện từng biến thể.
      * Hai nhân viên cùng xác nhận 2 đơn tranh món cuối: lệnh trừ có điều kiện của đơn sau trả 0 -> báo lỗi, cả giao dịch bị hủy.
@@ -644,7 +621,8 @@ public class HoaDonService {
             if (ton < e.getValue()) thieu.add((fresh != null ? fresh.getMaSpct() : "") + " (còn " + ton + ", đơn cần " + e.getValue() + ")");
         }
         if (!thieu.isEmpty()) {
-            throw ApiException.conflict("Không đủ hàng để xác nhận đơn: " + String.join("; ", thieu) + ". Hãy nhập thêm hàng hoặc liên hệ khách.");
+            throw ApiException.conflict("Không đủ hàng để xác nhận đơn: " + String.join("; ", thieu)
+                    + ". Đơn vẫn ở Chờ xác nhận: hãy nhập thêm hàng rồi xác nhận lại, hoặc hủy đơn và báo khách.");
         }
         for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
             if (sanPhamChiTietRepository.truTonKho(e.getKey(), e.getValue()) == 0) {

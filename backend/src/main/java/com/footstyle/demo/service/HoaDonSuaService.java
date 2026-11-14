@@ -370,6 +370,50 @@ public class HoaDonSuaService {
         return hoaDonService.getChiTietHoaDon(hd.getId());
     }
 
+    /** Đơn đã hủy mà khách đã chuyển khoản tiền: nhân viên xác nhận đã chuyển khoản hoàn trả tiền cho khách. */
+    @Transactional
+    public Map<String, Object> xacNhanHoanTien(Integer id, XacNhanThanhToanRequest req) {
+        NguoiDung nd = XacThuc.nhanVien();
+        HoaDon hd = hoaDonRepo.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy hóa đơn."));
+        int tt = hd.getTrangThai() == null ? HoaDon.CHO_XAC_NHAN : hd.getTrangThai();
+        if (tt != HoaDon.DA_HUY) {
+            throw ApiException.conflict("Chỉ xác nhận hoàn tiền cho đơn đã hủy có tiền thanh toán của khách.");
+        }
+        long tongDaTra = daTra(hd);
+        if (tongDaTra <= 0) {
+            throw ApiException.conflict("Đơn này không có tiền cần hoàn.");
+        }
+        String ma = req == null || req.maGiaoDich() == null ? null : req.maGiaoDich().trim();
+        if (ma != null && ma.length() > 100) throw ApiException.badRequest("Mã giao dịch tối đa 100 ký tự.");
+        LocalDateTime luc = bayGio();
+
+        // Ghi nhận khoản hoàn tiền âm
+        LichSuThanhToan hoan = new LichSuThanhToan();
+        hoan.setHoaDon(hd);
+        hoan.setSoTien(BigDecimal.valueOf(tongDaTra).negate());
+        hoan.setMaGiaoDich(ma == null || ma.isEmpty() ? null : ma);
+        hoan.setThoiGian(luc);
+        hoan.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
+        hoan.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
+        hoan.setMoTa("Nhân viên xác nhận đã hoàn tiền cho khách" + (ma == null || ma.isEmpty() ? "" : " (mã GD hoàn: " + ma + ")"));
+        thanhToanRepo.save(hoan);
+
+        // Chuyển sang HOAN_TIEN (mã 7)
+        hd.setTrangThai(HoaDon.HOAN_TIEN);
+        hd.setNgayCapNhat(luc);
+        hoaDonRepo.save(hd);
+
+        LichSuHoaDon ls = new LichSuHoaDon();
+        ls.setHoaDon(hd);
+        ls.setHanhDong("Hoàn tiền");
+        ls.setNguoiThaoTac(nd.hoTen() == null ? "Nhân viên" : nd.hoTen());
+        ls.setThoiGian(luc);
+        ls.setMoTa("Đã hoàn trả " + tien(tongDaTra) + " cho khách" + (ma == null || ma.isEmpty() ? "" : " (mã GD " + ma + ")"));
+        lichSuRepo.save(ls);
+
+        return hoaDonService.getChiTietHoaDon(hd.getId());
+    }
+
     /**
      * Ngân hàng / cổng thanh toán báo "tiền đã vào tài khoản" (webhook): tự ghi khoản đã thanh toán cho đơn online chuyển khoản.
      * Không cần nhân viên đối chiếu sao kê. Idempotent theo `maGiaoDich` (webhook gửi lại thì không ghi trùng).
@@ -405,20 +449,8 @@ public class HoaDonSuaService {
                 t.setThoiGian(luc);
                 t.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
                 t.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
-                t.setMoTa("Khách chuyển khoản nhưng sản phẩm đã hết hàng tồn kho");
+                t.setMoTa("Khách chuyển khoản nhưng sản phẩm đã hết hàng tồn kho (cần hoàn tiền)");
                 thanhToanRepo.save(t);
-
-                // Ghi nhận hoàn phí trả lại khách
-                long tongDaTra = daTra(hd);
-                long soTienHoan = tongDaTra > 0 ? tongDaTra : soTien;
-                LichSuThanhToan hoan = new LichSuThanhToan();
-                hoan.setHoaDon(hd);
-                hoan.setSoTien(BigDecimal.valueOf(soTienHoan).negate());
-                hoan.setThoiGian(luc);
-                hoan.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
-                hoan.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
-                hoan.setMoTa("Hoàn tiền cho khách do hết hàng tồn kho");
-                thanhToanRepo.save(hoan);
 
                 hd.setTrangThai(HoaDon.DA_HUY);
                 hd.setNgayCapNhat(luc);
@@ -430,19 +462,19 @@ public class HoaDonSuaService {
                 lsHuy.setHanhDong("Đã hủy");
                 lsHuy.setNguoiThaoTac("Hệ thống");
                 lsHuy.setThoiGian(luc);
-                lsHuy.setMoTa(lyDoHuy + " - Cần hoàn trả khách " + tien(soTienHoan));
+                lsHuy.setMoTa(lyDoHuy + " - Cần hoàn trả khách " + tien(soTien));
                 lichSuRepo.save(lsHuy);
 
                 if (mailService != null) {
                     String email = emailNhanThongBao(hd);
                     if (email != null) {
                         String ten = tenNhanThongBao(hd);
-                        mailService.guiThongBaoHoanTien(ten, email, hd.getMaHoaDon(), lyDoHuy, tien(soTienHoan), "Chuyển khoản ngân hàng");
+                        mailService.guiThongBaoHoanTien(ten, email, hd.getMaHoaDon(), lyDoHuy, tien(soTien), "Chuyển khoản ngân hàng");
                     }
                 }
 
                 return "Không thể nhận hàng do sản phẩm đã hết hàng tồn kho: " + String.join("; ", thieu)
-                        + ". Hệ thống đã tự động hủy đơn và gửi email thông báo hoàn tiền " + tien(soTienHoan) + " cho khách.";
+                        + ". Hệ thống đã tự động hủy đơn và gửi email thông báo hoàn tiền " + tien(soTien) + " cho khách.";
             }
         }
 

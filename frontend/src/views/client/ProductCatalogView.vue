@@ -92,18 +92,31 @@ const chiDangGiam = computed({
 
 // Xem sản phẩm của một đợt giảm giá (bấm từ trang Ưu đãi: ?dot=<id>)
 const dotDangChay = ref([])
+const trangThaiDot = ref('chua-tai') // 'chua-tai' | 'dang-tai' | 'xong' | 'loi'
+// Chỉ khi máy chủ đã trả danh sách đợt đang chạy mà không có đợt này thì mới coi là đợt đã kết thúc (khongCon).
+// Đang tải hoặc tải lỗi thì chưa biết: không lọc danh sách, không báo "đã kết thúc".
 const dotDangXem = computed(() => {
   const id = route.query.dot
   if (!id) return null
-  return dotDangChay.value.find((d) => String(d.id) === String(id)) || { id, tenDot: '', idSanPham: [], khongCon: true }
+  const dot = dotDangChay.value.find((d) => String(d.id) === String(id))
+  if (dot) return dot
+  if (trangThaiDot.value === 'xong') return { id, tenDot: '', idSanPham: [], khongCon: true }
+  return { id, tenDot: '', idSanPham: null, chuaBiet: true, loi: trangThaiDot.value === 'loi' }
 })
+let lanTaiDot = 0
 async function taiDotDangChay() {
   if (!route.query.dot) return
+  const lan = ++lanTaiDot
+  if (trangThaiDot.value !== 'xong') trangThaiDot.value = 'dang-tai'
   try {
     const ds = (await api.get('/cua-hang/dot-giam-gia')).data
+    if (lan !== lanTaiDot) return
     dotDangChay.value = Array.isArray(ds) ? ds : []
+    trangThaiDot.value = 'xong'
   } catch {
-    dotDangChay.value = []
+    if (lan !== lanTaiDot) return
+    // lần tải trước đã có dữ liệu thì giữ, chưa có thì báo không tải được
+    if (trangThaiDot.value !== 'xong') trangThaiDot.value = 'loi'
   }
 }
 function boLocDot() {
@@ -123,7 +136,7 @@ const currentCategoryTitle = computed(() => {
 })
 
 const currentBanner = computed(() => {
-  if (dotDangXem.value && !dotDangXem.value.khongCon) {
+  if (dotDangXem.value && !dotDangXem.value.khongCon && !dotDangXem.value.chuaBiet) {
     const d = dotDangXem.value
     return {
       badge: 'ĐỢT GIẢM GIÁ',
@@ -264,6 +277,18 @@ function clearAllFilters() {
   selectedPrices.value = []
   selectedBrands.value = []
   for (const g of ATTR_DEFS) attrSelected.value[g.key] = []
+}
+
+// Nút "Xóa tất cả" / "Xóa tất cả bộ lọc": bỏ cả lọc "Đang giảm giá" và lọc theo đợt (nằm trên đường dẫn), giữ danh mục và từ khóa đang xem
+function xoaTatCaBoLoc() {
+  clearAllFilters()
+  if (route.query.khuyenMai || route.query.sale || route.query.dot) {
+    const q = { ...route.query }
+    delete q.khuyenMai
+    delete q.sale
+    delete q.dot
+    router.replace({ path: '/shop/san-pham', query: q })
+  }
 }
 
 const sortBy = ref('default')
@@ -461,9 +486,9 @@ const filteredProducts = computed(() => {
   if (route.query.khuyenMai === '1' || route.query.sale === '1') {
     list = list.filter((p) => p.hasDiscount)
   }
-  // 0b. Chỉ sản phẩm của đợt giảm giá đang xem (đợt đã kết thúc thì không còn sản phẩm nào)
-  if (dotDangXem.value) {
-    const ids = new Set((dotDangXem.value.idSanPham || []).map(String))
+  // 0b. Chỉ sản phẩm của đợt giảm giá đang xem (đợt đã kết thúc thì không còn sản phẩm nào; chưa tải xong đợt thì chưa lọc)
+  if (dotDangXem.value && Array.isArray(dotDangXem.value.idSanPham)) {
+    const ids = new Set(dotDangXem.value.idSanPham.map(String))
     list = list.filter((p) => ids.has(String(p.id)))
   }
 
@@ -603,7 +628,7 @@ function goToDetail(id) {
               <button
                 type="button"
                 class="btn btn-link btn-sm p-0 text-decoration-none text-danger small fw-semibold"
-                @click="clearAllFilters"
+                @click="xoaTatCaBoLoc"
                 title="Bỏ toàn bộ tiêu chí lọc"
               >
                 Xóa tất cả
@@ -740,6 +765,8 @@ function goToDetail(id) {
           <!-- Đang xem sản phẩm của một đợt giảm giá (bấm từ trang Ưu đãi) -->
           <div v-if="dotDangXem" class="catalog-dot-bar mb-3" data-testid="loc-dot">
             <span v-if="dotDangXem.khongCon"><i class="bi bi-info-circle me-1"></i> Đợt giảm giá này đã kết thúc hoặc không còn sản phẩm đang bán.</span>
+            <span v-else-if="dotDangXem.chuaBiet && dotDangXem.loi"><i class="bi bi-exclamation-triangle me-1"></i> Không tải được thông tin đợt giảm giá, đang hiện tất cả sản phẩm.</span>
+            <span v-else-if="dotDangXem.chuaBiet"><i class="bi bi-hourglass-split me-1"></i> Đang tải đợt giảm giá…</span>
             <span v-else><i class="bi bi-tags me-1"></i> Đang xem sản phẩm của đợt <strong>{{ dotDangXem.tenDot }}</strong></span>
             <span class="d-flex gap-3">
               <RouterLink to="/shop/uu-dai" class="catalog-dot-link">Về trang Ưu đãi</RouterLink>
@@ -777,7 +804,7 @@ function goToDetail(id) {
             <h5>Không tìm thấy sản phẩm nào</h5>
             <p class="small">Thử chọn danh mục khác hoặc bỏ bớt tiêu chí lọc.</p>
             <div class="mt-2">
-              <button class="btn btn-outline-primary btn-sm rounded-pill px-3" @click="clearAllFilters">
+              <button class="btn btn-outline-primary btn-sm rounded-pill px-3" @click="xoaTatCaBoLoc">
                 Xóa tất cả bộ lọc
               </button>
             </div>

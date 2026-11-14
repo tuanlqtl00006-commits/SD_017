@@ -148,22 +148,33 @@ class HoaDonDoiTrangThaiTest {
     }
 
     @Test
-    void donOnline_xacNhanKhiKhongDuHang_tuHuyDon_ghiLyDoCacDongThieu_khongTruKho() {
-        // Luồng bán hàng online: xác nhận mà không đủ hàng thì tự hủy đơn (ghi rõ dòng thiếu để khách xem khi tra cứu), không trừ kho
+    void donOnline_xacNhanKhiKhongDuHang_baoRoMonThieu_donVanChoXacNhan_khongTruKho() {
+        // Xác nhận mà không đủ hàng: không tự hủy đơn (review 05/11, 14/11). Báo đủ các món thiếu, đơn giữ nguyên để nhân viên
+        // nhập thêm hàng rồi xác nhận lại hoặc chủ động hủy.
         SanPhamChiTiet a = bienThe(10, 4);
         SanPhamChiTiet b = bienThe(11, 0);
         themDong(a, 2);
         themDong(b, 1);
         themDong(a, 3);
-        service.doiTrangThai(1, sang(HoaDon.DA_XAC_NHAN, null));
-        assertEquals(HoaDon.DA_HUY, hd.getTrangThai());
-        String moTa = lichSu.get(lichSu.size() - 1).getMoTa();
-        assertTrue(moTa.startsWith("Tự động hủy do hết hàng"), moTa);
-        assertTrue(moTa.contains("SP01-DEN-10 (còn 4, đơn cần 5)"), moTa);
-        assertTrue(moTa.contains("SP01-DEN-11 (còn 0, đơn cần 1)"), moTa);
+        int soLichSu = lichSu.size();
+        ApiException e = loi(() -> service.doiTrangThai(1, sang(HoaDon.DA_XAC_NHAN, null)));
+        assertTrue(e.getMessage().startsWith("Không đủ hàng để xác nhận đơn"), e.getMessage());
+        assertTrue(e.getMessage().contains("SP01-DEN-10 (còn 4, đơn cần 5)"), e.getMessage());
+        assertTrue(e.getMessage().contains("SP01-DEN-11 (còn 0, đơn cần 1)"), e.getMessage());
+        assertTrue(e.getMessage().contains("Đơn vẫn ở Chờ xác nhận"), e.getMessage());
+        assertEquals(HoaDon.CHO_XAC_NHAN, hd.getTrangThai(), "đơn không bị tự hủy");
+        assertEquals(soLichSu, lichSu.size(), "không ghi lịch sử hủy");
         assertEquals(4, a.getSoLuongTon(), "chưa trừ gì");
         assertEquals(0, b.getSoLuongTon());
-        assertTrue(daLuuBienThe.isEmpty(), "đơn chưa trừ kho nên hủy cũng không cộng lại");
+        assertTrue(daLuuBienThe.isEmpty());
+
+        // Nhập thêm hàng rồi xác nhận lại thì qua, trừ đúng số của đơn
+        a.setSoLuongTon(9);
+        b.setSoLuongTon(1);
+        service.doiTrangThai(1, sang(HoaDon.DA_XAC_NHAN, null));
+        assertEquals(HoaDon.DA_XAC_NHAN, hd.getTrangThai());
+        assertEquals(4, a.getSoLuongTon());
+        assertEquals(0, b.getSoLuongTon());
     }
 
     @Test

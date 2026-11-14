@@ -119,9 +119,7 @@ public class CuaHangService {
         List<Map<String, Object>> ketQua = new ArrayList<>();
 
         for (SanPham sp : dsSanPham) {
-            if (!Integer.valueOf(1).equals(sp.getTrangThai())) continue;
-            if (sp.getDanhMuc() != null && !dangDung(sp.getDanhMuc())) continue;
-            if (sp.getThuongHieu() != null && !dangDung(sp.getThuongHieu())) continue;
+            if (!hienOCuaHang(sp)) continue;
 
             if (idDanhMuc != null && (sp.getDanhMuc() == null || !idDanhMuc.equals(sp.getDanhMuc().getId()))) continue;
             if (idThuongHieu != null && (sp.getThuongHieu() == null || !idThuongHieu.equals(sp.getThuongHieu().getId()))) continue;
@@ -303,19 +301,25 @@ public class CuaHangService {
         return ds.stream().filter(m -> ((Integer) m.get("phanTramGiamMax")) > 0).limit(8).toList();
     }
 
+    /** Sản phẩm có hiện ở cửa hàng online không: đang bán, danh mục và thương hiệu (nếu có) đang dùng. */
+    private static boolean hienOCuaHang(SanPham sp) {
+        if (!Integer.valueOf(1).equals(sp.getTrangThai())) return false;
+        if (sp.getDanhMuc() != null && !dangDung(sp.getDanhMuc())) return false;
+        return sp.getThuongHieu() == null || dangDung(sp.getThuongHieu());
+    }
+
     /**
      * Các đợt giảm giá đang diễn ra cho trang Ưu đãi: tên đợt, mức giảm cao nhất, ngày kết thúc và id các sản phẩm đang bán thuộc đợt
      * (để bấm vào đợt thì ra đúng các sản phẩm đó). Đợt không còn sản phẩm nào đang bán thì không hiện.
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> dotGiamGiaDangChay() {
+        // Biến thể đang bán -> sản phẩm đang hiện ở cửa hàng (cùng điều kiện với danhSachSanPham)
         Map<Long, Integer> sanPhamCuaBienThe = new HashMap<>();
-        for (Map<String, Object> sp : danhSachSanPham(null, null, null, null, null, null)) {
-            Object ds = sp.get("bienThe");
-            if (!(ds instanceof List<?> bts) || !(sp.get("id") instanceof Number idSp)) continue;
-            for (Object o : bts) {
-                if (o instanceof Map<?, ?> bt && bt.get("id") instanceof Number idBt) sanPhamCuaBienThe.put(idBt.longValue(), idSp.intValue());
-            }
+        for (SanPhamChiTiet bt : spctRepo.findAll()) {
+            SanPham sp = bt.getSanPham();
+            if (sp == null || bt.getId() == null || !Integer.valueOf(SanPhamChiTiet.HOAT_DONG).equals(bt.getTrangThai())) continue;
+            if (hienOCuaHang(sp)) sanPhamCuaBienThe.put(bt.getId().longValue(), sp.getId());
         }
         List<Map<String, Object>> kq = new ArrayList<>();
         for (GiamGiaApDungService.DotDangChay d : giamGiaService.dotDangChay(bayGio())) {

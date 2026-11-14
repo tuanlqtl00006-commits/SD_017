@@ -86,8 +86,8 @@ async function choTaiXong(w) {
   await flushPromises()
 }
 
-async function montar(chiTiet, put = vi.fn(async () => ({ data: chiTiet }))) {
-  mock = { get: vi.fn(async () => ({ data: chiTiet })), put }
+async function montar(chiTiet, put = vi.fn(async () => ({ data: chiTiet })), post = vi.fn(async () => ({ data: chiTiet }))) {
+  mock = { get: vi.fn(async () => ({ data: chiTiet })), put, post }
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/hoa-don', component: { template: '<div/>' } }, { path: '/hoa-don/:id', component: { template: '<div/>' } }] })
   router.push('/hoa-don/1'); await router.isReady()
   const Comp = (await import('../src/components/HoaDonChiTiet.vue')).default
@@ -611,5 +611,29 @@ describe('Tổng tiền', () => {
     expect(huy.text()).not.toContain('Còn phải trả')
     const dangXuLy = await montar(donGiaoHang(1))
     expect(dangXuLy.text()).toContain('Còn phải trả')
+  })
+})
+
+describe('Xử lý hoàn tiền khi đơn hết hàng hoặc hủy đơn có tiền', () => {
+  it('đơn đã hủy có tiền khách thanh toán: hiện cảnh báo cần hoàn tiền và nút "Xác nhận đã hoàn tiền"', async () => {
+    const don = donGiaoHang(0, [TAO, ls(2, 0, '2026-10-08T09:10:00', 'Tự động hủy do hết hàng')])
+    don.canHoanTien = true
+    don.duocXacNhanHoanTien = true
+    don.soTienCanHoan = 980000
+    don.daThanhToan = 980000
+
+    const post = vi.fn(async () => ({ data: donGiaoHang(7, [TAO, ls(3, 7, '2026-10-08T10:00:00', 'Đã hoàn tiền')]) }))
+    const w = await montar(don, vi.fn(), post)
+
+    expect(w.text()).toContain('Khách đã thanh toán 980.000 ₫ nhưng đơn đã bị hủy')
+    const nutHoan = w.find('[data-testid="hd-xac-nhan-hoan-tien"]')
+    expect(nutHoan.exists()).toBe(true)
+
+    await nutHoan.trigger('click')
+    await flushPromises()
+    expect(document.body.querySelector('.ad-modal-title').textContent).toContain('Xác nhận hoàn tiền')
+
+    await bamXacNhan('Xác nhận đã hoàn tiền')
+    expect(post).toHaveBeenCalledWith('/hoa-don/1/xac-nhan-hoan-tien', { maGiaoDich: '' })
   })
 })

@@ -107,7 +107,7 @@ describe('HoaDonScannerModal - Quét mã hóa đơn', () => {
     const file = new File(['dummy'], 'qr.png', { type: 'image/png' })
     Object.defineProperty(input.element, 'files', { value: [file] })
     await input.trigger('change')
-    await new Promise((r) => setTimeout(r, 50))
+    await new Promise((r) => setTimeout(r, 80))
     await flushPromises()
 
     // Kiểm tra API được gọi
@@ -140,6 +140,7 @@ describe('HoaDonScannerModal - Quét mã hóa đơn', () => {
     const file = new File(['dummy'], 'qr.png', { type: 'image/png' })
     Object.defineProperty(input.element, 'files', { value: [file] })
     await input.trigger('change')
+    await new Promise((r) => setTimeout(r, 80))
     await flushPromises()
 
     expect(body().text()).toContain('Không tìm thấy hóa đơn có mã')

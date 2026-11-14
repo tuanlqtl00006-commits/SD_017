@@ -680,6 +680,99 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await vi.waitFor(() => expect(cuaSo.document.write).toHaveBeenCalledTimes(1))
   })
 
+  it('giao hàng tại quầy: có nút chọn địa chỉ cũ và thêm địa chỉ mới; chưa chọn khách thành viên thì báo nhắc; chọn xong tự điền và tính lại phí giao', async () => {
+    const { w } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="bh-giao-hang"]').setValue(true)
+    await flushPromises()
+
+    const nutCu = w.find('[data-testid="bh-btn-dc-cu"]')
+    const nutMoi = w.find('[data-testid="bh-btn-dc-moi"]')
+    expect(nutCu.exists()).toBe(true)
+    expect(nutMoi.exists()).toBe(true)
+
+    // Khách lẻ: bấm nút thì báo nhắc chọn khách hàng thành viên trước
+    await nutCu.trigger('click')
+    await flushPromises()
+    expect(useToast().toasts.at(-1)).toMatchObject({ type: 'error', message: expect.stringContaining('chọn khách hàng thành viên') })
+    expect(w.vm.modalDiaChiKhach.open).toBe(false)
+
+    await nutMoi.trigger('click')
+    await flushPromises()
+    expect(useToast().toasts.at(-1)).toMatchObject({ type: 'error', message: expect.stringContaining('chọn khách hàng thành viên') })
+    expect(w.vm.modalDiaChiKhach.open).toBe(false)
+
+    // Chọn khách thành viên
+    w.vm.hd.khach = { id: 7, hoTen: 'Lê Minh Tuấn', sdt: '0901000003' }
+    await flushPromises()
+
+    // Bấm nút "Thêm địa chỉ mới" mở modal với cờ moThemMoi = true
+    await nutMoi.trigger('click')
+    await flushPromises()
+    expect(w.vm.modalDiaChiKhach.open).toBe(true)
+    expect(w.vm.modalDiaChiKhach.moThemMoi).toBe(true)
+    w.vm.modalDiaChiKhach.open = false
+
+    // Bấm nút "Địa chỉ đã lưu" mở modal với cờ moThemMoi = false
+    await nutCu.trigger('click')
+    await flushPromises()
+    expect(w.vm.modalDiaChiKhach.open).toBe(true)
+    expect(w.vm.modalDiaChiKhach.moThemMoi).toBe(false)
+
+    // Áp dụng địa chỉ từ modal
+    w.vm.apDungDiaChiGiao({
+      id: 1,
+      tenNguoiNhan: 'Lê Quốc Tuấn',
+      sdtNguoiNhan: '0379992712',
+      tinhThanhPho: 'Tỉnh Phú Thọ',
+      phuongXa: 'Phường Vĩnh Phúc',
+      diaChiCuThe: 'Số 18 Đầm Vạc',
+    })
+    await flushPromises()
+
+    expect(w.vm.hd.p.nguoiNhan.hoTen).toBe('Lê Quốc Tuấn')
+    expect(w.vm.hd.p.nguoiNhan.sdt).toBe('0379992712')
+    expect(w.vm.hd.p.nguoiNhan.tinhThanh).toBe('Tỉnh Phú Thọ')
+    expect(w.vm.hd.p.nguoiNhan.phuongXa).toBe('Phường Vĩnh Phúc')
+    expect(w.vm.hd.p.nguoiNhan.diaChiCuThe).toBe('Số 18 Đầm Vạc')
+    // Phí ship tự tính theo tỉnh Phú Thọ (25.000)
+    expect(w.find('#bh-phi-ship').element.value).toBe('25.000')
+    expect(useToast().toasts.at(-1)).toMatchObject({ type: 'success', message: 'Đã áp dụng địa chỉ giao hàng.' })
+
+    // Bấm nút Xóa trắng -> xóa sạch thông tin giao hàng
+    const nutXoaTrang = w.find('[data-testid="bh-btn-xoa-trang-dc"]')
+    expect(nutXoaTrang.exists()).toBe(true)
+    await nutXoaTrang.trigger('click')
+    await flushPromises()
+    expect(w.vm.hd.p.nguoiNhan.hoTen).toBe('')
+    expect(w.vm.hd.p.nguoiNhan.sdt).toBe('')
+    expect(w.vm.hd.p.nguoiNhan.tinhThanh).toBe('')
+    expect(w.vm.hd.p.nguoiNhan.phuongXa).toBe('')
+    expect(w.vm.hd.p.nguoiNhan.diaChiCuThe).toBe('')
+
+    // Áp dụng lại địa chỉ, sau đó đổi về Khách lẻ -> thông tin giao hàng cũng tự động bị xóa trắng
+    w.vm.apDungDiaChiGiao({
+      id: 1,
+      tenNguoiNhan: 'Lê Quốc Tuấn',
+      sdtNguoiNhan: '0379992712',
+      tinhThanhPho: 'Tỉnh Phú Thọ',
+      phuongXa: 'Phường Vĩnh Phúc',
+      diaChiCuThe: 'Số 18 Đầm Vạc',
+    })
+    await flushPromises()
+    expect(w.vm.hd.p.nguoiNhan.hoTen).toBe('Lê Quốc Tuấn')
+
+    // Bỏ khách về Khách lẻ
+    await w.vm.chonKhach(null)
+    await flushPromises()
+    expect(w.vm.hd.p.nguoiNhan.hoTen).toBe('')
+    expect(w.vm.hd.p.nguoiNhan.sdt).toBe('')
+    expect(w.vm.hd.p.nguoiNhan.tinhThanh).toBe('')
+    expect(w.vm.hd.p.nguoiNhan.phuongXa).toBe('')
+    expect(w.vm.hd.p.nguoiNhan.diaChiCuThe).toBe('')
+  })
+
   it('SĐT người nhận: chỉ nhận chữ số, tối đa 10 số; rời ô là báo lỗi nếu chưa đúng 10 số bắt đầu bằng 0', async () => {
     const { w } = await moBanHang()
     await nutThem(w).trigger('click')

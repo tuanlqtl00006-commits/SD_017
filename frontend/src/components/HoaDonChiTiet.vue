@@ -11,7 +11,7 @@ import { useAuth } from '../composables/useAuth'
 import { useChatChuaDoc } from '../composables/useChatChuaDoc'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { TT, laTrangThaiCuoi, nutChuyen, trangThaiOf } from '../constants/hoaDon'
-import { formatNgayGio } from '../utils/format'
+import { formatMoney, formatNgayGio } from '../utils/format'
 import { taoHtmlHoaDon } from '../utils/hoaDonIn'
 
 const route = useRoute()
@@ -182,13 +182,6 @@ async function xacNhanDoiTrangThai() {
     const ma = hd.value.maHoaDon
     const ttThucTe = hd.value.trangThai
 
-    // Nếu người dùng bấm xác nhận nhưng máy chủ phát hiện hết hàng và tự động hủy đơn
-    if (action.trangThai === TT.DA_XAC_NHAN && ttThucTe === TT.DA_HUY) {
-      cuaSoIn?.close?.()
-      toast.error(`Hóa đơn ${ma} đã bị tự động hủy do không đủ hàng trong kho!`)
-      return
-    }
-
     if (ttThucTe === TT.DA_HUY) {
       cuaSoIn?.close?.()
       toast.success(`Đã hủy hóa đơn ${ma}`)
@@ -237,6 +230,25 @@ async function xacNhanChuyenKhoan() {
     toast.error(e.message || 'Không xác nhận được thanh toán.')
   } finally {
     dangXacNhanTt.value = false
+  }
+}
+
+const dangXacNhanHoan = ref(false)
+const moXacNhanHoan = ref(false)
+const maGdHoan = ref('')
+
+async function xacNhanHoanTien() {
+  if (dangXacNhanHoan.value) return
+  dangXacNhanHoan.value = true
+  try {
+    setData((await api.post(`/hoa-don/${idHoaDon}/xac-nhan-hoan-tien`, { maGiaoDich: maGdHoan.value })).data)
+    moXacNhanHoan.value = false
+    maGdHoan.value = ''
+    toast.success('Đã xác nhận hoàn tiền cho khách hàng.')
+  } catch (e) {
+    toast.error(e.message || 'Không xác nhận được hoàn tiền.')
+  } finally {
+    dangXacNhanHoan.value = false
   }
 }
 const showQrModal = ref(false)
@@ -305,6 +317,9 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
           </button>
           <button v-if="data.duocXacNhanThanhToan" type="button" class="ad-btn" data-testid="hd-xac-nhan-ck" :disabled="dangXacNhanTt" @click="xacNhanChuyenKhoan">
             <i class="bi bi-bank" aria-hidden="true"></i> Xác nhận đã nhận chuyển khoản
+          </button>
+          <button v-if="data.duocXacNhanHoanTien" type="button" class="ad-btn btn-warning text-dark fw-medium" data-testid="hd-xac-nhan-hoan-tien" :disabled="dangXacNhanHoan" @click="moXacNhanHoan = true">
+            <i class="bi bi-cash-stack" aria-hidden="true"></i> Xác nhận đã hoàn tiền
           </button>
           <button type="button" class="ad-btn" @click="showLichSu = true">
             <i class="bi bi-clock-history" aria-hidden="true"></i> Lịch sử thao tác
@@ -398,6 +413,36 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
         >
           <span v-if="action.saving" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
           {{ action.trangThai === TT.DA_HUY ? 'Hủy đơn' : action.trangThai === TT.GIAO_THAT_BAI ? 'Ghi nhận thất bại' : 'Xác nhận' }}
+        </button>
+      </template>
+    </BaseModal>
+
+    <!-- Hộp thoại: Xác nhận hoàn tiền cho khách -->
+    <BaseModal v-if="moXacNhanHoan" title="Xác nhận hoàn tiền cho khách" size="md" @close="moXacNhanHoan = false">
+      <div class="p-3">
+        <p>
+          Khách hàng đã thanh toán <strong>{{ formatMoney(data.soTienCanHoan) }}</strong> cho đơn <strong>{{ hd.maHoaDon }}</strong>.
+        </p>
+        <p class="text-muted small">
+          Sau khi đã chuyển khoản trả lại tiền cho khách qua ngân hàng, nhập mã giao dịch hoàn tiền (tùy chọn) và bấm xác nhận để chuyển hóa đơn sang trạng thái <strong>Hoàn tiền</strong>.
+        </p>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold" for="hd-ma-gd-hoan">Mã giao dịch chuyển khoản hoàn tiền (nếu có)</label>
+          <input
+            id="hd-ma-gd-hoan"
+            v-model="maGdHoan"
+            type="text"
+            class="form-control"
+            placeholder="Ví dụ: FT2400012345"
+            maxlength="100"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <button type="button" class="ad-btn" :disabled="dangXacNhanHoan" @click="moXacNhanHoan = false">Hủy</button>
+        <button type="button" class="ad-btn ad-btn-primary" :disabled="dangXacNhanHoan" @click="xacNhanHoanTien">
+          <span v-if="dangXacNhanHoan" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+          Xác nhận đã hoàn tiền
         </button>
       </template>
     </BaseModal>

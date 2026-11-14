@@ -65,6 +65,14 @@ public class TroLyAoService {
     private final String gioMoCua;
     private Clock dongHo = Clock.systemDefaultZone();
 
+    /** Cài đặt miễn phí vận chuyển theo giá trị đơn. Nạp bằng setter để không đổi hàm khởi tạo của lớp; chưa nạp (test) thì coi như đang tắt. */
+    private CaiDatVanChuyenService caiDatVanChuyen = CaiDatVanChuyenService.trongBoNho(false, Long.MAX_VALUE);
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setCaiDatVanChuyen(CaiDatVanChuyenService caiDatVanChuyen) {
+        this.caiDatVanChuyen = caiDatVanChuyen;
+    }
+
     public TroLyAoService(SanPhamChiTietRepository spctRepo, GiamGiaApDungService giamGiaService, PhieuGiamGiaRepository phieuRepo,
                           DotGiamGiaRepository dotRepo, HoaDonRepository hoaDonRepo,
                           @Value("${app.cua-hang.ten:FootStyle}") String tenCuaHang,
@@ -221,9 +229,13 @@ public class TroLyAoService {
             return new TraLoi("Cửa hàng mở cửa " + gioMoCua + ". Bạn có thể nhắn tin ở đây bất cứ lúc nào nhé.", false, List.of("Địa chỉ cửa hàng"));
         }
         if (coMot(t, "giao hang", " ship", "van chuyen", "bao lau nhan", "phi ship", "giao toi", "giao den")) {
-            return new TraLoi("Cửa hàng giao hàng toàn quốc qua Giao Hàng Nhanh, Giao Hàng Tiết Kiệm, Viettel Post:\n"
+            // Phí nói theo đúng cách hệ thống tính (PhiVanChuyenTinh + ngưỡng miễn phí quản lý cài đặt), đơn vị giao là đơn vị ghi trên hóa đơn
+            CaiDatVanChuyenService.CaiDat ship = caiDatVanChuyen.lay();
+            return new TraLoi("Cửa hàng giao hàng toàn quốc qua " + BanHangService.DON_VI_VAN_CHUYEN + ":\n"
                     + "• Nội thành Hà Nội 1-2 ngày, tỉnh khác 3-5 ngày\n"
-                    + "• Phí 30.000 - 35.000 ₫ tùy đơn vị; nhiều chương trình hỗ trợ phí ship (xem \"Khuyến mãi hôm nay\")\n"
+                    + "• Phí giao hàng: Hà Nội miễn phí; tỉnh / thành khác từ " + tien(PhiVanChuyenTinh.phiThapNhat()) + " đến "
+                    + tien(PhiVanChuyenTinh.phiCaoNhat()) + " tùy tỉnh\n"
+                    + (ship.bat() ? "• Đơn có tiền hàng từ " + tien(ship.nguong()) + " được miễn phí vận chuyển\n" : "")
                     + "• Được kiểm tra hàng trước khi nhận, thanh toán khi nhận hàng (COD)", false, List.of("Khuyến mãi hôm nay", "Đổi trả"));
         }
         if (coMot(t, "doi tra", "doi hang", "tra hang", "hoan tien", "bao hanh", "loi san pham", "bi loi")) {

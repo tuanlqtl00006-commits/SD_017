@@ -181,9 +181,6 @@ export const useCartStore = defineStore('cart', () => {
     if (mayChu !== null && mayChu !== undefined) return !!mayChu
     return duocMienPhiVanChuyen(caiDatVanChuyen, subTotal.value)
   })
-  /** Còn thiếu bao nhiêu tiền hàng để được miễn phí vận chuyển (0: đã đạt hoặc cửa hàng không bật). */
-  const conThieuMienPhiShip = computed(() => (mienPhiShip.value ? 0 : conThieuDeMienPhi(caiDatVanChuyen, subTotal.value)))
-
   const chuaCoTinh = computed(() => !mienPhiShip.value && phiVanChuyenTheoTinh(tinhGiao.value) === null)
 
   const shippingFee = computed(() => {
@@ -195,6 +192,16 @@ export const useCartStore = defineStore('cart', () => {
     if (pvc !== null && pvc !== undefined) return Number(pvc) || 0
     if (mienPhiShip.value) return 0
     return phiVanChuyenTheoTinh(tinhGiao.value) ?? 0
+  })
+
+  /**
+   * Còn thiếu bao nhiêu tiền hàng để được miễn phí vận chuyển. 0 (không nhắc khách mua thêm) khi: đã đạt ngưỡng, cửa hàng không bật,
+   * hoặc đã chọn tỉnh mà phí giao vốn bằng 0 (giao Hà Nội).
+   */
+  const conThieuMienPhiShip = computed(() => {
+    if (mienPhiShip.value) return 0
+    if (!chuaCoTinh.value && shippingFee.value === 0) return 0
+    return conThieuDeMienPhi(caiDatVanChuyen, subTotal.value)
   })
 
   const finalTotal = computed(() => {

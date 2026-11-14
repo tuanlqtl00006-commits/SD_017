@@ -215,6 +215,14 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
           <span class="ad-pill" :class="trangThaiHienTai.pill" data-testid="hd-trang-thai">{{ trangThaiHienTai.label }}</span>
         </div>
 
+        <div v-if="data?.canHoanTien" class="alert alert-warning d-flex align-items-center gap-2 mb-3 mt-3">
+          <i class="bi bi-exclamation-triangle-fill fs-5 text-warning flex-shrink-0"></i>
+          <div>
+            <strong>Khách đã thanh toán {{ money(data.soTienCanHoan) }} nhưng đơn đã bị hủy / hết hàng tồn kho.</strong>
+            <span class="d-block small text-muted">Vui lòng liên hệ khách hàng để chuyển khoản hoàn tiền hoặc tư vấn đổi sang sản phẩm khác.</span>
+          </div>
+        </div>
+
         <ol class="hd-timeline" aria-label="Tiến trình đơn hàng">
           <li v-for="s in timeline" :key="s.code" class="hd-step" :class="[`is-${s.state}`, { 'is-latest': s.moi }]" :data-buoc="s.code">
             <span class="hd-step-dot"><i class="bi" :class="s.icon" aria-hidden="true"></i></span>

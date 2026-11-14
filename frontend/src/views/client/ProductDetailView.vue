@@ -99,6 +99,21 @@ async function taiNgam() {
   grips.value = res.grips || []
   const anh = [res.product.anhChinh, ...(res.product.danhSachAnh || [])]
   if (!anh.includes(activeImage.value)) activeImage.value = res.product.anhChinh || res.product.danhSachAnh?.[0] || ''
+  dongBoLuaChon()
+}
+
+// Biến thể đang chọn không còn (vừa bị ngừng bán / xóa): chuyển lựa chọn sang một biến thể có thật (ưu tiên còn hàng),
+// để các nút đang tô luôn khớp với giá, tồn kho và món sẽ thêm vào giỏ.
+function dongBoLuaChon() {
+  if (!variants.value.length) return
+  const khop = variants.value.some(
+    (v) => v.idMauSac === selectedColorId.value && v.idTrongLuong === selectedWeightId.value && v.idChuVi === selectedGripId.value,
+  )
+  if (khop) return
+  const thay = variants.value.find((v) => (Number(v.soLuongTon) || 0) > 0) || variants.value[0]
+  selectedColorId.value = thay.idMauSac
+  selectedWeightId.value = thay.idTrongLuong
+  selectedGripId.value = thay.idChuVi
 }
 useAutoRefresh(taiNgam, 3000, { chuKyMs: 30_000, chuDe: ['san-pham', 'ton-kho', 'giam-gia'] })
 
@@ -760,24 +775,16 @@ function buyNow() {
   font-weight: 700;
   box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.18);
 }
-/* Phiên bản không có / hết hàng: nét đứt mờ, không bấm chọn được */
-.variant-pill:disabled,
-.variant-pill.het-hang,
-.variant-pill.is-disabled {
-  opacity: 0.45;
+/* Phiên bản hết hàng: nét đứt, làm mờ nhưng vẫn bấm xem được (giá, tồn kho của phiên bản đó) */
+.variant-pill.het-hang {
   background-color: #f8fafc;
   border: 1px dashed #cbd5e1;
   color: #94a3b8;
-  cursor: not-allowed !important;
-  text-decoration: none;
-  box-shadow: none !important;
 }
-.variant-pill:disabled:hover,
-.variant-pill.het-hang:hover,
-.variant-pill.is-disabled:hover {
-  border-color: #cbd5e1 !important;
-  color: #94a3b8 !important;
-  background-color: #f8fafc !important;
+.variant-pill.het-hang.active {
+  border: 1px dashed var(--vnb-orange);
+  color: var(--vnb-orange-hover);
+  box-shadow: none;
 }
 .thumbnail-box {
   width: 68px;

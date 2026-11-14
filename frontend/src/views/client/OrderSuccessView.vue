@@ -55,12 +55,19 @@ async function saoChep(giaTri, nhan) {
   }
 }
 
+const daHuyHetHang = ref(false)
+
 // Hỏi backend mỗi 4 giây xem ngân hàng đã báo tiền vào chưa
 async function kiemTraThanhToan() {
   try {
     // Tra cứu công khai bắt buộc SĐT đặt hàng (lấy từ đơn vừa lưu trên máy)
     const d = (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: maHoaDon.value, sdt: donLuu.value?.sdtKhachHang } })).data
     if (d?.daThanhToanDu) {
+      daThanhToan.value = true
+      clearInterval(timer)
+    } else if (d?.trangThai === 0 || d?.trangThai === 7) {
+      // Đơn bị hủy do hết hàng hoặc đang hoàn tiền
+      daHuyHetHang.value = true
       daThanhToan.value = true
       clearInterval(timer)
     }
@@ -101,16 +108,19 @@ onMounted(async () => {
             <div class="mb-4">
               <div
                 class="rounded-circle d-inline-flex align-items-center justify-content-center"
-                :class="choThanhToan ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'"
+                :class="daHuyHetHang ? 'bg-danger-subtle text-danger' : choThanhToan ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'"
                 style="width: 80px; height: 80px;"
               >
-                <i class="bi display-4" :class="choThanhToan ? 'bi-hourglass-split' : 'bi-check-lg'"></i>
+                <i class="bi display-4" :class="daHuyHetHang ? 'bi-exclamation-triangle' : choThanhToan ? 'bi-hourglass-split' : 'bi-check-lg'"></i>
               </div>
             </div>
 
-            <h3 class="fw-bold text-dark mb-2">{{ choThanhToan ? 'Đơn hàng đang chờ thanh toán' : daThanhToan ? 'Thanh toán thành công!' : 'Đặt Hàng Thành Công!' }}</h3>
+            <h3 class="fw-bold text-dark mb-2">{{ daHuyHetHang ? 'Sản phẩm đã hết hàng' : choThanhToan ? 'Đơn hàng đang chờ thanh toán' : daThanhToan ? 'Thanh toán thành công!' : 'Đặt Hàng Thành Công!' }}</h3>
             <p class="text-muted mb-4">
-              <template v-if="choThanhToan">
+              <template v-if="daHuyHetHang">
+                Hệ thống đã nhận thanh toán, tuy nhiên sản phẩm trong đơn vừa hết hàng do đơn hàng khác thanh toán trước.
+              </template>
+              <template v-else-if="choThanhToan">
                 Đơn hàng của bạn chỉ được xử lý <strong>sau khi cửa hàng nhận được tiền</strong>. Vui lòng quét mã QR bên dưới để thanh toán.
               </template>
               <template v-else>
@@ -125,16 +135,22 @@ onMounted(async () => {
               </div>
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="text-muted small">Trạng thái:</span>
-                <span class="badge bg-warning text-dark">{{ choThanhToan ? 'Chờ thanh toán' : 'Chờ xác nhận' }}</span>
+                <span class="badge" :class="daHuyHetHang ? 'bg-danger text-white' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyHetHang ? 'Đã hủy do hết hàng' : choThanhToan ? 'Chờ thanh toán' : 'Chờ xác nhận' }}</span>
               </div>
               <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">Thời gian giao dự kiến:</span>
-                <span class="fw-semibold">2 - 3 ngày làm việc</span>
+                <span class="fw-semibold">{{ daHuyHetHang ? 'Đang chờ xử lý' : '2 - 3 ngày làm việc' }}</span>
               </div>
             </div>
 
             <!-- Thanh toán chuyển khoản VietQR -->
-            <div v-if="daThanhToan" class="alert alert-success text-start mb-4"><i class="bi bi-check-circle-fill me-2"></i>Hệ thống đã nhận được <strong>{{ formatMoney(soTien) }}</strong> cho đơn này. Cửa hàng sẽ sớm xác nhận và chuẩn bị giao hàng.</div>
+            <div v-if="daHuyHetHang" class="alert alert-warning text-start mb-4">
+              <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Đã ghi nhận thanh toán nhưng sản phẩm vừa hết hàng</div>
+              <p class="mb-0 small text-muted">
+                Hệ thống đã nhận được số tiền <strong>{{ formatMoney(soTien) }}</strong> của bạn. Tuy nhiên, sản phẩm trong đơn vừa hết hàng tồn kho do đơn hàng khác thanh toán trước. Nhân viên tư vấn của FootStyle sẽ liên hệ qua số điện thoại <strong>{{ donLuu?.sdtKhachHang }}</strong> để hỗ trợ hoàn tiền 100% hoặc đổi sang sản phẩm khác tương đương.
+              </p>
+            </div>
+            <div v-else-if="daThanhToan" class="alert alert-success text-start mb-4"><i class="bi bi-check-circle-fill me-2"></i>Hệ thống đã nhận được <strong>{{ formatMoney(soTien) }}</strong> cho đơn này. Cửa hàng sẽ sớm xác nhận và chuẩn bị giao hàng.</div>
             <div v-else-if="thanhToanQR" class="osv-qr mb-4">
               <div class="osv-qr-title"><i class="bi bi-qr-code-scan me-2"></i>Quét mã để thanh toán</div>
               <template v-if="giaLap">

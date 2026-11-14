@@ -14,6 +14,7 @@ import MoneyInput from '../common/MoneyInput.vue'
 import GiaoCaModal from '../giaoCa/GiaoCaModal.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import VanChuyenLogo from '../common/VanChuyenLogo.vue'
+import KhachHangAddressModal from '../KhachHangAddressModal.vue'
 import { useGiaoCa } from '../../composables/useGiaoCa'
 import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../composables/useToast'
@@ -310,7 +311,19 @@ async function chonKhach(k) {
     baoLoiCho(e, 'Không đổi được khách hàng.')
     return
   }
-  if (phu[id].giaoHang) await dienNguoiNhan()
+  // Khi người dùng bấm về Khách lẻ (k === null): xóa sạch thông tin người nhận và địa chỉ giao hàng
+  if (!k) {
+    if (phu[id]) {
+      Object.assign(phu[id].nguoiNhan, { hoTen: '', sdt: '', tinhThanh: '', phuongXa: '', diaChiCuThe: '' })
+      phu[id].phiShip = ''
+      phu[id].phiShipTay = false
+    }
+    daChamGiao.value = false
+    daChamSdtNhan.value = false
+  } else if (phu[id]?.giaoHang) {
+    // Khi chọn khách mới và đang bật giao hàng: tự động nạp thông tin khách mới và địa chỉ mặc định
+    await dienNguoiNhan(true)
+  }
 }
 
 /* ===================== Giao hàng ===================== */
@@ -361,13 +374,34 @@ function nhapSdtNhan(e) {
   e.target.value = so
 }
 /** Điền sẵn người nhận theo khách đã chọn (địa chỉ mặc định); khách lẻ thì để trống cho nhân viên nhập một địa chỉ. */
-async function dienNguoiNhan() {
+async function dienNguoiNhan(epBuoc = false) {
   const h = hd.value
   const n = h.p.nguoiNhan
-  if (!h.khach) return
-  n.hoTen = n.hoTen || h.khach.hoTen || ''
-  n.sdt = n.sdt || h.khach.sdt || ''
-  if (n.tinhThanh || n.diaChiCuThe) return
+  if (!h.khach) {
+    if (epBuoc) {
+      Object.assign(n, { hoTen: '', sdt: '', tinhThanh: '', phuongXa: '', diaChiCuThe: '' })
+      h.p.phiShip = ''
+      h.p.phiShipTay = false
+      daChamGiao.value = false
+      daChamSdtNhan.value = false
+    }
+    return
+  }
+  if (epBuoc) {
+    n.hoTen = h.khach.hoTen || ''
+    n.sdt = h.khach.sdt || ''
+    n.tinhThanh = ''
+    n.phuongXa = ''
+    n.diaChiCuThe = ''
+    h.p.phiShip = ''
+    h.p.phiShipTay = false
+    daChamGiao.value = false
+    daChamSdtNhan.value = false
+  } else {
+    n.hoTen = n.hoTen || h.khach.hoTen || ''
+    n.sdt = n.sdt || h.khach.sdt || ''
+    if (n.tinhThanh || n.diaChiCuThe) return
+  }
   try {
     const ds = (await api.get(`/dia-chi/khach-hang/${h.khach.id}`)).data || []
     const dc = ds.find((d) => d.laDiaChiMacDinh) || ds[0]
@@ -387,6 +421,51 @@ function batGiaoHang(bat) {
   daChamGiao.value = false
   daChamSdtNhan.value = false
   if (bat) dienNguoiNhan()
+}
+
+function xoaTrangDiaChiGiao() {
+  const n = hd.value.p.nguoiNhan
+  Object.assign(n, { hoTen: '', sdt: '', tinhThanh: '', phuongXa: '', diaChiCuThe: '' })
+  hd.value.p.phiShip = ''
+  hd.value.p.phiShipTay = false
+  daChamGiao.value = false
+  daChamSdtNhan.value = false
+  toast.success('Đã xóa trắng thông tin giao hàng.')
+}
+
+/* Sổ địa chỉ khách hàng trong bán hàng tại quầy: chọn địa chỉ cũ hoặc thêm địa chỉ mới */
+const modalDiaChiKhach = ref({ open: false, moThemMoi: false })
+
+function moChonDiaChiCu() {
+  if (!hd.value.khach) {
+    toast.error('Vui lòng chọn khách hàng thành viên trước để sử dụng sổ địa chỉ.')
+    return
+  }
+  modalDiaChiKhach.value = { open: true, moThemMoi: false }
+}
+
+function moThemDiaChiMoi() {
+  if (!hd.value.khach) {
+    toast.error('Vui lòng chọn khách hàng thành viên trước để thêm địa chỉ mới vào sổ địa chỉ.')
+    return
+  }
+  modalDiaChiKhach.value = { open: true, moThemMoi: true }
+}
+
+function apDungDiaChiGiao(dc) {
+  if (!dc) return
+  const n = hd.value.p.nguoiNhan
+  n.hoTen = dc.tenNguoiNhan || hd.value.khach?.hoTen || n.hoTen
+  n.sdt = dc.sdtNguoiNhan || hd.value.khach?.sdt || n.sdt
+  n.tinhThanh = dc.tinhThanhPho || ''
+  n.phuongXa = dc.phuongXa || ''
+  n.diaChiCuThe = dc.diaChiCuThe || ''
+  // Reset phí tự nhập tay (nếu có) để phí giao tự tính lại theo tỉnh mới
+  hd.value.p.phiShip = ''
+  hd.value.p.phiShipTay = false
+  daChamGiao.value = false
+  daChamSdtNhan.value = false
+  toast.success('Đã áp dụng địa chỉ giao hàng.')
 }
 
 /* ===================== Thanh toán ===================== */
@@ -857,7 +936,40 @@ const soLuongTab = (h) => tongSoLuong(h.items)
         <section v-if="hd.p.giaoHang" class="ad-card bh-khoi-giao" data-testid="bh-khoi-giao">
           <div class="bh-tieu-de-hang">
             <h3 class="bh-tieu-de m-0"><i class="bi bi-truck" aria-hidden="true"></i> Thông tin giao hàng</h3>
-            <VanChuyenLogo :ten="DON_VI_VAN_CHUYEN" />
+            <div class="bh-giao-actions">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 bh-btn-dc"
+                title="Chọn địa chỉ đã lưu của khách hàng"
+                data-testid="bh-btn-dc-cu"
+                @click="moChonDiaChiCu"
+              >
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span>Địa chỉ đã lưu</span>
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 bh-btn-dc"
+                title="Thêm địa chỉ mới cho khách hàng"
+                data-testid="bh-btn-dc-moi"
+                @click="moThemDiaChiMoi"
+              >
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                <span>Thêm địa chỉ mới</span>
+              </button>
+              <button
+                v-if="hd.p.nguoiNhan.hoTen || hd.p.nguoiNhan.sdt || hd.p.nguoiNhan.tinhThanh || hd.p.nguoiNhan.diaChiCuThe"
+                type="button"
+                class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 bh-btn-dc"
+                title="Xóa trắng thông tin giao hàng"
+                data-testid="bh-btn-xoa-trang-dc"
+                @click="xoaTrangDiaChiGiao"
+              >
+                <i class="bi bi-eraser" aria-hidden="true"></i>
+                <span>Xóa trắng</span>
+              </button>
+              <VanChuyenLogo :ten="DON_VI_VAN_CHUYEN" />
+            </div>
           </div>
           <div class="row g-2">
             <div class="col-md-6">
@@ -1182,6 +1294,14 @@ const soLuongTab = (h) => tongSoLuong(h.items)
       </template>
     </BaseModal>
     <QuetMaModal v-if="moCamera" @close="moCamera = false" @ma="onMaCamera" />
+    <KhachHangAddressModal
+      v-if="modalDiaChiKhach.open && hd.khach"
+      :customer="hd.khach"
+      chon
+      :mo-them-moi="modalDiaChiKhach.moThemMoi"
+      @select="apDungDiaChiGiao"
+      @close="modalDiaChiKhach.open = false"
+    />
   </div>
 </template>
 
@@ -1207,6 +1327,19 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 }
 .bh-khoi-giao .bh-tieu-de-hang {
   margin-bottom: 0.75rem;
+}
+.bh-giao-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.bh-btn-dc {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.28rem 0.65rem;
+  border-radius: 8px;
+  line-height: 1.25;
 }
 .bh-chua-ca {
   display: flex;

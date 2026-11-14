@@ -17,8 +17,10 @@ const toast = useToast()
 
 const props = defineProps({
   customer: { type: Object, required: true },
+  chon: { type: Boolean, default: false },
+  moThemMoi: { type: Boolean, default: false },
 })
-const emit = defineEmits(['close', 'address-updated'])
+const emit = defineEmits(['close', 'address-updated', 'select'])
 
 const addresses = ref([])
 const dangTai = ref(true)
@@ -76,7 +78,17 @@ async function fetchAddresses() {
     dangTai.value = false
   }
 }
-onMounted(fetchAddresses)
+onMounted(async () => {
+  await fetchAddresses()
+  if (props.moThemMoi) {
+    addNewAddress()
+  }
+})
+
+function chonDiaChi(addr) {
+  emit('select', addr)
+  emit('close')
+}
 
 function moForm(tieuDe, du) {
   Object.assign(f, du)
@@ -147,16 +159,22 @@ async function saveAddress() {
   }
   saving.value = true
   try {
+    let saved = null
     if (f.id) {
-      await api.put(`/dia-chi/${f.id}`, payload)
+      const res = await api.put(`/dia-chi/${f.id}`, payload)
+      saved = res.data
       toast.success('Đã cập nhật địa chỉ.')
     } else {
-      await api.post(`/dia-chi/khach-hang/${props.customer.id}`, payload)
+      const res = await api.post(`/dia-chi/khach-hang/${props.customer.id}`, payload)
+      saved = res.data
       toast.success('Đã thêm địa chỉ mới.')
     }
     showForm.value = false
     await fetchAddresses()
     emit('address-updated')
+    if (props.chon && saved) {
+      chonDiaChi(saved)
+    }
   } catch (error) {
     // Backend báo lỗi theo từng ô thì gắn xuống đúng ô; không có thì báo chung
     if (datLoiMayChu(error)) focusLoiDau('#kh-dc-form')
@@ -317,7 +335,10 @@ const tieuDe = computed(() => `Địa chỉ của ${props.customer?.hoTen || 'kh
       </dl>
       <div class="kh-dc-form-actions">
         <button type="button" class="ad-btn" @click="xemDiaChi = null">Quay lại</button>
-        <button type="button" class="ad-btn ad-btn-primary" @click="editAddress(xemDiaChi)">Sửa địa chỉ</button>
+        <button v-if="chon" type="button" class="ad-btn ad-btn-primary" @click="chonDiaChi(xemDiaChi)">
+          <i class="bi bi-check2" aria-hidden="true"></i> Chọn địa chỉ này
+        </button>
+        <button type="button" class="ad-btn" @click="editAddress(xemDiaChi)">Sửa địa chỉ</button>
       </div>
     </div>
 
@@ -333,6 +354,15 @@ const tieuDe = computed(() => `Địa chỉ của ${props.customer?.hoTen || 'kh
                 <span v-if="addr.laDiaChiMacDinh" class="ad-pill ad-pill-green">Mặc định</span>
               </h3>
               <div class="ad-actions">
+                <button
+                  v-if="chon"
+                  type="button"
+                  class="btn btn-sm btn-primary py-0 px-2 fw-medium me-1"
+                  title="Chọn địa chỉ này"
+                  @click="chonDiaChi(addr)"
+                >
+                  <i class="bi bi-check2" aria-hidden="true"></i> Chọn
+                </button>
                 <button
                   v-if="!addr.laDiaChiMacDinh"
                   type="button"
