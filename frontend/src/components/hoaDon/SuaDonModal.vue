@@ -9,13 +9,15 @@ import BaseModal from '../common/BaseModal.vue'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
 import { formatMoney } from '../../utils/format'
-import { phiTheoDiaChi } from '../../utils/phiVanChuyenTinh'
+import { phiSauKhiSuaDon } from '../../utils/phiVanChuyenTinh'
+import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 
 const props = defineProps({ data: { type: Object, required: true } })
 const emit = defineEmits(['close', 'saved'])
 const toast = useToast()
 
 const giao = props.data.giaoHang || {}
+const caiDatShip = dungCaiDatVanChuyen() // ngưỡng miễn phí vận chuyển theo giá trị đơn
 const f = reactive({
   hoTenNguoiNhan: giao.hoTenNguoiNhan || '',
   sdtNguoiNhan: giao.sdtNguoiNhan || '',
@@ -65,8 +67,18 @@ function bo(d) {
 
 /* ----- Tạm tính (backend tính lại chính xác) ----- */
 const tienHang = computed(() => dong.value.reduce((s, d) => s + d.donGia * (Number(d.soLuong) || 0), 0))
-// Phí theo tỉnh ghi ở cuối địa chỉ (Hà Nội miễn phí, tỉnh khác tùy tỉnh); không nhận ra tỉnh thì giữ phí cũ của đơn
-const phiShip = computed(() => phiTheoDiaChi(f.diaChiGiaoHang) ?? (Number(props.data.hoaDon?.phiVanChuyen) || 0))
+// Phí giao sau khi sửa, cùng luật với máy chủ (HoaDonSuaService.phiSauKhiSua): không đổi địa chỉ, không đổi tiền hàng thì giữ phí của đơn;
+// tiền hàng mới đạt ngưỡng miễn phí thì 0; đổi địa chỉ thì theo tỉnh ở cuối địa chỉ mới
+const phiShip = computed(() =>
+  phiSauKhiSuaDon({
+    caiDat: caiDatShip,
+    diaChiMoi: f.diaChiGiaoHang,
+    diaChiCu: giao.diaChi || '',
+    tienHang: tienHang.value,
+    tienHangCu: Number(props.data.hoaDon?.tongTien) || 0,
+    phiCu: Number(props.data.hoaDon?.phiVanChuyen) || 0,
+  }),
+)
 const cu = computed(() => Number(props.data.hoaDon?.thanhTien) || 0)
 const daTra = computed(() => Number(props.data.daThanhToan) || 0)
 

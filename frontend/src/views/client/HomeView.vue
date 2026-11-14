@@ -652,7 +652,7 @@ function quickAddToCart(item, event) {
               <p class="vnb-header-subtitle mb-0">Săn deal giá tốt cùng quà tặng chính hãng kèm theo</p>
             </div>
           </div>
-          <RouterLink to="/shop/san-pham?khuyenMai=1" class="vnb-view-all-link">
+          <RouterLink to="/shop/uu-dai" class="vnb-view-all-link">
             Xem ưu đãi <i class="bi bi-arrow-right ms-1"></i>
           </RouterLink>
         </div>

@@ -6,6 +6,7 @@ import { cuaHangService } from '../../services/cuaHangService'
 import { dotGiamGiaService } from '../../services/dotGiamGiaService'
 import { thuocTinhService } from '../../services/thuocTinhService'
 import { formatMoney } from '../../utils/format'
+import api from '../../services/api'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
 const route = useRoute()
@@ -77,16 +78,63 @@ const categories = ref([
 // (nhất là khi mọi sản phẩm đều đang giảm giá thì danh sách không thay đổi gì khi bấm SALE OFF).
 const laTrangSale = computed(() => route.query.khuyenMai === '1' || route.query.sale === '1')
 
+// Ô lọc "Đang giảm giá" ở cột bộ lọc: bật / tắt bằng tham số ?khuyenMai=1 (giữ nguyên các tham số khác)
+const chiDangGiam = computed({
+  get: () => laTrangSale.value,
+  set: (bat) => {
+    const q = { ...route.query }
+    delete q.sale
+    if (bat) q.khuyenMai = '1'
+    else delete q.khuyenMai
+    router.replace({ path: '/shop/san-pham', query: q })
+  },
+})
+
+// Xem sản phẩm của một đợt giảm giá (bấm từ trang Ưu đãi: ?dot=<id>)
+const dotDangChay = ref([])
+const dotDangXem = computed(() => {
+  const id = route.query.dot
+  if (!id) return null
+  return dotDangChay.value.find((d) => String(d.id) === String(id)) || { id, tenDot: '', idSanPham: [], khongCon: true }
+})
+async function taiDotDangChay() {
+  if (!route.query.dot) return
+  try {
+    const ds = (await api.get('/cua-hang/dot-giam-gia')).data
+    dotDangChay.value = Array.isArray(ds) ? ds : []
+  } catch {
+    dotDangChay.value = []
+  }
+}
+function boLocDot() {
+  const q = { ...route.query }
+  delete q.dot
+  router.replace({ path: '/shop/san-pham', query: q })
+}
+
 const currentCategoryTitle = computed(() => {
   const cat = categories.value.find(
     (c) => String(c.key) === String(currentCategory.value) || String(c.id) === String(currentCategory.value)
   )
   const ten = cat ? cat.title : 'Sản phẩm'
+  if (dotDangXem.value) return dotDangXem.value.tenDot ? `Đợt giảm giá: ${dotDangXem.value.tenDot}` : 'Đợt giảm giá'
   if (!laTrangSale.value) return ten
   return cat && cat.key !== 'all' ? `Sale off - ${ten}` : 'Sale off - Sản phẩm đang giảm giá'
 })
 
 const currentBanner = computed(() => {
+  if (dotDangXem.value && !dotDangXem.value.khongCon) {
+    const d = dotDangXem.value
+    return {
+      badge: 'ĐỢT GIẢM GIÁ',
+      title: d.tenDot,
+      highlight: d.phanTramGiamMax > 0 ? `GIẢM ĐẾN ${d.phanTramGiamMax}%` : '',
+      tag: `${d.soSanPham} SẢN PHẨM TRONG ĐỢT`,
+      priceText: 'Giá đã được giảm sẵn, không cần nhập mã',
+      bg: 'linear-gradient(135deg, #991b1b 0%, #dc2626 60%, #ef4444 100%)',
+      mauNhan: '#fef08a',
+    }
+  }
   if (laTrangSale.value) {
     const maxGiam = Math.round(Math.max(0, ...enrichedProducts.value.map((p) => p.maxDiscountPercent || 0)))
     return {
@@ -95,7 +143,8 @@ const currentBanner = computed(() => {
       highlight: maxGiam > 0 ? `GIẢM ĐẾN ${maxGiam}%` : 'GIẢM GIÁ',
       tag: 'SĂN DEAL CẦU LÔNG CHÍNH HÃNG - SỐ LƯỢNG CÓ HẠN',
       priceText: 'Giá đã được áp dụng ưu đãi',
-      bg: 'linear-gradient(90deg, #7f1d1d 0%, #dc2626 50%, #ea580c 100%)',
+      bg: 'linear-gradient(135deg, #991b1b 0%, #dc2626 60%, #ef4444 100%)',
+      mauNhan: '#fef08a',
     }
   }
   const activeCat = categories.value.find(
@@ -108,7 +157,8 @@ const currentBanner = computed(() => {
     highlight: 'CHÍNH HÃNG',
     tag: 'CỬA HÀNG VỢT CẦU LÔNG',
     priceText: 'Cam kết chất lượng 100%',
-    bg: 'linear-gradient(90deg, #18181b 0%, #b91c1c 45%, #18181b 100%)',
+    bg: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #60a5fa 100%)', // cùng dải xanh với banner trang chủ
+    mauNhan: '#bfdbfe',
   }
 })
 
@@ -254,6 +304,7 @@ const FALLBACK_BRANDS = [
 ]
 
 onMounted(async () => {
+  taiDotDangChay()
   try {
     loading.value = true
     const [spRes, dmThRes] = await Promise.all([
@@ -343,6 +394,7 @@ watch(
     syncFromUrl()
   }
 )
+watch(() => route.query.dot, taiDotDangChay)
 
 const enrichedProducts = computed(() => {
   return products.value
@@ -408,6 +460,11 @@ const filteredProducts = computed(() => {
   // 0. Lọc Khuyến mãi (SALE OFF)
   if (route.query.khuyenMai === '1' || route.query.sale === '1') {
     list = list.filter((p) => p.hasDiscount)
+  }
+  // 0b. Chỉ sản phẩm của đợt giảm giá đang xem (đợt đã kết thúc thì không còn sản phẩm nào)
+  if (dotDangXem.value) {
+    const ids = new Set((dotDangXem.value.idSanPham || []).map(String))
+    list = list.filter((p) => ids.has(String(p.id)))
   }
 
   // 1. Lọc theo Danh mục (nếu không chọn 'all')
@@ -553,6 +610,19 @@ function goToDetail(id) {
               </button>
             </div>
 
+            <!-- 0. KHUYẾN MÃI: chỉ xem sản phẩm đang giảm giá -->
+            <div class="vnb-filter-section">
+              <div class="vnb-filter-section-title">KHUYẾN MÃI</div>
+              <ul class="vnb-filter-list">
+                <li class="vnb-filter-item">
+                  <label>
+                    <input type="checkbox" v-model="chiDangGiam" data-testid="loc-dang-giam" />
+                    <span>Đang giảm giá</span>
+                  </label>
+                </li>
+              </ul>
+            </div>
+
             <!-- 1. CHỌN MỨC GIÁ (Chung cho tất cả) -->
             <div class="vnb-filter-section">
               <div class="vnb-filter-section-title" @click="toggleSection('gia')">
@@ -640,14 +710,14 @@ function goToDetail(id) {
           >
             <div class="row align-items-center w-100">
               <div class="col-md-8">
-                <span class="badge bg-dark text-white mb-2 px-2 py-1 border border-secondary">
+                <span class="badge catalog-banner-badge mb-2 px-2 py-1">
                   {{ currentBanner.badge }}
                 </span>
                 <h2
                   class="display-6 fw-black text-uppercase mb-1"
-                  style="font-weight: 900; color: #ffffff; text-shadow: 2px 2px 4px rgba(0,0,0,0.6);"
+                  style="font-weight: 900; color: #ffffff; text-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);"
                 >
-                  {{ currentBanner.title }} <span class="text-warning">{{ currentBanner.highlight }}</span>
+                  {{ currentBanner.title }} <span :style="{ color: currentBanner.mauNhan }">{{ currentBanner.highlight }}</span>
                 </h2>
                 <div class="badge bg-light text-dark fw-bold px-3 py-2 rounded-pill mb-2">
                   {{ currentBanner.tag }}
@@ -665,6 +735,16 @@ function goToDetail(id) {
                 />
               </div>
             </div>
+          </div>
+
+          <!-- Đang xem sản phẩm của một đợt giảm giá (bấm từ trang Ưu đãi) -->
+          <div v-if="dotDangXem" class="catalog-dot-bar mb-3" data-testid="loc-dot">
+            <span v-if="dotDangXem.khongCon"><i class="bi bi-info-circle me-1"></i> Đợt giảm giá này đã kết thúc hoặc không còn sản phẩm đang bán.</span>
+            <span v-else><i class="bi bi-tags me-1"></i> Đang xem sản phẩm của đợt <strong>{{ dotDangXem.tenDot }}</strong></span>
+            <span class="d-flex gap-3">
+              <RouterLink to="/shop/uu-dai" class="catalog-dot-link">Về trang Ưu đãi</RouterLink>
+              <button type="button" class="catalog-dot-link" @click="boLocDot">Xem tất cả sản phẩm</button>
+            </span>
           </div>
 
           <!-- Thanh tiêu đề danh mục & Sắp xếp -->
@@ -755,6 +835,39 @@ function goToDetail(id) {
 </template>
 
 <style scoped>
+/* Nhãn nhỏ trên banner: nền trắng mờ để hợp với mọi màu banner (trước là nhãn đen) */
+.catalog-banner-badge {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+
+.catalog-dot-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  color: var(--vnb-dark);
+  background: var(--vnb-orange-light);
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+}
+.catalog-dot-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 600;
+  color: var(--vnb-orange);
+  text-decoration: none;
+}
+.catalog-dot-link:hover {
+  text-decoration: underline;
+}
+
 /* Thanh Category Pills cuộn ngang */
 .vnb-cat-pills-bar {
   display: flex;

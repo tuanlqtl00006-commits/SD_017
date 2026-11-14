@@ -25,6 +25,7 @@ vi.mock('../src/services/diaChiHanhChinhService', () => ({
 import BanHangPage from '../src/components/banHang/BanHangPage.vue'
 import { nhanTin } from '../src/services/suKien'
 import DiaChiHanhChinhSelect from '../src/components/common/DiaChiHanhChinhSelect.vue'
+import { nhanCaiDatVanChuyen } from '../src/services/caiDatVanChuyen'
 import DangNhapPage from '../src/components/auth/DangNhapPage.vue'
 import KhachDangNhapView from '../src/views/client/KhachDangNhapView.vue'
 import VaoCaPage from '../src/components/giaoCa/VaoCaPage.vue'
@@ -590,6 +591,40 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(push).toHaveBeenCalledWith('/hoa-don/9')
     // tạo mã QR để in chạy bất đồng bộ qua nhiều tick, máy chậm thì lâu hơn nên chờ tới khi in xong
     await vi.waitFor(() => expect(cuaSo.document.write).toHaveBeenCalledTimes(1))
+  })
+
+  it('đơn đạt ngưỡng miễn phí vận chuyển (Cài đặt free ship): ô phí thành chữ "Miễn phí", không cộng phí; hạ ngưỡng xuống dưới thì lại tính theo tỉnh', async () => {
+    const { w } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="bh-giao-hang"]').setValue(true)
+    await flushPromises()
+    const chonDc = w.findComponent(DiaChiHanhChinhSelect)
+    chonDc.vm.$emit('update:tinhThanh', 'Thành phố Hồ Chí Minh')
+    chonDc.vm.$emit('update:phuongXa', 'Phường Bến Nghé')
+    await flushPromises()
+    const tong = () => w.find('.bh-nut-tt').text()
+    try {
+      // Đơn 3.861.000, ngưỡng 5.000.000: chưa đạt nên vẫn là ô nhập, phí TP Hồ Chí Minh 50.000
+      nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 5_000_000 })
+      await flushPromises()
+      expect(w.find('[data-testid="bh-mien-phi-ship"]').exists()).toBe(false)
+      expect(w.find('#bh-phi-ship').element.value).toBe('50.000')
+      expect(tong()).toContain('3.911.000')
+      // Quản lý hạ ngưỡng còn 3.000.000: đơn đạt ngưỡng, không còn ô nhập, không cộng phí
+      nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 3_000_000 })
+      await flushPromises()
+      expect(w.find('#bh-phi-ship').exists()).toBe(false)
+      expect(w.find('[data-testid="bh-mien-phi-ship"]').text()).toBe('Miễn phí')
+      expect(tong()).toContain('3.861.000')
+      // Tắt miễn phí theo giá trị đơn: về lại phí theo tỉnh
+      nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 3_000_000 })
+      await flushPromises()
+      expect(w.find('#bh-phi-ship').element.value).toBe('50.000')
+      expect(tong()).toContain('3.911.000')
+    } finally {
+      nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 0 })
+    }
   })
 
   it('phí vận chuyển là một ô nhập: tự điền theo tỉnh, sửa được, đổi tỉnh thì tính lại; hộp xác nhận ghi đủ thông tin', async () => {

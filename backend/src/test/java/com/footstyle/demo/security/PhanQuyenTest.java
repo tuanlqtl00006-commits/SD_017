@@ -77,6 +77,11 @@ class PhanQuyenTest {
     @Test
     void nhanVien_khongVaoChucNangQuanLy() {
         assertFalse(PhanQuyen.duocPhep(NV, "GET", "/api/nhan-vien"));
+        // Cài đặt free ship: chỉ Quản lý xem / sửa; màn bán hàng đọc ngưỡng qua API công khai của cửa hàng
+        assertFalse(PhanQuyen.duocPhep(NV, "GET", "/api/cai-dat/van-chuyen"));
+        assertFalse(PhanQuyen.duocPhep(NV, "PUT", "/api/cai-dat/van-chuyen"));
+        assertTrue(PhanQuyen.congKhai("GET", "/api/cua-hang/cai-dat-van-chuyen"));
+        assertFalse(PhanQuyen.congKhai("PUT", "/api/cai-dat/van-chuyen"));
         assertFalse(PhanQuyen.duocPhep(NV, "GET", "/api/nhan-vien/3"));
         assertFalse(PhanQuyen.duocPhep(NV, "GET", "/api/thong-ke"), "thống kê chỉ quản lý xem");
         assertFalse(PhanQuyen.duocPhep(NV, "GET", "/api/thong-ke/tong-quan"));

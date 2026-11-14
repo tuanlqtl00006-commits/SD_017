@@ -1,13 +1,14 @@
 // Phí vận chuyển theo Tỉnh/Thành phố nhận hàng (cửa hàng ở Hà Nội). PHẢI khớp backend PhiVanChuyenTinh.java.
 //  - Hà Nội: miễn phí, bất kể giá trị đơn.
-//  - Tỉnh/thành khác: luôn mất phí, mức phí tùy tỉnh (xa Hà Nội thì phí cao hơn), không còn mốc miễn phí theo giá trị đơn.
+//  - Tỉnh/thành khác: mức phí tùy tỉnh (xa Hà Nội thì phí cao hơn).
+//  - Đơn đạt ngưỡng miễn phí vận chuyển theo giá trị đơn (quản lý cài đặt) thì phí về 0: xem các hàm ở cuối tệp.
 // Danh sách theo 34 tỉnh/thành sau sáp nhập 07/2025 (đúng danh sách khách chọn ở form địa chỉ).
 import { chuanHoaTenDonVi } from './diaChi'
 
 /** Phí khi không nhận ra tên tỉnh (vd địa chỉ cũ ghi tay). */
 export const PHI_MAC_DINH = 35000
 
-const NHOM_PHI = [
+export const NHOM_PHI = [
   [0, ['Hà Nội']],
   [25000, ['Bắc Ninh', 'Hưng Yên', 'Phú Thọ', 'Thái Nguyên', 'Hải Phòng', 'Ninh Bình']], // lân cận Hà Nội
   [30000, ['Quảng Ninh', 'Lào Cai', 'Tuyên Quang', 'Lạng Sơn', 'Cao Bằng', 'Điện Biên', 'Lai Châu', 'Sơn La']], // miền núi phía Bắc
@@ -38,4 +39,42 @@ export function phiTheoDiaChi(diaChi) {
   const phan = String(diaChi ?? '').split(',')
   const tinh = phan[phan.length - 1]
   return nhanRaTinh(tinh) ? phiVanChuyenTheoTinh(tinh) : null
+}
+
+/*
+ * Miễn phí vận chuyển theo giá trị đơn (quản lý cài đặt ở Cài đặt → Cài đặt free ship; backend CaiDatVanChuyenService).
+ * caiDat = { mienPhiBat, mienPhiTu }. Tiền hàng so với ngưỡng là tiền hàng đã giảm theo đợt, CHƯA trừ phiếu giảm giá.
+ */
+
+/** Đơn có tiền hàng này có được miễn phí vận chuyển không. */
+export function duocMienPhiVanChuyen(caiDat, tienHang) {
+  const nguong = Number(caiDat?.mienPhiTu)
+  const tien = Number(tienHang)
+  return !!caiDat?.mienPhiBat && nguong > 0 && tien > 0 && tien >= nguong
+}
+
+/** Còn thiếu bao nhiêu tiền hàng để được miễn phí vận chuyển; 0 = đã đạt, hoặc cửa hàng đang tắt miễn phí. */
+export function conThieuDeMienPhi(caiDat, tienHang) {
+  const nguong = Number(caiDat?.mienPhiTu)
+  if (!caiDat?.mienPhiBat || !(nguong > 0)) return 0
+  return Math.max(0, nguong - (Number(tienHang) || 0))
+}
+
+/**
+ * Phí giao hàng sau khi sửa đơn, giống backend HoaDonSuaService.phiSauKhiSua:
+ *  - địa chỉ và tiền hàng giữ nguyên: giữ phí của đơn (có thể do nhân viên nhập lúc bán tại quầy);
+ *  - tiền hàng mới đạt ngưỡng miễn phí: 0;
+ *  - đổi địa chỉ: theo tỉnh ở cuối địa chỉ mới (không nhận ra tỉnh thì giữ phí cũ);
+ *  - chỉ đổi sản phẩm làm đơn tụt dưới ngưỡng mà trước đó được miễn phí nhờ đạt ngưỡng: tính lại theo tỉnh.
+ */
+export function phiSauKhiSuaDon({ caiDat, diaChiMoi, diaChiCu, tienHang, tienHangCu, phiCu }) {
+  const gon = (s) => String(s ?? '').trim().replace(/\s+/g, ' ')
+  const cu = Number(phiCu) || 0
+  const doiDiaChi = gon(diaChiMoi) !== gon(diaChiCu)
+  if (!doiDiaChi && Number(tienHang) === Number(tienHangCu)) return cu
+  if (duocMienPhiVanChuyen(caiDat, tienHang)) return 0
+  const theoTinh = phiTheoDiaChi(diaChiMoi)
+  if (doiDiaChi) return theoTinh ?? cu
+  if (cu === 0 && duocMienPhiVanChuyen(caiDat, tienHangCu)) return theoTinh ?? PHI_MAC_DINH
+  return cu
 }

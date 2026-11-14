@@ -1,12 +1,35 @@
 .idea/
+node_modules/
 frontend/node_modules/
 frontend/dist/
 backend/target/
 backend/uploads/
 uploads/
+# Cài đặt quản lý sửa trên giao diện (ngưỡng miễn phí vận chuyển), mỗi máy tự lưu
+backend/cai-dat/
+cai-dat/
 # Chứa mật khẩu ứng dụng Gmail - không đẩy lên GitHub (dùng mail.properties.example làm mẫu)
 backend/src/main/resources/mail.properties
 backend/backend.log
 
+# File zip backup / anh tam
+*.zip
+anh-san-pham/
+
+# Tai lieu ke hoach / ghi chu review tren may
+KE_HOACH_*.md
+LENH_*.md
+LOI_NOI_*.txt
+LUONG_CA_BAN_HANG.md
+SUA_THEO_REVIEW_*.md
+KICH_BAN_*.md
+
+# Test nhap / thu nghiem chua tich hop
+frontend/tests/chiTietSanPham.test.js
+frontend/tests/trangChuCuaHang.test.js
+backend/src/test/java/com/footstyle/demo/service/ThongKeTienMatCkCsdlThatTest.java
+
 # Cau hinh / ghi chu rieng cua cong cu tren may (khong dua len GitHub)
 .claude/
+
+*.bak

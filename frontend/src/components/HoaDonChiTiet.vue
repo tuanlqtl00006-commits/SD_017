@@ -369,6 +369,9 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
         </template>
         <template v-else>Chuyển hóa đơn <strong>{{ hd.maHoaDon }}</strong> sang <strong>{{ trangThaiOf(action.trangThai).label }}</strong>?</template>
       </p>
+      <p v-if="action.trangThai === TT.DA_XAC_NHAN" class="hd-in-tu-dong">
+        <i class="bi bi-printer" aria-hidden="true"></i> Sau khi xác nhận, hệ thống tự mở bản in hóa đơn (chọn "Lưu dưới dạng PDF" để lưu file).
+      </p>
       <label class="ad-label" for="hd-ghi-chu">
         {{ NHAN_GHI_CHU[action.trangThai] ?? 'Ghi chú' }}
         <span v-if="action.batBuoc" class="ad-required">*</span>
@@ -476,5 +479,13 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
   border: 1px dashed var(--fs-line);
   color: var(--fs-text-2);
   font-size: 0.88rem;
+}
+.hd-in-tu-dong {
+  margin: -0.5rem 0 1rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
+  background: var(--fs-primary-soft);
+  color: var(--fs-primary-dark);
+  font-size: 0.85rem;
 }
 </style>

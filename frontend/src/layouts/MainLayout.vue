@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import ToastHost from '../components/common/ToastHost.vue'
 import DoiMatKhauModal from '../components/auth/DoiMatKhauModal.vue'
 import GiaoCaNut from '../components/giaoCa/GiaoCaNut.vue'
-import TroLyNoiBo from '../components/troLy/TroLyNoiBo.vue'
 import { THUOC_TINH_LIST } from '../constants/thuocTinh'
 import { useAuth } from '../composables/useAuth'
 import { useChatChuaDoc } from '../composables/useChatChuaDoc'
@@ -61,6 +60,10 @@ const menuAll = [
       { label: 'Lịch làm việc', icon: 'bi-calendar3', to: '/lich-lam-viec' },
       { label: 'Lịch sử giao ca', icon: 'bi-arrow-left-right', to: '/giao-ca' },
     ],
+  },
+  {
+    key: 'cai-dat', label: 'Cài đặt', icon: 'bi-gear', roles: QL,
+    children: [{ label: 'Cài đặt free ship', icon: 'bi-truck', to: '/cai-dat/free-ship' }],
   },
 ]
 
@@ -209,7 +212,6 @@ const toggle = (key) => { open[key] = !open[key] }
           </template>
         </div>
 
-        <TroLyNoiBo />
         <!-- Quản lý không nhận ca / giao ca nên không có nút Ca làm việc -->
         <GiaoCaNut v-if="auth.daDangNhap.value && !auth.laKhachHang.value && !auth.laQuanLy.value" />
         <div ref="thongBaoRef" class="position-relative">

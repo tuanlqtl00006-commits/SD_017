@@ -39,6 +39,9 @@ class ChuDeSuKienTest {
         assertEquals(Set.of(NHAN_VIEN), ChuDeSuKien.theoYeuCau("PUT", "/api/nhan-vien/2"));
         assertEquals(Set.of(GIAO_CA), ChuDeSuKien.theoYeuCau("POST", "/api/giao-ca/nhan-ca"));
         assertTrue(ChuDeSuKien.theoYeuCau("POST", "/api/lich-lam-viec/xep").contains(LICH_LAM_VIEC));
+        // quản lý đổi ngưỡng miễn phí vận chuyển: màn quầy, giỏ hàng tải lại cài đặt
+        assertEquals(Set.of(ChuDeSuKien.CAI_DAT), ChuDeSuKien.theoYeuCau("PUT", "/api/cai-dat/van-chuyen"));
+        assertEquals(Set.of(), ChuDeSuKien.theoYeuCau("GET", "/api/cua-hang/cai-dat-van-chuyen"));
         // /api/khach (khách đăng nhập) không nhầm với /api/khach-hang (quản lý khách)
         assertTrue(ChuDeSuKien.theoYeuCau("PUT", "/api/khach/tai-khoan").contains(HOA_DON));
         assertTrue(!ChuDeSuKien.theoYeuCau("PUT", "/api/khach-hang/7").contains(HOA_DON));

@@ -23,6 +23,8 @@ import { dongTienDon } from '../../utils/tienDon'
 import { formatPhanTram } from '../../utils/giamGia'
 import { loiSdt } from '../../utils/kiemTra'
 import { taoHtmlHoaDon } from '../../utils/hoaDonIn'
+import { duocMienPhiVanChuyen } from '../../utils/phiVanChuyenTinh'
+import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 import { SO_LUONG_TOI_DA, chuoiVietQR, dangGiamTheoDot, goiYPhieuMoi, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
@@ -316,7 +318,10 @@ async function chonKhach(k) {
 const phiShipTheoTinh = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(hd.value.p.nguoiNhan.tinhThanh) : 0))
 // Ô phí vận chuyển: tự điền theo tỉnh, nhân viên sửa thì lấy số đã nhập; xóa trống ô thì về phí theo tỉnh
 const coPhiNhapTay = computed(() => hd.value.p.giaoHang && hd.value.p.phiShipTay && hd.value.p.phiShip !== '')
-const phiShipDon = computed(() => (coPhiNhapTay.value ? Number(hd.value.p.phiShip) : phiShipTheoTinh.value))
+// Đơn đạt ngưỡng miễn phí vận chuyển (Cài đặt → Cài đặt free ship): không thu phí giao, ô phí thay bằng chữ "Miễn phí" (máy chủ cũng tính 0)
+const caiDatShip = dungCaiDatVanChuyen()
+const mienPhiShip = computed(() => hd.value.p.giaoHang && duocMienPhiVanChuyen(caiDatShip, tienHang.value))
+const phiShipDon = computed(() => (mienPhiShip.value ? 0 : coPhiNhapTay.value ? Number(hd.value.p.phiShip) : phiShipTheoTinh.value))
 const phiShip = computed(() => phiShipDon.value ?? 0)
 const goiYOPhiShip = computed(() => (phiShipTheoTinh.value === null ? 'Chưa tính phí' : phiShipTheoTinh.value ? formatMoney(phiShipTheoTinh.value) : 'Miễn phí'))
 function nhapPhiShip(v) {
@@ -655,7 +660,7 @@ async function thanhToan({ tuDong = false } = {}) {
             diaChi: p.nguoiNhan.diaChiCuThe.trim(),
             tinhThanh: p.nguoiNhan.tinhThanh,
             phuongXa: p.nguoiNhan.phuongXa,
-            phiVanChuyen: coPhiNhapTay.value ? Number(p.phiShip) : null, // null: máy chủ tính theo tỉnh
+            phiVanChuyen: coPhiNhapTay.value && !mienPhiShip.value ? Number(p.phiShip) : null, // null: máy chủ tính (theo tỉnh, đạt ngưỡng thì miễn phí)
           }
         : null,
     })
@@ -934,7 +939,8 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                 <VanChuyenLogo v-if="d.khoa === 'phi-van-chuyen'" :ten="DON_VI_VAN_CHUYEN" class="bh-ghn" />
                 {{ d.nhan }}<template v-if="d.khoa === 'tong-tien-hang'"> ({{ tongSoLuong(hd.gio) }} sản phẩm)</template><template v-if="d.ma"> ({{ d.ma }})</template>:
               </dt>
-              <dd v-if="d.khoa === 'phi-van-chuyen'" class="bh-o-phi-ship">
+              <dd v-if="d.khoa === 'phi-van-chuyen' && mienPhiShip" class="bh-mien-phi-ship" data-testid="bh-mien-phi-ship" :title="`Đơn từ ${formatMoney(caiDatShip.mienPhiTu)} được miễn phí vận chuyển`">Miễn phí</dd>
+              <dd v-else-if="d.khoa === 'phi-van-chuyen'" class="bh-o-phi-ship">
                 <MoneyInput id="bh-phi-ship" small :model-value="hd.p.phiShipTay ? hd.p.phiShip : d.so || ''" aria-label="Phí vận chuyển" :placeholder="goiYOPhiShip" @update:model-value="nhapPhiShip" />
               </dd>
               <dd v-else-if="d.khoa === 'phieu'" class="bh-tien-giam">{{ d.so ? `-${formatMoney(d.so)}` : 'Không dùng phiếu' }}</dd>
@@ -1667,7 +1673,8 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 .bh-ghn :deep(.vc-logo) {
   height: 18px;
 }
-.bh-tien-giam {
+.bh-tien-giam,
+.bh-mien-phi-ship {
   color: #16a34a;
 }
 .bh-tong-don .bh-phai-tra {

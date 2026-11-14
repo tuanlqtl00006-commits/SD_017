@@ -243,6 +243,9 @@ function onQuantityInput(item, event) {
                 </span>
               </div>
             </template>
+            <p v-if="cartStore.conThieuMienPhiShip > 0" class="text-muted small mb-2" data-testid="gio-con-thieu-free-ship">
+              <i class="bi bi-truck me-1"></i> Mua thêm <strong>{{ formatMoney(cartStore.conThieuMienPhiShip) }}</strong> để được miễn phí vận chuyển.
+            </p>
             <p v-if="cartStore.loiPhieu" class="text-danger small mb-2" data-testid="gio-loi-phieu">{{ cartStore.loiPhieu }}</p>
 
 

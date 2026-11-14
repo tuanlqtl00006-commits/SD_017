@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 import { layPhien } from '../services/phien'
-import { phiVanChuyenTheoTinh } from '../utils/phiVanChuyenTinh'
+import { conThieuDeMienPhi, duocMienPhiVanChuyen, phiVanChuyenTheoTinh } from '../utils/phiVanChuyenTinh'
+import { caiDatVanChuyen } from '../services/caiDatVanChuyen'
 import { tienGiamTheoDotCuaDong } from '../utils/tienDon'
 import api from '../services/api'
 
@@ -174,15 +175,25 @@ export const useCartStore = defineStore('cart', () => {
     return Math.min(giam, subTotal.value)
   })
 
-  const chuaCoTinh = computed(() => phiVanChuyenTheoTinh(tinhGiao.value) === null)
+  // Đơn đạt ngưỡng miễn phí vận chuyển (quản lý cài đặt): phí 0 dù chưa chọn tỉnh. Ưu tiên câu trả lời của máy chủ.
+  const mienPhiShip = computed(() => {
+    const mayChu = baoGiaHopLe.value?.mienPhiVanChuyen
+    if (mayChu !== null && mayChu !== undefined) return !!mayChu
+    return duocMienPhiVanChuyen(caiDatVanChuyen, subTotal.value)
+  })
+  /** Còn thiếu bao nhiêu tiền hàng để được miễn phí vận chuyển (0: đã đạt hoặc cửa hàng không bật). */
+  const conThieuMienPhiShip = computed(() => (mienPhiShip.value ? 0 : conThieuDeMienPhi(caiDatVanChuyen, subTotal.value)))
+
+  const chuaCoTinh = computed(() => !mienPhiShip.value && phiVanChuyenTheoTinh(tinhGiao.value) === null)
 
   const shippingFee = computed(() => {
     if (subTotal.value === 0) return 0
     // Số máy chủ tính (cùng tỉnh đang chọn) nếu có; không thì cùng luật với máy chủ (CuaHangService.datHangOnline):
-    // Hà Nội miễn phí, tỉnh khác mất phí tùy tỉnh (không còn mốc miễn phí theo giá trị đơn).
+    // đơn đạt ngưỡng miễn phí vận chuyển thì 0; chưa đạt thì Hà Nội miễn phí, tỉnh khác mất phí tùy tỉnh.
     // Chưa chọn tỉnh thì chưa tính phí (0), giao diện hiện "chọn Tỉnh/Thành để tính".
     const pvc = baoGiaHopLe.value?.phiVanChuyen
     if (pvc !== null && pvc !== undefined) return Number(pvc) || 0
+    if (mienPhiShip.value) return 0
     return phiVanChuyenTheoTinh(tinhGiao.value) ?? 0
   })
 
@@ -282,6 +293,8 @@ export const useCartStore = defineStore('cart', () => {
     discountAmount,
     tinhGiao,
     chuaCoTinh,
+    mienPhiShip,
+    conThieuMienPhiShip,
     shippingFee,
     finalTotal,
     addItem,

@@ -530,6 +530,9 @@ async function handleOrderSubmit() {
               <span v-else-if="d.khoa === 'phieu' && !d.so" class="co-val text-muted">Không dùng phiếu</span>
               <span v-else class="co-val" :class="{ 'co-green': d.dau === '-' }">{{ d.dau === '-' ? '-' : '' }}{{ formatMoney(d.so) }}</span>
             </div>
+            <p v-if="cartStore.conThieuMienPhiShip > 0" class="text-muted small mb-2" data-testid="co-con-thieu-free-ship">
+              <i class="bi bi-truck me-1"></i> Mua thêm <strong>{{ formatMoney(cartStore.conThieuMienPhiShip) }}</strong> để được miễn phí vận chuyển.
+            </p>
             <p v-if="cartStore.loiPhieu" class="text-danger small mb-2" data-testid="co-loi-phieu">{{ cartStore.loiPhieu }}</p>
 
             <div class="co-total" data-dong="tong-thanh-toan">

@@ -10,8 +10,6 @@ import '../assets/client.css'
 
 const router = useRouter()
 
-// Đang ở trang sản phẩm khuyến mãi (SALE OFF): chỉ mục SALE OFF được gạch chân, mục SẢN PHẨM thì không (cùng đường dẫn nên router tính cả hai là "active")
-const dangXemKhuyenMai = computed(() => !!router.currentRoute.value.query.khuyenMai)
 const cartStore = useCartStore()
 const auth = useAuth()
 
@@ -115,14 +113,10 @@ function handleSearch() {
               <RouterLink to="/shop" class="vnb-nav-link">TRANG CHỦ</RouterLink>
             </li>
             <li class="vnb-nav-item">
-              <RouterLink to="/shop/san-pham" class="vnb-nav-link" :class="{ 'vnb-no-active': dangXemKhuyenMai }">SẢN PHẨM</RouterLink>
+              <RouterLink to="/shop/san-pham" class="vnb-nav-link">SẢN PHẨM</RouterLink>
             </li>
             <li class="vnb-nav-item">
-              <RouterLink
-                :to="{ path: '/shop/san-pham', query: { khuyenMai: '1' } }"
-                class="vnb-nav-link"
-                :class="{ 'vnb-no-active': !dangXemKhuyenMai }"
-              >ƯU ĐÃI</RouterLink>
+              <RouterLink to="/shop/uu-dai" class="vnb-nav-link">ƯU ĐÃI</RouterLink>
             </li>
             <li class="vnb-nav-item">
               <RouterLink :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }" class="vnb-nav-link vnb-no-active">ĐƠN HÀNG</RouterLink>
@@ -361,44 +355,44 @@ function handleSearch() {
     </main>
 
     <!-- Footer -->
-    <footer class="bg-dark text-white pt-5 pb-4 mt-auto" style="border-top: 4px solid var(--vnb-orange);">
+    <footer class="vnb-footer text-white pt-5 pb-4 mt-auto">
       <div class="vnb-container">
         <div class="row g-4 mb-4">
           <div class="col-lg-4 col-md-6">
-            <img src="/logo.png" alt="FootStyle" class="mb-3" style="height: 42px; filter: brightness(0) invert(1);" />
-            <p class="small text-secondary mb-3">
+            <img src="/logo.png" alt="FootStyle" class="vnb-footer-logo mb-3" />
+            <p class="small vnb-footer-text mb-3">
               FootStyle - Hệ thống shop cầu lông toàn quốc chuyên phân phối vợt cầu lông chính hãng.
             </p>
-            <div class="small text-secondary">
-              <p class="mb-1"><i class="bi bi-geo-alt-fill text-warning me-2"></i> Trụ sở: 123 Đường Cầu Diễn, Bắc Từ Liêm, Hà Nội</p>
+            <div class="small vnb-footer-text">
+              <p class="mb-1"><i class="bi bi-geo-alt-fill vnb-footer-icon me-2"></i> Trụ sở: 123 Đường Cầu Diễn, Bắc Từ Liêm, Hà Nội</p>
               <p class="mb-1">
-                <i class="bi bi-telephone-fill text-warning me-2"></i> Hotline: 
+                <i class="bi bi-telephone-fill vnb-footer-icon me-2"></i> Hotline: 
                 <a href="tel:0977508430" class="text-white text-decoration-none fw-bold">0977508430</a> (8:00 - 21:30)
               </p>
-              <p class="mb-0"><i class="bi bi-envelope-fill text-warning me-2"></i> Email: cskh@footstyle.vn</p>
+              <p class="mb-0"><i class="bi bi-envelope-fill vnb-footer-icon me-2"></i> Email: cskh@footstyle.vn</p>
             </div>
           </div>
 
           <div class="col-lg-2 col-md-6 col-6">
-            <h6 class="text-uppercase fw-bold text-warning mb-3">Chính sách</h6>
-            <ul class="list-unstyled small d-flex flex-column gap-2 text-secondary">
+            <h6 class="vnb-footer-title text-uppercase fw-bold mb-3">Chính sách</h6>
+            <ul class="list-unstyled small d-flex flex-column gap-2 vnb-footer-text">
               <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="text-secondary text-decoration-none hover-white">
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="vnb-footer-link text-decoration-none">
                   Chính sách bảo hành
                 </RouterLink>
               </li>
               <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="text-secondary text-decoration-none hover-white">
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="vnb-footer-link text-decoration-none">
                   Đổi trả trong 7 ngày
                 </RouterLink>
               </li>
               <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="text-secondary text-decoration-none hover-white">
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="vnb-footer-link text-decoration-none">
                   Chính sách giao hàng
                 </RouterLink>
               </li>
               <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="text-secondary text-decoration-none hover-white">
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="vnb-footer-link text-decoration-none">
                   Bảo mật thông tin
                 </RouterLink>
               </li>
@@ -406,17 +400,17 @@ function handleSearch() {
           </div>
 
           <div class="col-lg-3 col-md-6 col-6">
-            <h6 class="text-uppercase fw-bold text-warning mb-3">Hỗ trợ khách hàng</h6>
-            <ul class="list-unstyled small d-flex flex-column gap-2 text-secondary">
-              <li><RouterLink to="/shop/tra-cuu" class="text-secondary text-decoration-none hover-white">Tra cứu đơn hàng</RouterLink></li>
+            <h6 class="vnb-footer-title text-uppercase fw-bold mb-3">Hỗ trợ khách hàng</h6>
+            <ul class="list-unstyled small d-flex flex-column gap-2 vnb-footer-text">
+              <li><RouterLink to="/shop/tra-cuu" class="vnb-footer-link text-decoration-none">Tra cứu đơn hàng</RouterLink></li>
               <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'chon-vot' } }" class="text-secondary text-decoration-none hover-white">
+                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'chon-vot' } }" class="vnb-footer-link text-decoration-none">
                   Hướng dẫn chọn vợt
                 </RouterLink>
               </li>
 
               <li>
-                <RouterLink to="/shop/huong-dan" class="text-secondary text-decoration-none hover-white">
+                <RouterLink to="/shop/huong-dan" class="vnb-footer-link text-decoration-none">
                   Câu hỏi thường gặp
                 </RouterLink>
               </li>
@@ -424,23 +418,23 @@ function handleSearch() {
           </div>
 
           <div class="col-lg-3 col-md-6">
-            <h6 class="text-uppercase fw-bold text-warning mb-3">Thanh toán & Vận chuyển</h6>
+            <h6 class="vnb-footer-title text-uppercase fw-bold mb-3">Thanh toán & Vận chuyển</h6>
             <div class="d-flex flex-wrap gap-2 mb-3">
-              <span class="badge bg-secondary p-2">COD Tiền mặt</span>
-              <span class="badge bg-secondary p-2">VietQR Banking</span>
+              <span class="badge vnb-footer-badge p-2">COD Tiền mặt</span>
+              <span class="badge vnb-footer-badge p-2">VietQR Banking</span>
             </div>
-            <div class="small text-secondary mb-3">
+            <div class="small vnb-footer-text mb-3">
               Vận chuyển hỏa tốc toàn quốc qua GHTK, GHN, ViettelPost.
             </div>
             <div>
-              <RouterLink to="/shop/nhuong-quyen" class="btn btn-outline-warning btn-sm rounded-pill fw-bold">
+              <RouterLink to="/shop/nhuong-quyen" class="btn btn-outline-light btn-sm rounded-pill fw-bold">
                 Hợp tác nhượng quyền →
               </RouterLink>
             </div>
           </div>
         </div>
 
-        <div class="border-top border-secondary pt-3 text-center small text-secondary">
+        <div class="border-top border-secondary pt-3 text-center small vnb-footer-text">
           © 2026 FootStyle Badminton Shop. Mọi quyền được bảo lưu.
         </div>
       </div>
@@ -452,8 +446,41 @@ function handleSearch() {
 </template>
 
 <style scoped>
-.hover-white:hover {
-  color: #fff !important;
+/* Chân trang: cùng tông xanh với trang chủ (trước là nền đen chữ vàng, logo bị ép thành ô trắng) */
+.vnb-footer {
+  background: #0f2a5c;
+  border-top: 4px solid var(--vnb-orange);
+}
+.vnb-footer-logo {
+  height: 46px;
+  padding: 6px 10px;
+  background: #fff;
+  border-radius: 10px;
+}
+.vnb-footer-title {
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.vnb-footer-text {
+  color: #cbd5e1;
+}
+.vnb-footer-icon {
+  color: #93c5fd;
+}
+.vnb-footer-link {
+  color: #cbd5e1;
+}
+.vnb-footer-link:hover {
+  color: #fff;
+  text-decoration: underline !important;
+}
+.vnb-footer-badge {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 600;
+}
+.vnb-footer-cuoi {
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
 }
 
 .fw-black {

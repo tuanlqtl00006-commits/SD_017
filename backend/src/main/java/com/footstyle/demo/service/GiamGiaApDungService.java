@@ -50,6 +50,37 @@ public class GiamGiaApDungService {
         return new DotApDung(dot.getId(), dot.getNgayBatDau(), dot.getNgayKetThuc(), pt);
     }
 
+    /** Một đợt giảm giá đang diễn ra và các biến thể còn hiệu lực trong đợt đó (id biến thể -> % giảm của dòng, chỉ dòng > 0%). */
+    public record DotDangChay(Long id, String ma, String ten, String moTa, LocalDateTime ngayBatDau, LocalDateTime ngayKetThuc,
+                              Map<Long, Integer> phanTramTheoBienThe) {
+    }
+
+    /**
+     * Các đợt giảm giá đang diễn ra tại thời điểm được hỏi (đợt đang bật, trong khoảng ngày, còn ít nhất một dòng đang bật có % > 0),
+     * đợt sắp kết thúc xếp trước. Dùng cho trang Ưu đãi của khách.
+     */
+    @Transactional(readOnly = true)
+    public List<DotDangChay> dotDangChay(LocalDateTime thoiDiem) {
+        Map<Long, DotGiamGia> dot = new java.util.LinkedHashMap<>();
+        Map<Long, Map<Long, Integer>> bienThe = new HashMap<>();
+        for (DotGiamGiaChiTiet ct : chiTietRepository.findAll()) {
+            DotApDung d = toDotApDung(ct);
+            if (d == null || ct.getIdSanPhamChiTiet() == null) continue;
+            DotGiamGia g = ct.getDotGiamGia();
+            if (thoiDiem.isBefore(g.getNgayBatDau()) || thoiDiem.isAfter(g.getNgayKetThuc())) continue;
+            int pt = ct.getPhanTramGiamBienThe() == null ? 0 : ct.getPhanTramGiamBienThe();
+            if (pt <= 0) continue;
+            dot.putIfAbsent(g.getId(), g);
+            bienThe.computeIfAbsent(g.getId(), k -> new java.util.LinkedHashMap<>()).merge(ct.getIdSanPhamChiTiet(), pt, Math::max);
+        }
+        List<DotDangChay> kq = new ArrayList<>();
+        for (DotGiamGia g : dot.values()) {
+            kq.add(new DotDangChay(g.getId(), g.getMaDot(), g.getTenDot(), g.getMoTa(), g.getNgayBatDau(), g.getNgayKetThuc(), bienThe.get(g.getId())));
+        }
+        kq.sort(java.util.Comparator.comparing(DotDangChay::ngayKetThuc).thenComparing(DotDangChay::id));
+        return kq;
+    }
+
     /** { idBienThe: % giảm } của các đợt đang diễn ra vào thời điểm được hỏi. Biến thể không giảm thì không có trong kết quả. */
     @Transactional(readOnly = true)
     public Map<Long, Double> phanTramTheoBienThe(LocalDateTime thoiDiem) {

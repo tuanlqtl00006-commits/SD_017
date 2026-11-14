@@ -1,5 +1,6 @@
 package com.footstyle.demo.controller;
 
+import com.footstyle.demo.service.CaiDatVanChuyenService;
 import com.footstyle.demo.service.CuaHangService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 public class CuaHangController {
 
     private final CuaHangService service;
+    private final CaiDatVanChuyenService caiDatVanChuyen;
 
     @GetMapping("/san-pham")
     public List<Map<String, Object>> danhSachSanPham(
@@ -40,6 +42,12 @@ public class CuaHangController {
     @GetMapping("/khuyen-mai")
     public List<Map<String, Object>> sanPhamKhuyenMai() {
         return service.sanPhamKhuyenMai();
+    }
+
+    /** Các đợt giảm giá đang diễn ra (trang Ưu đãi của khách). */
+    @GetMapping("/dot-giam-gia")
+    public List<Map<String, Object>> dotGiamGiaDangChay() {
+        return service.dotGiamGiaDangChay();
     }
 
     @GetMapping("/phieu-giam-gia")
@@ -80,6 +88,12 @@ public class CuaHangController {
     private String soTaiKhoan;
     @Value("${app.thanh-toan.ten-chu-tai-khoan:FOOTSTYLE DEMO}")
     private String tenChuTaiKhoan;
+
+    /** Cài đặt miễn phí vận chuyển theo giá trị đơn ({ mienPhiBat, mienPhiTu }) để giỏ hàng, màn quầy, sửa đơn hiện đúng trước khi gửi lên. */
+    @GetMapping("/cai-dat-van-chuyen")
+    public Map<String, Object> caiDatVanChuyen() {
+        return caiDatVanChuyen.moTa();
+    }
 
     @GetMapping("/thong-tin-thanh-toan")
     public Map<String, Object> thongTinThanhToan() {

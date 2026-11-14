@@ -38,6 +38,14 @@ public class CuaHangService {
     private final KhachHangRepository khachHangRepo;
     private final GiamGiaApDungService giamGiaService;
 
+    /** Cài đặt miễn phí vận chuyển theo giá trị đơn. Nạp bằng setter để không đổi hàm khởi tạo của lớp; chưa nạp (test) thì coi như đang tắt. */
+    private CaiDatVanChuyenService caiDatVanChuyen = CaiDatVanChuyenService.trongBoNho(false, Long.MAX_VALUE);
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setCaiDatVanChuyen(CaiDatVanChuyenService caiDatVanChuyen) {
+        this.caiDatVanChuyen = caiDatVanChuyen;
+    }
+
     /** Gửi mail xác nhận đặt hàng. Nạp bằng setter (không bắt buộc) để không đổi hàm khởi tạo của lớp. */
     private MailService mailService;
 
@@ -295,6 +303,46 @@ public class CuaHangService {
         return ds.stream().filter(m -> ((Integer) m.get("phanTramGiamMax")) > 0).limit(8).toList();
     }
 
+    /**
+     * Các đợt giảm giá đang diễn ra cho trang Ưu đãi: tên đợt, mức giảm cao nhất, ngày kết thúc và id các sản phẩm đang bán thuộc đợt
+     * (để bấm vào đợt thì ra đúng các sản phẩm đó). Đợt không còn sản phẩm nào đang bán thì không hiện.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> dotGiamGiaDangChay() {
+        Map<Long, Integer> sanPhamCuaBienThe = new HashMap<>();
+        for (Map<String, Object> sp : danhSachSanPham(null, null, null, null, null, null)) {
+            Object ds = sp.get("bienThe");
+            if (!(ds instanceof List<?> bts) || !(sp.get("id") instanceof Number idSp)) continue;
+            for (Object o : bts) {
+                if (o instanceof Map<?, ?> bt && bt.get("id") instanceof Number idBt) sanPhamCuaBienThe.put(idBt.longValue(), idSp.intValue());
+            }
+        }
+        List<Map<String, Object>> kq = new ArrayList<>();
+        for (GiamGiaApDungService.DotDangChay d : giamGiaService.dotDangChay(bayGio())) {
+            java.util.Set<Integer> idSanPham = new java.util.LinkedHashSet<>();
+            int giamMax = 0;
+            for (Map.Entry<Long, Integer> e : d.phanTramTheoBienThe().entrySet()) {
+                Integer idSp = sanPhamCuaBienThe.get(e.getKey());
+                if (idSp == null) continue; // biến thể ngừng bán / sản phẩm đã ẩn
+                idSanPham.add(idSp);
+                giamMax = Math.max(giamMax, e.getValue());
+            }
+            if (idSanPham.isEmpty()) continue;
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", d.id());
+            m.put("maDot", d.ma());
+            m.put("tenDot", d.ten());
+            m.put("moTa", d.moTa());
+            m.put("ngayBatDau", d.ngayBatDau());
+            m.put("ngayKetThuc", d.ngayKetThuc());
+            m.put("phanTramGiamMax", giamMax);
+            m.put("soSanPham", idSanPham.size());
+            m.put("idSanPham", new ArrayList<>(idSanPham));
+            kq.add(m);
+        }
+        return kq;
+    }
+
     /** Phiếu giảm giá công khai hợp lệ */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> phieuGiamGiaCongKhai(Long tongTien) {
@@ -495,8 +543,8 @@ public class CuaHangService {
             }
         }
 
-        // Phí vận chuyển theo tỉnh nhận: Hà Nội miễn phí, tỉnh khác tùy tỉnh (xem PhiVanChuyenTinh)
-        long phiVanChuyen = phiVanChuyenOnline(req.tinhThanh());
+        // Phí vận chuyển: đơn đạt ngưỡng miễn phí (quản lý cài đặt) thì 0; chưa đạt thì theo tỉnh nhận (Hà Nội miễn phí, tỉnh khác tùy tỉnh)
+        long phiVanChuyen = caiDatVanChuyen.phi(tongTien, phiVanChuyenOnline(req.tinhThanh()));
         long thanhTien = Math.max(0L, tongTien - soTienGiam + phiVanChuyen);
 
         // Tạo hóa đơn
@@ -681,9 +729,10 @@ public class CuaHangService {
                 }
             }
         }
-        // Chưa chọn tỉnh thì chưa tính được phí giao (null), tổng tạm chưa gồm phí
+        // Đơn đạt ngưỡng miễn phí vận chuyển thì phí 0 dù chưa chọn tỉnh. Chưa đạt mà chưa chọn tỉnh thì chưa tính được phí giao (null), tổng tạm chưa gồm phí
         String tinh = req == null || req.tinhThanh() == null ? "" : req.tinhThanh().trim();
-        Long phi = tinh.isEmpty() ? null : phiVanChuyenOnline(tinh);
+        boolean mienPhiVanChuyen = tongTien > 0 && caiDatVanChuyen.mienPhi(tongTien);
+        Long phi = mienPhiVanChuyen ? Long.valueOf(0L) : tinh.isEmpty() ? null : phiVanChuyenOnline(tinh);
 
         Map<String, Object> kq = new LinkedHashMap<>();
         kq.put("dong", dong);
@@ -694,6 +743,7 @@ public class CuaHangService {
         kq.put("soTienGiam", soTienGiam);
         kq.put("loiPhieu", loiPhieu);
         kq.put("phiVanChuyen", phi);
+        kq.put("mienPhiVanChuyen", mienPhiVanChuyen);
         kq.put("thanhTien", Math.max(0, tongTien - soTienGiam + (phi == null ? 0 : phi)));
         return kq;
     }

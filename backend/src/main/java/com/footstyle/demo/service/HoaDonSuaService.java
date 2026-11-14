@@ -62,6 +62,14 @@ public class HoaDonSuaService {
         this.mailService = mailService;
     }
 
+    /** Cài đặt miễn phí vận chuyển theo giá trị đơn. Nạp bằng setter để không đổi hàm khởi tạo của lớp; chưa nạp (test) thì coi như đang tắt. */
+    private CaiDatVanChuyenService caiDatVanChuyen = CaiDatVanChuyenService.trongBoNho(false, Long.MAX_VALUE);
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setCaiDatVanChuyen(CaiDatVanChuyenService caiDatVanChuyen) {
+        this.caiDatVanChuyen = caiDatVanChuyen;
+    }
+
     private Clock dongHo = Clock.systemDefaultZone();
 
     void datDongHo(Clock dongHo) {
@@ -195,10 +203,7 @@ public class HoaDonSuaService {
                 giam = PhieuApDung.soTienGiam(phieu, tienHang);
             }
         }
-        // Đổi địa chỉ thì tính lại phí theo tỉnh ở cuối địa chỉ mới (không nhận ra tỉnh thì giữ phí cũ);
-        // địa chỉ giữ nguyên thì giữ phí của đơn, vì phí có thể do nhân viên nhập lúc bán tại quầy
-        Long phiTheoTinh = diaChi.equals(gon(hd.getDiaChiGiaoHang())) ? null : PhiVanChuyenTinh.phiTheoDiaChi(diaChi);
-        long phi = phiTheoTinh != null ? phiTheoTinh : phiCu;
+        long phi = phiSauKhiSua(diaChi, gon(hd.getDiaChiGiaoHang()), tienHang, tienHangCu, phiCu);
         long thanhTien = Math.max(0, tienHang - giam + phi);
         boolean doiNguoiNhan = !hoTen.equals(gon(hd.getHoTenNguoiNhan())) || !sdt.equals(gon(hd.getSdtNguoiNhan())) || !diaChi.equals(gon(hd.getDiaChiGiaoHang()));
         if (doiNguoiNhan) moTa.add(0, "Giao tới: " + hoTen + " · " + sdt + " · " + diaChi);
@@ -484,6 +489,27 @@ public class HoaDonSuaService {
         }
 
         return "Đã ghi nhận " + tien(soTien) + " cho đơn " + hd.getMaHoaDon() + (conLai > 0 ? " (còn thiếu " + tien(conLai) + ")" : "");
+    }
+
+    /**
+     * Phí giao hàng sau khi sửa đơn.
+     * <ul>
+     *   <li>Địa chỉ và tiền hàng đều giữ nguyên: giữ phí của đơn (phí có thể do nhân viên nhập lúc bán tại quầy).</li>
+     *   <li>Tiền hàng mới đạt ngưỡng miễn phí vận chuyển: 0.</li>
+     *   <li>Đổi địa chỉ: tính lại theo tỉnh ở cuối địa chỉ mới (không nhận ra tỉnh thì giữ phí cũ).</li>
+     *   <li>Chỉ đổi sản phẩm làm đơn tụt dưới ngưỡng, mà trước đó đơn được miễn phí nhờ đạt ngưỡng: tính lại theo tỉnh
+     *       (không nhận ra tỉnh thì lấy phí mặc định). Còn lại giữ phí cũ.</li>
+     * </ul>
+     */
+    long phiSauKhiSua(String diaChiMoi, String diaChiCu, long tienHang, long tienHangCu, long phiCu) {
+        boolean doiDiaChi = !diaChiMoi.equals(diaChiCu);
+        if (!doiDiaChi && tienHang == tienHangCu) return phiCu;
+        if (caiDatVanChuyen.mienPhi(tienHang)) return 0L;
+        Long phiTheoTinh = PhiVanChuyenTinh.phiTheoDiaChi(diaChiMoi);
+        if (doiDiaChi) return phiTheoTinh != null ? phiTheoTinh : phiCu;
+        boolean truocDuocMienPhi = phiCu == 0 && caiDatVanChuyen.mienPhi(tienHangCu);
+        if (truocDuocMienPhi) return phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH;
+        return phiCu;
     }
 
     private long daTra(HoaDon hd) {

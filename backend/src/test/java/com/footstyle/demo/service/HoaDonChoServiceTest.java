@@ -481,4 +481,41 @@ class HoaDonChoServiceTest {
         kq = banHang.locSanPham(new BanHangService.LocSanPham(null, null, null, null, null, null, null, null, 0, 1));
         assertEquals(2, kq.get("soTrang"));
     }
+
+    @Test
+    void giaoHang_donChuaDatNguongMienPhi_vanTinhPhiTheoTinh() {
+        banHang.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 500_000L));
+        // 1 ống cầu 250.000: chưa đạt 500.000 nên vẫn tính phí theo tỉnh
+        Integer duoi = taoHoaDon();
+        service.themSanPham(duoi, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
+        Map<String, Object> kqDuoi = banHang.thanhToanHoaDonCho(duoi, tra(300_000L,
+                new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 8 Lê Duẩn", "Thành phố Hồ Chí Minh", "Phường Bến Nghé"), null));
+        assertEquals(50_000L, kqDuoi.get("phiVanChuyen"), "chưa đạt ngưỡng: TP Hồ Chí Minh 50.000");
+        assertEquals(300_000L, kqDuoi.get("thanhTien"));
+    }
+
+    @Test
+    void giaoHang_donDungBangNguong_mienPhi_boQuaPhiNhapTay() {
+        banHang.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 500_000L));
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 2));
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(500_000L,
+                new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 8 Lê Duẩn", "Thành phố Hồ Chí Minh", "Phường Bến Nghé", 70_000L), null));
+        assertEquals(0L, kq.get("phiVanChuyen"), "500.000 đúng bằng ngưỡng: miễn phí, dù nhân viên nhập 70.000");
+        assertEquals(500_000L, kq.get("thanhTien"));
+        HoaDon h = m.hoaDons.stream().filter(x -> x.getId().equals(id)).findFirst().orElseThrow();
+        assertEquals(0L, h.getPhiVanChuyen().longValue());
+        assertEquals(HoaDon.CHO_LAY_HANG, h.getTrangThai());
+    }
+
+    @Test
+    void giaoHang_tatMienPhiTheoGiaTriDon_vanTinhTheoTinh() {
+        banHang.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(false, 500_000L));
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 2));
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(550_000L,
+                new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 8 Lê Duẩn", "Thành phố Hồ Chí Minh", "Phường Bến Nghé"), null));
+        assertEquals(50_000L, kq.get("phiVanChuyen"));
+        assertEquals(550_000L, kq.get("thanhTien"));
+    }
 }

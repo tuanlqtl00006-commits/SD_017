@@ -190,6 +190,13 @@ const routes = [
         component: () => import('../components/lichLamViec/LichLamViecPage.vue'),
         meta: { parent: 'Quản lý lịch làm', title: 'Lịch làm việc', roles: NV },
       },
+      // ===== Cài đặt cửa hàng (chỉ quản lý): ngưỡng miễn phí vận chuyển theo giá trị đơn =====
+      {
+        path: 'cai-dat/free-ship',
+        name: 'cai-dat-free-ship',
+        component: () => import('../components/caiDat/CaiDatFreeShipPage.vue'),
+        meta: { parent: 'Cài đặt', title: 'Cài đặt free ship', roles: QL },
+      },
       // ===== Hỗ trợ trực tuyến: chat với khách (trợ lý ảo chuyển sang) =====
       {
         path: 'ho-tro-truc-tuyen',
@@ -223,6 +230,12 @@ const routes = [
         name: 'shop-home',
         component: () => import('../views/client/HomeView.vue'),
         meta: { congKhai: true, title: 'Trang chủ - FootStyle' },
+      },
+      {
+        path: 'uu-dai',
+        name: 'shop-uu-dai',
+        component: () => import('../views/client/UuDaiView.vue'),
+        meta: { congKhai: true, title: 'Ưu đãi - FootStyle' },
       },
       {
         path: 'san-pham',

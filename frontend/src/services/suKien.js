@@ -22,6 +22,7 @@ export const CHU_DE = Object.freeze({
   NHAN_VIEN: 'nhan-vien',
   GIAO_CA: 'giao-ca',
   LICH_LAM_VIEC: 'lich-lam-viec',
+  CAI_DAT: 'cai-dat',
 })
 /** Chủ đề đặc biệt: vừa nối lại sau khi mất kết nối, mọi màn đang nghe đều tải lại. */
 export const TAT_CA = '*'

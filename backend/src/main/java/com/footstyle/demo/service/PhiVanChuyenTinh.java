@@ -9,8 +9,10 @@ import java.util.Map;
  * Phí vận chuyển theo Tỉnh/Thành phố nhận hàng (cửa hàng ở Hà Nội).
  * <ul>
  *   <li>Hà Nội: miễn phí, bất kể giá trị đơn.</li>
- *   <li>Tỉnh/thành khác: luôn mất phí, mức phí tùy tỉnh (xa Hà Nội thì phí cao hơn), không còn mốc miễn phí theo giá trị đơn.</li>
+ *   <li>Tỉnh/thành khác: mức phí tùy tỉnh (xa Hà Nội thì phí cao hơn).</li>
  * </ul>
+ * Lớp này chỉ tính phí theo tỉnh. Đơn đạt ngưỡng miễn phí vận chuyển theo giá trị đơn (quản lý cài đặt) thì nơi gọi đưa phí về 0
+ * qua {@link CaiDatVanChuyenService}.
  * Dùng chung cho đơn online, đơn giao hàng bán tại quầy và sửa đơn. Bảng này phải khớp frontend/src/utils/phiVanChuyenTinh.js.
  * Danh sách theo 34 tỉnh/thành sau sáp nhập 07/2025 (đúng danh sách khách chọn ở form địa chỉ).
  */

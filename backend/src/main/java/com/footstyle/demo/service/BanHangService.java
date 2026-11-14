@@ -72,6 +72,14 @@ public class BanHangService {
     private final GiamGiaApDungService giamGiaService;
     private final GiaoCaService giaoCaService;
 
+    /** Cài đặt miễn phí vận chuyển theo giá trị đơn. Nạp bằng setter để không đổi hàm khởi tạo của lớp; chưa nạp (test) thì coi như đang tắt. */
+    private CaiDatVanChuyenService caiDatVanChuyen = CaiDatVanChuyenService.trongBoNho(false, Long.MAX_VALUE);
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setCaiDatVanChuyen(CaiDatVanChuyenService caiDatVanChuyen) {
+        this.caiDatVanChuyen = caiDatVanChuyen;
+    }
+
     private Clock dongHo = Clock.systemDefaultZone();
 
     void datDongHo(Clock dongHo) {
@@ -464,6 +472,7 @@ public class BanHangService {
      * Thông tin người nhận khi bán tại quầy nhưng giao hàng (khách lẻ chỉ có một địa chỉ).
      * Có tỉnh/thành thì diaChi là số nhà, đường và phí giao tính theo tỉnh; không có thì diaChi là cả địa chỉ.
      * phiVanChuyen: số nhân viên nhập ở ô phí vận chuyển; null thì tính theo tỉnh.
+     * Đơn đạt ngưỡng miễn phí vận chuyển (CaiDatVanChuyenService) thì phí luôn là 0, kể cả khi nhân viên có nhập phí.
      */
     public record GiaoHangRequest(String hoTen, String sdt, String diaChi, String tinhThanh, String phuongXa, Long phiVanChuyen) {
         public GiaoHangRequest(String hoTen, String sdt, String diaChi) {
@@ -585,7 +594,9 @@ public class BanHangService {
         if (phiNhap != null && phiNhap < 0) throw ApiException.badRequest("Phí vận chuyển không được âm.");
         if (phiNhap != null && phiNhap > TIEN_TOI_DA) throw ApiException.badRequest("Số tiền quá lớn.");
         Long phiTheoTinh = giao ? PhiVanChuyenTinh.phiTheoDiaChi(diaChi) : null;
-        long phi = !giao ? 0 : phiNhap != null ? phiNhap : phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH;
+        long phiThuong = !giao ? 0 : phiNhap != null ? phiNhap : phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH;
+        // Đơn đạt ngưỡng miễn phí vận chuyển (quản lý cài đặt) thì không thu phí giao, dù nhân viên có nhập phí
+        long phi = caiDatVanChuyen.phi(tongTienHang, phiThuong);
         long thanhTien = tongTienHang - kp.giam() + phi;
 
         // 4. Tiền khách trả, phiếu

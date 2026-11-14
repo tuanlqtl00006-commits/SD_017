@@ -242,4 +242,33 @@ class HoaDonSuaServiceTest {
         assertEquals("FT26102001", thanhToan.get(0).getMaGiaoDich());
         assertThrows(ApiException.class, () -> service.xacNhanThanhToan(1, null), "đã trả đủ");
     }
+
+    @Test
+    void suaSoLuong_donDatNguongMienPhi_phiVe0() {
+        service.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 700_000L));
+        service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 3)));
+        assertEquals(0, BigDecimal.ZERO.compareTo(hd.getPhiVanChuyen()), "750.000 đạt ngưỡng 700.000 nên miễn phí giao hàng");
+        assertEquals(0, BigDecimal.valueOf(750_000).compareTo(hd.getThanhTien()));
+        assertTrue(lichSu.get(0).getMoTa().contains("Phí giao hàng 30.000 ₫ → 0 ₫"));
+    }
+
+    @Test
+    void phiSauKhiSua_cacTruongHop() {
+        service.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 700_000L));
+        String haNoi = "Số 15 Trần Phú, Hà Đông, Hà Nội";
+        String hcm = "Số 8 Lê Duẩn, Phường Bến Nghé, Thành phố Hồ Chí Minh";
+        assertEquals(30_000L, service.phiSauKhiSua(haNoi, haNoi, 900_000L, 900_000L, 30_000L),
+                "không đổi địa chỉ, không đổi tiền hàng (chỉ đổi tên người nhận): giữ phí của đơn dù đang trên ngưỡng");
+        assertEquals(0L, service.phiSauKhiSua(hcm, haNoi, 900_000L, 500_000L, 30_000L), "đổi địa chỉ nhưng đơn đạt ngưỡng: miễn phí");
+        assertEquals(50_000L, service.phiSauKhiSua(hcm, haNoi, 500_000L, 500_000L, 30_000L), "đổi sang TP Hồ Chí Minh, chưa đạt ngưỡng: 50.000");
+        assertEquals(30_000L, service.phiSauKhiSua("Số 15 Trần Phú, khu phố 3", haNoi, 500_000L, 500_000L, 30_000L), "không nhận ra tỉnh: giữ phí cũ");
+        assertEquals(50_000L, service.phiSauKhiSua(hcm, hcm, 500_000L, 900_000L, 0L),
+                "trước được miễn phí nhờ đạt ngưỡng, bớt hàng tụt dưới ngưỡng: tính lại theo tỉnh");
+        assertEquals(PhiVanChuyenTinh.PHI_MAC_DINH, service.phiSauKhiSua("Số 15 Trần Phú, khu phố 3", "Số 15 Trần Phú, khu phố 3", 500_000L, 900_000L, 0L),
+                "tụt dưới ngưỡng mà không nhận ra tỉnh: phí mặc định");
+        assertEquals(0L, service.phiSauKhiSua(haNoi, haNoi, 500_000L, 900_000L, 0L), "Hà Nội vẫn miễn phí");
+        assertEquals(30_000L, service.phiSauKhiSua(hcm, hcm, 400_000L, 500_000L, 30_000L), "trước và sau đều dưới ngưỡng: giữ phí nhân viên đã nhập");
+        service.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(false, 700_000L));
+        assertEquals(30_000L, service.phiSauKhiSua(haNoi, haNoi, 900_000L, 500_000L, 30_000L), "đang tắt miễn phí theo giá trị đơn: như cũ");
+    }
 }

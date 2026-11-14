@@ -72,7 +72,7 @@ describe('Menu quản trị: Quản lý lịch làm, Hỗ trợ trực tuyến, 
     }
   })
 
-  it('có mục Hỗ trợ trực tuyến (đã bỏ Chat nội bộ), nút Trợ lý AI và chuông tin nhắn chưa đọc', async () => {
+  it('có mục Hỗ trợ trực tuyến (đã bỏ Chat nội bộ), không còn nút Trợ lý AI (bỏ 14/11), có chuông tin nhắn chưa đọc', async () => {
     for (const nguoiDung of [{ id: 3, hoTen: 'Lê Quốc Bảo', vaiTro: 'NHAN_VIEN' }, { id: 1, hoTen: 'Nguyễn Hoàng Long', vaiTro: 'QUAN_LY' }]) {
       const w = moLayout(nguoiDung)
       await flushPromises()
@@ -80,7 +80,7 @@ describe('Menu quản trị: Quản lý lịch làm, Hỗ trợ trực tuyến, 
       const links = w.findAll('a').map((a) => a.attributes('href'))
       expect(links).toContain('/ho-tro-truc-tuyen')
       expect(links).not.toContain('/chat-noi-bo')
-      expect(w.find('header').text()).toContain('Trợ lý AI')
+      expect(w.find('header').text()).not.toContain('Trợ lý AI')
       expect(w.find('header .bi-bell').exists()).toBe(true)
       expect(api.get).toHaveBeenCalledWith('/chat/chua-doc')
       w.unmount()

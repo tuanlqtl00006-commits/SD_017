@@ -23,6 +23,7 @@ public final class ChuDeSuKien {
     public static final String NHAN_VIEN = "nhan-vien";
     public static final String GIAO_CA = "giao-ca";
     public static final String LICH_LAM_VIEC = "lich-lam-viec";
+    public static final String CAI_DAT = "cai-dat";
 
     /**
      * Ghi nhưng không đổi dữ liệu các màn đang xem: đăng nhập, tính tiền thử giỏ hàng, trợ lý, gửi email thống kê,
@@ -65,7 +66,9 @@ public final class ChuDeSuKien {
             Map.entry("/api/vai-tro", Set.of(NHAN_VIEN)),
             Map.entry("/api/giao-ca", Set.of(GIAO_CA)),
             Map.entry("/api/lich-lam-viec", Set.of(LICH_LAM_VIEC, GIAO_CA)),
-            Map.entry("/api/ca-lam-viec", Set.of(LICH_LAM_VIEC, GIAO_CA)));
+            Map.entry("/api/ca-lam-viec", Set.of(LICH_LAM_VIEC, GIAO_CA)),
+            // cài đặt cửa hàng (ngưỡng miễn phí vận chuyển): màn quầy, giỏ hàng tính lại phí giao
+            Map.entry("/api/cai-dat", Set.of(CAI_DAT)));
 
     /** POST / PUT / PATCH / DELETE mới có thể đổi dữ liệu. */
     public static boolean laGhi(String method) {
