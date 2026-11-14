@@ -470,7 +470,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('[data-testid="bh-dong-giam"]').exists()).toBe(false)
   })
 
-  it('con trỏ ở ô quét mã: giá vẫn tự cập nhật, mã đang gõ giữ nguyên; đang gõ ô số lượng thì chờ gõ xong', async () => {
+  it('con trỏ ở ô nhập văn bản: giá vẫn tự cập nhật, chữ đang gõ giữ nguyên; đang gõ ô số lượng thì chờ gõ xong', async () => {
     const { w, may } = await moBanHang()
     await nutThem(w).trigger('click')
     await flushPromises()
@@ -485,15 +485,15 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
     expect(api.post).not.toHaveBeenCalledWith(expect.stringContaining('/cap-nhat-gia'))
 
-    const oMa = w.find('input[aria-label="Quét mã sản phẩm"]')
-    await oMa.setValue('SP01-DE')
-    oMa.element.focus()
+    const oGhiChu = w.find('#bh-ghi-chu')
+    await oGhiChu.setValue('Giao buổi chiều')
+    oGhiChu.element.focus()
     await new Promise((r) => setTimeout(r, 1100)) // đợi lượt kiểm tra lại của useAutoRefresh
     await flushPromises()
     expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/cap-nhat-gia'))
     expect(w.find('.bh-nut-tt').text()).toContain('4.290.000')
-    expect(oMa.element.value).toBe('SP01-DE')
-    expect(document.activeElement).toBe(oMa.element)
+    expect(oGhiChu.element.value).toBe('Giao buổi chiều')
+    expect(document.activeElement).toBe(oGhiChu.element)
   })
 
   it('đang tải ngầm mà nhân viên vừa thêm hàng: bỏ kết quả đã cũ, không mất dòng vừa thêm', async () => {

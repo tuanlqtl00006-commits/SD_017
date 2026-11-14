@@ -172,9 +172,8 @@ async function xoaHoaDon(h) {
 const timSp = ref(null) // bảng chọn sản phẩm (chỉ có khi hộp thoại đang mở)
 const moChonSp = ref(false)
 
-/* ----- Quét mã: máy quét cầm tay gõ mã + Enter vào ô, hoặc camera ----- */
+/* ----- Quét mã: máy quét hoặc camera ----- */
 const maQuet = ref('')
-const oMa = ref(null)
 const moCamera = ref(false)
 async function quetMa(giaTri) {
   const m = String(giaTri ?? maQuet.value).trim()
@@ -186,7 +185,6 @@ async function quetMa(giaTri) {
   } catch (e) {
     toast.error(e.message || `Không tìm thấy sản phẩm có mã ${m}.`)
   }
-  oMa.value?.focus()
 }
 function onMaCamera(giaTri) {
   moCamera.value = false
@@ -853,10 +851,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               <span class="ad-pill ad-pill-blue">{{ tongSoLuong(hd.gio) }} sản phẩm</span>
             </div>
             <div class="bh-gio-cong-cu">
-              <form class="ad-affix bh-o-ma" @submit.prevent="quetMa()">
-                <i class="bi bi-upc-scan" aria-hidden="true"></i>
-                <input ref="oMa" v-model="maQuet" type="text" class="form-control ad-control" placeholder="Quét / nhập mã sản phẩm" aria-label="Quét mã sản phẩm" autocomplete="off" />
-              </form>
               <button type="button" class="ad-btn" title="Quét bằng camera" @click="moCamera = true"><i class="bi bi-camera" aria-hidden="true"></i></button>
               <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-chon-sp" title="Chọn sản phẩm (F2)" @click="moChonSp = true">
                 <i class="bi bi-plus-circle" aria-hidden="true"></i> Chọn sản phẩm
