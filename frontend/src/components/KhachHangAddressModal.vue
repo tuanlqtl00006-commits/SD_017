@@ -357,7 +357,7 @@ const tieuDe = computed(() => `Địa chỉ của ${props.customer?.hoTen || 'kh
                 <button
                   v-if="chon"
                   type="button"
-                  class="btn btn-sm btn-primary py-0 px-2 fw-medium me-1"
+                  class="ad-btn ad-btn-sm ad-btn-primary me-1"
                   title="Chọn địa chỉ này"
                   @click="chonDiaChi(addr)"
                 >

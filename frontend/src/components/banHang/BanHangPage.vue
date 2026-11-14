@@ -939,33 +939,33 @@ const soLuongTab = (h) => tongSoLuong(h.items)
             <div class="bh-giao-actions">
               <button
                 type="button"
-                class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 bh-btn-dc"
-                title="Chọn địa chỉ đã lưu của khách hàng"
+                class="ad-btn ad-btn-sm bh-btn-dc"
+                title="Quản lý sổ địa chỉ của khách hàng"
                 data-testid="bh-btn-dc-cu"
                 @click="moChonDiaChiCu"
               >
-                <i class="bi bi-clock-history" aria-hidden="true"></i>
-                <span>Địa chỉ đã lưu</span>
+                <i class="bi bi-geo-alt-fill text-primary" aria-hidden="true"></i>
+                <span>Địa chỉ khách hàng</span>
               </button>
               <button
                 type="button"
-                class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 bh-btn-dc"
+                class="ad-btn ad-btn-sm bh-btn-dc"
                 title="Thêm địa chỉ mới cho khách hàng"
                 data-testid="bh-btn-dc-moi"
                 @click="moThemDiaChiMoi"
               >
-                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                <i class="bi bi-plus-lg text-success" aria-hidden="true"></i>
                 <span>Thêm địa chỉ mới</span>
               </button>
               <button
                 v-if="hd.p.nguoiNhan.hoTen || hd.p.nguoiNhan.sdt || hd.p.nguoiNhan.tinhThanh || hd.p.nguoiNhan.diaChiCuThe"
                 type="button"
-                class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 bh-btn-dc"
+                class="ad-btn ad-btn-sm bh-btn-dc"
                 title="Xóa trắng thông tin giao hàng"
                 data-testid="bh-btn-xoa-trang-dc"
                 @click="xoaTrangDiaChiGiao"
               >
-                <i class="bi bi-eraser" aria-hidden="true"></i>
+                <i class="bi bi-eraser text-danger" aria-hidden="true"></i>
                 <span>Xóa trắng</span>
               </button>
               <VanChuyenLogo :ten="DON_VI_VAN_CHUYEN" />
@@ -1335,11 +1335,25 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   gap: 0.5rem;
 }
 .bh-btn-dc {
-  font-size: 0.82rem;
+  height: 32px;
+  font-size: 0.8rem;
   font-weight: 600;
-  padding: 0.28rem 0.65rem;
-  border-radius: 8px;
-  line-height: 1.25;
+  padding: 0 0.75rem;
+  border-radius: 9px;
+  border: 1px solid var(--fs-line, #e2e8f0);
+  background: #fff;
+  color: #334155;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+.bh-btn-dc:hover:not(:disabled) {
+  background: var(--fs-hover-bg, #f8fafc);
+  border-color: var(--fs-primary-line, #93c5fd);
+  color: var(--fs-primary-dark, #075fc0);
 }
 .bh-chua-ca {
   display: flex;
