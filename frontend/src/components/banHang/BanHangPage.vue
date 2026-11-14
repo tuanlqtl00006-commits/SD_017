@@ -948,16 +948,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                 <span>Địa chỉ khách hàng</span>
               </button>
               <button
-                type="button"
-                class="ad-btn ad-btn-sm bh-btn-dc"
-                title="Thêm địa chỉ mới cho khách hàng"
-                data-testid="bh-btn-dc-moi"
-                @click="moThemDiaChiMoi"
-              >
-                <i class="bi bi-plus-lg text-success" aria-hidden="true"></i>
-                <span>Thêm địa chỉ mới</span>
-              </button>
-              <button
                 v-if="hd.p.nguoiNhan.hoTen || hd.p.nguoiNhan.sdt || hd.p.nguoiNhan.tinhThanh || hd.p.nguoiNhan.diaChiCuThe"
                 type="button"
                 class="ad-btn ad-btn-sm bh-btn-dc"

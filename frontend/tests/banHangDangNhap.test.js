@@ -680,7 +680,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await vi.waitFor(() => expect(cuaSo.document.write).toHaveBeenCalledTimes(1))
   })
 
-  it('giao hàng tại quầy: có nút chọn địa chỉ cũ và thêm địa chỉ mới; chưa chọn khách thành viên thì báo nhắc; chọn xong tự điền và tính lại phí giao', async () => {
+  it('giao hàng tại quầy: có nút Địa chỉ khách hàng mở sổ địa chỉ (chọn cũ hoặc thêm mới); chưa chọn khách thành viên thì báo nhắc; chọn xong tự điền và tính lại phí giao', async () => {
     const { w } = await moBanHang()
     await nutThem(w).trigger('click')
     await flushPromises()
@@ -688,17 +688,10 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
 
     const nutCu = w.find('[data-testid="bh-btn-dc-cu"]')
-    const nutMoi = w.find('[data-testid="bh-btn-dc-moi"]')
     expect(nutCu.exists()).toBe(true)
-    expect(nutMoi.exists()).toBe(true)
 
     // Khách lẻ: bấm nút thì báo nhắc chọn khách hàng thành viên trước
     await nutCu.trigger('click')
-    await flushPromises()
-    expect(useToast().toasts.at(-1)).toMatchObject({ type: 'error', message: expect.stringContaining('chọn khách hàng thành viên') })
-    expect(w.vm.modalDiaChiKhach.open).toBe(false)
-
-    await nutMoi.trigger('click')
     await flushPromises()
     expect(useToast().toasts.at(-1)).toMatchObject({ type: 'error', message: expect.stringContaining('chọn khách hàng thành viên') })
     expect(w.vm.modalDiaChiKhach.open).toBe(false)
@@ -707,14 +700,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     w.vm.hd.khach = { id: 7, hoTen: 'Lê Minh Tuấn', sdt: '0901000003' }
     await flushPromises()
 
-    // Bấm nút "Thêm địa chỉ mới" mở modal với cờ moThemMoi = true
-    await nutMoi.trigger('click')
-    await flushPromises()
-    expect(w.vm.modalDiaChiKhach.open).toBe(true)
-    expect(w.vm.modalDiaChiKhach.moThemMoi).toBe(true)
-    w.vm.modalDiaChiKhach.open = false
-
-    // Bấm nút "Địa chỉ đã lưu" mở modal với cờ moThemMoi = false
+    // Bấm nút "Địa chỉ khách hàng" mở modal với cờ moThemMoi = false
     await nutCu.trigger('click')
     await flushPromises()
     expect(w.vm.modalDiaChiKhach.open).toBe(true)
