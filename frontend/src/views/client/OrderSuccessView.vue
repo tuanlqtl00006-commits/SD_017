@@ -106,9 +106,10 @@ const daHuyHetHang = ref(false)
 // Hỏi backend mỗi 4 giây xem ngân hàng đã báo tiền vào chưa
 async function kiemTraThanhToan() {
   try {
-<<<<<<< HEAD
     // Tra cứu công khai bắt buộc SĐT đặt hàng (lấy từ đơn vừa lưu trên máy)
-    const d = (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: maHoaDon.value, sdt: donLuu.value?.sdtKhachHang } })).data
+    const params = { maHoaDon: maHoaDon.value }
+    if (donLuu.value?.sdtKhachHang) params.sdt = donLuu.value.sdtKhachHang
+    const d = (await api.get('/cua-hang/tra-cuu', { params })).data
     if (d?.hanChuyenKhoan) batDau.value = new Date(d.hanChuyenKhoan).getTime() - HAN_PHUT * 60000 // mốc theo máy chủ
     if (d?.idPhuongThucThanhToan === 1) {
       daDoiCod.value = true // đã đổi sang COD (ở tab khác / lần trước)
@@ -119,14 +120,6 @@ async function kiemTraThanhToan() {
     } else if (d?.trangThai === 0 || d?.trangThai === 7) {
       // Đơn bị hủy do hết hàng hoặc đang hoàn tiền
       daHuyHetHang.value = true
-=======
-    const params = { maHoaDon: maHoaDon.value }
-    if (donLuu.value?.sdtKhachHang) params.sdt = donLuu.value.sdtKhachHang
-    const d = (await api.get('/cua-hang/tra-cuu', { params })).data
-    if (d?.daThanhToanDu) {
->>>>>>> 42dfc10 (sửa bán hàng online)
-      daThanhToan.value = true
-      clearInterval(timer)
     }
   } catch {
     // mất kết nối tạm thời: lần sau thử lại
@@ -201,17 +194,14 @@ onMounted(async () => {
                 <span class="text-muted small">Mã đơn hàng:</span>
                 <strong class="fs-5 text-primary">{{ maHoaDon }}</strong>
               </div>
-              <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="text-muted small">Trạng thái:</span>
                 <span class="badge" :class="daHuyHetHang ? 'bg-danger text-white' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyHetHang ? 'Đã hủy do hết hàng' : choThanhToan ? (hetHan ? 'Đơn treo - chưa thanh toán' : 'Chờ thanh toán') : 'Chờ xác nhận' }}</span>
               </div>
-<<<<<<< HEAD
               <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">Thời gian giao dự kiến:</span>
                 <span class="fw-semibold">{{ daHuyHetHang ? 'Đang chờ xử lý' : '2 - 3 ngày làm việc' }}</span>
               </div>
-=======
->>>>>>> 42dfc10 (sửa bán hàng online)
             </div>
 
             <!-- Thanh toán chuyển khoản VietQR -->
