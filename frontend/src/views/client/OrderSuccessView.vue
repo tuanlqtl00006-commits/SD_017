@@ -194,13 +194,9 @@ onMounted(async () => {
                 <span class="text-muted small">Mã đơn hàng:</span>
                 <strong class="fs-5 text-primary">{{ maHoaDon }}</strong>
               </div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">Trạng thái:</span>
                 <span class="badge" :class="daHuyHetHang ? 'bg-danger text-white' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyHetHang ? 'Đã hủy do hết hàng' : choThanhToan ? (hetHan ? 'Đơn treo - chưa thanh toán' : 'Chờ thanh toán') : 'Chờ xác nhận' }}</span>
-              </div>
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="text-muted small">Thời gian giao dự kiến:</span>
-                <span class="fw-semibold">{{ daHuyHetHang ? 'Đang chờ xử lý' : '2 - 3 ngày làm việc' }}</span>
               </div>
             </div>
 
@@ -231,11 +227,6 @@ onMounted(async () => {
                 <div class="osv-qr-info">
                   <div class="osv-row"><span>Số tiền</span><strong class="text-danger">{{ formatMoney(soTien) }}</strong></div>
                   <div class="osv-row"><span>Nội dung</span><strong class="text-primary">{{ maHoaDon }}</strong></div>
-                </div>
-                <div class="mt-3 text-center">
-                  <a :href="linkTrenMayNay" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold">
-                    <i class="bi bi-box-arrow-up-right me-1"></i> Mở trang xác nhận chuyển tiền (Demo)
-                  </a>
                 </div>
               </template>
               <div v-else-if="qrLoi" class="small text-danger py-3">

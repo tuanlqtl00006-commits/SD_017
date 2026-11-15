@@ -597,18 +597,7 @@ INSERT INTO chat_lieu (ma_chat_lieu, ten_chat_lieu, trang_thai) VALUES
 ('CL01', N'Carbon', 1),
 ('CL02', N'Graphite', 1),
 ('CL03', N'Nhôm', 1),
-('CL04', N'Titanium', 1),
-('CL05', N'Da PU', 1),
-('CL06', N'Cotton', 1),
-('CL07', N'Polyester', 1),
-('CL08', N'Thun lạnh', 1),
-('CL09', N'Spandex', 1),
-('CL10', N'Nylon', 1),
-('CL11', N'Vải dù', 1),
-('CL12', N'Cao su', 1),
-('CL13', N'Lông ngỗng', 1),
-('CL14', N'Lông vịt', 1),
-('CL15', N'Nhựa', 1);
+('CL04', N'Titanium', 1);
 GO
 
 INSERT INTO do_cung (ma_do_cung, ten_do_cung, trang_thai) VALUES

@@ -16,32 +16,12 @@ const router = useRouter()
 const toast = useToast()
 const showScannerModal = ref(false)
 const moQuetMa = () => { showScannerModal.value = true }
-/* ----- 2 tab kênh bán (review 05/11: chia riêng đơn tại quầy và đơn online) -----
- * Máy chủ lọc theo kênh bán chứ không theo cột loại đơn: đơn bán quầy có bật "Giao hàng" vẫn nằm ở tab tại quầy. */
-const DS_KENH = [
-  { value: 'TAI_QUAY', label: 'Đơn tại quầy', icon: 'bi-shop' },
-  { value: 'ONLINE', label: 'Đơn online', icon: 'bi-globe2' },
+/* ----- Loại đơn: gộp chung 1 danh sách hóa đơn, lọc theo loại đơn khi cần ----- */
+const dsLoaiDon = [
+  { value: '', label: 'Tất cả loại đơn' },
+  { value: '1', label: 'Tại quầy' },
+  { value: '2', label: 'Trực tuyến' },
 ]
-const KHOA_KENH = 'footstyle_hoa_don_kenh'
-function docKenh() {
-  try {
-    const v = sessionStorage.getItem(KHOA_KENH)
-    return DS_KENH.some((k) => k.value === v) ? v : 'TAI_QUAY'
-  } catch {
-    return 'TAI_QUAY'
-  }
-}
-const kenh = ref(docKenh())
-function chonKenh(v) {
-  if (kenh.value === v) return
-  kenh.value = v
-  activeTab.value = null // trạng thái đang chọn có thể không có ở tab kia
-  try {
-    sessionStorage.setItem(KHOA_KENH, v)
-  } catch {
-    // trình duyệt chặn bộ nhớ: bỏ qua
-  }
-}
 
 /* ----- Trạng thái hóa đơn: nhãn + màu nhãn dùng chung với trang chi tiết (constants/hoaDon.js) ----- */
 const TABS = TAB_TRANG_THAI
@@ -53,7 +33,7 @@ const TABS = TAB_TRANG_THAI
 // là "hôm nay" tự nhảy sang ngày mới và danh sách tải lại; ô người dùng đã tự chọn ngày khác thì giữ nguyên.
 const defaultFilters = () => {
   const homNay = todayIso()
-  return { maHoaDon: '', tuNgay: homNay, denNgay: homNay }
+  return { maHoaDon: '', tuNgay: homNay, denNgay: homNay, loaiDon: '' }
 }
 const filters = reactive(defaultFilters())
 let homNayDangDung = filters.tuNgay
@@ -86,7 +66,7 @@ function buildParams(pageIndex, size) {
     maHoaDon: filters.maHoaDon.trim() || null,
     tuNgay: filters.tuNgay || null,
     denNgay: filters.denNgay || null,
-    kenh: kenh.value,
+    loaiDon: filters.loaiDon !== '' ? filters.loaiDon : null,
     trangThai: activeTab.value,
   }
 }
@@ -101,7 +81,7 @@ async function loadDem() {
         maHoaDon: filters.maHoaDon.trim() || null,
         tuNgay: filters.tuNgay || null,
         denNgay: filters.denNgay || null,
-        kenh: kenh.value,
+        loaiDon: filters.loaiDon !== '' ? filters.loaiDon : null,
       },
     })
     if (seq === demSeq) dem.value = data || {}
@@ -158,7 +138,7 @@ async function load(quiet = false) {
 // Đổi bộ lọc / tab: về trang 1 rồi tải lại. Ô mã hóa đơn chờ 300ms sau khi ngừng gõ.
 let timer = null
 watch(
-  () => [filters.maHoaDon, filters.tuNgay, filters.denNgay, kenh.value, activeTab.value],
+  () => [filters.maHoaDon, filters.tuNgay, filters.denNgay, filters.loaiDon, activeTab.value],
   (moi, cu) => {
     clearTimeout(timer)
     const chiDoiMa = moi[0] !== cu[0] && moi.slice(1).every((v, i) => v === cu[i + 1])
@@ -224,7 +204,7 @@ async function exportFile() {
       rows.push(...data.content)
     }
     exportExcel({
-      filename: `hoa_don_${kenh.value === 'ONLINE' ? 'online' : 'tai_quay'}_${todayIso()}.xlsx`,
+      filename: `hoa_don_${todayIso()}.xlsx`,
       sheetName: 'Hóa đơn',
       columns: [
         { header: 'STT', key: 'stt', width: 6 },
@@ -233,7 +213,7 @@ async function exportFile() {
         { header: 'Tên KH', key: 'tenKh', width: 24 },
         { header: 'SĐT KH', key: 'sdt', width: 14 },
         { header: 'Tổng tiền TT (₫)', key: 'tien', width: 18, money: true },
-        { header: kenh.value === 'ONLINE' ? 'Loại đơn' : 'Hình thức mua', key: 'loai', width: 16 },
+        { header: 'Hình thức mua', key: 'loai', width: 16 },
         { header: 'Ngày tạo', key: 'ngay', width: 12 },
         { header: 'Trạng thái', key: 'trangThai', width: 16 },
       ],
@@ -244,7 +224,7 @@ async function exportFile() {
         tenKh: tenKhach(hd),
         sdt: hd.sdtKhachHang || '',
         tien: Number(hd.tongTien) || 0, // để dạng SỐ để Excel cộng / lọc được
-        loai: kenh.value === 'ONLINE' ? hd.loaiDon : hd.hinhThucMua || 'Mua tại quầy',
+        loai: hd.hinhThucMua || (hd.loaiDon === 'Trực tuyến' ? 'Trực tuyến' : 'Mua tại quầy'),
         ngay: formatNgay(hd.ngayTao),
         trangThai: trangThaiOf(hd.trangThai).label,
       })),
@@ -291,6 +271,12 @@ async function exportFile() {
         <div>
           <label class="ad-label" for="hd-den-ngay">Đến ngày</label>
           <DateInput id="hd-den-ngay" v-model="filters.denNgay" class="form-control ad-control" :min="filters.tuNgay || undefined" />
+        </div>
+        <div>
+          <label class="ad-label" for="hd-loai">Loại đơn</label>
+          <select id="hd-loai" v-model="filters.loaiDon" class="form-select ad-control">
+            <option v-for="opt in dsLoaiDon" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
         </div>
         <div>
           <label class="ad-label" for="statusDropdown">Trạng thái</label>
@@ -348,25 +334,8 @@ async function exportFile() {
     </FilterCard>
 
     <section class="ad-card">
-      <!-- 2 tab kênh bán: đơn tại quầy / đơn online -->
-      <div class="hd-kenh" role="tablist" aria-label="Kênh bán">
-        <button
-          v-for="k in DS_KENH"
-          :key="k.value"
-          type="button"
-          role="tab"
-          class="hd-kenh-tab"
-          :class="{ active: kenh === k.value }"
-          :aria-selected="kenh === k.value"
-          :data-kenh="k.value"
-          @click="chonKenh(k.value)"
-        >
-          <i class="bi" :class="k.icon" aria-hidden="true"></i> {{ k.label }}
-          <span v-if="kenh === k.value" class="hd-kenh-so">{{ demCua(TABS[0]) }}</span>
-        </button>
-      </div>
       <header class="ad-list-head">
-        <h2 class="ad-card-title">{{ kenh === 'ONLINE' ? 'Danh sách đơn online' : 'Danh sách đơn tại quầy' }}</h2>
+        <h2 class="ad-card-title">Danh sách hóa đơn</h2>
         <div class="d-flex align-items-center gap-2">
           <button type="button" class="ad-btn" @click="moQuetMa">
             <i class="bi bi-qr-code-scan" aria-hidden="true"></i> Quét mã hóa đơn
@@ -390,7 +359,7 @@ async function exportFile() {
                 <th>Tên KH</th>
                 <th>SĐT KH</th>
                 <th>Tổng tiền TT</th>
-                <th>{{ kenh === 'ONLINE' ? 'Loại đơn' : 'Hình thức mua' }}</th>
+                <th>Hình thức mua</th>
                 <th>Ngày tạo</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
@@ -418,9 +387,8 @@ async function exportFile() {
                   <td class="ad-nowrap">{{ hd.sdtKhachHang || '—' }}</td>
                   <td class="ad-nowrap hd-money">{{ formatMoney(hd.tongTien) }}</td>
                   <td class="ad-nowrap" data-testid="hd-hinh-thuc">
-                    <template v-if="kenh === 'ONLINE'">{{ hd.loaiDon }}</template>
-                    <span v-else class="hd-hinh-thuc" :class="{ 'is-giao': hd.hinhThucMua === 'Giao tận nơi' }">
-                      <i class="bi" :class="hd.hinhThucMua === 'Giao tận nơi' ? 'bi-truck' : 'bi-shop'" aria-hidden="true"></i> {{ hd.hinhThucMua || 'Mua tại quầy' }}
+                    <span class="hd-hinh-thuc" :class="{ 'is-giao': hd.hinhThucMua === 'Giao tận nơi' || hd.loaiDon === 'Trực tuyến' }">
+                      <i class="bi" :class="hd.hinhThucMua === 'Giao tận nơi' || hd.loaiDon === 'Trực tuyến' ? 'bi-truck' : 'bi-shop'" aria-hidden="true"></i> {{ hd.hinhThucMua || (hd.loaiDon === 'Trực tuyến' ? 'Trực tuyến' : 'Mua tại quầy') }}
                     </span>
                   </td>
                   <td class="ad-nowrap">{{ formatNgay(hd.ngayTao) }}</td>
@@ -459,13 +427,6 @@ async function exportFile() {
 </template>
 
 <style scoped>
-/* Tab kênh bán */
-.hd-kenh {
-  display: flex;
-  gap: 0.25rem;
-  margin: -0.25rem 0 1rem;
-  border-bottom: 1px solid var(--fs-line-soft, #e8edf3);
-}
 .hd-hinh-thuc {
   display: inline-flex;
   align-items: center;
@@ -480,31 +441,6 @@ async function exportFile() {
 .hd-hinh-thuc.is-giao {
   color: #1d4ed8;
   background: #eff6ff;
-}
-.hd-kenh-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.6rem 1rem;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -1px;
-  background: none;
-  color: var(--fs-muted, #64748b);
-  font-weight: 600;
-}
-.hd-kenh-tab:hover {
-  color: var(--fs-primary, #0977ec);
-}
-.hd-kenh-tab.active {
-  border-bottom-color: var(--fs-primary, #0977ec);
-  color: var(--fs-primary, #0977ec);
-}
-.hd-kenh-so {
-  padding: 0 0.5rem;
-  border-radius: 999px;
-  background: var(--fs-primary-soft, #e8f1fd);
-  font-size: 0.78rem;
 }
 
 .hd-money {

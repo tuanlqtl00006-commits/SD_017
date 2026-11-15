@@ -87,17 +87,10 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
             "IF COL_LENGTH('chat_lieu', 'nhom_ap_dung') IS NULL ALTER TABLE chat_lieu ADD nhom_ap_dung VARCHAR(100) NULL",
             "UPDATE chat_lieu SET nhom_ap_dung = 'VOT' "
                     + "WHERE nhom_ap_dung IS NULL AND ten_chat_lieu IN (N'Carbon', N'Graphite', N'Nhôm', N'Titanium')",
-            "UPDATE chat_lieu SET nhom_ap_dung = 'TUI_BALO,PHU_KIEN' WHERE nhom_ap_dung IS NULL AND ten_chat_lieu = N'Da PU'",
-            // Chất liệu cho quần áo, túi - balo, phụ kiện, quả cầu lông (chỉ thêm khi chưa có tên đó; mã = số lớn nhất + thứ tự)
-            "INSERT INTO chat_lieu (ma_chat_lieu, ten_chat_lieu, trang_thai, nhom_ap_dung) "
-                    + "SELECT 'CL' + CASE WHEN m.so + ROW_NUMBER() OVER (ORDER BY v.thu_tu) < 10 THEN '0' ELSE '' END "
-                    + "+ CAST(m.so + ROW_NUMBER() OVER (ORDER BY v.thu_tu) AS VARCHAR(10)), v.ten, 1, v.nhom "
-                    + "FROM (VALUES (1, N'Cotton', 'QUAN_AO,PHU_KIEN'), (2, N'Polyester', 'QUAN_AO,TUI_BALO,PHU_KIEN'), "
-                    + "(3, N'Thun lạnh', 'QUAN_AO'), (4, N'Spandex', 'QUAN_AO'), (5, N'Nylon', 'TUI_BALO,PHU_KIEN'), "
-                    + "(6, N'Vải dù', 'TUI_BALO'), (7, N'Cao su', 'PHU_KIEN'), (8, N'Lông ngỗng', 'QUA_CAU'), "
-                    + "(9, N'Lông vịt', 'QUA_CAU'), (10, N'Nhựa', 'QUA_CAU,PHU_KIEN')) AS v(thu_tu, ten, nhom) "
-                    + "CROSS JOIN (SELECT ISNULL(MAX(TRY_CAST(SUBSTRING(ma_chat_lieu, 3, 10) AS INT)), 0) AS so FROM chat_lieu) m "
-                    + "WHERE NOT EXISTS (SELECT 1 FROM chat_lieu t WHERE t.ten_chat_lieu = v.ten)",
+            // Dọn dẹp các chất liệu không thuộc dự án shop vợt cầu lông (chỉ giữ Carbon, Graphite, Nhôm, Titanium)
+            "DELETE FROM chat_lieu WHERE ten_chat_lieu IN (N'Cotton', N'Polyester', N'Thun lạnh', N'Spandex', N'Nylon', "
+                    + "N'Vải dù', N'Cao su', N'Lông ngỗng', N'Lông vịt', N'Nhựa', N'Da PU') "
+                    + "AND NOT EXISTS (SELECT 1 FROM san_pham sp WHERE sp.id_chat_lieu = chat_lieu.id)",
             // Ảnh theo màu: hinh_anh_san_pham.id_mau_sac (NULL = ảnh chung của sản phẩm, như dữ liệu cũ; có giá trị = ảnh của màu đó,
             // dùng cho mọi biến thể cùng màu). Thêm cột + khóa ngoại ở 1 lệnh, chỉ mục ở lệnh sau (không dùng cột vừa thêm trong cùng batch).
             "IF COL_LENGTH('hinh_anh_san_pham', 'id_mau_sac') IS NULL "

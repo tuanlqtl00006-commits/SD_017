@@ -378,26 +378,13 @@ FROM (VALUES
     ('CL01', N'Carbon', 'VOT'),
     ('CL02', N'Graphite', 'VOT'),
     ('CL03', N'Nhôm', 'VOT'),
-    ('CL04', N'Titanium', 'VOT'),
-    ('CL05', N'Da PU', 'TUI_BALO,PHU_KIEN'),
-    ('CL06', N'Cotton', 'QUAN_AO,PHU_KIEN'),
-    ('CL07', N'Polyester', 'QUAN_AO,TUI_BALO,PHU_KIEN'),
-    ('CL08', N'Thun lạnh', 'QUAN_AO'),
-    ('CL09', N'Spandex', 'QUAN_AO'),
-    ('CL10', N'Nylon', 'TUI_BALO,PHU_KIEN'),
-    ('CL11', N'Vải dù', 'TUI_BALO'),
-    ('CL12', N'Cao su', 'PHU_KIEN'),
-    ('CL13', N'Lông ngỗng', 'QUA_CAU'),
-    ('CL14', N'Lông vịt', 'QUA_CAU'),
-    ('CL15', N'Nhựa', 'QUA_CAU,PHU_KIEN')
+    ('CL04', N'Titanium', 'VOT')
 ) AS v(ma, ten, nhom)
 WHERE NOT EXISTS (SELECT 1 FROM chat_lieu t WHERE t.ma_chat_lieu = v.ma)
   AND NOT EXISTS (SELECT 1 FROM chat_lieu t WHERE t.ten_chat_lieu = v.ten);
 GO
 UPDATE chat_lieu SET nhom_ap_dung = 'VOT'
 WHERE nhom_ap_dung IS NULL AND ten_chat_lieu IN (N'Carbon', N'Graphite', N'Nhôm', N'Titanium');
-UPDATE chat_lieu SET nhom_ap_dung = 'TUI_BALO,PHU_KIEN'
-WHERE nhom_ap_dung IS NULL AND ten_chat_lieu = N'Da PU';
 GO
 
 -- 5. Độ cứng

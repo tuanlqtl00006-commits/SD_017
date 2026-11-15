@@ -123,6 +123,9 @@ function handleSearch() {
               <RouterLink to="/shop/uu-dai" class="vnb-nav-link">Ưu đãi</RouterLink>
             </li>
             <li class="vnb-nav-item">
+              <RouterLink :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }" class="vnb-nav-link">Đơn hàng của tôi</RouterLink>
+            </li>
+            <li class="vnb-nav-item">
               <RouterLink to="/shop/tra-cuu" class="vnb-nav-link">Tra cứu đơn</RouterLink>
             </li>
             <li class="vnb-nav-item">
@@ -308,6 +311,16 @@ function handleSearch() {
                     >
                       <i class="bi bi-person-plus fs-5 text-secondary"></i>
                       <span>Đăng ký</span>
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <RouterLink
+                      :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }"
+                      class="vnb-lookup-item d-flex align-items-center gap-2"
+                      @click="showAccountDropdown = false"
+                    >
+                      <i class="bi bi-bag-check fs-5 text-success"></i>
+                      <span>Đơn hàng của tôi</span>
                     </RouterLink>
                   </li>
                 </template>
