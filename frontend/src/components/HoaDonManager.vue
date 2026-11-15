@@ -19,8 +19,8 @@ const moQuetMa = () => { showScannerModal.value = true }
 /* ----- Loại đơn: gộp chung 1 danh sách hóa đơn, lọc theo loại đơn khi cần ----- */
 const dsLoaiDon = [
   { value: '', label: 'Tất cả loại đơn' },
-  { value: '1', label: 'Tại quầy' },
-  { value: '2', label: 'Trực tuyến' },
+  { value: 'TAI_QUAY', label: 'Tại quầy' },
+  { value: 'ONLINE', label: 'Trực tuyến' },
 ]
 
 /* ----- Trạng thái hóa đơn: nhãn + màu nhãn dùng chung với trang chi tiết (constants/hoaDon.js) ----- */
@@ -66,7 +66,7 @@ function buildParams(pageIndex, size) {
     maHoaDon: filters.maHoaDon.trim() || null,
     tuNgay: filters.tuNgay || null,
     denNgay: filters.denNgay || null,
-    loaiDon: filters.loaiDon !== '' ? filters.loaiDon : null,
+    kenh: filters.loaiDon || null,
     trangThai: activeTab.value,
   }
 }
@@ -81,7 +81,7 @@ async function loadDem() {
         maHoaDon: filters.maHoaDon.trim() || null,
         tuNgay: filters.tuNgay || null,
         denNgay: filters.denNgay || null,
-        loaiDon: filters.loaiDon !== '' ? filters.loaiDon : null,
+        kenh: filters.loaiDon || null,
       },
     })
     if (seq === demSeq) dem.value = data || {}
