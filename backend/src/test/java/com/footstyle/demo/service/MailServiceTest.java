@@ -472,7 +472,7 @@ class MailServiceTest {
     /* ---------- review: email đặt hàng đẹp hơn + email khi đổi trạng thái ---------- */
 
     @Test
-    void guiXacNhanDatHang_coBangTienVaTienTrinh() throws Exception {
+    void guiXacNhanDatHang_coBangTien() throws Exception {
         GhiThu sender = new GhiThu();
         MailService s = dich(new NoiCap(sender));
         s.guiXacNhanDatHang("Tuấn", "tuan@gmail.com", "HD971",
@@ -485,7 +485,6 @@ class MailServiceTest {
         assertTrue(html.contains("Giảm giá (mã VCHE7KL4B)") && html.contains("-250.000 ₫"));
         assertTrue(html.contains("Phí vận chuyển") && html.contains("Miễn phí"));
         assertTrue(html.contains("0379992712"));
-        for (String buoc : List.of("Đặt hàng", "Xác nhận", "Đang giao", "Đã giao", "Hoàn thành")) assertTrue(html.contains(buoc), buoc);
     }
 
     @Test
@@ -510,7 +509,7 @@ class MailServiceTest {
         assertTrue(html.get(giao).contains("ĐANG GIAO HÀNG"));
         assertTrue(html.get(giao).contains("https://footstyle.vn"), "có nút tra cứu đơn");
         assertTrue(html.get(1 - giao).contains("Khách không nghe máy"), "giao thất bại ghi lý do");
-        assertTrue(html.get(1 - giao).contains("Giao thất bại"));
+        assertTrue(html.get(1 - giao).contains("Giao hàng chưa thành công"));
     }
 
     @Test

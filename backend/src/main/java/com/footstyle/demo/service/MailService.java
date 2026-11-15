@@ -516,9 +516,6 @@ public class MailService {
                 .append(esc(ma)).append("</div>")
                 .append("</td></tr></table></td></tr>\n");
 
-        // Thanh tiến trình: đang ở bước "Đặt hàng" (giống dòng thời gian ở màn tra cứu đơn)
-        themTienTrinh(h, 1);
-
         // Bảng chi tiết sản phẩm
         boolean coCotGia = false;
         java.util.List<String[]> dsMonTach = new java.util.ArrayList<>();
@@ -876,7 +873,6 @@ public class MailService {
         moKhungHtml(h, tieuDe, "Đơn hàng " + ma + ": " + nd.tieuDe(), nd.mau(), logoGan != null, nd.nhan(), nd.tieuDe());
         h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
                 .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>").append(esc(nd.loiNhan())).append("</td></tr>\n");
-        themTienTrinh(h, trangThai);
         h.append("<tr><td style=\"padding:12px 28px 8px 28px;\">")
                 .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;\">")
                 .append("<tr><td style=\"padding:14px 18px;\">")
@@ -897,48 +893,6 @@ public class MailService {
         dongKhungHtml(h);
         final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
         luongGui.submit(() -> gui(den, thu, logoGan));
-    }
-
-    /**
-     * Thanh tiến trình 5 bước của đơn online (Đặt hàng → Xác nhận → Đang giao → Đã giao → Hoàn thành), dựng bằng bảng để
-     * hiện đúng trên Gmail / Outlook. `trangThai` là mã trạng thái của hóa đơn; giao thất bại tô cam ở bước "Đang giao".
-     */
-    private static void themTienTrinh(StringBuilder h, int trangThai) {
-        String[] nhan = {"Đặt hàng", "Xác nhận", "Đang giao", "Đã giao", "Hoàn thành"};
-        int buoc = switch (trangThai) {
-            case 2, 3 -> 1;
-            case 4, 8 -> 2;
-            case 5 -> 3;
-            case 6 -> 4;
-            default -> 0;
-        };
-        String phong = "font-family:Arial,Helvetica,sans-serif;";
-        h.append("<tr><td style=\"padding:14px 28px 6px 28px;\">")
-                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;table-layout:fixed;\"><tr>");
-        for (int i = 0; i < nhan.length; i++) {
-            if (i > 0) {
-                // Mũi tên nối hai bước: tô màu khi đơn đã đi qua đoạn này
-                String mauMuiTen = i <= buoc ? (trangThai == 8 && i == buoc ? "#ea580c" : "#2563eb") : "#d1d5db";
-                h.append("<td width=\"22\" align=\"center\" valign=\"top\" style=\"width:22px;padding:0;\">")
-                        .append("<div style=\"height:34px;line-height:34px;").append(phong).append("font-size:18px;font-weight:bold;color:")
-                        .append(mauMuiTen).append(";\">&#8594;</div></td>");
-            }
-            boolean xong = i < buoc || (i == buoc && trangThai == 6);
-            boolean dangO = i == buoc && !xong;
-            String mau = trangThai == 8 && i == buoc ? "#ea580c" : "#2563eb";
-            String nen = xong ? mau : dangO ? "#ffffff" : "#ffffff";
-            String vien = xong || dangO ? mau : "#d1d5db";
-            String chuSo = xong ? "#ffffff" : dangO ? mau : "#9ca3af";
-            String kyHieu = xong ? "&#10003;" : String.valueOf(i + 1);
-            h.append("<td align=\"center\" valign=\"top\" style=\"padding:0 2px;\">")
-                    .append("<div style=\"width:30px;height:30px;line-height:30px;margin:0 auto;border-radius:50%;border:2px solid ").append(vien)
-                    .append(";background-color:").append(nen).append(";color:").append(chuSo).append(";").append(phong)
-                    .append("font-size:13px;font-weight:bold;text-align:center;\">").append(kyHieu).append("</div>")
-                    .append("<div style=\"").append(phong).append("margin-top:6px;font-size:11px;line-height:14px;font-weight:")
-                    .append(xong || dangO ? "bold;color:#111827" : "normal;color:#9ca3af").append(";\">")
-                    .append(esc(trangThai == 8 && i == buoc ? "Giao thất bại" : nhan[i])).append("</div></td>");
-        }
-        h.append("</tr></table></td></tr>\n");
     }
 
     /** Một dòng tiền (nhãn - giá trị) trong bảng sản phẩm của thư đặt hàng. */

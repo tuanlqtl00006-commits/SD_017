@@ -3,6 +3,7 @@
 // Dùng chung cho màn admin (/hoa-don/:id) và màn đơn hàng của khách (/shop/tra-cuu) để hai màn luôn y hệt nhau
 // Màn admin truyền các nút đổi trạng thái qua slot "hanh-dong"; màn khách không có nút mà hiện gợi ý bước tiếp theo.
 import { computed, reactive, ref, useSlots, watch } from 'vue'
+import Select2 from '../common/Select2.vue'
 import VanChuyenLogo from '../common/VanChuyenLogo.vue'
 import { BUOC_DA_HUY, BUOC_GIAO_THAT_BAI, LUONG_GIAO_HANG, LUONG_TAI_QUAY, TT, trangThaiOf } from '../../constants/hoaDon'
 import { formatGio, formatMoney, formatNgay, formatNgayGio } from '../../utils/format'
@@ -143,21 +144,46 @@ const buocTiepTheo = computed(() => timeline.value.find((s) => s.state === 'next
 const daThanhToan = computed(() => Number(props.data?.daThanhToan ?? 0))
 const conPhaiTra = computed(() => Math.max(0, Number(hd.value.thanhTien ?? 0) - daThanhToan.value))
 
-/* ===================== Danh sách sản phẩm: tìm kiếm ===================== */
-// Góp ý 14/11 (video 22:22, [04:25] + [11:47]): bỏ ô "Loại sản phẩm" và "Sắp xếp", chỉ giữ ô tìm kiếm.
+/* ===================== Danh sách sản phẩm: lọc / sắp xếp ===================== */
 
-const filters = reactive({ q: '' })
-const dangLoc = computed(() => !!filters.q.trim())
+const filters = reactive({ q: '', loai: '', sort: 'mac-dinh' })
+
+const loaiSanPham = computed(() => [...new Set(sanPham.value.map((x) => x.tenDanhMuc).filter(Boolean))])
+const dsLoaiLoc = computed(() => [{ value: '', label: 'Tất cả loại' }, ...loaiSanPham.value.map((l) => ({ value: l, label: l }))])
+const DS_SAP_XEP = [
+  { value: 'mac-dinh', label: 'Mặc định' },
+  { value: 'gia-tang', label: 'Đơn giá tăng dần' },
+  { value: 'gia-giam', label: 'Đơn giá giảm dần' },
+  { value: 'sl-giam', label: 'Số lượng nhiều nhất' },
+  { value: 'tien-giam', label: 'Thành tiền cao nhất' },
+  { value: 'ten-az', label: 'Tên A → Z' },
+]
+
+const dangLoc = computed(() => !!filters.q.trim() || !!filters.loai || filters.sort !== 'mac-dinh')
 function datLaiBoLoc() {
   filters.q = ''
+  filters.loai = ''
+  filters.sort = 'mac-dinh'
+}
+
+const SORTERS = {
+  'gia-tang': (a, b) => a.donGia - b.donGia,
+  'gia-giam': (a, b) => b.donGia - a.donGia,
+  'sl-giam': (a, b) => b.soLuong - a.soLuong,
+  'tien-giam': (a, b) => b.thanhTien - a.thanhTien,
+  'ten-az': (a, b) => a.tenSanPham.localeCompare(b.tenSanPham, 'vi'),
 }
 
 const sanPhamHienThi = computed(() => {
   const q = normalizeText(filters.q)
-  if (!q) return sanPham.value
-  return sanPham.value.filter((x) =>
-    normalizeText([x.maSpct, x.tenSanPham, x.tenThuongHieu, x.mauSac, x.trongLuong, x.chuVi].filter(Boolean).join(' ')).includes(q),
-  )
+  const list = sanPham.value.filter((x) => {
+    if (filters.loai && x.tenDanhMuc !== filters.loai) return false
+    if (!q) return true
+    const text = normalizeText([x.maSpct, x.tenSanPham, x.tenThuongHieu, x.mauSac, x.trongLuong, x.chuVi].filter(Boolean).join(' '))
+    return text.includes(q)
+  })
+  const sorter = SORTERS[filters.sort]
+  return sorter ? [...list].sort(sorter) : list
 })
 
 const tongSoLuong = computed(() => sanPham.value.reduce((s, x) => s + (Number(x.soLuong) || 0), 0))
@@ -187,14 +213,6 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
             </div>
           </div>
           <span class="ad-pill" :class="trangThaiHienTai.pill" data-testid="hd-trang-thai">{{ trangThaiHienTai.label }}</span>
-        </div>
-
-        <div v-if="data?.canHoanTien" class="alert alert-warning d-flex align-items-center gap-2 mb-3 mt-3">
-          <i class="bi bi-exclamation-triangle-fill fs-5 text-warning flex-shrink-0"></i>
-          <div>
-            <strong>Khách đã thanh toán {{ money(data.soTienCanHoan) }} nhưng đơn đã bị hủy / hết hàng tồn kho.</strong>
-            <span class="d-block small text-muted">Vui lòng liên hệ khách hàng để chuyển khoản hoàn tiền hoặc tư vấn đổi sang sản phẩm khác.</span>
-          </div>
         </div>
 
         <ol class="hd-timeline" aria-label="Tiến trình đơn hàng">
@@ -425,6 +443,14 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
               <i class="bi bi-search" aria-hidden="true"></i>
               <input id="hd-q" v-model="filters.q" type="search" class="form-control" placeholder="Tên sản phẩm, mã, màu, thông số…">
             </div>
+          </div>
+          <div>
+            <label class="ad-label" for="hd-loai">Loại sản phẩm</label>
+            <Select2 id="hd-loai" v-model="filters.loai" :options="dsLoaiLoc" />
+          </div>
+          <div>
+            <label class="ad-label" for="hd-sort">Sắp xếp</label>
+            <Select2 id="hd-sort" v-model="filters.sort" :options="DS_SAP_XEP" />
           </div>
         </div>
       </div>
@@ -828,7 +854,7 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
 }
 .hd-filter-grid {
   display: grid;
-  grid-template-columns: minmax(0, 460px);
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
 }
 @media (max-width: 767.98px) {

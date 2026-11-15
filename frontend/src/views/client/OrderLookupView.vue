@@ -343,7 +343,7 @@ function traCuuLocal(code, so) {
       </div>
 
       <!-- Kết quả tra cứu: cùng một component với màn Chi tiết hóa đơn admin (cô review 04/11: hai màn y hệt nhau) -->
-      <HoaDonNoiDung v-if="orderResult" :data="orderResult" che-do-khach class="ol-ket-qua" />
+      <HoaDonNoiDung v-if="orderResult" :data="orderResult" che-do-khach class="ol-ket-qua" @tai-lai="taiLaiNgam" />
     </div>
   </div>
 </template>

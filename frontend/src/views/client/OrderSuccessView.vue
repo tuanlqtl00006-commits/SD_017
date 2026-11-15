@@ -19,8 +19,15 @@ const linkXemDon = computed(() =>
 
 // Đơn chọn chuyển khoản VietQR: hiện mã QR (tự điền số tiền + nội dung chuyển khoản = mã đơn)
 const donLuu = computed(() => docDonHang().find((o) => o.maHoaDon === maHoaDon.value) || null)
-const thanhToanQR = computed(() => donLuu.value?.phuongThucThanhToan === 'QR')
-const soTien = computed(() => Math.round(Number(donLuu.value?.tongThanhToan) || 0))
+const donBackend = ref(null)
+const thanhToanQR = computed(() => {
+  if (donLuu.value) return donLuu.value.phuongThucThanhToan === 'QR'
+  return Number(donBackend.value?.idPhuongThucThanhToan) === 2
+})
+const soTien = computed(() => {
+  if (donLuu.value?.tongThanhToan != null) return Math.round(Number(donLuu.value.tongThanhToan) || 0)
+  return Math.round(Number(donBackend.value?.thanhTien) || 0)
+})
 const nganHang = ref(null)
 const qrLoi = ref(false)
 const daThanhToan = ref(false)
@@ -99,6 +106,7 @@ const daHuyHetHang = ref(false)
 // Hỏi backend mỗi 4 giây xem ngân hàng đã báo tiền vào chưa
 async function kiemTraThanhToan() {
   try {
+<<<<<<< HEAD
     // Tra cứu công khai bắt buộc SĐT đặt hàng (lấy từ đơn vừa lưu trên máy)
     const d = (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: maHoaDon.value, sdt: donLuu.value?.sdtKhachHang } })).data
     if (d?.hanChuyenKhoan) batDau.value = new Date(d.hanChuyenKhoan).getTime() - HAN_PHUT * 60000 // mốc theo máy chủ
@@ -111,6 +119,12 @@ async function kiemTraThanhToan() {
     } else if (d?.trangThai === 0 || d?.trangThai === 7) {
       // Đơn bị hủy do hết hàng hoặc đang hoàn tiền
       daHuyHetHang.value = true
+=======
+    const params = { maHoaDon: maHoaDon.value }
+    if (donLuu.value?.sdtKhachHang) params.sdt = donLuu.value.sdtKhachHang
+    const d = (await api.get('/cua-hang/tra-cuu', { params })).data
+    if (d?.daThanhToanDu) {
+>>>>>>> 42dfc10 (sửa bán hàng online)
       daThanhToan.value = true
       clearInterval(timer)
     }
@@ -124,6 +138,13 @@ onBeforeUnmount(() => {
 })
 
 onMounted(async () => {
+  if (!donLuu.value && maHoaDon.value) {
+    try {
+      donBackend.value = (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: maHoaDon.value } })).data
+    } catch {
+      // bỏ qua
+    }
+  }
   if (!thanhToanQR.value) return
   dongHo = setInterval(() => (bayGio.value = Date.now()), 1000)
   kiemTraThanhToan()
@@ -180,14 +201,17 @@ onMounted(async () => {
                 <span class="text-muted small">Mã đơn hàng:</span>
                 <strong class="fs-5 text-primary">{{ maHoaDon }}</strong>
               </div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">Trạng thái:</span>
                 <span class="badge" :class="daHuyHetHang ? 'bg-danger text-white' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyHetHang ? 'Đã hủy do hết hàng' : choThanhToan ? (hetHan ? 'Đơn treo - chưa thanh toán' : 'Chờ thanh toán') : 'Chờ xác nhận' }}</span>
               </div>
+<<<<<<< HEAD
               <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">Thời gian giao dự kiến:</span>
                 <span class="fw-semibold">{{ daHuyHetHang ? 'Đang chờ xử lý' : '2 - 3 ngày làm việc' }}</span>
               </div>
+=======
+>>>>>>> 42dfc10 (sửa bán hàng online)
             </div>
 
             <!-- Thanh toán chuyển khoản VietQR -->
@@ -217,6 +241,11 @@ onMounted(async () => {
                 <div class="osv-qr-info">
                   <div class="osv-row"><span>Số tiền</span><strong class="text-danger">{{ formatMoney(soTien) }}</strong></div>
                   <div class="osv-row"><span>Nội dung</span><strong class="text-primary">{{ maHoaDon }}</strong></div>
+                </div>
+                <div class="mt-3 text-center">
+                  <a :href="linkTrenMayNay" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Mở trang xác nhận chuyển tiền (Demo)
+                  </a>
                 </div>
               </template>
               <div v-else-if="qrLoi" class="small text-danger py-3">

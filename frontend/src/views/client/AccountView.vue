@@ -667,6 +667,13 @@ async function xacNhanHuyDon() {
                     <strong>{{ formatMoney(order.tongThanhToan) }}</strong>
                   </div>
                   <div class="d-flex gap-2">
+                    <RouterLink
+                      v-if="(order.phuongThucThanhToan === 'QR' || order.idPhuongThucThanhToan === 2) && order.trangThai === 0"
+                      :to="{ path: '/shop/tra-cuu', query: { ma: order.maHoaDon } }"
+                      class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark"
+                    >
+                      <i class="bi bi-qr-code-scan me-1"></i>Thanh toán QR
+                    </RouterLink>
                     <button
                       v-if="order.trangThai === 0"
                       type="button"

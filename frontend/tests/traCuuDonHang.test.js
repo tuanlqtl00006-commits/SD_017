@@ -241,7 +241,6 @@ describe('Màn đơn hàng của khách đồng bộ với Chi tiết hóa đơn
     expect(buoc.map((b) => b.attributes('data-buoc'))).toEqual(['1', '2', '3'])
     expect(buoc[1].classes()).toContain('is-current')
     expect(buoc[2].classes()).toContain('is-next')
-    expect(w.find('[data-testid="hd-goi-y-buoc-sau"]').text()).toContain('Chờ giao hàng')
     expect(w.find('[data-chuyen]').exists()).toBe(false) // khách không có nút đổi trạng thái
   })
 
@@ -254,7 +253,6 @@ describe('Màn đơn hàng của khách đồng bộ với Chi tiết hóa đơn
       await flushPromises()
       await tra(w, 'HD971')
       expect(w.find('.hd-step.is-next').exists()).toBe(false)
-      expect(w.find('[data-testid="hd-goi-y-buoc-sau"]').exists()).toBe(false)
     }
   })
 
@@ -275,5 +273,21 @@ describe('Màn đơn hàng của khách đồng bộ với Chi tiết hóa đơn
     expect(dong('phi-van-chuyen')).toContain('Miễn phí')
     expect(dong('tong-thanh-toan')).toContain('Tổng thanh toán')
     expect(dong('tong-thanh-toan')).toContain('3.384.000')
+  })
+
+  it('đơn thanh toán QR chưa trả tiền thì hiển thị nút tiếp tục thanh toán', async () => {
+    auth.trangThai = reactive({ nguoiDung: { vaiTro: 'KHACH_HANG' } })
+    const ct = {
+      ...CHI_TIET,
+      hoaDon: { ...CHI_TIET.hoaDon, idPhuongThucThanhToan: 2, phuongThucThanhToan: 'Chuyển khoản (VietQR)', trangThai: 1 },
+      daThanhToan: 0,
+    }
+    api.get.mockResolvedValue({ data: { ...DON, chiTietDon: ct } })
+    const w = mount(OrderLookupView)
+    await flushPromises()
+    await tra(w, 'HD971')
+    const nut = w.find('[data-testid="hd-tiep-tuc-thanh-toan"]')
+    expect(nut.exists()).toBe(true)
+    expect(nut.text()).toContain('Tiếp tục thanh toán')
   })
 })
