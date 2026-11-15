@@ -34,7 +34,7 @@ const bannerList = computed(() => {
       tag: 'FOOTSTYLE',
       title: 'VỢT CẦU LÔNG CHÍNH HÃNG',
       subtitle: `${ds.length || ''} MẪU VỢT ĐANG BÁN`.trim(),
-      desc: tenHang ? `Vợt cầu lông chính hãng từ ${tenHang}. Chọn theo trọng lượng, chu vi cán và điểm cân bằng hợp với lối chơi của bạn.` : 'Vợt cầu lông chính hãng, chọn theo trọng lượng, chu vi cán và điểm cân bằng.',
+      desc: tenHang ? `Vợt cầu lông chính hãng từ ${tenHang}, bảo hành uy tín và hỗ trợ tư vấn chọn vợt phù hợp.` : 'Vợt cầu lông chính hãng từ các thương hiệu hàng đầu, đa dạng thông số phù hợp mọi lối chơi.',
       btnText: 'MUA SẮM NGAY',
       btnLink: '/shop/san-pham',
       bgGradient: 'linear-gradient(135deg, #0b1b3f 0%, #1e3a8a 100%)',
@@ -48,7 +48,7 @@ const bannerList = computed(() => {
       desc: 'Các mẫu vợt trong danh mục Vợt cầu lông người mới, phù hợp người mới tập và học sinh.',
       btnText: 'XEM DANH MỤC',
       btnLink: '/shop/san-pham?danhMuc=2',
-      bgGradient: 'linear-gradient(135deg, #062a3a 0%, #0e5a73 100%)',
+      bgGradient: 'linear-gradient(135deg, #0c2340 0%, #0369a1 100%)',
       anh: anh(nguoiMoi),
       tenAnh: nguoiMoi?.ten,
     },
@@ -61,7 +61,7 @@ const bannerList = computed(() => {
       desc: 'Giá đã giảm sẵn, không cần nhập mã. Xem thêm phiếu giảm giá đang áp dụng ở trang Ưu đãi.',
       btnText: 'XEM ƯU ĐÃI',
       btnLink: '/shop/uu-dai',
-      bgGradient: 'linear-gradient(135deg, #3b0a1c 0%, #9f1239 100%)',
+      bgGradient: 'linear-gradient(135deg, #0b1b3f 0%, #1d4ed8 55%, #0284c7 100%)',
       anh: anh(giamNhieu),
       tenAnh: giamNhieu?.ten,
     })
@@ -559,17 +559,24 @@ function quickAddToCart(item, event) {
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   align-items: center;
   gap: 32px;
-  min-height: 460px;
-  padding: 56px 72px;
+  height: 470px;
+  min-height: 470px;
+  padding: 48px 68px;
   overflow: hidden;
   color: #fff;
   border-radius: 28px;
-  background: radial-gradient(circle at 78% 40%, rgba(96, 165, 250, 0.45), transparent 55%), var(--hm-nen, #0b1b3f);
+  background: radial-gradient(circle at 78% 40%, rgba(96, 165, 250, 0.4), transparent 55%), var(--hm-nen, #0b1b3f);
   transition: background 0.5s ease;
+}
+.hm-hero-chu {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .hm-hero-tag {
   display: inline-block;
-  margin-bottom: 18px;
+  align-self: flex-start;
+  margin-bottom: 14px;
   padding: 5px 14px;
   font-size: 0.75rem;
   font-weight: 700;
@@ -581,16 +588,16 @@ function quickAddToCart(item, event) {
 }
 .hm-hero-tieu-de {
   margin: 0 0 10px;
-  font-size: clamp(2.2rem, 4.2vw, 3.6rem);
+  font-size: clamp(2rem, 3.4vw, 2.9rem);
   font-weight: 800;
-  line-height: 1.05;
+  line-height: 1.1;
   letter-spacing: -0.02em;
   color: #fff;
   text-transform: uppercase;
 }
 .hm-hero-phu {
-  margin: 0 0 14px;
-  font-size: 0.95rem;
+  margin: 0 0 12px;
+  font-size: 0.92rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #bfdbfe;
@@ -598,10 +605,15 @@ function quickAddToCart(item, event) {
 }
 .hm-hero-mo-ta {
   max-width: 520px;
-  margin: 0 0 28px;
-  font-size: 1rem;
-  line-height: 1.65;
+  margin: 0 0 24px;
+  font-size: 0.95rem;
+  line-height: 1.6;
   color: #dbeafe;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 3.2em;
 }
 .hm-hero-nut {
   display: flex;
@@ -1053,6 +1065,8 @@ function quickAddToCart(item, event) {
   .hm-hero-khung {
     grid-template-columns: minmax(0, 1fr);
     padding: 40px 56px 32px;
+    height: auto;
+    min-height: 420px;
   }
   .hm-hero-anh {
     min-height: 260px;
@@ -1082,6 +1096,8 @@ function quickAddToCart(item, event) {
   .hm-hero-khung {
     padding: 28px 22px 24px;
     border-radius: 22px;
+    height: auto;
+    min-height: auto;
   }
   .hm-mui-ten {
     display: none;
