@@ -106,13 +106,6 @@ function handleSearch() {
   <div class="client-app">
     <!-- Thanh điều hướng một hàng: menu trái, tìm kiếm + giỏ hàng + đăng nhập phải -->
     <div class="vnb-nav-wrapper">
-      <div class="ft-thong-bao" data-testid="dai-thong-bao">
-        <div class="vnb-container ft-thong-bao-noi">
-          <span><i class="bi bi-patch-check"></i> Vợt cầu lông chính hãng</span>
-          <span v-if="caiDatShip.mienPhiBat && caiDatShip.mienPhiTu > 0"><i class="bi bi-truck"></i> Miễn phí vận chuyển đơn từ {{ formatMoney(caiDatShip.mienPhiTu) }}</span>
-          <span class="d-none d-md-inline"><i class="bi bi-arrow-repeat"></i> Đổi trả trong 7 ngày</span>
-        </div>
-      </div>
       <nav class="vnb-header-bar">
         <div class="vnb-container d-flex align-items-center gap-4 flex-nowrap">
           <RouterLink to="/shop" class="d-flex align-items-center text-decoration-none flex-shrink-0">
