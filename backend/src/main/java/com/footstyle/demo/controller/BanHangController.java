@@ -38,6 +38,12 @@ public class BanHangController {
         return service.locSanPham(loc);
     }
 
+    /** Số lượng từng biến thể đang nằm trong đơn online "Chờ xác nhận" (ids=1,2,3). */
+    @GetMapping("/san-pham/dang-cho-online")
+    public Map<Integer, Long> dangChoOnline(@RequestParam(required = false) List<Integer> ids) {
+        return service.dangChoOnline(ids);
+    }
+
     /** Quét mã QR / mã vạch của biến thể. */
     @GetMapping("/san-pham/ma/{ma}")
     public Map<String, Object> timTheoMa(@PathVariable String ma) {

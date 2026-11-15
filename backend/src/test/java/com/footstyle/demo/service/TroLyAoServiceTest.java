@@ -233,7 +233,9 @@ class TroLyAoServiceTest {
         hoaDons.get(0).setSdtNguoiNhan("0243123456");
         assertTrue(troLy.traLoi("đơn HD12 sdt 0243123456", new TroLyAoService.NguCanh("X", "0987654321")).noiDung().contains("Trạng thái"));
         assertTrue(hoi("Đơn HD99").contains("không tìm thấy đơn HD99"));
-        assertTrue(hoi("mình muốn kiểm tra đơn hàng").contains("gửi giúp mình mã đơn"));
+        TroLyAoService.TraLoi hoiDon = troLy.traLoi("mình muốn kiểm tra đơn hàng", null);
+        assertTrue(hoiDon.noiDung().contains("chọn đơn cần tư vấn"), hoiDon.noiDung());
+        assertTrue(hoiDon.goiY().contains(TroLyAoService.GOI_Y_CHON_DON), "khung chat mở danh sách đơn để khách chọn");
     }
 
     @Test
@@ -248,37 +250,28 @@ class TroLyAoServiceTest {
         assertTrue(hoi("có voucher không").contains("chưa có chương trình khuyến mãi"));
     }
 
+    /** Id các thẻ sản phẩm trợ lý gửi kèm câu trả lời (1 Astrox, 2 Nanoflare, 3 Axforce, 4 quả cầu, 5 Thruster hết hàng). */
+    private java.util.List<Integer> the(String cau) {
+        return troLy.traLoi(cau, null).sanPham();
+    }
+
+    // Cô review 14/11 [20:24]: gợi ý sản phẩm trả về từng THẺ (ảnh, tên, giá) bấm được, không phải đoạn chữ dài
     @Test
-    void timSanPham_theoHangGiaLoiChoi() {
-        String duoi3 = hoi("vợt yonex dưới 3 triệu");
-        assertTrue(duoi3.contains("Nanoflare 700"), duoi3);
-        assertTrue(duoi3.contains("2.601.000 ₫"), "giá sau đợt giảm: " + duoi3);
-        assertTrue(duoi3.contains("đang giảm 10%"), duoi3);
-        assertFalse(duoi3.contains("Astrox"), duoi3);
-        assertFalse(duoi3.contains("Lining"), "khác hãng: " + duoi3);
+    void timSanPham_theoHangGiaLoiChoi_traVeTheSanPham() {
+        TroLyAoService.TraLoi duoi3 = troLy.traLoi("vợt yonex dưới 3 triệu", null);
+        assertEquals(java.util.List.of(2), duoi3.sanPham(), "chỉ Nanoflare (sau giảm 2.601.000 ₫), không Astrox, không hãng khác");
+        assertTrue(duoi3.noiDung().contains("Có 1 sản phẩm còn hàng phù hợp (vợt, hãng Yonex, giá dưới 3.000.000 ₫)"), duoi3.noiDung());
+        assertTrue(duoi3.noiDung().contains("Bấm vào thẻ"), duoi3.noiDung());
+        assertFalse(duoi3.noiDung().contains("•"), "không còn danh sách chữ dài: " + duoi3.noiDung());
+        assertTrue(duoi3.noiDungLuu().endsWith("\n" + TroLyAoService.MO_THE_SP + "2]]"), duoi3.noiDungLuu());
 
-        String tanCong = hoi("tư vấn vợt tấn công");
-        assertTrue(tanCong.contains("Astrox 99"), tanCong);
-        assertFalse(tanCong.contains("Thruster"), "hết hàng thì không gợi ý: " + tanCong);
-        assertFalse(tanCong.contains("Nanoflare"), tanCong);
-
-        String moi = hoi("vot cho nguoi moi choi");
-        assertTrue(moi.contains("Axforce 20"), moi);
-        assertTrue(moi.contains("Nanoflare 700"), "thân trung bình cũng hợp người mới: " + moi);
-        assertFalse(moi.contains("Astrox"), moi);
-
-        String bonU = hoi("vợt 4U");
-        assertTrue(bonU.contains("Astrox") && bonU.contains("Nanoflare"), bonU);
-        assertFalse(bonU.contains("Axforce"), "5U: " + bonU);
-
-        String giam = hoi("vợt đang giảm giá");
-        assertTrue(giam.contains("Nanoflare") && !giam.contains("Astrox"), giam);
-
-        String cau = hoi("ống cầu nào tốt");
-        assertTrue(cau.contains("Quả cầu lông Thành Công"), cau);
-        assertFalse(cau.contains("Vợt"), cau);
-
+        assertEquals(java.util.List.of(1), the("tư vấn vợt tấn công"), "Astrox; Thruster hết hàng thì không gợi ý");
+        assertEquals(java.util.Set.of(2, 3), new java.util.HashSet<>(the("vot cho nguoi moi choi")));
+        assertEquals(java.util.Set.of(1, 2), new java.util.HashSet<>(the("vợt 4U")));
+        assertEquals(java.util.List.of(2), the("vợt đang giảm giá"));
+        assertEquals(java.util.List.of(4), the("ống cầu nào tốt"));
         assertTrue(hoi("vợt dưới 500k").contains("Hiện chưa có sản phẩm còn hàng phù hợp (vợt, giá dưới 500.000 ₫)"));
+        assertTrue(the("vợt dưới 500k").isEmpty());
     }
 
     @Test
@@ -291,6 +284,7 @@ class TroLyAoServiceTest {
         assertTrue(het.contains("hết hàng") && het.contains("tạm hết hàng"), het);
         String nano = hoi("nanoflare 700 giá bao nhiêu");
         assertTrue(nano.contains("2.601.000 ₫ (giảm 10% từ 2.890.000 ₫)"), nano);
+        assertEquals(java.util.List.of(2), the("nanoflare 700 giá bao nhiêu"), "kèm thẻ của đúng mẫu đó");
     }
 
     @Test
@@ -329,8 +323,8 @@ class TroLyAoServiceTest {
         // Đang tắt miễn phí theo giá trị đơn: chỉ nói phí theo tỉnh, không còn câu "30.000 - 35.000 ₫ tùy đơn vị"
         String tat = hoi("phí ship bao nhiêu vậy shop");
         assertTrue(tat.contains("Giao Hàng Nhanh"), tat);
-        assertTrue(tat.contains("Hà Nội miễn phí"), tat);
-        assertTrue(tat.contains("từ 25.000 ₫ đến 55.000 ₫ tùy tỉnh"), tat);
+        assertTrue(tat.contains("Hà Nội 25.000 ₫ (phường) / 30.000 ₫ (xã)"), tat);
+        assertTrue(tat.contains("đến 55.000 ₫ tùy tỉnh"), tat);
         assertFalse(tat.contains("30.000 - 35.000"), tat);
         assertFalse(tat.contains("được miễn phí vận chuyển"), tat);
         // Quản lý bật miễn phí cho đơn từ 2.000.000 ₫: trợ lý nói đúng mức đang cài đặt

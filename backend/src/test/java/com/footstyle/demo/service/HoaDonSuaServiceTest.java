@@ -1,12 +1,14 @@
 package com.footstyle.demo.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.footstyle.demo.KhoGia;
 import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.entity.HoaDonChiTiet;
+import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.LichSuHoaDon;
 import com.footstyle.demo.entity.LichSuThanhToan;
 import com.footstyle.demo.entity.SanPham;
@@ -40,6 +42,8 @@ class HoaDonSuaServiceTest {
     private final List<LichSuThanhToan> thanhToan = new ArrayList<>();
     private final List<LichSuHoaDon> lichSu = new ArrayList<>();
     private final List<SanPhamChiTiet> bienThes = new ArrayList<>();
+    /** id phiếu đã được trả lại lượt (giamLuotDung). */
+    private final List<Integer> phieuTraLuot = new ArrayList<>();
     private final Map<Long, Double> phanTramDot = new HashMap<>();
     private final SanPhamChiTiet cau; // 250.000
     private final SanPhamChiTiet vot; // 1.200.000
@@ -66,6 +70,7 @@ class HoaDonSuaServiceTest {
 
         HoaDonRepository hdRepo = KhoGia.tao(HoaDonRepository.class, (t, a) -> switch (t) {
             case "findById" -> Integer.valueOf(1).equals(a[0]) ? Optional.of(hd) : Optional.empty();
+            case "findFirstByMaHoaDonIgnoreCase" -> "HD01".equalsIgnoreCase(String.valueOf(a[0])) ? Optional.of(hd) : Optional.empty();
             case "save" -> a[0];
             case "findTenPhuongThucThanhToan" -> "Chuyển khoản ngân hàng";
             default -> KhoGia.KHONG_CO;
@@ -112,8 +117,14 @@ class HoaDonSuaServiceTest {
         });
         HoaDonService hoaDonService = new HoaDonService(hdRepo, ctRepo, lsRepo, ttRepo,
                 KhoGia.tao(HinhAnhSanPhamRepository.class, (t, a) -> "findByTrangThaiOrderByLaAnhChinhDescIdAsc".equals(t) ? List.of() : KhoGia.KHONG_CO), spctRepo,
-                KhoGia.khongDung(PhieuGiamGiaRepository.class),
-                KhoGia.khongDung(PhieuGiamGiaKhachHangRepository.class));
+                KhoGia.tao(PhieuGiamGiaRepository.class, (t, a) -> {
+                    if ("giamLuotDung".equals(t)) {
+                        phieuTraLuot.add((Integer) a[0]);
+                        return 1;
+                    }
+                    return KhoGia.KHONG_CO;
+                }),
+                KhoGia.tao(PhieuGiamGiaKhachHangRepository.class, (t, a) -> "findByIdKhachHang".equals(t) ? List.of() : KhoGia.KHONG_CO));
         GiamGiaApDungService giam = new GiamGiaApDungService(null) {
             @Override
             public Map<Long, Double> phanTramTheoBienThe(LocalDateTime thoiDiem) {
@@ -174,7 +185,7 @@ class HoaDonSuaServiceTest {
                 new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 1, 1)));
         assertEquals(2, dong.size(), "dòng cũ giữ giá lúc đặt 250.000, dòng mới theo giá 200.000");
         assertEquals(0, BigDecimal.valueOf(200_000).compareTo(dong.get(1).getDonGia()));
-        assertEquals(0, BigDecimal.valueOf(700_000).compareTo(hd.getThanhTien()), "700.000, giao Hà Nội miễn phí ship");
+        assertEquals(0, BigDecimal.valueOf(725_000).compareTo(hd.getThanhTien()), "700.000 + 25.000 giao trong Hà Nội");
         assertTrue(lichSu.get(0).getMoTa().contains("tách dòng mới"));
         ApiException e = assertThrows(ApiException.class, () -> service.suaDon(1, sua("Số 99 Lê Lợi, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1))));
         assertEquals("DA_SUA_DON", e.getCode());
@@ -184,13 +195,13 @@ class HoaDonSuaServiceTest {
     void khachDaTraTruoc_bonSanPham_ghiHoanPhi() {
         daChuyenKhoan(530_000);
         Map<String, Object> kq = service.suaDon(1, sua("Số 99 Lê Lợi, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1)));
-        assertEquals(0, BigDecimal.valueOf(250_000).compareTo(hd.getThanhTien()), "250.000, giao Hà Nội miễn phí ship");
+        assertEquals(0, BigDecimal.valueOf(275_000).compareTo(hd.getThanhTien()), "250.000 + 25.000 giao trong Hà Nội");
         assertEquals(2, thanhToan.size());
-        assertEquals(0, BigDecimal.valueOf(-280_000).compareTo(thanhToan.get(1).getSoTien()), "hoàn lại 530.000 - 250.000");
+        assertEquals(0, BigDecimal.valueOf(-255_000).compareTo(thanhToan.get(1).getSoTien()), "hoàn lại 530.000 - 275.000");
         assertEquals("Số 99 Lê Lợi, Hà Đông, Hà Nội", hd.getDiaChiGiaoHang());
         @SuppressWarnings("unchecked")
         Map<String, Object> ketQua = (Map<String, Object>) kq.get("ketQuaSua");
-        assertEquals(280_000L, ketQua.get("hoanPhi"));
+        assertEquals(255_000L, ketQua.get("hoanPhi"));
     }
 
     @Test
@@ -217,10 +228,10 @@ class HoaDonSuaServiceTest {
         daChuyenKhoan(530_000);
         service.suaDon(1, sua("Số 16 Trần Phú, Hà Đông, Hà Nội",
                 new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 2, 1)));
-        assertEquals(0, BigDecimal.ZERO.compareTo(hd.getPhiVanChuyen()), "giao Hà Nội miễn phí giao hàng");
-        assertEquals(0, BigDecimal.valueOf(1_700_000).compareTo(hd.getThanhTien()));
+        assertEquals(0, BigDecimal.valueOf(25_000).compareTo(hd.getPhiVanChuyen()), "giao trong Hà Nội: 25.000");
+        assertEquals(0, BigDecimal.valueOf(1_725_000).compareTo(hd.getThanhTien()));
         assertEquals(1, thanhToan.size(), "phụ phí thu khi giao hàng, chưa ghi thanh toán");
-        assertTrue(lichSu.get(0).getMoTa().contains("Phụ phí 1.170.000 ₫"));
+        assertTrue(lichSu.get(0).getMoTa().contains("Phụ phí 1.195.000 ₫"));
     }
 
     @Test
@@ -266,9 +277,174 @@ class HoaDonSuaServiceTest {
                 "trước được miễn phí nhờ đạt ngưỡng, bớt hàng tụt dưới ngưỡng: tính lại theo tỉnh");
         assertEquals(PhiVanChuyenTinh.PHI_MAC_DINH, service.phiSauKhiSua("Số 15 Trần Phú, khu phố 3", "Số 15 Trần Phú, khu phố 3", 500_000L, 900_000L, 0L),
                 "tụt dưới ngưỡng mà không nhận ra tỉnh: phí mặc định");
-        assertEquals(0L, service.phiSauKhiSua(haNoi, haNoi, 500_000L, 900_000L, 0L), "Hà Nội vẫn miễn phí");
+        assertEquals(25_000L, service.phiSauKhiSua(haNoi, haNoi, 500_000L, 900_000L, 0L), "tụt dưới ngưỡng, giao trong Hà Nội: 25.000");
         assertEquals(30_000L, service.phiSauKhiSua(hcm, hcm, 400_000L, 500_000L, 30_000L), "trước và sau đều dưới ngưỡng: giữ phí nhân viên đã nhập");
         service.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(false, 700_000L));
         assertEquals(30_000L, service.phiSauKhiSua(haNoi, haNoi, 900_000L, 500_000L, 30_000L), "đang tắt miễn phí theo giá trị đơn: như cũ");
+    }
+
+    /** Thư "tạm hết hàng" đã gửi: [email, mã đơn, các món thiếu, số tiền đã chuyển khoản]. */
+    private final List<Object[]> thuHetHang = new ArrayList<>();
+
+    private void ganMailVaKhach() {
+        KhachHang kh = new KhachHang();
+        kh.setEmail("lan@gmail.com");
+        hd.setKhachHang(kh);
+        service.setMailService(new MailService(new MailServiceTest.NoiCap(null), "", "", "", "FootStyle", "") {
+            @Override
+            public void guiThongBaoHetHang(String hoTen, String email, String maHoaDon, List<String> monThieu, String daChuyenKhoan) {
+                thuHetHang.add(new Object[] {email, maHoaDon, monThieu, daChuyenKhoan});
+            }
+        });
+    }
+
+    // Góp ý 14/11 (video 22:22 [12:42–14:03]): đơn online mà quầy vừa bán hết thì không hủy, giữ đơn và gửi thư chăm sóc khách.
+    @Test
+    void tienChuyenKhoanVeLucHetHang_khongHuyDon_ghiTien_guiThuChamSocKhach() {
+        ganMailVaKhach();
+        cau.setSoLuongTon(1); // đơn cần 2
+        String kq = service.ghiNhanChuyenKhoanTuDong("HD01", 530_000, "FT-HH-1", "HD01");
+        assertEquals(HoaDon.CHO_XAC_NHAN, hd.getTrangThai(), "đơn giữ Chờ xác nhận, không bị hủy");
+        assertEquals(1, cau.getSoLuongTon(), "chưa trừ kho");
+        assertEquals(1, thanhToan.size());
+        assertEquals(0, BigDecimal.valueOf(530_000).compareTo(thanhToan.get(0).getSoTien()));
+        assertTrue(lichSu.stream().anyMatch(l -> HoaDonSuaService.HANH_DONG_BAO_HET_HANG.equals(l.getHanhDong())));
+        assertTrue(lichSu.stream().noneMatch(l -> "Đã hủy".equals(l.getHanhDong())));
+        assertEquals(1, thuHetHang.size());
+        assertEquals("lan@gmail.com", thuHetHang.get(0)[0]);
+        assertTrue(String.valueOf(thuHetHang.get(0)[2]).contains("SP07-TRANG"));
+        assertTrue(kq.contains("không hủy"), kq);
+        // ngân hàng gửi lại cùng giao dịch: không ghi trùng, không gửi thêm thư
+        service.ghiNhanChuyenKhoanTuDong("HD01", 530_000, "FT-HH-1", "HD01");
+        assertEquals(1, thanhToan.size());
+        assertEquals(1, thuHetHang.size());
+    }
+
+    @Test
+    void nhanVienBaoHetHang_guiThu_ghiLichSu_donVanChoXacNhan_duHangThiBaoLoi() {
+        ganMailVaKhach();
+        assertThrows(ApiException.class, () -> service.baoHetHang(1), "đơn còn đủ hàng thì không gửi");
+        assertEquals(0, thuHetHang.size());
+        cau.setSoLuongTon(0);
+        service.baoHetHang(1);
+        assertEquals(HoaDon.CHO_XAC_NHAN, hd.getTrangThai());
+        assertEquals(1, thuHetHang.size());
+        assertEquals(null, thuHetHang.get(0)[3], "chưa chuyển khoản");
+        LichSuHoaDon ls = lichSu.get(lichSu.size() - 1);
+        assertEquals(HoaDonSuaService.HANH_DONG_BAO_HET_HANG, ls.getHanhDong());
+        assertTrue(ls.getMoTa().contains("lan@gmail.com"), ls.getMoTa());
+        hd.setTrangThai(HoaDon.DA_XAC_NHAN);
+        assertThrows(ApiException.class, () -> service.baoHetHang(1), "chỉ đơn Chờ xác nhận");
+    }
+
+    // Góp ý 14/11: tách "Sửa thông tin giao hàng" khỏi "Chỉnh sửa đơn"; nhân viên và khách đều đổi được, mỗi đơn 1 lần
+    private HoaDonSuaService.SuaGiaoHangRequest giao(String phuong, String tinh, String lyDo) {
+        return new HoaDonSuaService.SuaGiaoHangRequest("Trần Văn Hùng", "0912 345 678", "Số 8 Lê Duẩn", phuong, tinh, lyDo);
+    }
+
+    @Test
+    void nhanVienSuaGiaoHang_tinhLaiPhiTheoNoiMoi_ghiLichSu_chiMotLan() {
+        service.suaThongTinGiaoHang(1, giao("Phường Bến Nghé", "Thành phố Hồ Chí Minh", "Khách gọi đổi địa chỉ"));
+        assertEquals("Số 8 Lê Duẩn, Phường Bến Nghé, Thành phố Hồ Chí Minh", hd.getDiaChiGiaoHang());
+        assertEquals("Trần Văn Hùng", hd.getHoTenNguoiNhan());
+        assertEquals("0912345678", hd.getSdtNguoiNhan());
+        assertEquals(0, BigDecimal.valueOf(50_000).compareTo(hd.getPhiVanChuyen()), "TP Hồ Chí Minh 50.000");
+        assertEquals(0, BigDecimal.valueOf(550_000).compareTo(hd.getThanhTien()));
+        assertEquals(1, dong.size(), "sản phẩm giữ nguyên");
+        assertEquals(2, dong.get(0).getSoLuong());
+        LichSuHoaDon ls = lichSu.get(lichSu.size() - 1);
+        assertEquals(HoaDonSuaService.HANH_DONG_SUA_GIAO, ls.getHanhDong());
+        assertTrue(ls.getMoTa().contains("trước: Nguyễn Thị Lan"), ls.getMoTa());
+        assertTrue(ls.getMoTa().contains("Phí giao hàng 30.000 ₫ → 50.000 ₫"), ls.getMoTa());
+        ApiException e = assertThrows(ApiException.class, () -> service.suaThongTinGiaoHang(1, giao("Xã Sóc Sơn", "Thành phố Hà Nội", "Đổi lần 2")));
+        assertEquals("DA_SUA_GIAO_HANG", e.getCode());
+        // vẫn còn "Chỉnh sửa đơn" (sản phẩm) riêng
+        service.suaDon(1, new HoaDonSuaService.SuaDonRequest("Trần Văn Hùng", "0912345678", hd.getDiaChiGiaoHang(),
+                List.of(new HoaDonSuaService.DongSua(1, 1, 1)), "Khách bớt 1 ống cầu"));
+        assertEquals(1, dong.get(0).getSoLuong());
+    }
+
+    @Test
+    void khachSuaGiaoHang_khongCanLyDo_daTraTruoc_thiHoanPhanChenh() {
+        daChuyenKhoan(530_000);
+        service.khachSuaThongTinGiaoHang(1, giao("Phường Hà Đông", "Thành phố Hà Nội", null));
+        assertEquals(0, BigDecimal.valueOf(25_000).compareTo(hd.getPhiVanChuyen()), "Hà Nội, phường 25.000");
+        assertEquals(0, BigDecimal.valueOf(525_000).compareTo(hd.getThanhTien()));
+        assertEquals(0, BigDecimal.valueOf(-5_000).compareTo(thanhToan.get(thanhToan.size() - 1).getSoTien()), "hoàn 5.000 đã trả dư");
+        assertEquals("Khách hàng", lichSu.get(lichSu.size() - 1).getNguoiThaoTac());
+    }
+
+    @Test
+    void suaGiaoHang_kiemTraDuLieu_vaTrangThai() {
+        LoiTruong loi = new LoiTruong(assertThrows(ApiException.class, () -> service.suaThongTinGiaoHang(1,
+                new HoaDonSuaService.SuaGiaoHangRequest(" ", "123", "", "", "", ""))));
+        assertTrue(loi.co("hoTenNguoiNhan") && loi.co("sdtNguoiNhan") && loi.co("tinhThanh") && loi.co("phuongXa") && loi.co("diaChiCuThe") && loi.co("lyDo"));
+        assertThrows(ApiException.class, () -> service.suaThongTinGiaoHang(1,
+                new HoaDonSuaService.SuaGiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 15 Trần Phú", "Hà Đông", "Hà Nội", "x")), "chưa đổi gì");
+        hd.setTrangThai(HoaDon.DANG_GIAO);
+        assertThrows(ApiException.class, () -> service.suaThongTinGiaoHang(1, giao("Phường Bến Nghé", "Thành phố Hồ Chí Minh", "x")));
+    }
+
+    /** Đọc lỗi theo trường của ApiException (form). */
+    private record LoiTruong(ApiException e) {
+        boolean co(String truong) {
+            return e.getLoiTheoTruong() != null && e.getLoiTheoTruong().containsKey(truong);
+        }
+    }
+
+    /* ---------------- việc còn lại 15/11 ---------------- */
+
+    // Cô review 14/11 [30:53] "tại sao lại là đã xác nhận?": tiền về chỉ ghi đã thanh toán, nhân viên mới xác nhận đơn
+    @Test
+    void tienChuyenKhoanVeDu_chiGhiDaThanhToan_khongTuXacNhan_khongTruKho() {
+        String kq = service.ghiNhanChuyenKhoanTuDong("HD01", 530_000, "FT-OK-1", "HD01");
+        assertEquals(HoaDon.CHO_XAC_NHAN, hd.getTrangThai(), "vẫn Chờ xác nhận");
+        assertEquals(10, cau.getSoLuongTon(), "chưa trừ kho");
+        assertEquals(1, thanhToan.size());
+        assertTrue(lichSu.stream().anyMatch(l -> "Xác nhận thanh toán".equals(l.getHanhDong())));
+        assertTrue(lichSu.stream().noneMatch(l -> "Đã xác nhận".equals(l.getHanhDong())), "không còn dòng HỆ THỐNG tự xác nhận");
+        assertTrue(kq.contains("Đã ghi nhận"), kq);
+    }
+
+    // Ghi chú 28/10: sửa đơn làm đơn dưới mức tối thiểu thì bỏ phiếu VÀ trả lại lượt phiếu (như khi hủy đơn)
+    @Test
+    void suaDonDuoiMucToiThieu_boPhieu_traLaiLuot() {
+        com.footstyle.demo.entity.PhieuGiamGia p = new com.footstyle.demo.entity.PhieuGiamGia();
+        p.setId(77);
+        p.setMaPhieu("PGG77");
+        p.setLoaiGiam(2);
+        p.setGiaTriGiam(50_000L);
+        p.setGiaTriDonHangToiThieu(400_000L);
+        hd.setPhieuGiamGia(p);
+        hd.setSoTienGiam(BigDecimal.valueOf(50_000));
+        hd.setThanhTien(BigDecimal.valueOf(480_000));
+        service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1)));
+        assertNull(hd.getPhieuGiamGia());
+        assertEquals(List.of(77), phieuTraLuot, "trả lại 1 lượt phiếu PGG77");
+        assertTrue(lichSu.get(lichSu.size() - 1).getMoTa().contains("Trả lại lượt phiếu PGG77"), lichSu.get(lichSu.size() - 1).getMoTa());
+    }
+
+    // Cô test case khó 14/11 [08:21]: xác nhận đã hoàn tiền thì khách nhận được email
+    @Test
+    void xacNhanHoanTien_guiThuDaHoanTienChoKhach() {
+        List<String[]> thu = new ArrayList<>();
+        KhachHang kh = new KhachHang();
+        kh.setEmail("lan@gmail.com");
+        hd.setKhachHang(kh);
+        service.setMailService(new MailService(new MailServiceTest.NoiCap(null), "", "", "", "FootStyle", "") {
+            @Override
+            public void guiDaHoanTien(String hoTen, String email, String maHoaDon, String soTien, String maGiaoDich) {
+                thu.add(new String[] {email, maHoaDon, soTien, maGiaoDich});
+            }
+        });
+        daChuyenKhoan(530_000);
+        hd.setTrangThai(HoaDon.DA_HUY);
+        service.xacNhanHoanTien(1, new HoaDonSuaService.XacNhanThanhToanRequest("FT-HOAN-9"));
+        assertEquals(HoaDon.HOAN_TIEN, hd.getTrangThai());
+        assertEquals(1, thu.size());
+        assertEquals("lan@gmail.com", thu.get(0)[0]);
+        assertEquals("530.000 ₫", thu.get(0)[2]);
+        assertEquals("FT-HOAN-9", thu.get(0)[3]);
+        assertTrue(lichSu.get(lichSu.size() - 1).getMoTa().contains("Đã gửi thư báo tới lan@gmail.com"));
     }
 }

@@ -6,6 +6,7 @@ import api from '../services/api'
 import BaseModal from './common/BaseModal.vue'
 import HoaDonNoiDung from './hoaDon/HoaDonNoiDung.vue'
 import SuaDonModal from './hoaDon/SuaDonModal.vue'
+import SuaGiaoHangModal from './hoaDon/SuaGiaoHangModal.vue'
 import { useToast } from '../composables/useToast'
 import { useAuth } from '../composables/useAuth'
 import { useChatChuaDoc } from '../composables/useChatChuaDoc'
@@ -60,7 +61,7 @@ async function taiNgam() {
 }
 useAutoRefresh(taiNgam, 3000, {
   chuDe: ['hoa-don'],
-  coTheTai: () => !action.open && !action.saving && !moSuaDon.value && !showLichSu.value && !showQrModal.value && !dangXacNhanTt.value,
+  coTheTai: () => !action.open && !action.saving && !moSuaDon.value && !moSuaGiao.value && !showLichSu.value && !showQrModal.value,
 })
 
 const hd = computed(() => data.value?.hoaDon ?? {})
@@ -215,23 +216,19 @@ const showLichSu = ref(false)
 
 /* ===================== Sửa đơn online 1 lần, xác nhận chuyển khoản ===================== */
 const moSuaDon = ref(false)
+// Sửa thông tin giao hàng (tách khỏi Chỉnh sửa đơn, mỗi đơn 1 lần)
+const moSuaGiao = ref(false)
+function daSuaGiao(d) {
+  moSuaGiao.value = false
+  setData(d)
+  toast.success('Đã cập nhật thông tin giao hàng.')
+}
 function daSuaDon(d) {
   moSuaDon.value = false
   setData(d)
 }
-const dangXacNhanTt = ref(false)
-async function xacNhanChuyenKhoan() {
-  if (dangXacNhanTt.value) return
-  dangXacNhanTt.value = true
-  try {
-    setData((await api.post(`/hoa-don/${idHoaDon}/xac-nhan-thanh-toan`, {})).data)
-    toast.success('Đã ghi nhận khách chuyển khoản.')
-  } catch (e) {
-    toast.error(e.message || 'Không xác nhận được thanh toán.')
-  } finally {
-    dangXacNhanTt.value = false
-  }
-}
+// Góp ý 14/11 (video 22:22 [04:52]): bỏ nút "Xác nhận đã nhận chuyển khoản". Tiền chuyển khoản do hệ thống tự ghi nhận (VietQR / giả lập);
+// quá 5 phút chưa nhận tiền thì đơn là "đơn treo", khách đổi được sang COD ở trang đặt hàng thành công.
 
 const dangXacNhanHoan = ref(false)
 const moXacNhanHoan = ref(false)
@@ -249,6 +246,20 @@ async function xacNhanHoanTien() {
     toast.error(e.message || 'Không xác nhận được hoàn tiền.')
   } finally {
     dangXacNhanHoan.value = false
+  }
+}
+// Đơn online tạm hết hàng (quầy vừa bán hết): gửi thư chăm sóc khách, đơn KHÔNG hủy (góp ý 14/11, video 22:22 [12:42–14:03])
+const dangBaoHetHang = ref(false)
+async function baoHetHang() {
+  if (dangBaoHetHang.value) return
+  dangBaoHetHang.value = true
+  try {
+    setData((await api.post(`/hoa-don/${idHoaDon}/bao-het-hang`)).data)
+    toast.success('Đã gửi thư báo hết hàng cho khách. Đơn vẫn giữ ở Chờ xác nhận.')
+  } catch (e) {
+    toast.error(e.message || 'Không gửi được thư báo hết hàng.')
+  } finally {
+    dangBaoHetHang.value = false
   }
 }
 const showQrModal = ref(false)
@@ -312,11 +323,17 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
           >
             <i class="bi" :class="n.icon" aria-hidden="true"></i> {{ n.text }}
           </button>
+          <button v-if="hd.duocSuaGiaoHang" type="button" class="ad-btn" data-testid="hd-sua-giao-hang" @click="moSuaGiao = true">
+            <i class="bi bi-geo-alt" aria-hidden="true"></i> Sửa thông tin giao hàng
+          </button>
           <button v-if="hd.duocChinhSua" type="button" class="ad-btn" data-testid="hd-sua-don" @click="moSuaDon = true">
             <i class="bi bi-pencil-square" aria-hidden="true"></i> Chỉnh sửa đơn
           </button>
-          <button v-if="data.duocXacNhanThanhToan" type="button" class="ad-btn" data-testid="hd-xac-nhan-ck" :disabled="dangXacNhanTt" @click="xacNhanChuyenKhoan">
-            <i class="bi bi-bank" aria-hidden="true"></i> Xác nhận đã nhận chuyển khoản
+          <p v-if="data.donTreo" class="hd-khoa w-100 mb-0" role="note" data-testid="hd-don-treo">
+            <i class="bi bi-hourglass-bottom" aria-hidden="true"></i> Đơn treo: quá 5 phút khách chưa chuyển khoản. Chờ tiền về hoặc khách đổi sang thanh toán khi nhận hàng.
+          </p>
+          <button v-if="data.duocBaoHetHang" type="button" class="ad-btn btn-warning text-dark fw-medium" data-testid="hd-bao-het-hang" :disabled="dangBaoHetHang" @click="baoHetHang">
+            <i class="bi bi-envelope-exclamation" aria-hidden="true"></i> Báo hết hàng cho khách
           </button>
           <button v-if="data.duocXacNhanHoanTien" type="button" class="ad-btn btn-warning text-dark fw-medium" data-testid="hd-xac-nhan-hoan-tien" :disabled="dangXacNhanHoan" @click="moXacNhanHoan = true">
             <i class="bi bi-cash-stack" aria-hidden="true"></i> Xác nhận đã hoàn tiền
@@ -338,6 +355,7 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
     </template>
 
     <SuaDonModal v-if="moSuaDon && data" :data="data" @close="moSuaDon = false" @saved="daSuaDon" />
+    <SuaGiaoHangModal v-if="moSuaGiao && data" :data="data" :url="`/hoa-don/${idHoaDon}/sua-giao-hang`" @close="moSuaGiao = false" @saved="daSuaGiao" />
 
     <!-- Hộp thoại: lịch sử thao tác -->
     <BaseModal v-if="showLichSu" title="Lịch sử thao tác" size="lg" @close="showLichSu = false">

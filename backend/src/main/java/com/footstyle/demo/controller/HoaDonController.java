@@ -80,11 +80,23 @@ public class HoaDonController {
         return hoaDonSuaService.suaDon(id, req);
     }
 
+    /** Đổi người nhận / SĐT / địa chỉ giao (mỗi đơn 1 lần, trước khi giao cho đơn vị vận chuyển) -> tính lại phí ship. */
+    @PutMapping("/{id}/sua-giao-hang")
+    public Map<String, Object> suaGiaoHang(@PathVariable Integer id, @RequestBody(required = false) HoaDonSuaService.SuaGiaoHangRequest req) {
+        return hoaDonSuaService.suaThongTinGiaoHang(id, req);
+    }
+
     /** Đơn online chuyển khoản: xác nhận đã nhận tiền của khách. */
     @PostMapping("/{id}/xac-nhan-thanh-toan")
     public Map<String, Object> xacNhanThanhToan(@PathVariable Integer id,
                                                 @RequestBody(required = false) HoaDonSuaService.XacNhanThanhToanRequest req) {
         return hoaDonSuaService.xacNhanThanhToan(id, req);
+    }
+
+    /** Đơn online tạm hết hàng: gửi thư chăm sóc khách (đổi sản phẩm / chờ hàng / hủy), đơn giữ Chờ xác nhận. */
+    @PostMapping("/{id}/bao-het-hang")
+    public Map<String, Object> baoHetHang(@PathVariable Integer id) {
+        return hoaDonSuaService.baoHetHang(id);
     }
 
     /** Đơn đã hủy có tiền của khách: nhân viên xác nhận đã hoàn trả tiền cho khách. */

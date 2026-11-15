@@ -3,11 +3,19 @@ import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import QRCode from 'qrcode'
 import api from '../../services/api'
-import { docDonHang } from '../../utils/donHangLocal'
+import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
 import { formatMoney } from '../../utils/format'
+import { layPhien } from '../../services/phien'
 
 const route = useRoute()
 const maHoaDon = computed(() => route.query.ma || 'HD0000')
+// Khách đã đăng nhập xem đơn trong "Đơn hàng của tôi"; khách vãng lai mới sang trang Tra cứu (cô review 14/11)
+const laKhachDangNhap = computed(() => layPhien()?.nguoiDung?.vaiTro === 'KHACH_HANG')
+const linkXemDon = computed(() =>
+  laKhachDangNhap.value
+    ? { path: '/shop/tai-khoan', query: { tab: 'orders', don: maHoaDon.value } }
+    : { path: '/shop/tra-cuu', query: { ma: maHoaDon.value } },
+)
 
 // Đơn chọn chuyển khoản VietQR: hiện mã QR (tự điền số tiền + nội dung chuyển khoản = mã đơn)
 const donLuu = computed(() => docDonHang().find((o) => o.maHoaDon === maHoaDon.value) || null)
@@ -16,8 +24,39 @@ const soTien = computed(() => Math.round(Number(donLuu.value?.tongThanhToan) || 
 const nganHang = ref(null)
 const qrLoi = ref(false)
 const daThanhToan = ref(false)
-const choThanhToan = computed(() => thanhToanQR.value && !daThanhToan.value)
+// Góp ý 14/11 (video 22:22 [04:52–08:06]): mã QR có hạn 5 phút; quá hạn chưa nhận tiền thì đơn tạm treo, khách đổi được sang COD
+const HAN_PHUT = 5
+const batDau = ref(donLuu.value?.ngayTao ? new Date(donLuu.value.ngayTao).getTime() : Date.now())
+const bayGio = ref(Date.now())
+const conLaiMs = computed(() => Math.max(0, batDau.value + HAN_PHUT * 60000 - bayGio.value))
+const hetHan = computed(() => conLaiMs.value === 0)
+const conLaiText = computed(() => {
+  const giay = Math.ceil(conLaiMs.value / 1000)
+  return `${String(Math.floor(giay / 60)).padStart(2, '0')}:${String(giay % 60).padStart(2, '0')}`
+})
+const daDoiCod = ref(false)
+const dangDoiCod = ref(false)
+const loiDoiCod = ref('')
+const choThanhToan = computed(() => thanhToanQR.value && !daThanhToan.value && !daDoiCod.value)
 let timer = null
+let dongHo = null
+
+async function doiSangCod() {
+  if (dangDoiCod.value) return
+  dangDoiCod.value = true
+  loiDoiCod.value = ''
+  try {
+    await api.post(`/cua-hang/don-hang/${encodeURIComponent(maHoaDon.value)}/doi-sang-cod`, { sdt: donLuu.value?.sdtKhachHang })
+    daDoiCod.value = true
+    clearInterval(timer)
+    clearInterval(dongHo)
+    ghiDonHang(docDonHang().map((o) => (o.maHoaDon === maHoaDon.value ? { ...o, phuongThucThanhToan: 'COD' } : o)))
+  } catch (e) {
+    loiDoiCod.value = e?.message || 'Không đổi được cách thanh toán. Vui lòng liên hệ cửa hàng.'
+  } finally {
+    dangDoiCod.value = false
+  }
+}
 const daSaoChep = ref('')
 // Chế độ giả lập (demo đồ án): QR trỏ tới trang "ngân hàng giả", bấm xác nhận là coi như đã chuyển tiền
 const giaLap = ref(false)
@@ -62,7 +101,11 @@ async function kiemTraThanhToan() {
   try {
     // Tra cứu công khai bắt buộc SĐT đặt hàng (lấy từ đơn vừa lưu trên máy)
     const d = (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: maHoaDon.value, sdt: donLuu.value?.sdtKhachHang } })).data
-    if (d?.daThanhToanDu) {
+    if (d?.hanChuyenKhoan) batDau.value = new Date(d.hanChuyenKhoan).getTime() - HAN_PHUT * 60000 // mốc theo máy chủ
+    if (d?.idPhuongThucThanhToan === 1) {
+      daDoiCod.value = true // đã đổi sang COD (ở tab khác / lần trước)
+      clearInterval(timer)
+    } else if (d?.daThanhToanDu) {
       daThanhToan.value = true
       clearInterval(timer)
     } else if (d?.trangThai === 0 || d?.trangThai === 7) {
@@ -75,10 +118,14 @@ async function kiemTraThanhToan() {
     // mất kết nối tạm thời: lần sau thử lại
   }
 }
-onBeforeUnmount(() => clearInterval(timer))
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  clearInterval(dongHo)
+})
 
 onMounted(async () => {
   if (!thanhToanQR.value) return
+  dongHo = setInterval(() => (bayGio.value = Date.now()), 1000)
   kiemTraThanhToan()
   timer = setInterval(kiemTraThanhToan, 4000)
   try {
@@ -115,7 +162,7 @@ onMounted(async () => {
               </div>
             </div>
 
-            <h3 class="fw-bold text-dark mb-2">{{ daHuyHetHang ? 'Sản phẩm đã hết hàng' : choThanhToan ? 'Đơn hàng đang chờ thanh toán' : daThanhToan ? 'Thanh toán thành công!' : 'Đặt Hàng Thành Công!' }}</h3>
+            <h3 class="fw-bold text-dark mb-2">{{ daHuyHetHang ? 'Sản phẩm đã hết hàng' : choThanhToan ? (hetHan ? 'Đơn hàng đang tạm treo' : 'Đơn hàng đang chờ thanh toán') : daThanhToan ? 'Thanh toán thành công!' : 'Đặt Hàng Thành Công!' }}</h3>
             <p class="text-muted mb-4">
               <template v-if="daHuyHetHang">
                 Hệ thống đã nhận thanh toán, tuy nhiên sản phẩm trong đơn vừa hết hàng do đơn hàng khác thanh toán trước.
@@ -135,7 +182,7 @@ onMounted(async () => {
               </div>
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="text-muted small">Trạng thái:</span>
-                <span class="badge" :class="daHuyHetHang ? 'bg-danger text-white' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyHetHang ? 'Đã hủy do hết hàng' : choThanhToan ? 'Chờ thanh toán' : 'Chờ xác nhận' }}</span>
+                <span class="badge" :class="daHuyHetHang ? 'bg-danger text-white' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyHetHang ? 'Đã hủy do hết hàng' : choThanhToan ? (hetHan ? 'Đơn treo - chưa thanh toán' : 'Chờ thanh toán') : 'Chờ xác nhận' }}</span>
               </div>
               <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">Thời gian giao dự kiến:</span>
@@ -151,7 +198,19 @@ onMounted(async () => {
               </p>
             </div>
             <div v-else-if="daThanhToan" class="alert alert-success text-start mb-4"><i class="bi bi-check-circle-fill me-2"></i>Hệ thống đã nhận được <strong>{{ formatMoney(soTien) }}</strong> cho đơn này. Cửa hàng sẽ sớm xác nhận và chuẩn bị giao hàng.</div>
+            <div v-else-if="daDoiCod" class="alert alert-success text-start mb-4" data-testid="osv-da-doi-cod">
+              <i class="bi bi-check-circle-fill me-2"></i>Đơn đã chuyển sang <strong>thanh toán khi nhận hàng (COD)</strong>. Bạn trả {{ formatMoney(soTien) }} cho nhân viên giao hàng.
+            </div>
+            <div v-else-if="thanhToanQR && hetHan" class="osv-treo mb-4" data-testid="osv-het-han">
+              <div class="fw-bold mb-1"><i class="bi bi-hourglass-bottom me-2"></i>Đã quá {{ HAN_PHUT }} phút, cửa hàng chưa nhận được tiền</div>
+              <p class="small mb-3">Đơn đang tạm treo. Nếu bạn đã chuyển khoản, vui lòng chờ hệ thống cập nhật. Chưa chuyển thì có thể đổi sang trả tiền khi nhận hàng.</p>
+              <button type="button" class="btn btn-primary rounded-pill px-4 fw-semibold" :disabled="dangDoiCod" data-testid="osv-doi-cod" @click="doiSangCod">
+                <span v-if="dangDoiCod" class="spinner-border spinner-border-sm me-1"></span> Đổi sang thanh toán khi nhận hàng (COD)
+              </button>
+              <p v-if="loiDoiCod" class="text-danger small mt-2 mb-0">{{ loiDoiCod }}</p>
+            </div>
             <div v-else-if="thanhToanQR" class="osv-qr mb-4">
+              <div class="osv-dem" data-testid="osv-dem-nguoc"><i class="bi bi-clock me-1"></i>Mã QR còn hiệu lực <strong>{{ conLaiText }}</strong></div>
               <div class="osv-qr-title"><i class="bi bi-qr-code-scan me-2"></i>Quét mã để thanh toán</div>
               <template v-if="giaLap">
                 <img :src="qrGiaLap" alt="Mã QR thanh toán giả lập" class="osv-qr-img" />
@@ -202,11 +261,8 @@ onMounted(async () => {
             </p>
 
             <div class="d-flex flex-wrap justify-content-center gap-3">
-              <RouterLink
-                :to="{ path: '/shop/tra-cuu', query: { ma: maHoaDon } }"
-                class="btn btn-outline-primary rounded-pill px-4 fw-semibold"
-              >
-                <i class="bi bi-search me-1"></i> Tra cứu đơn hàng này
+              <RouterLink :to="linkXemDon" class="btn btn-outline-primary rounded-pill px-4 fw-semibold" data-testid="osv-xem-don">
+                <i class="bi bi-search me-1"></i> {{ laKhachDangNhap ? 'Xem đơn trong Đơn hàng của tôi' : 'Tra cứu đơn hàng này' }}
               </RouterLink>
 
               <RouterLink
@@ -284,5 +340,22 @@ onMounted(async () => {
   margin: 0.6rem 0 0;
   font-size: 0.76rem;
   color: #9aa3b2;
+}
+.osv-dem {
+  display: inline-block;
+  margin-bottom: 0.6rem;
+  padding: 0.25rem 0.8rem;
+  font-size: 0.85rem;
+  color: #a56a00;
+  background: #fffbeb;
+  border-radius: 999px;
+}
+.osv-treo {
+  padding: 1rem 1.1rem;
+  text-align: left;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 16px;
 }
 </style>

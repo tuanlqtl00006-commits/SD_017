@@ -45,6 +45,11 @@ public class HoTroKhachController {
         return service.gapNhanVien(id, req);
     }
 
+    @PostMapping("/{id}/danh-gia")
+    public Map<String, Object> danhGia(@PathVariable Integer id, @RequestBody(required = false) HoTroService.DanhGiaRequest req) {
+        return service.danhGia(id, req);
+    }
+
     @PostMapping("/{id}/ket-thuc")
     public Map<String, Object> ketThuc(@PathVariable Integer id, @RequestBody(required = false) HoTroService.MaRequest req) {
         return service.ketThucKhach(id, req);

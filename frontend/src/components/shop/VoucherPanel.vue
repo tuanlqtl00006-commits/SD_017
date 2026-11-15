@@ -3,7 +3,7 @@
 // Dùng chung giỏ hàng (cart store) với trang giỏ hàng, nên mã áp ở đâu cũng được giữ lại.
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import api from '../../services/api'
-import { layPhien } from '../../services/phien'
+import { laKhachDangNhap, phieuChoGio, phieuTotNhat, taiPhieuChoKhach } from '../../services/phieuKhachService'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
 
@@ -16,47 +16,8 @@ const dangKiemTra = ref(false)
 const moDanhSach = ref(false)
 const comboRef = ref(null)
 
-function laKhachDangNhap() {
-  return layPhien()?.nguoiDung?.vaiTro === 'KHACH_HANG'
-}
-
 async function taiDanhSachMa() {
-  const tong = Math.round(cartStore.subTotal)
-  if (laKhachDangNhap()) {
-    try {
-      danhSachMa.value = (await api.get('/khach/phieu-giam-gia', { params: { tongTien: tong } })).data
-      return
-    } catch {
-      // rơi xuống lấy mã công khai bên dưới
-    }
-  }
-  // Chưa đăng nhập khách hàng: chỉ xem được các mã công khai
-  try {
-    const ds = (await api.get('/cua-hang/phieu-giam-gia', { params: { tongTien: tong } })).data
-    danhSachMa.value = ds.map((p) => ({
-      ma: p.maPhieu,
-      ten: p.tenPhieu,
-      caNhan: false,
-      loaiGiam: p.hinhThucGiam,
-      giaTriGiam: p.giaTriGiam,
-      giamToiDa: p.giamToiDa,
-      donToiThieu: p.donToiThieu,
-      dungDuoc: p.duDieuKien,
-      lyDo: p.duDieuKien ? null : `Cần mua thêm ${formatMoney(p.donToiThieu - tong)}`,
-      soTienGiam: p.duDieuKien ? tinhGiamTam(p, tong) : 0,
-    }))
-  } catch {
-    danhSachMa.value = []
-  }
-}
-
-function tinhGiamTam(p, tong) {
-  const gt = Number(p.giaTriGiam) || 0
-  if (p.hinhThucGiam === 1) {
-    const giam = Math.floor((tong * Math.min(100, gt)) / 100)
-    return p.giamToiDa ? Math.min(giam, Number(p.giamToiDa)) : giam
-  }
-  return Math.min(gt, tong)
+  danhSachMa.value = await taiPhieuChoKhach(Math.round(cartStore.subTotal))
 }
 
 // 1.500.000 -> 1,5tr ; 200.000 -> 200k
@@ -82,13 +43,7 @@ const maLoc = computed(() => {
   const q = voucherCode.value.trim().toUpperCase()
   return q ? maSapXep.value.filter((v) => v.ma.toUpperCase().includes(q)) : maSapXep.value
 })
-const maTotNhat = computed(() => {
-  let tot = null
-  for (const v of danhSachMa.value) {
-    if (v.dungDuoc && Number(v.soTienGiam) > 0 && (!tot || Number(v.soTienGiam) > Number(tot.soTienGiam))) tot = v
-  }
-  return tot
-})
+const maTotNhat = computed(() => phieuTotNhat(danhSachMa.value))
 // Banner gợi ý chỉ hiện khi mã tốt nhất CHƯA được áp dụng
 const goiY = computed(() => (maTotNhat.value && cartStore.appliedVoucher?.ma !== maTotNhat.value.ma ? maTotNhat.value : null))
 
@@ -111,14 +66,7 @@ async function apDung(maNhap) {
       const found = (
         await api.get(`/khach/phieu-giam-gia/${encodeURIComponent(code)}`, { params: { tongTien: Math.round(cartStore.subTotal) } })
       ).data
-      cartStore.setVoucher({
-        ma: found.ma,
-        ten: found.ten,
-        loaiGiam: found.loaiGiam,
-        giaTriGiam: found.giaTriGiam,
-        giamToiDa: found.giamToiDa,
-        donToiThieu: found.donToiThieu,
-      })
+      cartStore.setVoucher(phieuChoGio(found))
     } else {
       await taiDanhSachMa()
       const found = danhSachMa.value.find((v) => String(v.ma || '').toUpperCase() === code)
@@ -130,14 +78,7 @@ async function apDung(maNhap) {
         loi.value = found.lyDo || 'Đơn hàng chưa đủ điều kiện áp dụng mã này.'
         return
       }
-      cartStore.setVoucher({
-        ma: found.ma,
-        ten: found.ten,
-        loaiGiam: found.loaiGiam,
-        giaTriGiam: found.giaTriGiam,
-        giamToiDa: found.giamToiDa,
-        donToiThieu: found.donToiThieu,
-      })
+      cartStore.setVoucher(phieuChoGio(found))
     }
     voucherCode.value = ''
     moDanhSach.value = false
@@ -188,6 +129,16 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
     </div>
 
     <!-- Ô nhập / chọn mã -->
+    <!-- Mã đang áp dụng: hiện ngay trên ô mã (cô review 14/11 [26:19]), bấm X để bỏ -->
+    <div v-if="cartStore.appliedVoucher" class="vp-applied" data-testid="vp-dang-ap">
+      <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+      <span class="vp-applied-text">
+        Đang áp dụng mã <strong>{{ cartStore.appliedVoucher.ma }}</strong>
+        <template v-if="cartStore.discountAmount > 0"> · giảm {{ formatMoney(cartStore.discountAmount) }}</template>
+      </span>
+      <button type="button" class="vp-x" title="Bỏ mã này" aria-label="Bỏ mã giảm giá đang áp" @click="boMa"><i class="bi bi-x-lg"></i></button>
+    </div>
+
     <div ref="comboRef" class="vp-combo">
       <div class="vp-input">
         <input

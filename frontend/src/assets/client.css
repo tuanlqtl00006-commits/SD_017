@@ -1357,3 +1357,90 @@
 }
 .vnb-suggest-all:hover { background: #eff6ff; }
 .vnb-suggest-empty { padding: 18px 16px; text-align: center; font-size: 0.86rem; color: #64748b; }
+
+/* ===== Màn hình nhỏ (điện thoại / máy tính bảng): thanh điều hướng không còn tràn ngang =====
+   Trước đây thanh menu luôn một hàng (flex-nowrap) nên ở 375px trang rộng tới hơn 1.200px, phải kéo ngang. */
+@media (max-width: 991px) {
+  .vnb-header-bar .vnb-container {
+    flex-wrap: wrap !important;
+    gap: 8px 12px !important;
+  }
+  .vnb-header-bar .vnb-logo {
+    height: 56px;
+  }
+  .vnb-header-bar .vnb-nav-list {
+    order: 3;
+    flex: 1 0 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    gap: 2px;
+    scrollbar-width: none;
+  }
+  .vnb-header-bar .vnb-nav-link {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+  .vnb-header-bar .vnb-search-wrap {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+  .vnb-header-bar .vnb-search-input {
+    width: 100%;
+  }
+}
+@media (max-width: 575px) {
+  .vnb-header-bar .vnb-search-wrap {
+    order: 4;
+    flex: 1 0 100%;
+    width: 100%;
+    max-width: none;
+  }
+  .vnb-header-bar .vnb-logo {
+    height: 46px;
+  }
+}
+
+/* ===== Một màu xanh chủ đạo cho mọi nút / chữ "primary" ở trang khách =====
+   Bootstrap mặc định là #0d6efd, lệch với màu xanh của trang chủ / thanh menu (#1d4ed8): giỏ hàng, thanh toán, tài khoản
+   trước đây mỗi chỗ một sắc xanh. */
+.client-app {
+  --bs-primary: #1d4ed8;
+  --bs-primary-rgb: 29, 78, 216;
+  --bs-link-color: #1d4ed8;
+  --bs-link-color-rgb: 29, 78, 216;
+  --bs-link-hover-color: #1e40af;
+  --bs-link-hover-color-rgb: 30, 64, 175;
+  --bs-primary-bg-subtle: #eff6ff;
+  --bs-primary-border-subtle: #bfdbfe;
+  --bs-primary-text-emphasis: #1e3a8a;
+}
+.client-app .btn-primary {
+  --bs-btn-bg: #1d4ed8;
+  --bs-btn-border-color: #1d4ed8;
+  --bs-btn-hover-bg: #1e40af;
+  --bs-btn-hover-border-color: #1e40af;
+  --bs-btn-active-bg: #1e3a8a;
+  --bs-btn-active-border-color: #1e3a8a;
+  --bs-btn-disabled-bg: #1d4ed8;
+  --bs-btn-disabled-border-color: #1d4ed8;
+  --bs-btn-focus-shadow-rgb: 29, 78, 216;
+}
+.client-app .btn-outline-primary {
+  --bs-btn-color: #1d4ed8;
+  --bs-btn-border-color: #1d4ed8;
+  --bs-btn-hover-bg: #1d4ed8;
+  --bs-btn-hover-border-color: #1d4ed8;
+  --bs-btn-active-bg: #1e40af;
+  --bs-btn-active-border-color: #1e40af;
+  --bs-btn-focus-shadow-rgb: 29, 78, 216;
+}
+.client-app .form-control:focus,
+.client-app .form-select:focus,
+.client-app .form-check-input:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 0.2rem rgba(29, 78, 216, 0.15);
+}
+.client-app .form-check-input:checked {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+}

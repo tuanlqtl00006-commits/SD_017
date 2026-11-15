@@ -1,7 +1,7 @@
 <script setup>
 // Bán hàng tại quầy: mỗi tab là một hóa đơn chờ (lưu ở CSDL, thêm sản phẩm là trừ kho).
 // Tự chọn phiếu giảm nhiều nhất, có giao hàng, thanh toán tiền mặt / chuyển khoản / kết hợp. Phải vào ca mới bán được.
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import QRCode from 'qrcode'
 import api from '../../services/api'
@@ -204,6 +204,7 @@ async function themSanPham(sp, loiQuet, soLuong = 1) {
     if (!id) return
     thayHoaDon((await api.post(`/ban-hang/hoa-don-cho/${id}/san-pham`, { idBienThe: sp.id, soLuong })).data)
     timSp.value?.taiLai()
+    toast.success(`Đã thêm ${soLuong} × ${sp.tenSanPham || sp.ten || sp.maSpct || 'sản phẩm'} vào ${hdServer.value.maHoaDon || 'hóa đơn'}.`)
   } catch (e) {
     baoLoiCho(e, 'Không thêm được sản phẩm.')
   } finally {
@@ -226,6 +227,7 @@ async function doiSl(d, giaTri) {
   try {
     thayHoaDon((await api.put(`/ban-hang/hoa-don-cho/${hdServer.value.id}/chi-tiet/${d.id}`, { soLuong: sl })).data)
     timSp.value?.taiLai()
+    toast.success(`Đã đổi số lượng ${d.ten} thành ${sl}.`)
   } catch (e) {
     baoLoiCho(e, 'Không đổi được số lượng.')
   } finally {
@@ -326,7 +328,7 @@ async function chonKhach(k) {
 
 /* ===================== Giao hàng ===================== */
 // Phí giao theo tỉnh nhận: chưa chọn tỉnh thì null (chưa tính), đổi tỉnh là tính lại
-const phiShipTheoTinh = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(hd.value.p.nguoiNhan.tinhThanh) : 0))
+const phiShipTheoTinh = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(hd.value.p.nguoiNhan.tinhThanh, hd.value.p.nguoiNhan.phuongXa) : 0))
 // Ô phí vận chuyển: tự điền theo tỉnh, nhân viên sửa thì lấy số đã nhập; xóa trống ô thì về phí theo tỉnh
 const coPhiNhapTay = computed(() => hd.value.p.giaoHang && hd.value.p.phiShipTay && hd.value.p.phiShip !== '')
 // Đơn đạt ngưỡng miễn phí vận chuyển (Cài đặt → Cài đặt free ship): không thu phí giao, ô phí thay bằng chữ "Miễn phí" (máy chủ cũng tính 0)
@@ -421,16 +423,6 @@ function batGiaoHang(bat) {
   if (bat) dienNguoiNhan()
 }
 
-function xoaTrangDiaChiGiao() {
-  const n = hd.value.p.nguoiNhan
-  Object.assign(n, { hoTen: '', sdt: '', tinhThanh: '', phuongXa: '', diaChiCuThe: '' })
-  hd.value.p.phiShip = ''
-  hd.value.p.phiShipTay = false
-  daChamGiao.value = false
-  daChamSdtNhan.value = false
-  toast.success('Đã xóa trắng thông tin giao hàng.')
-}
-
 /* Sổ địa chỉ khách hàng trong bán hàng tại quầy: chọn địa chỉ cũ hoặc thêm địa chỉ mới */
 const modalDiaChiKhach = ref({ open: false, moThemMoi: false })
 
@@ -440,14 +432,6 @@ function moChonDiaChiCu() {
     return
   }
   modalDiaChiKhach.value = { open: true, moThemMoi: false }
-}
-
-function moThemDiaChiMoi() {
-  if (!hd.value.khach) {
-    toast.error('Vui lòng chọn khách hàng thành viên trước để thêm địa chỉ mới vào sổ địa chỉ.')
-    return
-  }
-  modalDiaChiKhach.value = { open: true, moThemMoi: true }
 }
 
 function apDungDiaChiGiao(dc) {
@@ -673,12 +657,94 @@ async function tuCapNhatGia() {
 }
 watch(() => [hdServer.value.id, hdServer.value.coGiaDoi, dangGui.value, xacNhan.value], tuCapNhatGia, { immediate: true })
 
-function moXacNhan() {
+/* ----- Bấm Thanh toán: kiểm tra lại phiếu giảm giá (cô test case khó 14/11 [00:42–02:57], nhóm góp ý) -----
+ * Phiếu có thể đổi giữa lúc đang bán (quản lý sửa / hết hạn / có phiếu mới). KHÔNG tự đổi phiếu sau lưng nhân viên:
+ * tải lại danh sách phiếu, có thay đổi thì hỏi "có muốn áp dụng không"; chọn không thì thanh toán như cũ (không phiếu nếu phiếu cũ hết hiệu lực). */
+const hoiPhieu = ref(null) // { dong: [chuỗi], nut: [{ nhan, chinh, lam }] }
+const dangKiemPhieu = ref(false)
+
+async function kiemTraPhieuTruocKhiThanhToan() {
+  const h = hd.value
+  let moi
+  try {
+    moi = (await api.get('/ban-hang/phieu-giam-gia', { params: { idKhachHang: h.khach?.id, tongTien: tienHang.value } })).data
+  } catch {
+    return null // mất kết nối: máy chủ vẫn kiểm tra lại phiếu khi thanh toán
+  }
+  if (!Array.isArray(moi)) return null
+  const dangDung = phieuChon.value && giamPhieu.value ? phieuChon.value : null
+  const conDung = dangDung ? moi.find((x) => x.ma === dangDung.ma && x.apDungDuoc) : null
+  const tot = moi.find((x) => x.apDungDuoc) ?? null
+  const giamCu = dangDung ? Number(dangDung.soTienGiam) : 0
+  const giamNay = conDung ? Number(conDung.soTienGiam) : 0
+  const apDung = (ma) => () => {
+    phieus.value = moi
+    h.p.maPhieu = ma
+  }
+  if (dangDung && !conDung) {
+    const lyDo = moi.find((x) => x.ma === dangDung.ma)?.lyDo || 'phiếu đã hết hạn, hết lượt hoặc bị tắt'
+    if (tot) {
+      return {
+        dong: [`Phiếu ${dangDung.ma} không còn dùng được (${lyDo}).`, `Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Có muốn áp dụng không?`],
+        nut: [{ nhan: `Áp dụng ${tot.ma}`, chinh: true, lam: apDung(tot.ma) }, { nhan: 'Thanh toán không dùng phiếu', lam: apDung('') }],
+      }
+    }
+    return {
+      dong: [`Phiếu ${dangDung.ma} không còn dùng được (${lyDo}). Đơn sẽ thanh toán không dùng phiếu.`],
+      nut: [{ nhan: 'Thanh toán không dùng phiếu', chinh: true, lam: apDung('') }],
+    }
+  }
+  if (tot && tot.ma !== dangDung?.ma && Number(tot.soTienGiam) > giamNay) {
+    return {
+      dong: [
+        dangDung
+          ? `Vừa có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)}, nhiều hơn phiếu ${dangDung.ma} đang áp (${formatMoney(giamNay)}). Có muốn áp dụng không?`
+          : `Vừa có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Có muốn áp dụng không?`,
+      ],
+      nut: [
+        { nhan: `Áp dụng ${tot.ma}`, chinh: true, lam: apDung(tot.ma) },
+        { nhan: dangDung ? `Giữ phiếu ${dangDung.ma}` : 'Không dùng phiếu', lam: apDung(dangDung?.ma ?? '') },
+      ],
+    }
+  }
+  if (dangDung && giamNay !== giamCu) {
+    return {
+      dong: [`Phiếu ${dangDung.ma} vừa đổi mức giảm: ${formatMoney(giamCu)} → ${formatMoney(giamNay)}. Báo lại khách số tiền mới.`],
+      nut: [{ nhan: 'Tiếp tục thanh toán', chinh: true, lam: apDung(dangDung.ma) }, { nhan: 'Thanh toán không dùng phiếu', lam: apDung('') }],
+    }
+  }
+  phieus.value = moi
+  return null
+}
+
+async function chonTrongHoiPhieu(n) {
+  hoiPhieu.value = null
+  n.lam()
+  await nextTick() // tiền mặt khách đưa tự theo số phải trả mới
+  if (lyDoKhongThanhToan.value) {
+    toast.error(lyDoKhongThanhToan.value)
+    return
+  }
+  xacNhan.value = true // mở hộp xác nhận để nhân viên thấy số tiền theo phiếu vừa chọn
+}
+
+async function moXacNhan() {
   if (hd.value.p.giaoHang) daChamGiao.value = true
   if (lyDoKhongThanhToan.value) {
     toast.error(lyDoKhongThanhToan.value)
     if (canVaoCa.value) moCa.value = true
     return
+  }
+  if (dangKiemPhieu.value) return
+  dangKiemPhieu.value = true
+  try {
+    const hoi = await kiemTraPhieuTruocKhiThanhToan()
+    if (hoi) {
+      hoiPhieu.value = hoi
+      return
+    }
+  } finally {
+    dangKiemPhieu.value = false
   }
   xacNhan.value = true
 }
@@ -1141,6 +1207,14 @@ const soLuongTab = (h) => tongSoLuong(h.items)
     </div>
 
     <!-- Hộp thoại xác nhận thanh toán chuẩn nghiệp vụ POS -->
+    <BaseModal v-if="hoiPhieu" title="Phiếu giảm giá vừa thay đổi" size="md" @close="hoiPhieu = null">
+      <div data-testid="bh-hoi-phieu">
+        <p v-for="(d, i) in hoiPhieu.dong" :key="i" class="bh-hoi-phieu-dong"><i class="bi bi-ticket-perforated" aria-hidden="true"></i> {{ d }}</p>
+        <div class="d-flex flex-wrap justify-content-end gap-2 mt-2">
+          <button v-for="n in hoiPhieu.nut" :key="n.nhan" type="button" class="ad-btn" :class="{ 'ad-btn-primary': n.chinh }" @click="chonTrongHoiPhieu(n)">{{ n.nhan }}</button>
+        </div>
+      </div>
+    </BaseModal>
     <BaseModal v-if="xacNhan" title="Xác nhận thanh toán" size="md" @close="xacNhan = false">
       <div class="bh-xn-modal">
         <!-- Khối hiển thị số tiền thanh toán chính nổi bật -->
@@ -1481,6 +1555,16 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   color: var(--fs-muted, #64748b);
 }
 /* Phiếu đang áp dụng: cùng kiểu với dòng gợi ý "Mua thêm" (cô: hai dòng trình bày giống nhau) */
+.bh-hoi-phieu-dong {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border-radius: 10px;
+}
 .bh-phieu-ap {
   display: flex;
   align-items: center;

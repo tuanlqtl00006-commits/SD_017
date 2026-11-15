@@ -1,5 +1,6 @@
-// Phí vận chuyển theo Tỉnh/Thành phố nhận hàng (cửa hàng ở Hà Nội). PHẢI khớp backend PhiVanChuyenTinh.java.
-//  - Hà Nội: miễn phí, bất kể giá trị đơn.
+// Phí vận chuyển theo nơi nhận hàng (cửa hàng ở Hà Nội). PHẢI khớp backend PhiVanChuyenTinh.java.
+//  - Hà Nội: CÓ tính phí (góp ý 15/11, video 22:22 [14:39–15:55]): giao tới phường 25.000 ₫, tới xã 30.000 ₫;
+//    chưa biết phường/xã thì tính như phường.
 //  - Tỉnh/thành khác: mức phí tùy tỉnh (xa Hà Nội thì phí cao hơn).
 //  - Đơn đạt ngưỡng miễn phí vận chuyển theo giá trị đơn (quản lý cài đặt) thì phí về 0: xem các hàm ở cuối tệp.
 // Danh sách theo 34 tỉnh/thành sau sáp nhập 07/2025 (đúng danh sách khách chọn ở form địa chỉ).
@@ -7,9 +8,11 @@ import { chuanHoaTenDonVi } from './diaChi'
 
 /** Phí khi không nhận ra tên tỉnh (vd địa chỉ cũ ghi tay). */
 export const PHI_MAC_DINH = 35000
+/** Giao trong Hà Nội: tới phường (nội thành) / tới xã (ngoại thành). */
+export const PHI_HA_NOI = { phuong: 25000, xa: 30000 }
 
+/** Bảng phí theo tỉnh (Hà Nội ở dòng riêng: xem BANG_PHI_HIEN_THI). */
 export const NHOM_PHI = [
-  [0, ['Hà Nội']],
   [25000, ['Bắc Ninh', 'Hưng Yên', 'Phú Thọ', 'Thái Nguyên', 'Hải Phòng', 'Ninh Bình']], // lân cận Hà Nội
   [30000, ['Quảng Ninh', 'Lào Cai', 'Tuyên Quang', 'Lạng Sơn', 'Cao Bằng', 'Điện Biên', 'Lai Châu', 'Sơn La']], // miền núi phía Bắc
   [35000, ['Thanh Hóa', 'Nghệ An', 'Hà Tĩnh']], // Bắc Trung Bộ
@@ -23,22 +26,39 @@ export const NHOM_PHI = [
 const khoa = (ten) =>
   chuanHoaTenDonVi(String(ten ?? '').trim().replace(/^tp\.?\s+/i, '')).replace(/[^a-z0-9]/g, '')
 
-export const BANG_PHI_TINH = new Map(NHOM_PHI.flatMap(([phi, ds]) => ds.map((t) => [khoa(t), phi])))
+const KHOA_HA_NOI = khoa('Hà Nội')
+export const BANG_PHI_TINH = new Map([[KHOA_HA_NOI, PHI_HA_NOI.phuong], ...NHOM_PHI.flatMap(([phi, ds]) => ds.map((t) => [khoa(t), phi]))])
+
+/** Các dòng bảng phí để hiện cho khách / quản lý (trang Chính sách, Cài đặt free ship). */
+export const BANG_PHI_HIEN_THI = [
+  { tinh: 'Hà Nội - giao tới phường (nội thành)', phi: PHI_HA_NOI.phuong },
+  { tinh: 'Hà Nội - giao tới xã (ngoại thành)', phi: PHI_HA_NOI.xa },
+  ...NHOM_PHI.map(([phi, ds]) => ({ tinh: ds.join(', '), phi })),
+]
+
+/** "Xã Sóc Sơn" -> true; "Phường Hà Đông", trống -> false. */
+export const laXa = (phuongXa) => /^xa\s/.test(chuanHoaTenDonVi(String(phuongXa ?? '').trim()))
 
 /** Có nhận ra tên tỉnh/thành trong bảng phí không. */
 export const nhanRaTinh = (tinhThanh) => BANG_PHI_TINH.has(khoa(tinhThanh))
 
-/** Phí giao hàng tới tỉnh/thành này; không nhận ra tên thì PHI_MAC_DINH. Chưa chọn tỉnh (trống) trả null (chưa tính được). */
-export function phiVanChuyenTheoTinh(tinhThanh) {
+/**
+ * Phí giao hàng tới tỉnh/thành (và phường/xã, chỉ Hà Nội phân biệt); không nhận ra tỉnh thì PHI_MAC_DINH.
+ * Chưa chọn tỉnh (trống) trả null (chưa tính được).
+ */
+export function phiVanChuyenTheoTinh(tinhThanh, phuongXa = '') {
   if (!String(tinhThanh ?? '').trim()) return null
-  return BANG_PHI_TINH.get(khoa(tinhThanh)) ?? PHI_MAC_DINH
+  const k = khoa(tinhThanh)
+  if (k === KHOA_HA_NOI) return laXa(phuongXa) ? PHI_HA_NOI.xa : PHI_HA_NOI.phuong
+  return BANG_PHI_TINH.get(k) ?? PHI_MAC_DINH
 }
 
-/** Phí theo địa chỉ ghi liền một chuỗi: lấy phần sau dấu phẩy cuối làm tỉnh. Không nhận ra tỉnh thì null (giữ phí cũ). */
+/** Phí theo địa chỉ ghi liền một chuỗi: phần sau dấu phẩy cuối là tỉnh, phần trước đó là phường/xã. Không nhận ra tỉnh thì null (giữ phí cũ). */
 export function phiTheoDiaChi(diaChi) {
   const phan = String(diaChi ?? '').split(',')
   const tinh = phan[phan.length - 1]
-  return nhanRaTinh(tinh) ? phiVanChuyenTheoTinh(tinh) : null
+  const phuong = phan.length >= 2 ? phan[phan.length - 2] : ''
+  return nhanRaTinh(tinh) ? phiVanChuyenTheoTinh(tinh, phuong) : null
 }
 
 /*

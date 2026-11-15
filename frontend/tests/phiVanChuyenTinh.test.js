@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { PHI_MAC_DINH, nhanRaTinh, phiTheoDiaChi, phiVanChuyenTheoTinh } from '../src/utils/phiVanChuyenTinh'
 
 describe('Phí vận chuyển theo tỉnh', () => {
-  it('Hà Nội miễn phí, mọi cách ghi tên', () => {
-    for (const t of ['Hà Nội', 'Thành phố Hà Nội', 'TP. Hà Nội', 'ha noi']) expect(phiVanChuyenTheoTinh(t)).toBe(0)
+  // Góp ý 15/11 (video 22:22 [14:39–15:55]): Hà Nội không miễn phí; phường (nội thành) 25.000, xã (ngoại thành) 30.000
+  it('Hà Nội: phường 25.000, xã 30.000, chưa biết phường/xã thì như phường; mọi cách ghi tên', () => {
+    for (const t of ['Hà Nội', 'Thành phố Hà Nội', 'TP. Hà Nội', 'ha noi']) expect(phiVanChuyenTheoTinh(t)).toBe(25000)
+    expect(phiVanChuyenTheoTinh('Thành phố Hà Nội', 'Phường Hà Đông')).toBe(25000)
+    expect(phiVanChuyenTheoTinh('Thành phố Hà Nội', 'Xã Sóc Sơn')).toBe(30000)
+    expect(phiVanChuyenTheoTinh('Tỉnh Bắc Ninh', 'Xã Yên Phong')).toBe(25000) // tỉnh khác không phân biệt
   })
 
   it('tỉnh khác mất phí, mỗi tỉnh một giá', () => {
@@ -23,7 +27,8 @@ describe('Phí vận chuyển theo tỉnh', () => {
   })
 
   it('phí theo địa chỉ ghi liền: lấy tỉnh ở cuối, không nhận ra thì null', () => {
-    expect(phiTheoDiaChi('Số 15 Trần Phú, Phường Hà Đông, Thành phố Hà Nội')).toBe(0)
+    expect(phiTheoDiaChi('Số 15 Trần Phú, Phường Hà Đông, Thành phố Hà Nội')).toBe(25000)
+    expect(phiTheoDiaChi('Thôn 2, Xã Sóc Sơn, Thành phố Hà Nội')).toBe(30000)
     expect(phiTheoDiaChi('xcv, Phường Bảo Vinh, Thành phố Đồng Nai')).toBe(50000)
     expect(phiTheoDiaChi('Số 15 Trần Phú, khu phố 3')).toBeNull()
     expect(phiTheoDiaChi('')).toBeNull()

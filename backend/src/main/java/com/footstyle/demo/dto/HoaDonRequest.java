@@ -17,5 +17,7 @@ public class HoaDonRequest {
     private BigDecimal doanhThu;
     private LocalDateTime ngayTao;
     private String loaiDon;
+    /** Hình thức mua (cô review 14/11 [11:32]): "Mua tại quầy" / "Giao tận nơi" (bán quầy có giao hàng) / "Đặt online". */
+    private String hinhThucMua;
     private Integer trangThai;
 }

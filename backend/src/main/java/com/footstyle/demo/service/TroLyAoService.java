@@ -41,17 +41,34 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class TroLyAoService {
 
-    /** Câu trả lời: nội dung + có chuyển cho nhân viên không + các câu gợi ý bấm nhanh. */
-    public record TraLoi(String noiDung, boolean chuyenNhanVien, List<String> goiY) {
+    /**
+     * Câu trả lời: nội dung + có chuyển cho nhân viên không + các câu gợi ý bấm nhanh + id sản phẩm hiện thành THẺ (ảnh, tên, giá)
+     * bấm được sang trang chi tiết (cô review 14/11: "trả về từng thẻ sản phẩm", không phải đoạn chữ dài).
+     */
+    public record TraLoi(String noiDung, boolean chuyenNhanVien, List<String> goiY, List<Integer> sanPham) {
+        public TraLoi(String noiDung, boolean chuyenNhanVien, List<String> goiY) {
+            this(noiDung, chuyenNhanVien, goiY, List.of());
+        }
+
+        /** Nội dung lưu vào tin nhắn: thêm dòng "[[SP:12,15]]" ở cuối để khung chat vẽ thẻ sản phẩm (không cần thêm cột CSDL). */
+        public String noiDungLuu() {
+            if (sanPham == null || sanPham.isEmpty()) return noiDung;
+            return noiDung + "\n" + MO_THE_SP + String.join(",", sanPham.stream().map(String::valueOf).toList()) + "]]";
+        }
     }
+
+    /** Đánh dấu danh sách thẻ sản phẩm trong nội dung tin (khớp frontend utils/chat.js tachTheSanPham). */
+    public static final String MO_THE_SP = "[[SP:";
 
     /** Thông tin cuộc chat để trả lời đúng người (tên, SĐT khách đã nhập khi bắt đầu chat). */
     public record NguCanh(String tenKhach, String sdtKhach) {
     }
 
     public static final List<String> GOI_Y_MAC_DINH = List.of("Vợt dưới 3 triệu", "Vợt tấn công", "Khuyến mãi hôm nay",
-            "Kiểm tra đơn hàng", "Gặp nhân viên");
+            "Tư vấn đơn hàng đã đặt", "Gặp nhân viên");
     static final int DO_DAI_TOI_DA = 1900;
+    /** Gợi ý mở hộp chọn đơn hàng của khách (khung chat bắt chữ này để mở danh sách đơn). */
+    public static final String GOI_Y_CHON_DON = "Chọn đơn hàng của tôi";
     private static final DateTimeFormatter NGAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final SanPhamChiTietRepository spctRepo;
@@ -100,7 +117,7 @@ public class TroLyAoService {
         return new TraLoi("Xin chào " + ten + "! Mình là trợ lý ảo của " + tenCuaHang + ". Mình có thể giúp bạn:\n"
                 + "• Tìm vợt, phụ kiện theo hãng, giá, lối chơi (vd: \"vợt Yonex dưới 3 triệu\", \"vợt tấn công 4U\")\n"
                 + "• Xem khuyến mãi, mã giảm giá đang có\n"
-                + "• Kiểm tra đơn hàng (gửi mã đơn, vd: HD12)\n"
+                + "• Tư vấn về đơn hàng đã đặt (bấm \"Tư vấn đơn hàng đã đặt\" để chọn đơn, hoặc gửi mã đơn, vd: HD12)\n"
                 + "• Giải đáp giao hàng, đổi trả, thanh toán\n"
                 + "Cần nói chuyện với nhân viên thì bấm \"Gặp nhân viên\" nhé.", false, GOI_Y_MAC_DINH);
     }
@@ -142,8 +159,8 @@ public class TroLyAoService {
         Matcher m = MA_DON.matcher(t);
         boolean hoiDon = coMot(t, "don hang", "kiem tra don", "tra don", "don cua toi", "tinh trang don", "theo doi don", "ma don", "van don");
         if (!m.find()) {
-            return hoiDon ? new TraLoi("Bạn gửi giúp mình mã đơn hàng (vd: HD12) để mình kiểm tra nhé. Mã đơn có trong tin nhắn / hóa đơn khi đặt hàng.",
-                    false, List.of()) : null;
+            return hoiDon ? new TraLoi("Bạn chọn đơn cần tư vấn trong danh sách đơn của bạn, hoặc gửi mã đơn (vd: HD12) để mình kiểm tra nhé.",
+                    false, List.of(GOI_Y_CHON_DON, "Gặp nhân viên")) : null;
         }
         String maGo = "HD" + m.group(1);
         String ma = MaUtil.dinhDang("HD", Long.parseLong(m.group(1)));
@@ -233,8 +250,8 @@ public class TroLyAoService {
             CaiDatVanChuyenService.CaiDat ship = caiDatVanChuyen.lay();
             return new TraLoi("Cửa hàng giao hàng toàn quốc qua " + BanHangService.DON_VI_VAN_CHUYEN + ":\n"
                     + "• Nội thành Hà Nội 1-2 ngày, tỉnh khác 3-5 ngày\n"
-                    + "• Phí giao hàng: Hà Nội miễn phí; tỉnh / thành khác từ " + tien(PhiVanChuyenTinh.phiThapNhat()) + " đến "
-                    + tien(PhiVanChuyenTinh.phiCaoNhat()) + " tùy tỉnh\n"
+                    + "• Phí giao hàng: Hà Nội " + tien(PhiVanChuyenTinh.PHI_HA_NOI_PHUONG) + " (phường) / " + tien(PhiVanChuyenTinh.PHI_HA_NOI_XA)
+                    + " (xã); tỉnh / thành khác đến " + tien(PhiVanChuyenTinh.phiCaoNhat()) + " tùy tỉnh\n"
                     + (ship.bat() ? "• Đơn có tiền hàng từ " + tien(ship.nguong()) + " được miễn phí vận chuyển\n" : "")
                     + "• Được kiểm tra hàng trước khi nhận, thanh toán khi nhận hàng (COD)", false, List.of("Khuyến mãi hôm nay", "Đổi trả"));
         }
@@ -339,28 +356,14 @@ public class TroLyAoService {
                     + "). Bạn thử nới khoảng giá hoặc hỏi hãng khác, hoặc bấm \"Gặp nhân viên\" để được tư vấn.", false, GOI_Y_MAC_DINH);
         }
         ketQua.sort(loc.dangGiam() ? Comparator.comparingDouble(GoiYSp::phanTram).reversed() : Comparator.<GoiYSp>comparingLong(GoiYSp::giaThapNhat));
+        // Trả lời ngắn + THẺ sản phẩm (ảnh, tên, giá; bấm sang trang chi tiết) thay cho danh sách chữ dài
         StringBuilder sb = new StringBuilder();
-        sb.append(loc.coLoc() ? "Sản phẩm còn hàng phù hợp (" + moTaLoc(loc) + "):\n" : "Một số sản phẩm đang có tại cửa hàng:\n");
-        for (int i = 0; i < Math.min(5, ketQua.size()); i++) {
-            GoiYSp g = ketQua.get(i);
-            SanPham sp = g.sp();
-            sb.append("• ").append(sp.getTenSanPham());
-            List<String> thuocTinh = new ArrayList<>();
-            if (sp.getThuongHieu() != null) thuocTinh.add(sp.getThuongHieu().getTen());
-            if (sp.getDiemCanBang() != null && !NhomDanhMuc.laKhongApDung(sp.getDiemCanBang().getTen())) thuocTinh.add(sp.getDiemCanBang().getTen().toLowerCase(java.util.Locale.ROOT));
-            if (!thuocTinh.isEmpty()) sb.append(" (").append(String.join(", ", thuocTinh)).append(')');
-            sb.append(": ").append(g.giaThapNhat() == g.giaCaoNhat() ? tien(g.giaThapNhat()) : tien(g.giaThapNhat()) + " - " + tien(g.giaCaoNhat()));
-            if (g.phanTram() > 0) sb.append(" (đang giảm ").append(phanTram(g.phanTram())).append(')');
-            List<String> pl = g.phanLoai().stream().filter(x -> !x.isBlank()).toList();
-            if (!pl.isEmpty()) {
-                sb.append(" · ").append(String.join(", ", pl.subList(0, Math.min(3, pl.size()))));
-                if (pl.size() > 3) sb.append("…");
-            }
-            sb.append('\n');
-        }
-        if (ketQua.size() > 5) sb.append("…và ").append(ketQua.size() - 5).append(" sản phẩm khác.\n");
-        sb.append("Bạn muốn xem kỹ mẫu nào cứ gõ tên mẫu đó nhé.");
-        return new TraLoi(sb.toString(), false, List.of("Khuyến mãi hôm nay", "Gặp nhân viên"));
+        int soThe = Math.min(5, ketQua.size());
+        sb.append(loc.coLoc() ? "Có " + ketQua.size() + " sản phẩm còn hàng phù hợp (" + moTaLoc(loc) + ")" : "Một số sản phẩm đang có tại cửa hàng");
+        sb.append(ketQua.size() > soThe ? ", mình gửi " + soThe + " mẫu " + (loc.dangGiam() ? "giảm nhiều nhất" : "giá tốt nhất") + ":" : ":");
+        sb.append("\nBấm vào thẻ để xem chi tiết, hoặc gõ tên mẫu để mình tư vấn kỹ hơn.");
+        List<Integer> the = ketQua.subList(0, soThe).stream().map(g -> g.sp().getId()).toList();
+        return new TraLoi(sb.toString(), false, List.of("Khuyến mãi hôm nay", "Gặp nhân viên"), the);
     }
 
     /** Một sản phẩm gợi ý: khoảng giá (sau đợt giảm) của các biến thể còn hàng khớp bộ lọc. */
@@ -397,9 +400,9 @@ public class TroLyAoService {
             String moTa = sp.getMoTa().trim();
             sb.append(moTa.length() > 300 ? moTa.substring(0, 300) + "…" : moTa).append('\n');
         }
-        sb.append(conHang ? "Bạn muốn đặt mẫu này hay cần tư vấn thêm thì bấm \"Gặp nhân viên\" nhé."
+        sb.append(conHang ? "Bấm vào thẻ để xem và đặt mẫu này, cần tư vấn thêm thì bấm \"Gặp nhân viên\" nhé."
                 : "Mẫu này đang tạm hết hàng, bạn để lại lời nhắn cho nhân viên nhé.");
-        return new TraLoi(sb.toString(), false, List.of("Gặp nhân viên", "Khuyến mãi hôm nay"));
+        return new TraLoi(sb.toString(), false, List.of("Gặp nhân viên", "Khuyến mãi hôm nay"), List.of(sp.getId()));
     }
 
     /**
@@ -581,6 +584,6 @@ public class TroLyAoService {
 
     private static TraLoi cat(TraLoi tl) {
         if (tl.noiDung().length() <= DO_DAI_TOI_DA) return tl;
-        return new TraLoi(tl.noiDung().substring(0, DO_DAI_TOI_DA) + "…", tl.chuyenNhanVien(), tl.goiY());
+        return new TraLoi(tl.noiDung().substring(0, DO_DAI_TOI_DA) + "…", tl.chuyenNhanVien(), tl.goiY(), tl.sanPham());
     }
 }

@@ -176,9 +176,11 @@ async function chepMa(ma) {
   flex-wrap: wrap;
   padding: 1.75rem 2rem;
   color: #fff;
-  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #60a5fa 100%);
+  background: radial-gradient(120% 160% at 85% 15%, #2547b8 0%, #0b1b3f 70%);
+  border-radius: 24px;
 }
 .ud-tieu-de {
+  color: #fff;
   margin: 0 0 0.25rem;
   font-size: 1.7rem;
   font-weight: 800;
@@ -230,7 +232,7 @@ async function chepMa(ma) {
 }
 .ud-luoi {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
   gap: 1rem;
 }
 .ud-phieu,
@@ -301,11 +303,17 @@ async function chepMa(ma) {
 }
 .ud-phieu-chan {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 .ud-ma {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0.2rem 0.55rem;
   font-size: 0.85rem;
   font-weight: 700;

@@ -11,6 +11,7 @@ import com.footstyle.demo.security.XacThuc;
 import com.footstyle.demo.service.AuthService;
 import com.footstyle.demo.service.CuaHangService;
 import com.footstyle.demo.service.HoaDonService;
+import com.footstyle.demo.service.HoaDonSuaService;
 import com.footstyle.demo.service.KhachHangService;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -31,6 +32,7 @@ public class KhachTaiKhoanController {
     private final AuthService authService;
     private final CuaHangService cuaHangService;
     private final HoaDonService hoaDonService;
+    private final HoaDonSuaService hoaDonSuaService;
 
     private Integer idKhachHienTai() {
         NguoiDung nd = XacThuc.hienTai()
@@ -84,6 +86,15 @@ public class KhachTaiKhoanController {
         hoaDonService.doiTrangThai((Integer) don.get("id"),
                 new HoaDonTrangThaiRequest(HoaDon.DA_HUY, "Khách hủy đơn - Lý do: " + lyDo, "Khách hàng"));
         return cuaHangService.traCuuDonHangCuaKhach(maHoaDon, idKhachHienTai());
+    }
+
+    /** Khách tự đổi người nhận / SĐT / địa chỉ giao của đơn mình: 1 lần, trước khi cửa hàng giao cho đơn vị vận chuyển. */
+    @PutMapping("/don-hang/{maHoaDon}/sua-giao-hang")
+    public Map<String, Object> suaGiaoHang(@PathVariable String maHoaDon, @RequestBody(required = false) HoaDonSuaService.SuaGiaoHangRequest req) {
+        Integer idKhach = idKhachHienTai();
+        Map<String, Object> don = cuaHangService.traCuuDonHangCuaKhach(maHoaDon, idKhach); // đơn của người khác: báo không tìm thấy
+        hoaDonSuaService.khachSuaThongTinGiaoHang((Integer) don.get("id"), req);
+        return cuaHangService.traCuuDonHangCuaKhach(maHoaDon, idKhach);
     }
 
     /** Danh sách mã giảm giá khách đang dùng được / sắp dùng được ở giỏ hàng (công khai + tặng riêng cho khách này). */

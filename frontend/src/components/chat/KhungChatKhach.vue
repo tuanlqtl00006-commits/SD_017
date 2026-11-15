@@ -9,6 +9,7 @@ import KhungTinNhan from './KhungTinNhan.vue'
 import OSoanTin from './OSoanTin.vue'
 import { hoTroKhachApi } from '../../services/chatService'
 import { useLoiForm } from '../../composables/useLoiForm'
+import { formatMoney } from '../../utils/format'
 import { chuanHoaHoTen, HO_TEN, LOI_HO_TEN_KY_TU, LOI_SDT, SDT } from '../../utils/kiemTra'
 import { CHE_DO, docNguoiKhachCu, docPhienKhach, gopTin, idCuoi, luuPhienKhach, NGUOI_GUI, xoaPhienKhach } from '../../utils/chat'
 
@@ -29,6 +30,23 @@ const dangTai = ref(false)
 const loiGui = ref('')
 const loiChung = ref('')
 const xacNhanKetThuc = ref(false)
+// Đánh giá sau phiên có nhân viên (cô review 14/11): mức độ hài lòng + đã giải quyết chưa + góp ý
+const canDanhGia = ref(false)
+const daDanhGia = ref(false)
+const danhGia = reactive({ mucDo: '', daGiaiQuyet: null, gopY: '' })
+const dangGuiDanhGia = ref(false)
+const loiDanhGia = ref('')
+const MUC_DO = [
+  { ma: 'TOT', nhan: 'Tốt', icon: 'bi-emoji-smile' },
+  { ma: 'BINH_THUONG', nhan: 'Bình thường', icon: 'bi-emoji-neutral' },
+  { ma: 'CHUA_TOT', nhan: 'Chưa tốt', icon: 'bi-emoji-frown' },
+]
+// Tư vấn về đơn hàng đã có (cô review 14/11, tham khảo Shopee): mở danh sách đơn theo SĐT của khách để chọn
+const moChonDon = ref(false)
+const dsDon = ref([])
+const dangTaiDon = ref(false)
+const loiDon = ref('')
+const GOI_Y_DON = ['Tư vấn đơn hàng đã đặt', 'Chọn đơn hàng của tôi']
 const khungTin = ref(null)
 const oSoan = ref(null)
 
@@ -65,6 +83,8 @@ const dangGo = computed(() => (dangGui.value && cheDo.value === CHE_DO.TRO_LY_AO
 function apDung(kq, thayGoiY = true) {
   if (!kq) return
   if (kq.cheDo) cheDo.value = kq.cheDo
+  if ('canDanhGia' in kq) canDanhGia.value = !!kq.canDanhGia
+  if ('daDanhGia' in kq) daDanhGia.value = !!kq.daDanhGia
   tenNhanVien.value = kq.tenNhanVien || ''
   tin.value = gopTin(tin.value, kq.tinNhan || [])
   if (thayGoiY) goiY.value = kq.goiY || []
@@ -77,6 +97,10 @@ function hetPhien() {
   tamThoi.value = []
   goiY.value = []
   cheDo.value = CHE_DO.TRO_LY_AO
+  canDanhGia.value = false
+  daDanhGia.value = false
+  Object.assign(danhGia, { mucDo: '', daGiaiQuyet: null, gopY: '' })
+  moChonDon.value = false
   Object.assign(f, docNguoiKhachCu())
 }
 
@@ -206,7 +230,45 @@ async function gui(text) {
 
 function chonGoiY(g) {
   if (/gặp nhân viên/i.test(g)) gapNhanVien()
+  else if (GOI_Y_DON.includes(g)) moHopDon()
   else gui(g)
+}
+
+async function moHopDon() {
+  if (!phien.value) return
+  moChonDon.value = true
+  dangTaiDon.value = true
+  loiDon.value = ''
+  try {
+    const d = (await api.get('/cua-hang/tra-cuu-sdt', { params: { sdt: phien.value.sdt } })).data
+    dsDon.value = Array.isArray(d?.don) ? d.don : []
+  } catch (e) {
+    dsDon.value = []
+    loiDon.value = e?.status === 404 ? `Chưa có đơn hàng nào với số ${phien.value.sdt}.` : e?.message || 'Không tải được danh sách đơn.'
+  } finally {
+    dangTaiDon.value = false
+  }
+}
+
+function chonDon(d) {
+  moChonDon.value = false
+  gui(`Tư vấn về đơn ${d.maHoaDon}`)
+}
+
+async function guiDanhGia() {
+  loiDanhGia.value = ''
+  if (!danhGia.mucDo || danhGia.daGiaiQuyet === null) {
+    loiDanhGia.value = 'Bạn chọn mức độ hài lòng và cho biết yêu cầu đã được giải quyết chưa nhé.'
+    return
+  }
+  dangGuiDanhGia.value = true
+  try {
+    apDung(await hoTroKhachApi.danhGia(phien.value.id, phien.value.ma, danhGia.mucDo, danhGia.daGiaiQuyet, danhGia.gopY), false)
+  } catch (e) {
+    loiDanhGia.value = e?.message || 'Chưa gửi được đánh giá, bạn thử lại nhé.'
+  } finally {
+    dangGuiDanhGia.value = false
+  }
 }
 
 async function gapNhanVien() {
@@ -244,6 +306,9 @@ const laCuaToi = (t) => t.loaiNguoiGui === NGUOI_GUI.KHACH
         <small>{{ phien ? trangThai.phu : 'Trợ lý ảo trả lời ngay, nhân viên hỗ trợ khi bạn cần' }}</small>
       </div>
       <div v-if="phien && !daDong" class="kck-nut">
+        <button type="button" class="ad-icon-btn" title="Tư vấn về đơn hàng đã đặt" aria-label="Tư vấn về đơn hàng đã đặt" data-testid="kck-nut-don" @click="moHopDon">
+          <i class="bi bi-receipt" aria-hidden="true"></i>
+        </button>
         <button v-if="cheDo === CHE_DO.TRO_LY_AO" type="button" class="ad-btn ad-btn-sm" @click="gapNhanVien">
           <i class="bi bi-person-raised-hand" aria-hidden="true"></i> Gặp nhân viên
         </button>
@@ -288,6 +353,39 @@ const laCuaToi = (t) => t.loaiNguoiGui === NGUOI_GUI.KHACH
       <div v-if="goiY.length && cheDo === CHE_DO.TRO_LY_AO && !dangGui" class="kck-goi-y" aria-label="Câu hỏi gợi ý">
         <button v-for="g in goiY" :key="g" type="button" class="kck-chip" @click="chonGoiY(g)">{{ g }}</button>
       </div>
+      <!-- Chọn đơn hàng cần tư vấn -->
+      <div v-if="moChonDon && !daDong" class="kck-chon-don" data-testid="kck-chon-don">
+        <div class="kck-chon-don-dau">
+          <strong>Chọn đơn cần tư vấn</strong>
+          <button type="button" class="btn-close" aria-label="Đóng" @click="moChonDon = false"></button>
+        </div>
+        <div v-if="dangTaiDon" class="text-muted small py-2">Đang tải đơn hàng…</div>
+        <div v-else-if="loiDon" class="text-muted small py-2">{{ loiDon }}</div>
+        <div v-else class="kck-ds-don">
+          <button v-for="d in dsDon" :key="d.maHoaDon" type="button" class="kck-don" @click="chonDon(d)">
+            <span><strong>{{ d.maHoaDon }}</strong> · {{ d.tenTrangThai }}</span>
+            <small>{{ d.loaiDon }} · {{ formatMoney(d.thanhTien) }}</small>
+          </button>
+        </div>
+      </div>
+      <!-- Đánh giá sau phiên có nhân viên -->
+      <div v-if="daDong && canDanhGia" class="kck-danh-gia" data-testid="kck-danh-gia">
+        <strong>Bạn đánh giá cuộc trò chuyện này nhé</strong>
+        <div class="kck-dg-hang">
+          <button v-for="m in MUC_DO" :key="m.ma" type="button" class="kck-dg-nut" :class="{ 'is-chon': danhGia.mucDo === m.ma }" @click="danhGia.mucDo = m.ma">
+            <i class="bi" :class="m.icon" aria-hidden="true"></i> {{ m.nhan }}
+          </button>
+        </div>
+        <span class="kck-dg-cau">Yêu cầu của bạn đã được giải quyết chưa?</span>
+        <div class="kck-dg-hang">
+          <button type="button" class="kck-dg-nut" :class="{ 'is-chon': danhGia.daGiaiQuyet === true }" @click="danhGia.daGiaiQuyet = true">Đã giải quyết</button>
+          <button type="button" class="kck-dg-nut" :class="{ 'is-chon': danhGia.daGiaiQuyet === false }" @click="danhGia.daGiaiQuyet = false">Chưa giải quyết</button>
+        </div>
+        <textarea v-model="danhGia.gopY" class="form-control form-control-sm" rows="2" maxlength="300" placeholder="Góp ý thêm (không bắt buộc)"></textarea>
+        <p v-if="loiDanhGia" class="text-danger small mb-0">{{ loiDanhGia }}</p>
+        <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" :disabled="dangGuiDanhGia" data-testid="kck-gui-danh-gia" @click="guiDanhGia">Gửi đánh giá</button>
+      </div>
+      <p v-else-if="daDong && daDanhGia" class="kck-cam-on" data-testid="kck-da-danh-gia"><i class="bi bi-heart-fill" aria-hidden="true"></i> Cảm ơn bạn đã đánh giá!</p>
       <div v-if="daDong" class="kck-ket-thuc">
         <span>Cuộc trò chuyện đã kết thúc.</span>
         <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="hetPhien"><i class="bi bi-plus-lg" aria-hidden="true"></i> Trò chuyện mới</button>
@@ -412,5 +510,72 @@ const laCuaToi = (t) => t.loaiNguoiGui === NGUOI_GUI.KHACH
   padding: 12px 14px;
   border-top: 1px solid var(--fs-line);
   color: var(--fs-text-2);
+}
+.kck-chon-don,
+.kck-danh-gia {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #fff;
+  border-top: 1px solid var(--fs-line);
+}
+.kck-chon-don-dau {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.kck-ds-don {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.kck-don {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 10px;
+  text-align: left;
+  background: var(--fs-surface);
+  border: 1px solid var(--fs-line);
+  border-radius: 10px;
+}
+.kck-don:hover {
+  border-color: var(--fs-primary-line);
+  background: var(--fs-primary-soft);
+}
+.kck-don small {
+  color: var(--fs-muted);
+}
+.kck-dg-hang {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.kck-dg-nut {
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  color: var(--fs-text-2);
+  background: #fff;
+  border: 1px solid var(--fs-line);
+  border-radius: 999px;
+}
+.kck-dg-nut.is-chon {
+  color: #fff;
+  background: var(--fs-primary, #1d4ed8);
+  border-color: var(--fs-primary, #1d4ed8);
+}
+.kck-dg-cau {
+  font-size: 0.85rem;
+  color: var(--fs-text-2);
+}
+.kck-cam-on {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  color: #be123c;
+  border-top: 1px solid var(--fs-line);
 }
 </style>

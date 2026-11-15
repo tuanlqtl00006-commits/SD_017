@@ -6,6 +6,8 @@ import { cuaHangService } from '../../services/cuaHangService'
 import { dotGiamGiaService } from '../../services/dotGiamGiaService'
 import { thuocTinhService } from '../../services/thuocTinhService'
 import { formatMoney } from '../../utils/format'
+import MoneyInput from '../../components/common/MoneyInput.vue'
+import TheSanPham from '../../components/shop/TheSanPham.vue'
 import api from '../../services/api'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
@@ -90,6 +92,16 @@ const chiDangGiam = computed({
   },
 })
 
+// Ảnh trên banner: tối đa 3 ảnh sản phẩm thật của danh sách đang xem (trước là khung logo trắng)
+const anhBanner = computed(() => {
+  const ds = []
+  for (const p of filteredProducts.value) {
+    if (p.anhChinh && !ds.includes(p.anhChinh)) ds.push(p.anhChinh)
+    if (ds.length === 3) break
+  }
+  return ds
+})
+
 // Xem sản phẩm của một đợt giảm giá (bấm từ trang Ưu đãi: ?dot=<id>)
 const dotDangChay = ref([])
 const trangThaiDot = ref('chua-tai') // 'chua-tai' | 'dang-tai' | 'xong' | 'loi'
@@ -139,44 +151,69 @@ const currentBanner = computed(() => {
   if (dotDangXem.value && !dotDangXem.value.khongCon && !dotDangXem.value.chuaBiet) {
     const d = dotDangXem.value
     return {
-      badge: 'ĐỢT GIẢM GIÁ',
+      badge: 'Đợt giảm giá',
       title: d.tenDot,
-      highlight: d.phanTramGiamMax > 0 ? `GIẢM ĐẾN ${d.phanTramGiamMax}%` : '',
-      tag: `${d.soSanPham} SẢN PHẨM TRONG ĐỢT`,
+      highlight: d.phanTramGiamMax > 0 ? `Giảm đến ${d.phanTramGiamMax}%` : '',
+      tag: `${d.soSanPham} sản phẩm trong đợt`,
       priceText: 'Giá đã được giảm sẵn, không cần nhập mã',
-      bg: 'linear-gradient(135deg, #991b1b 0%, #dc2626 60%, #ef4444 100%)',
-      mauNhan: '#fef08a',
+      bg: 'radial-gradient(120% 140% at 85% 20%, #be123c 0%, #3b0a1c 70%)',
+      mauNhan: '#fda4af',
     }
   }
   if (laTrangSale.value) {
     const maxGiam = Math.round(Math.max(0, ...enrichedProducts.value.map((p) => p.maxDiscountPercent || 0)))
     return {
-      badge: 'FOOTSTYLE SALE OFF',
-      title: 'SẢN PHẨM ĐANG',
-      highlight: maxGiam > 0 ? `GIẢM ĐẾN ${maxGiam}%` : 'GIẢM GIÁ',
-      tag: 'SĂN DEAL CẦU LÔNG CHÍNH HÃNG - SỐ LƯỢNG CÓ HẠN',
+      badge: 'Sale off',
+      title: 'Sản phẩm đang',
+      highlight: maxGiam > 0 ? `giảm đến ${maxGiam}%` : 'giảm giá',
+      tag: 'Vợt cầu lông chính hãng',
       priceText: 'Giá đã được áp dụng ưu đãi',
-      bg: 'linear-gradient(135deg, #991b1b 0%, #dc2626 60%, #ef4444 100%)',
-      mauNhan: '#fef08a',
+      bg: 'radial-gradient(120% 140% at 85% 20%, #be123c 0%, #3b0a1c 70%)',
+      mauNhan: '#fda4af',
     }
   }
   const activeCat = categories.value.find(
     (c) => String(c.key) === String(currentCategory.value) || String(c.id) === String(currentCategory.value)
   )
-  const title = activeCat && activeCat.key !== 'all' ? activeCat.title.toUpperCase() : 'TẤT CẢ SẢN PHẨM'
+  const title = activeCat && activeCat.key !== 'all' ? activeCat.title : 'Tất cả sản phẩm'
   return {
-    badge: 'FOOTSTYLE STORE',
+    badge: 'FootStyle Store',
     title: title,
-    highlight: 'CHÍNH HÃNG',
-    tag: 'CỬA HÀNG VỢT CẦU LÔNG',
+    highlight: 'chính hãng',
+    tag: 'Cửa hàng vợt cầu lông',
     priceText: 'Cam kết chất lượng 100%',
-    bg: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #60a5fa 100%)', // cùng dải xanh với banner trang chủ
-    mauNhan: '#bfdbfe',
+    bg: 'radial-gradient(120% 140% at 85% 20%, #2547b8 0%, #0b1b3f 70%)', // cùng tông xanh đậm với banner trang chủ
+    mauNhan: '#93c5fd',
   }
 })
 
 // ===== BỘ LỌC CHUNG =====
 const selectedPrices = ref([])
+// Khoảng giá tự nhập (cô review 14/11: "tôi muốn custom khoảng giá"). Bấm Áp dụng mới lọc; từ > đến thì báo lỗi, không lọc.
+const giaTuNhap = ref('')
+const giaDenNhap = ref('')
+const khoangGia = ref({ tu: null, den: null })
+const loiKhoangGia = ref('')
+function apDungKhoangGia() {
+  const tu = giaTuNhap.value === '' ? null : Number(giaTuNhap.value)
+  const den = giaDenNhap.value === '' ? null : Number(giaDenNhap.value)
+  if (tu !== null && den !== null && tu > den) {
+    loiKhoangGia.value = 'Giá "từ" phải nhỏ hơn hoặc bằng giá "đến".'
+    return
+  }
+  loiKhoangGia.value = ''
+  khoangGia.value = { tu, den }
+}
+function boKhoangGia() {
+  giaTuNhap.value = ''
+  giaDenNhap.value = ''
+  loiKhoangGia.value = ''
+  khoangGia.value = { tu: null, den: null }
+}
+const coKhoangGia = computed(() => khoangGia.value.tu !== null || khoangGia.value.den !== null)
+
+// Điện thoại: cột bộ lọc ẩn sau nút "Bộ lọc", bấm mới mở (trước đây bộ lọc dài nằm trên danh sách sản phẩm)
+const moBoLoc = ref(false)
 const selectedBrands = ref([])
 
 // ===== BỘ LỌC THEO THUỘC TÍNH (lấy từ danh sách thuộc tính thật trong CSDL) =====
@@ -248,7 +285,7 @@ const attributeGroups = computed(() => {
     .filter(Boolean)
     .map((g) => ({
       key: g.key,
-      title: g.title,
+      title: g.title.charAt(0) + g.title.slice(1).toLowerCase(), // "XUẤT XỨ" → "Xuất xứ"
       options: [...new Set([...tuDanhSachThuocTinh(g.key, loai), ...trongDanhMuc.flatMap((p) => g.values(p))].filter(Boolean))],
     }))
     .filter((g) => g.options.length > 0)
@@ -277,7 +314,18 @@ function clearAllFilters() {
   selectedPrices.value = []
   selectedBrands.value = []
   for (const g of ATTR_DEFS) attrSelected.value[g.key] = []
+  boKhoangGia()
 }
+
+// Số tiêu chí lọc đang bật (hiện trên nút "Bộ lọc" ở điện thoại)
+const soBoLocDangBat = computed(
+  () =>
+    selectedPrices.value.length +
+    selectedBrands.value.length +
+    ATTR_DEFS.reduce((n, g) => n + (attrSelected.value[g.key]?.length || 0), 0) +
+    (coKhoangGia.value ? 1 : 0) +
+    (laTrangSale.value ? 1 : 0),
+)
 
 // Nút "Xóa tất cả" / "Xóa tất cả bộ lọc": bỏ cả lọc "Đang giảm giá" và lọc theo đợt (nằm trên đường dẫn), giữ danh mục và từ khóa đang xem
 function xoaTatCaBoLoc() {
@@ -523,6 +571,11 @@ const filteredProducts = computed(() => {
       })
     })
   }
+  // 4a. Khoảng giá tự nhập
+  if (coKhoangGia.value) {
+    const { tu, den } = khoangGia.value
+    list = list.filter((p) => (tu === null || p.minPrice >= tu) && (den === null || p.minPrice <= den))
+  }
 
   // 4b. Lọc theo thuộc tính (màu sắc, trọng lượng, chu vi, chất liệu, độ cứng, điểm cân bằng)
   for (const g of ATTR_DEFS) {
@@ -550,11 +603,11 @@ function goToDetail(id) {
 </script>
 
 <template>
-  <div class="product-catalog-view py-3 bg-white">
+  <div class="product-catalog-view pc-trang">
     <div class="vnb-container">
 
       <!-- Breadcrumb -->
-      <nav aria-label="breadcrumb" class="mb-3">
+      <nav aria-label="breadcrumb" class="pc-duong-dan">
         <ol class="breadcrumb small mb-0">
           <li class="breadcrumb-item">
             <RouterLink to="/shop" class="text-decoration-none text-muted">Trang chủ</RouterLink>
@@ -568,8 +621,22 @@ function goToDetail(id) {
         </ol>
       </nav>
 
+      <!-- Banner đầu trang theo danh mục / đợt giảm giá -->
+      <section class="pc-banner" :style="{ background: currentBanner.bg }">
+        <div class="pc-banner-chu">
+          <span class="pc-banner-nhan">{{ currentBanner.badge }}</span>
+          <h1 class="pc-banner-tieu-de">
+            {{ currentBanner.title }} <span :style="{ color: currentBanner.mauNhan }">{{ currentBanner.highlight }}</span>
+          </h1>
+          <p class="pc-banner-phu">{{ currentBanner.tag }} · {{ currentBanner.priceText }}</p>
+        </div>
+        <div v-if="anhBanner.length" class="pc-banner-anh d-none d-md-flex" aria-hidden="true">
+          <span v-for="(a, i) in anhBanner" :key="a" class="pc-banner-o" :style="{ zIndex: 3 - i }"><img :src="a" alt="" /></span>
+        </div>
+      </section>
+
       <!-- THANH CHỌN DANH MỤC NHANH (CATEGORY TABS VỚI NÚT CUỘN & LĂN CHUỘT) -->
-      <div class="vnb-cat-pills-bar mb-4">
+      <div class="vnb-cat-pills-bar pc-danh-muc">
         <!-- Nút mũi tên cuộn sang trái -->
         <button
           type="button"
@@ -617,27 +684,31 @@ function goToDetail(id) {
         <!-- ============================================== -->
         <!-- CỘT BỘ LỌC BÊN TRÁI (THAY ĐỔI ĐỘNG THEO DANH MỤC) -->
         <!-- ============================================== -->
-        <div class="col-lg-3 col-md-4">
+        <div class="col-lg-3 col-md-4 catalog-cot-loc" :class="{ 'is-mo': moBoLoc }" data-testid="cot-bo-loc">
+          <div class="catalog-nen-loc" @click="moBoLoc = false"></div>
           <div class="vnb-filter-panel shadow-sm">
 
             <!-- Header Panel có nút Xóa lọc -->
-            <div class="p-3 border-bottom d-flex align-items-center justify-content-between bg-light">
-              <span class="fw-bold text-dark text-uppercase small">
-                <i class="bi bi-funnel-fill text-primary me-1"></i> Bộ lọc
+            <div class="pc-loc-dau">
+              <span class="pc-loc-tieu-de">
+                <i class="bi bi-sliders2"></i> Bộ lọc
               </span>
-              <button
-                type="button"
-                class="btn btn-link btn-sm p-0 text-decoration-none text-danger small fw-semibold"
-                @click="xoaTatCaBoLoc"
-                title="Bỏ toàn bộ tiêu chí lọc"
-              >
-                Xóa tất cả
-              </button>
+              <span class="d-flex align-items-center gap-3">
+                <button
+                  type="button"
+                  class="pc-loc-xoa"
+                  @click="xoaTatCaBoLoc"
+                  title="Bỏ toàn bộ tiêu chí lọc"
+                >
+                  Xóa tất cả
+                </button>
+                <button type="button" class="btn-close d-md-none" aria-label="Đóng bộ lọc" @click="moBoLoc = false"></button>
+              </span>
             </div>
 
             <!-- 0. KHUYẾN MÃI: chỉ xem sản phẩm đang giảm giá -->
             <div class="vnb-filter-section">
-              <div class="vnb-filter-section-title">KHUYẾN MÃI</div>
+              <div class="vnb-filter-section-title">Khuyến mãi</div>
               <ul class="vnb-filter-list">
                 <li class="vnb-filter-item">
                   <label>
@@ -651,7 +722,7 @@ function goToDetail(id) {
             <!-- 1. CHỌN MỨC GIÁ (Chung cho tất cả) -->
             <div class="vnb-filter-section">
               <div class="vnb-filter-section-title" @click="toggleSection('gia')">
-                CHỌN MỨC GIÁ
+                Mức giá
                 <i class="bi" :class="sectionOpen.gia ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
               </div>
               <ul v-show="sectionOpen.gia" class="vnb-filter-list">
@@ -686,12 +757,25 @@ function goToDetail(id) {
                   </label>
                 </li>
               </ul>
+              <!-- Khoảng giá tự nhập -->
+              <div v-show="sectionOpen.gia" class="catalog-khoang-gia" data-testid="khoang-gia">
+                <div class="catalog-khoang-gia-o">
+                  <MoneyInput id="loc-gia-tu" small :model-value="giaTuNhap" placeholder="Từ" aria-label="Giá từ" @update:model-value="(v) => (giaTuNhap = v)" />
+                  <span class="text-muted">–</span>
+                  <MoneyInput id="loc-gia-den" small :model-value="giaDenNhap" placeholder="Đến" aria-label="Giá đến" @update:model-value="(v) => (giaDenNhap = v)" />
+                </div>
+                <p v-if="loiKhoangGia" class="catalog-khoang-gia-loi" data-testid="loi-khoang-gia">{{ loiKhoangGia }}</p>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-primary btn-sm flex-grow-1" data-testid="ap-dung-khoang-gia" @click="apDungKhoangGia">Áp dụng</button>
+                  <button v-if="coKhoangGia" type="button" class="btn btn-outline-secondary btn-sm" @click="boKhoangGia">Bỏ</button>
+                </div>
+              </div>
             </div>
 
             <!-- 2. THƯƠNG HIỆU (Chung cho tất cả) -->
             <div class="vnb-filter-section">
               <div class="vnb-filter-section-title" @click="toggleSection('thuongHieu')">
-                THƯƠNG HIỆU
+                Thương hiệu
                 <i class="bi" :class="sectionOpen.thuongHieu ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
               </div>
               <ul v-show="sectionOpen.thuongHieu" class="vnb-filter-list vnb-filter-list-scroll">
@@ -720,6 +804,12 @@ function goToDetail(id) {
               </ul>
             </div>
 
+            <!-- Điện thoại: nút xem kết quả, đóng bộ lọc -->
+            <div class="catalog-loc-chan d-md-none">
+              <button type="button" class="btn btn-primary w-100 fw-bold" @click="moBoLoc = false">
+                Xem {{ filteredProducts.length }} sản phẩm
+              </button>
+            </div>
           </div>
         </div>
 
@@ -727,40 +817,11 @@ function goToDetail(id) {
         <!-- CỘT NỘI DUNG SẢN PHẨM BÊN PHẢI                 -->
         <!-- ============================================== -->
         <div class="col-lg-9 col-md-8">
-
-          <!-- Dynamic Banner cho từng Danh mục -->
-          <div
-            class="rounded-3 p-4 mb-4 text-white position-relative overflow-hidden shadow-sm"
-            :style="{ background: currentBanner.bg, minHeight: '190px', display: 'flex', alignItems: 'center' }"
-          >
-            <div class="row align-items-center w-100">
-              <div class="col-md-8">
-                <span class="badge catalog-banner-badge mb-2 px-2 py-1">
-                  {{ currentBanner.badge }}
-                </span>
-                <h2
-                  class="display-6 fw-black text-uppercase mb-1"
-                  style="font-weight: 900; color: #ffffff; text-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);"
-                >
-                  {{ currentBanner.title }} <span :style="{ color: currentBanner.mauNhan }">{{ currentBanner.highlight }}</span>
-                </h2>
-                <div class="badge bg-light text-dark fw-bold px-3 py-2 rounded-pill mb-2">
-                  {{ currentBanner.tag }}
-                </div>
-                <div class="fs-5 fw-bold text-white">
-                  {{ currentBanner.priceText }}
-                </div>
-              </div>
-              <div class="col-md-4 text-center d-none d-md-block">
-                <img
-                  src="/logo.png"
-                  alt="FootStyle"
-                  class="img-fluid p-2 bg-white rounded-3 shadow"
-                  style="max-height: 120px; object-fit: contain;"
-                />
-              </div>
-            </div>
-          </div>
+          <!-- Điện thoại: nút mở bộ lọc -->
+          <button type="button" class="btn catalog-nut-loc d-md-none mb-3" data-testid="nut-bo-loc" @click="moBoLoc = true">
+            <i class="bi bi-funnel"></i> Bộ lọc
+            <span v-if="soBoLocDangBat" class="catalog-nut-loc-dem">{{ soBoLocDangBat }}</span>
+          </button>
 
           <!-- Đang xem sản phẩm của một đợt giảm giá (bấm từ trang Ưu đãi) -->
           <div v-if="dotDangXem" class="catalog-dot-bar mb-3" data-testid="loc-dot">
@@ -775,15 +836,15 @@ function goToDetail(id) {
           </div>
 
           <!-- Thanh tiêu đề danh mục & Sắp xếp -->
-          <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
-            <h4 class="fw-bold mb-0 text-uppercase" style="font-size: 1.15rem; color: #1e293b;">
+          <div class="pc-thanh-cong-cu">
+            <h4 class="pc-dem">
               {{ currentCategoryTitle }}
-              <span class="text-muted fw-normal" style="font-size: 0.85rem;">({{ filteredProducts.length }} sản phẩm)</span>
+              <span>({{ filteredProducts.length }} sản phẩm)</span>
             </h4>
 
-            <div class="d-flex align-items-center gap-2">
-              <span class="small text-muted d-none d-sm-inline">⇅ Sắp xếp:</span>
-              <select v-model="sortBy" class="form-select form-select-sm" style="width: auto;">
+            <div class="pc-sap-xep">
+              <label for="pc-sap-xep" class="d-none d-sm-inline">Sắp xếp</label>
+              <select id="pc-sap-xep" v-model="sortBy" class="form-select form-select-sm">
                 <option value="default">Mặc định</option>
                 <option value="price-asc">Giá tăng dần</option>
                 <option value="price-desc">Giá giảm dần</option>
@@ -799,8 +860,8 @@ function goToDetail(id) {
           </div>
 
           <!-- Khi không tìm thấy sản phẩm -->
-          <div v-else-if="filteredProducts.length === 0" class="card border-0 p-5 text-center text-muted">
-            <i class="bi bi-inbox display-4 mb-2"></i>
+          <div v-else-if="filteredProducts.length === 0" class="pc-trong">
+            <i class="bi bi-search"></i>
             <h5>Không tìm thấy sản phẩm nào</h5>
             <p class="small">Thử chọn danh mục khác hoặc bỏ bớt tiêu chí lọc.</p>
             <div class="mt-2">
@@ -811,48 +872,8 @@ function goToDetail(id) {
           </div>
 
           <!-- Lưới sản phẩm Cards -->
-          <div v-else class="row g-3">
-            <div
-              v-for="item in filteredProducts"
-              :key="item.id"
-              class="col-xl-3 col-lg-4 col-sm-6"
-            >
-              <div class="vnb-product-item" @click="goToDetail(item.id)">
-                <!-- Khung ảnh -->
-                <div class="vnb-img-box">
-                  <span v-if="item.hasDiscount" class="vnb-badge-discount">-{{ item.maxDiscountPercent }}%</span>
-                  <span class="vnb-badge-premium">Chính hãng</span>
-
-                  <!-- Placeholder SVG khi không có ảnh thật -->
-                  <div v-if="!item.anhChinh" class="vnb-img-placeholder">
-                    <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" width="60" height="60">
-                      <rect width="80" height="80" rx="10" fill="#f1f5f9"/>
-                      <circle cx="40" cy="36" r="16" stroke="#94a3b8" stroke-width="2"/>
-                      <path d="M40 52V68M34 68H46" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
-                      <circle cx="40" cy="36" r="8" fill="#e2e8f0"/>
-                    </svg>
-                    <div class="vnb-img-placeholder-brand">{{ item.brandName }}</div>
-                  </div>
-                  <img v-else :src="item.anhChinh" :alt="item.ten" class="vnb-product-img" />
-                </div>
-
-                <!-- Thông tin sản phẩm -->
-                <div class="vnb-product-info">
-                  <div class="vnb-product-brand">{{ item.brandName }}</div>
-                  <div class="vnb-product-name" :title="item.ten">{{ item.ten }}</div>
-                  <div class="vnb-product-price-row">
-                    <span v-if="item.minPrice > 0" class="vnb-product-price">{{ formatMoney(item.minPrice) }}</span>
-                    <span v-else class="vnb-product-price text-muted" style="font-size: 0.95rem;">Liên hệ</span>
-                    <span v-if="item.originalPrice > item.minPrice && item.minPrice > 0" class="vnb-product-old-price">
-                      {{ formatMoney(item.originalPrice) }}
-                    </span>
-                  </div>
-                  <button class="vnb-product-btn-cart" type="button" @click.stop="goToDetail(item.id)">
-                    <i class="bi bi-cart-plus me-1"></i> Xem chi tiết
-                  </button>
-                </div>
-              </div>
-            </div>
+          <div v-else class="pc-luoi">
+            <TheSanPham v-for="item in filteredProducts" :key="item.id" :sp="item" />
           </div>
 
         </div>
@@ -862,12 +883,102 @@ function goToDetail(id) {
 </template>
 
 <style scoped>
-/* Nhãn nhỏ trên banner: nền trắng mờ để hợp với mọi màu banner (trước là nhãn đen) */
-.catalog-banner-badge {
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.45);
+/* Khoảng giá tự nhập */
+.catalog-khoang-gia {
+  padding: 4px 16px 14px;
+}
+.catalog-khoang-gia-o {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.catalog-khoang-gia-o :deep(.money-input) {
+  flex: 1;
+  min-width: 0;
+}
+.catalog-khoang-gia-loi {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: #dc2626;
+}
+
+/* Điện thoại: bộ lọc mở dạng ngăn kéo từ trái, nền mờ phía sau */
+.catalog-nut-loc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #fff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 999px;
+}
+.catalog-nut-loc-dem {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 0.75rem;
+  line-height: 20px;
+  text-align: center;
   color: #fff;
-  letter-spacing: 0.04em;
+  background: #1d4ed8;
+  border-radius: 999px;
+}
+.catalog-nen-loc,
+.catalog-loc-chan {
+  display: none;
+}
+@media (max-width: 767px) {
+  .catalog-cot-loc {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .catalog-cot-loc.is-mo {
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .catalog-nen-loc {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .catalog-cot-loc.is-mo .catalog-nen-loc {
+    opacity: 1;
+  }
+  .catalog-cot-loc .vnb-filter-panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(86%, 340px);
+    overflow-y: auto;
+    border-radius: 0 16px 16px 0;
+    background: #fff;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  .catalog-cot-loc.is-mo .vnb-filter-panel {
+    transform: translateX(0);
+  }
+  .catalog-loc-chan {
+    display: block;
+    position: sticky;
+    bottom: 0;
+    padding: 12px 16px;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+  }
 }
 
 .catalog-dot-bar {
@@ -987,5 +1098,224 @@ function goToDetail(id) {
 
 .fw-black {
   font-weight: 900;
+}
+
+/* ===== Giao diện mới 15/11 ===== */
+.pc-trang {
+  padding: 18px 0 64px;
+  background: var(--ft-bg, #f6f7f9);
+}
+.pc-duong-dan {
+  margin-bottom: 14px;
+}
+.pc-duong-dan :deep(.breadcrumb-item.active) {
+  font-weight: 600 !important;
+}
+.pc-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 190px;
+  margin-bottom: 18px;
+  padding: 32px 40px;
+  overflow: hidden;
+  color: #fff;
+  border-radius: 24px;
+}
+.pc-banner::after {
+  content: '';
+  position: absolute;
+  right: -80px;
+  bottom: -160px;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+.pc-banner-chu {
+  position: relative;
+  z-index: 1;
+  max-width: 640px;
+}
+.pc-banner-nhan {
+  display: inline-block;
+  margin-bottom: 12px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+}
+.pc-banner-tieu-de {
+  margin: 0 0 8px;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.pc-banner-phu {
+  margin: 0;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+.pc-banner-anh {
+  position: relative;
+  z-index: 1;
+  align-items: center;
+  padding-right: 8px;
+}
+.pc-banner-o {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 110px;
+  height: 140px;
+  margin-left: -28px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+}
+.pc-banner-o:nth-child(2) {
+  transform: translateY(12px) rotate(5deg);
+}
+.pc-banner-o:nth-child(3) {
+  transform: translateY(-8px) rotate(-5deg);
+}
+.pc-banner-o img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.pc-danh-muc {
+  margin-bottom: 22px;
+}
+.pc-loc-dau {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--ft-line-2, #eef0f4);
+}
+.pc-loc-tieu-de {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ft-ink, #0f172a);
+}
+.pc-loc-xoa {
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e11d48;
+  background: none;
+  border: 0;
+}
+.pc-loc-xoa:hover {
+  text-decoration: underline;
+}
+.pc-thanh-cong-cu {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 10px 10px 18px;
+  background: #fff;
+  border: 1px solid var(--ft-line-2, #eef0f4);
+  border-radius: 16px;
+}
+.pc-dem {
+  min-width: 0;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ft-ink, #0f172a);
+}
+.pc-dem span {
+  margin-left: 4px;
+  font-size: 0.88rem;
+  font-weight: 400;
+  color: #64748b;
+}
+.pc-sap-xep {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+.pc-sap-xep label {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+.pc-sap-xep .form-select {
+  width: auto;
+  padding-left: 14px;
+  font-weight: 600;
+  border-color: var(--ft-line-2, #eef0f4);
+  border-radius: 999px;
+  background-color: #f8fafc;
+}
+.pc-luoi {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.pc-trong {
+  padding: 56px 20px;
+  text-align: center;
+  color: #64748b;
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 20px;
+}
+.pc-trong > i {
+  display: inline-grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 12px;
+  font-size: 1.6rem;
+  color: var(--ft-primary, #1d4ed8);
+  background: #eff6ff;
+  border-radius: 50%;
+}
+.pc-trong h5 {
+  font-weight: 700;
+  color: var(--ft-ink, #0f172a);
+}
+@media (max-width: 1199px) {
+  .pc-luoi {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 991px) {
+  .pc-luoi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .pc-banner {
+    min-height: 0;
+    padding: 24px 22px;
+    border-radius: 20px;
+  }
+  .pc-luoi {
+    gap: 10px;
+  }
+  .pc-thanh-cong-cu {
+    padding: 8px 8px 8px 14px;
+  }
+  .pc-dem {
+    font-size: 0.95rem;
+  }
 }
 </style>

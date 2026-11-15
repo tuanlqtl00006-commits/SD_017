@@ -173,6 +173,7 @@ public class HoaDonService {
             request.setNgayTao(hd.getNgayTao());
             request.setTrangThai(hd.getTrangThai());
             request.setLoaiDon(tenKenh(hd.getLoaiDon(), giaoHangTaiQuay.contains(hd.getId())));
+            request.setHinhThucMua(hinhThucMua(hd.getLoaiDon(), giaoHangTaiQuay.contains(hd.getId())));
             return request;
         });
     }
@@ -239,6 +240,9 @@ public class HoaDonService {
                 .anyMatch(l -> HoaDonSuaService.HANH_DONG_SUA.equals(l.getHanhDong()));
         info.put("daChinhSua", daSua);
         info.put("duocChinhSua", !laTaiQuay(hd) && trangThai == HoaDon.CHO_XAC_NHAN && !daSua);
+        // "Sửa thông tin giao hàng" tách riêng (nhân viên và khách, mỗi đơn 1 lần, trước khi giao cho đơn vị vận chuyển)
+        info.put("duocSuaGiaoHang", HoaDonSuaService.duocSuaGiaoHang(hd, dsLichSu));
+        info.put("daSuaGiaoHang", dsLichSu.stream().anyMatch(l -> HoaDonSuaService.HANH_DONG_SUA_GIAO.equals(l.getHanhDong())));
         info.put("idPhuongThucThanhToan", hd.getIdPhuongThucThanhToan());
         info.put("ngayTao", hd.getNgayTao());
         info.put("ngayCapNhat", hd.getNgayCapNhat());
@@ -319,6 +323,22 @@ public class HoaDonService {
         // Đơn đã hủy mà khách đã thanh toán tiền (chưa hoàn trả): nhân viên có nút "Xác nhận đã hoàn tiền"
         boolean canHoanTien = (trangThai == HoaDon.DA_HUY) && daThanhToan.compareTo(BigDecimal.ZERO) > 0;
         response.put("duocXacNhanHoanTien", canHoanTien);
+        // Đơn online Chờ xác nhận (chưa trừ kho) mà kho không còn đủ: nhân viên có nút "Báo hết hàng cho khách" (gửi thư, đơn không hủy)
+        boolean thieuHang = false;
+        if (!laTaiQuay(hd) && trangThai == HoaDon.CHO_XAC_NHAN) {
+            Map<Integer, Integer> can = new HashMap<>();
+            Map<Integer, Integer> ton = new HashMap<>();
+            for (HoaDonChiTiet ct : hoaDonChiTietRepository.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
+                SanPhamChiTiet c = ct.getSanPhamChiTiet();
+                if (c == null || c.getId() == null) continue;
+                can.merge(c.getId(), ct.getSoLuong() == null ? 0 : ct.getSoLuong(), Integer::sum);
+                ton.put(c.getId(), c.getSoLuongTon() == null ? 0 : c.getSoLuongTon());
+            }
+            thieuHang = can.entrySet().stream().anyMatch(e -> ton.get(e.getKey()) < e.getValue());
+        }
+        response.put("duocBaoHetHang", thieuHang);
+        // Đơn chuyển khoản quá 5 phút chưa nhận tiền: "đơn treo" (chờ khách chuyển hoặc đổi sang COD)
+        response.put("donTreo", CuaHangService.laDonTreo(hd, daThanhToan.longValue(), LocalDateTime.now()));
         response.put("canHoanTien", canHoanTien);
         response.put("soTienCanHoan", canHoanTien ? daThanhToan : BigDecimal.ZERO);
 
@@ -660,7 +680,8 @@ public class HoaDonService {
      * Đã hủy là trạng thái cuối nên mỗi hóa đơn chỉ hoàn một lần. Phải gọi TRƯỚC khi đổi trạng thái (hóa đơn này còn được đếm là chưa hủy).
      * Trả về đoạn ghi thêm vào lịch sử hóa đơn ("" nếu không hoàn gì).
      */
-    private String hoanLuotPhieu(HoaDon hd) {
+    /** Trả lại lượt phiếu của đơn (hủy đơn; sửa đơn làm đơn không còn đủ điều kiện phiếu). Gọi khi đơn vẫn còn gắn phiếu. */
+    String hoanLuotPhieu(HoaDon hd) {
         PhieuGiamGia phieu = hd.getPhieuGiamGia();
         if (phieu == null || phieu.getId() == null) {
             return "";
@@ -720,6 +741,12 @@ public class HoaDonService {
 
     private static String tenLoaiDon(Integer loaiDon) {
         return Integer.valueOf(HoaDon.GIAO_HANG).equals(loaiDon) ? "Trực tuyến" : "Tại quầy";
+    }
+
+    /** Hình thức mua suy ra từ dữ liệu sẵn có (không thêm cột): đơn tại quầy / đơn quầy có giao hàng / đơn khách đặt online. */
+    static String hinhThucMua(Integer loaiDon, boolean giaoHangTaoTaiQuay) {
+        if (!Integer.valueOf(HoaDon.GIAO_HANG).equals(loaiDon)) return "Mua tại quầy";
+        return giaoHangTaoTaiQuay ? "Giao tận nơi" : "Đặt online";
     }
 
     /** Tên kênh bán: đơn giao hàng tạo ở quầy vẫn là "Tại quầy". */

@@ -43,6 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class HoaDonSuaService {
 
     public static final String HANH_DONG_SUA = "Chỉnh sửa đơn hàng";
+    /** Ghi vào lịch sử khi đơn online tạm hết hàng và đã gửi thư chăm sóc khách (đơn không bị hủy). */
+    public static final String HANH_DONG_BAO_HET_HANG = "Báo hết hàng cho khách";
     /** Đơn online khách chọn chuyển khoản (id phương thức 2 - "Chuyển khoản ngân hàng"). */
     public static final Integer CHUYEN_KHOAN_ONLINE = 2;
     static final int SO_LUONG_TOI_DA = 999;
@@ -197,7 +199,9 @@ public class HoaDonSuaService {
         if (phieu != null) {
             long donMin = phieu.getGiaTriDonHangToiThieu() == null ? 0 : phieu.getGiaTriDonHangToiThieu();
             if (tienHang < donMin) {
-                moTa.add("Bỏ phiếu " + phieu.getMaPhieu() + " vì đơn chưa đạt tối thiểu " + tien(donMin));
+                // Trả lại lượt phiếu (và phiếu cá nhân của khách) trước khi gỡ phiếu khỏi đơn - như khi hủy đơn
+                String hoan = hoaDonService.hoanLuotPhieu(hd);
+                moTa.add("Bỏ phiếu " + phieu.getMaPhieu() + " vì đơn chưa đạt tối thiểu " + tien(donMin) + hoan);
                 hd.setPhieuGiamGia(null);
             } else {
                 giam = PhieuApDung.soTienGiam(phieu, tienHang);
@@ -265,6 +269,124 @@ public class HoaDonSuaService {
         ketQuaSua.put("moTa", tienTe);
         kq.put("ketQuaSua", ketQuaSua);
         return kq;
+    }
+
+    /* ===================== Sửa thông tin giao hàng (tách khỏi Chỉnh sửa đơn) ===================== */
+
+    /** Ghi vào lịch sử khi đổi người nhận / SĐT / địa chỉ giao; mỗi đơn chỉ đổi MỘT lần (nhân viên hoặc khách). */
+    public static final String HANH_DONG_SUA_GIAO = "Sửa thông tin giao hàng";
+
+    /** diaChiCuThe + phuongXa + tinhThanh ghép thành địa chỉ giao (giống lúc đặt hàng). lyDo: nhân viên bắt buộc, khách không bắt buộc. */
+    public record SuaGiaoHangRequest(String hoTenNguoiNhan, String sdtNguoiNhan, String diaChiCuThe, String phuongXa, String tinhThanh, String lyDo) {
+    }
+
+    /** Đơn này còn đổi được thông tin giao hàng không: đơn giao hàng, chưa giao cho đơn vị vận chuyển, chưa đổi lần nào. */
+    public static boolean duocSuaGiaoHang(HoaDon hd, List<LichSuHoaDon> lichSu) {
+        if (!Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon())) return false;
+        int tt = hd.getTrangThai() == null ? HoaDon.CHO_XAC_NHAN : hd.getTrangThai();
+        if (tt != HoaDon.CHO_XAC_NHAN && tt != HoaDon.DA_XAC_NHAN) return false;
+        return lichSu.stream().noneMatch(l -> HANH_DONG_SUA_GIAO.equals(l.getHanhDong()));
+    }
+
+    /** Nhân viên đổi thông tin giao hàng (nút ở màn chi tiết hóa đơn). */
+    @Transactional
+    public Map<String, Object> suaThongTinGiaoHang(Integer id, SuaGiaoHangRequest req) {
+        NguoiDung nd = XacThuc.nhanVien();
+        HoaDon hd = hoaDonRepo.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy hóa đơn."));
+        suaGiaoHang(hd, req, nd.hoTen() == null ? "Nhân viên" : nd.hoTen(), false);
+        return hoaDonService.getChiTietHoaDon(hd.getId());
+    }
+
+    /** Khách tự đổi thông tin giao hàng của đơn mình (nơi gọi đã kiểm tra đơn thuộc khách đang đăng nhập). */
+    @Transactional
+    public void khachSuaThongTinGiaoHang(Integer idHoaDon, SuaGiaoHangRequest req) {
+        HoaDon hd = hoaDonRepo.findById(idHoaDon).orElseThrow(() -> ApiException.notFound("Không tìm thấy đơn hàng."));
+        suaGiaoHang(hd, req, "Khách hàng", true);
+    }
+
+    private void suaGiaoHang(HoaDon hd, SuaGiaoHangRequest req, String nguoi, boolean laKhach) {
+        List<LichSuHoaDon> lichSu = lichSuRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId());
+        if (!Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon())) throw ApiException.conflict("Đơn tại quầy không có thông tin giao hàng.");
+        int tt = hd.getTrangThai() == null ? HoaDon.CHO_XAC_NHAN : hd.getTrangThai();
+        if (tt != HoaDon.CHO_XAC_NHAN && tt != HoaDon.DA_XAC_NHAN) {
+            throw ApiException.conflict("Đơn đã giao cho đơn vị vận chuyển hoặc đã kết thúc, không đổi được thông tin giao hàng.");
+        }
+        if (!duocSuaGiaoHang(hd, lichSu)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Đơn " + hd.getMaHoaDon() + " đã đổi thông tin giao hàng 1 lần, không đổi thêm được.", "DA_SUA_GIAO_HANG", null);
+        }
+        if (req == null) throw ApiException.badRequest("Thiếu thông tin giao hàng.");
+        LoiForm loi = new LoiForm();
+        String hoTen = gon(req.hoTenNguoiNhan());
+        String sdt = req.sdtNguoiNhan() == null ? "" : req.sdtNguoiNhan().trim().replaceAll("[\\s.-]", "");
+        String cuThe = gon(req.diaChiCuThe());
+        String phuong = gon(req.phuongXa());
+        String tinh = gon(req.tinhThanh());
+        String lyDo = gon(req.lyDo());
+        if (hoTen.isEmpty()) loi.them("hoTenNguoiNhan", "Vui lòng nhập tên người nhận.");
+        else if (hoTen.length() > 255) loi.them("hoTenNguoiNhan", "Tên người nhận tối đa 255 ký tự.");
+        if (!sdt.matches("0[35789]\\d{8}")) loi.them("sdtNguoiNhan", "Số điện thoại gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09.");
+        if (tinh.isEmpty()) loi.them("tinhThanh", "Vui lòng chọn Tỉnh/Thành phố.");
+        if (phuong.isEmpty()) loi.them("phuongXa", "Vui lòng chọn Phường/Xã.");
+        if (cuThe.length() < 3) loi.them("diaChiCuThe", "Vui lòng nhập số nhà, tên đường.");
+        if (!laKhach && lyDo.isEmpty()) loi.them("lyDo", "Vui lòng ghi lý do (vd: khách gọi đổi địa chỉ).");
+        if (lyDo.length() > 500) loi.them("lyDo", "Lý do tối đa 500 ký tự.");
+        String diaChi = cuThe + ", " + phuong + ", " + tinh;
+        if (diaChi.length() > 500) loi.them("diaChiCuThe", "Địa chỉ tối đa 500 ký tự.");
+        loi.nemNeuCoLoi();
+
+        String diaChiCu = gon(hd.getDiaChiGiaoHang());
+        boolean doi = !hoTen.equals(gon(hd.getHoTenNguoiNhan())) || !sdt.equals(gon(hd.getSdtNguoiNhan())) || !diaChi.equals(diaChiCu);
+        if (!doi) throw ApiException.badRequest("Thông tin giao hàng chưa thay đổi.");
+
+        LocalDateTime luc = bayGio();
+        long tienHang = hd.getTongTien() == null ? 0 : hd.getTongTien().longValue();
+        long giam = hd.getSoTienGiam() == null ? 0 : hd.getSoTienGiam().longValue();
+        long phiCu = hd.getPhiVanChuyen() == null ? 0 : hd.getPhiVanChuyen().longValue();
+        long thanhTienCu = hd.getThanhTien() == null ? 0 : hd.getThanhTien().longValue();
+        long phi = phiSauKhiSua(diaChi, diaChiCu, tienHang, tienHang, phiCu);
+        long thanhTien = Math.max(0, tienHang - giam + phi);
+
+        String truoc = gon(hd.getHoTenNguoiNhan()) + " · " + gon(hd.getSdtNguoiNhan()) + " · " + diaChiCu;
+        hd.setHoTenNguoiNhan(hoTen);
+        hd.setSdtNguoiNhan(sdt);
+        hd.setDiaChiGiaoHang(diaChi);
+        hd.setPhiVanChuyen(BigDecimal.valueOf(phi));
+        hd.setThanhTien(BigDecimal.valueOf(thanhTien));
+        hd.setNgayCapNhat(luc);
+        hoaDonRepo.save(hd);
+        String tienTe = ghiTienSauKhiSua(hd, thanhTienCu, thanhTien, luc);
+
+        LichSuHoaDon ls = new LichSuHoaDon();
+        ls.setHoaDon(hd);
+        ls.setHanhDong(HANH_DONG_SUA_GIAO);
+        ls.setNguoiThaoTac(nguoi);
+        ls.setThoiGian(luc);
+        String noiDung = (lyDo.isEmpty() ? "" : lyDo + ". ") + "Giao tới: " + hoTen + " · " + sdt + " · " + diaChi + " (trước: " + truoc + ")"
+                + (phi != phiCu ? ". Phí giao hàng " + tien(phiCu) + " → " + tien(phi) : "") + ". " + tienTe + ".";
+        ls.setMoTa(noiDung.length() > 4000 ? noiDung.substring(0, 4000) : noiDung);
+        lichSuRepo.save(ls);
+    }
+
+    /** Sau khi đổi tổng tiền: khách đã trả trước nhiều hơn thì ghi hoàn phí (âm), ít hơn thì phụ phí thu khi giao; trả câu mô tả. */
+    private String ghiTienSauKhiSua(HoaDon hd, long thanhTienCu, long thanhTien, LocalDateTime luc) {
+        long daTra = daTra(hd);
+        long chenh = thanhTien - thanhTienCu;
+        if (daTra > 0 && thanhTien < daTra) {
+            long hoan = daTra - thanhTien;
+            LichSuThanhToan tt = new LichSuThanhToan();
+            tt.setHoaDon(hd);
+            tt.setSoTien(BigDecimal.valueOf(-hoan));
+            tt.setThoiGian(luc);
+            tt.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
+            tt.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
+            tt.setMoTa("Hoàn phí cho khách sau khi đổi thông tin giao hàng");
+            thanhToanRepo.save(tt);
+            return "Hoàn phí " + tien(hoan) + " cho khách (đã trả trước " + tien(daTra) + ")";
+        }
+        if (daTra > 0 && thanhTien > daTra) return "Phụ phí " + tien(thanhTien - daTra) + ": khách trả thêm khi nhận hàng";
+        if (chenh > 0) return "Khách trả thêm " + tien(chenh) + " khi nhận hàng (COD " + tien(thanhTien) + ")";
+        if (chenh < 0) return "Khách trả ít hơn " + tien(-chenh) + " khi nhận hàng (COD " + tien(thanhTien) + ")";
+        return "Tổng tiền không đổi";
     }
 
     /** Kiểm tra các sản phẩm trong đơn có đủ hàng trong kho không (rỗng nếu đủ hàng). */
@@ -352,22 +474,46 @@ public class HoaDonSuaService {
         ls.setMoTa("Đã nhận chuyển khoản " + tien(con) + (t.getMaGiaoDich() == null ? "" : " (mã GD " + t.getMaGiaoDich() + ")"));
         lichSuRepo.save(ls);
 
-        if (chuaTruKho) {
-            truTonKho(hd);
-            hd.setTrangThai(HoaDon.DA_XAC_NHAN);
-            hd.setNgayCapNhat(luc);
-            hoaDonRepo.save(hd);
-
-            LichSuHoaDon lsXn = new LichSuHoaDon();
-            lsXn.setHoaDon(hd);
-            lsXn.setHanhDong("Đã xác nhận");
-            lsXn.setNguoiThaoTac(nd.hoTen() == null ? "Nhân viên" : nd.hoTen());
-            lsXn.setThoiGian(luc);
-            lsXn.setMoTa("Tự động xác nhận đơn hàng và trừ tồn kho sau khi đã nhận đủ thanh toán chuyển khoản.");
-            lichSuRepo.save(lsXn);
-        }
-
+        // Cô review 14/11 [30:53] ("tại sao lại là đã xác nhận?"): nhận tiền chỉ ghi "đã thanh toán", đơn vẫn Chờ xác nhận,
+        // nhân viên bấm "Xác nhận đơn" (lúc đó mới trừ kho).
+        hd.setNgayCapNhat(luc);
+        hoaDonRepo.save(hd);
         return hoaDonService.getChiTietHoaDon(hd.getId());
+    }
+
+    /**
+     * Nhân viên báo khách biết sản phẩm trong đơn online tạm hết hàng (quầy / đơn khác vừa mua hết): gửi thư chăm sóc khách,
+     * ghi lịch sử; đơn giữ nguyên "Chờ xác nhận", không hủy. Đơn vẫn đủ hàng thì báo lỗi, không gửi.
+     */
+    @Transactional
+    public Map<String, Object> baoHetHang(Integer id) {
+        NguoiDung nd = XacThuc.nhanVien();
+        HoaDon hd = hoaDonRepo.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy hóa đơn."));
+        if (!Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon()) || !Integer.valueOf(HoaDon.CHO_XAC_NHAN).equals(hd.getTrangThai())) {
+            throw ApiException.conflict("Chỉ báo hết hàng cho đơn giao hàng đang \"Chờ xác nhận\".");
+        }
+        List<String> thieu = danhSachThieuHang(hd);
+        if (thieu.isEmpty()) throw ApiException.conflict("Đơn " + hd.getMaHoaDon() + " vẫn đủ hàng trong kho, không cần báo khách.");
+        String email = emailNhanThongBao(hd);
+        long daTra = daTra(hd);
+        LichSuHoaDon ls = new LichSuHoaDon();
+        ls.setHoaDon(hd);
+        ls.setHanhDong(HANH_DONG_BAO_HET_HANG);
+        ls.setNguoiThaoTac(nd.hoTen() == null ? "Nhân viên" : nd.hoTen());
+        ls.setThoiGian(bayGio());
+        String moTa = "Sản phẩm tạm hết hàng: " + String.join("; ", thieu) + ". "
+                + (email != null ? "Đã gửi thư báo tới " + email + "." : "Khách không có email, cần gọi điện báo khách.")
+                + " Đơn được giữ ở Chờ xác nhận.";
+        ls.setMoTa(moTa.length() > 4000 ? moTa.substring(0, 4000) : moTa);
+        lichSuRepo.save(ls);
+        guiThuHetHang(hd, thieu, daTra > 0 ? tien(daTra) : null);
+        return hoaDonService.getChiTietHoaDon(hd.getId());
+    }
+
+    private void guiThuHetHang(HoaDon hd, List<String> thieu, String daChuyenKhoan) {
+        if (mailService == null) return;
+        String email = emailNhanThongBao(hd);
+        if (email != null) mailService.guiThongBaoHetHang(tenNhanThongBao(hd), email, hd.getMaHoaDon(), thieu, daChuyenKhoan);
     }
 
     /** Đơn đã hủy mà khách đã chuyển khoản tiền: nhân viên xác nhận đã chuyển khoản hoàn trả tiền cho khách. */
@@ -408,8 +554,11 @@ public class HoaDonSuaService {
         ls.setHanhDong("Hoàn tiền");
         ls.setNguoiThaoTac(nd.hoTen() == null ? "Nhân viên" : nd.hoTen());
         ls.setThoiGian(luc);
-        ls.setMoTa("Đã hoàn trả " + tien(tongDaTra) + " cho khách" + (ma == null || ma.isEmpty() ? "" : " (mã GD " + ma + ")"));
+        String email = emailNhanThongBao(hd);
+        ls.setMoTa("Đã hoàn trả " + tien(tongDaTra) + " cho khách" + (ma == null || ma.isEmpty() ? "" : " (mã GD " + ma + ")")
+                + (email != null ? ". Đã gửi thư báo tới " + email : ""));
         lichSuRepo.save(ls);
+        if (mailService != null && email != null) mailService.guiDaHoanTien(tenNhanThongBao(hd), email, hd.getMaHoaDon(), tien(tongDaTra), ma);
 
         return hoaDonService.getChiTietHoaDon(hd.getId());
     }
@@ -441,7 +590,13 @@ public class HoaDonSuaService {
                 String ma = maGiaoDich == null ? null : maGiaoDich.trim();
                 if (ma != null && ma.length() > 100) ma = ma.substring(0, 100);
 
-                // Ghi nhận tiền chuyển khoản của khách
+                if (ma != null && !ma.isEmpty()) {
+                    for (LichSuThanhToan x : thanhToanRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+                        if (ma.equals(x.getMaGiaoDich())) return "Bỏ qua: giao dịch " + ma + " đã ghi nhận trước đó.";
+                    }
+                }
+                // Góp ý 14/11 (video 22:22 [12:42–14:03]): KHÔNG tự hủy. Ghi nhận tiền, đơn giữ "Chờ xác nhận" (đơn treo, chưa trừ kho),
+                // gửi thư chăm sóc khách; nhân viên gọi khách để đổi sản phẩm khác / chờ hàng về / hủy và hoàn tiền.
                 LichSuThanhToan t = new LichSuThanhToan();
                 t.setHoaDon(hd);
                 t.setSoTien(BigDecimal.valueOf(soTien));
@@ -449,32 +604,23 @@ public class HoaDonSuaService {
                 t.setThoiGian(luc);
                 t.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
                 t.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
-                t.setMoTa("Khách chuyển khoản nhưng sản phẩm đã hết hàng tồn kho (cần hoàn tiền)");
+                t.setMoTa("Khách chuyển khoản VietQR nhưng sản phẩm tạm hết hàng (đơn được giữ, chờ liên hệ khách)");
                 thanhToanRepo.save(t);
 
-                hd.setTrangThai(HoaDon.DA_HUY);
-                hd.setNgayCapNhat(luc);
-                hoaDonRepo.save(hd);
+                String moTa = "Khách đã chuyển khoản " + tien(soTien) + " nhưng sản phẩm tạm hết hàng: " + String.join("; ", thieu)
+                        + ". Đơn được giữ ở Chờ xác nhận, đã gửi thư báo khách; nhân viên liên hệ khách để đổi sản phẩm khác, chờ hàng về hoặc hủy và hoàn tiền.";
+                LichSuHoaDon lsThieu = new LichSuHoaDon();
+                lsThieu.setHoaDon(hd);
+                lsThieu.setHanhDong(HANH_DONG_BAO_HET_HANG);
+                lsThieu.setNguoiThaoTac("Hệ thống");
+                lsThieu.setThoiGian(luc);
+                lsThieu.setMoTa(moTa.length() > 4000 ? moTa.substring(0, 4000) : moTa);
+                lichSuRepo.save(lsThieu);
 
-                String lyDoHuy = "Tự động hủy do hết hàng: " + String.join("; ", thieu) + " (đơn khác đã thanh toán trước).";
-                LichSuHoaDon lsHuy = new LichSuHoaDon();
-                lsHuy.setHoaDon(hd);
-                lsHuy.setHanhDong("Đã hủy");
-                lsHuy.setNguoiThaoTac("Hệ thống");
-                lsHuy.setThoiGian(luc);
-                lsHuy.setMoTa(lyDoHuy + " - Cần hoàn trả khách " + tien(soTien));
-                lichSuRepo.save(lsHuy);
+                guiThuHetHang(hd, thieu, tien(soTien));
 
-                if (mailService != null) {
-                    String email = emailNhanThongBao(hd);
-                    if (email != null) {
-                        String ten = tenNhanThongBao(hd);
-                        mailService.guiThongBaoHoanTien(ten, email, hd.getMaHoaDon(), lyDoHuy, tien(soTien), "Chuyển khoản ngân hàng");
-                    }
-                }
-
-                return "Không thể nhận hàng do sản phẩm đã hết hàng tồn kho: " + String.join("; ", thieu)
-                        + ". Hệ thống đã tự động hủy đơn và gửi email thông báo hoàn tiền " + tien(soTien) + " cho khách.";
+                return "Đã ghi nhận " + tien(soTien) + " nhưng sản phẩm tạm hết hàng: " + String.join("; ", thieu)
+                        + ". Đơn được giữ (không hủy), đã gửi thư báo khách.";
             }
         }
 
@@ -505,20 +651,10 @@ public class HoaDonSuaService {
         ls.setMoTa(ghiChu.length() > 480 ? ghiChu.substring(0, 480) : ghiChu);
         lichSuRepo.save(ls);
 
-        if (chuaTruKho && conLai <= 0) {
-            truTonKho(hd);
-            hd.setTrangThai(HoaDon.DA_XAC_NHAN);
-            hd.setNgayCapNhat(luc);
-            hoaDonRepo.save(hd);
-
-            LichSuHoaDon lsXn = new LichSuHoaDon();
-            lsXn.setHoaDon(hd);
-            lsXn.setHanhDong("Đã xác nhận");
-            lsXn.setNguoiThaoTac("Hệ thống");
-            lsXn.setThoiGian(luc);
-            lsXn.setMoTa("Tự động xác nhận đơn hàng và trừ tồn kho sau khi khách chuyển khoản đủ.");
-            lichSuRepo.save(lsXn);
-        }
+        // Cô review 14/11 [30:53]: không tự chuyển sang "Đã xác nhận" (người làm "HỆ THỐNG"). Tiền về chỉ ghi nhận đã thanh toán;
+        // đơn vẫn Chờ xác nhận, chưa trừ kho, nhân viên kiểm tra rồi bấm "Xác nhận đơn".
+        hd.setNgayCapNhat(luc);
+        hoaDonRepo.save(hd);
 
         return "Đã ghi nhận " + tien(soTien) + " cho đơn " + hd.getMaHoaDon() + (conLai > 0 ? " (còn thiếu " + tien(conLai) + ")" : "");
     }

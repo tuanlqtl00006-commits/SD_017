@@ -2,7 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
-import { NHOM_PHI } from '../../utils/phiVanChuyenTinh'
+import { NHOM_PHI, PHI_HA_NOI } from '../../utils/phiVanChuyenTinh'
 import { formatMoney } from '../../utils/format'
 
 const route = useRoute()
@@ -127,38 +127,7 @@ watch(
           </div>
         </div>
 
-        <!-- Quẹt thẻ tại quầy -->
-        <div class="col-md-6">
-          <div class="p-4 bg-light rounded-3 h-100 border">
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <i class="bi bi-credit-card-2-front text-danger fs-3"></i>
-              <h5 class="fw-bold text-dark mb-0">3. Quẹt Thẻ POS Tại Showroom</h5>
-            </div>
-            <p class="small text-secondary mb-3">
-              Hỗ trợ quẹt thẻ Visa, MasterCard, JCB và thẻ ATM nội địa Napas tại tất cả các chi nhánh FootStyle trên toàn quốc.
-            </p>
-            <ul class="small text-muted ps-3 mb-0">
-              <li>Hỗ trợ thanh toán không tiếp xúc (Contactless, Apple Pay, Google Pay).</li>
-              <li>Không thu phụ phí quẹt thẻ.</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Ví điện tử -->
-        <div class="col-md-6">
-          <div class="p-4 bg-light rounded-3 h-100 border">
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <i class="bi bi-wallet2 text-warning fs-3"></i>
-              <h5 class="fw-bold text-dark mb-0">4. Ví Điện Tử & Cổng Thanh Toán</h5>
-            </div>
-            <p class="small text-secondary mb-3">
-              Thanh toán dễ dàng qua ví MoMo, VNPay, ZaloPay, ShopeePay với nhiều chương trình hoàn tiền và mã giảm giá độc quyền.
-            </p>
-            <ul class="small text-muted ps-3 mb-0">
-              <li>Tiện lợi, thao tác nhanh chỉ trong 1 chạm trên điện thoại.</li>
-            </ul>
-          </div>
-        </div>
+        <!-- Chỉ ghi hai phương thức hệ thống có thật (trước có quẹt thẻ POS, ví điện tử nhưng hệ thống không có). Mua tại cửa hàng: tiền mặt / chuyển khoản / kết hợp -->
       </div>
 
       <div class="p-3 bg-primary-subtle rounded-3 text-dark small border-start border-4 border-primary">
@@ -203,7 +172,7 @@ watch(
         <template v-if="caiDatShip.mienPhiBat && caiDatShip.mienPhiTu > 0">
           Miễn phí vận chuyển toàn quốc cho đơn có tiền hàng từ <strong>{{ formatMoney(caiDatShip.mienPhiTu) }}</strong>.
         </template>
-        Giao tại Hà Nội miễn phí; các tỉnh / thành khác phí từ {{ formatMoney(phiThapNhat) }} đến {{ formatMoney(phiCaoNhat) }} tùy tỉnh nhận.
+        Giao trong Hà Nội {{ formatMoney(PHI_HA_NOI.phuong) }} (phường) / {{ formatMoney(PHI_HA_NOI.xa) }} (xã); các tỉnh / thành khác phí từ {{ formatMoney(phiThapNhat) }} đến {{ formatMoney(phiCaoNhat) }} tùy tỉnh nhận.
       </div>
     </div>
 
@@ -309,7 +278,7 @@ watch(
       </div>
 
       <div class="p-3 bg-light rounded-3 text-secondary small">
-        Quý khách cần hỗ trợ bảo hành vui lòng mang sản phẩm đến bất kỳ showroom FootStyle hoặc gọi Hotline: <strong>0977508430</strong>.
+        Quý khách cần hỗ trợ bảo hành vui lòng mang sản phẩm đến cửa hàng FootStyle (123 Đường Cầu Diễn, Bắc Từ Liêm, Hà Nội) hoặc gọi Hotline: <strong>0977508430</strong>.
       </div>
     </div>
   </div>

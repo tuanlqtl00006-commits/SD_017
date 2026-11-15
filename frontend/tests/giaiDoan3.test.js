@@ -46,8 +46,9 @@ describe('Bán tại quầy: giỏ hàng', () => {
 })
 
 describe('Bán tại quầy: phí giao hàng theo tỉnh', () => {
-  it('Hà Nội miễn phí, tỉnh khác tùy tỉnh; chưa chọn tỉnh thì chưa tính', () => {
-    expect(phiGiaoHang('Thành phố Hà Nội')).toBe(0)
+  it('Hà Nội phường 25.000 / xã 30.000, tỉnh khác tùy tỉnh; chưa chọn tỉnh thì chưa tính', () => {
+    expect(phiGiaoHang('Thành phố Hà Nội', 'Phường Hà Đông')).toBe(25000)
+    expect(phiGiaoHang('Thành phố Hà Nội', 'Xã Sóc Sơn')).toBe(30000)
     expect(phiGiaoHang('Tỉnh Phú Thọ')).toBe(25000)
     expect(phiGiaoHang('Thành phố Hồ Chí Minh')).toBe(50000)
     expect(phiGiaoHang('')).toBeNull()

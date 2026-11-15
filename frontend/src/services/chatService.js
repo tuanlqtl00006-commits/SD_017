@@ -28,3 +28,7 @@ export const chatNoiBoApi = {
   xem: (id, sauId) => api.get(`/chat/noi-bo/${id}`, { params: sauId ? { sauId } : {} }).then((r) => r.data),
   gui: (id, noiDung) => api.post(`/chat/noi-bo/${id}/tin-nhan`, { noiDung }).then((r) => r.data),
 }
+
+// Đánh giá cuộc chat đã kết thúc có nhân viên tham gia (mỗi cuộc 1 lần).
+hoTroKhachApi.danhGia = (id, ma, mucDo, daGiaiQuyet, gopY) =>
+  api.post(`/ho-tro/khach/${id}/danh-gia`, { ma, mucDo, daGiaiQuyet, gopY }).then((r) => r.data)

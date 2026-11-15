@@ -51,7 +51,7 @@ describe('Phí giao hàng sau khi sửa đơn (giống máy chủ)', () => {
 
   it('bớt hàng làm đơn tụt dưới ngưỡng thì tính lại theo tỉnh', () => {
     expect(phi({ diaChiMoi: hcm, diaChiCu: hcm, tienHang: 500_000, tienHangCu: 900_000, phiCu: 0 })).toBe(50_000)
-    expect(phi({ diaChiMoi: haNoi, diaChiCu: haNoi, tienHang: 500_000, tienHangCu: 900_000, phiCu: 0 })).toBe(0)
+    expect(phi({ diaChiMoi: haNoi, diaChiCu: haNoi, tienHang: 500_000, tienHangCu: 900_000, phiCu: 0 })).toBe(25_000) // Hà Nội không còn miễn phí
     const la = 'Số 15 Trần Phú, khu phố 3'
     expect(phi({ diaChiMoi: la, diaChiCu: la, tienHang: 500_000, tienHangCu: 900_000, phiCu: 0 })).toBe(PHI_MAC_DINH)
   })

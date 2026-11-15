@@ -405,9 +405,9 @@ class HoaDonChoServiceTest {
         service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
         ApiException e = loi(() -> banHang.thanhToanHoaDonCho(id, tra(300_000L, new BanHangService.GiaoHangRequest(" ", "123", "ngắn"), null)));
         assertEquals(List.of("hoTen", "sdt", "diaChi"), List.copyOf(e.getLoiTheoTruong().keySet()));
-        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(250_000L,
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(275_000L,
                 new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901 000 001", "Số 15 ngõ 120 Trần Phú, Hà Đông, Hà Nội"), null));
-        assertEquals(250_000L, kq.get("thanhTien"), "250.000, giao Hà Nội miễn phí ship");
+        assertEquals(275_000L, kq.get("thanhTien"), "250.000 + 25.000 giao trong Hà Nội (phường)");
         HoaDon h = m.hoaDons.stream().filter(x -> x.getId().equals(id)).findFirst().orElseThrow();
         assertEquals(HoaDon.GIAO_HANG, h.getLoaiDon());
         assertEquals(HoaDon.CHO_LAY_HANG, h.getTrangThai(), "đã trả tiền tại quầy nên bỏ qua bước chờ xác nhận");
@@ -422,9 +422,9 @@ class HoaDonChoServiceTest {
         ApiException e = loi(() -> banHang.thanhToanHoaDonCho(id, tra(300_000L,
                 new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", " ", "", null), null)));
         assertEquals(List.of("tinhThanh", "phuongXa", "diaChi"), List.copyOf(e.getLoiTheoTruong().keySet()));
-        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(250_000L,
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(275_000L,
                 new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 15 ngõ 120 Trần Phú", "Thành phố Hà Nội", "Phường Hà Đông"), null));
-        assertEquals(250_000L, kq.get("thanhTien"), "250.000, Hà Nội miễn phí ship");
+        assertEquals(275_000L, kq.get("thanhTien"), "250.000 + 25.000 (Hà Nội, phường)");
         HoaDon h = m.hoaDons.stream().filter(x -> x.getId().equals(id)).findFirst().orElseThrow();
         assertEquals("Số 15 ngõ 120 Trần Phú, Phường Hà Đông, Thành phố Hà Nội", h.getDiaChiGiaoHang());
         assertEquals(BanHangService.DON_VI_VAN_CHUYEN, h.getDonViVanChuyen());
@@ -439,7 +439,7 @@ class HoaDonChoServiceTest {
         assertEquals("Phí vận chuyển không được âm.", e.getMessage());
         Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(320_000L,
                 new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 15 ngõ 120 Trần Phú", "Thành phố Hà Nội", "Phường Hà Đông", 70_000L), null));
-        assertEquals(70_000L, kq.get("phiVanChuyen"), "lấy số nhân viên nhập, dù Hà Nội miễn phí");
+        assertEquals(70_000L, kq.get("phiVanChuyen"), "lấy số nhân viên nhập, không theo bảng phí");
         assertEquals(320_000L, kq.get("thanhTien"), "250.000 + 70.000");
         HoaDon h = m.hoaDons.stream().filter(x -> x.getId().equals(id)).findFirst().orElseThrow();
         assertEquals(70_000L, h.getPhiVanChuyen().longValue());
@@ -447,8 +447,8 @@ class HoaDonChoServiceTest {
 
     @Test
     void phiGiaoHangTheoTinh() {
-        assertEquals(0L, PhiVanChuyenTinh.phi("Thành phố Hà Nội"), "Hà Nội miễn phí");
-        assertEquals(0L, PhiVanChuyenTinh.phi("Ha Noi"));
+        assertEquals(25_000L, PhiVanChuyenTinh.phi("Thành phố Hà Nội"), "Hà Nội: phường 25.000");
+        assertEquals(30_000L, PhiVanChuyenTinh.phi("Ha Noi", "Xã Sóc Sơn"), "Hà Nội: xã 30.000");
         assertEquals(25_000L, PhiVanChuyenTinh.phi("Tỉnh Phú Thọ"));
         assertEquals(50_000L, PhiVanChuyenTinh.phi("Thành phố Hồ Chí Minh"));
         assertEquals(PhiVanChuyenTinh.PHI_MAC_DINH, PhiVanChuyenTinh.phi(null), "không có tỉnh thì giữ mức mặc định");

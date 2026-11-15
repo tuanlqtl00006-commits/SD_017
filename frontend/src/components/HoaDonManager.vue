@@ -233,7 +233,7 @@ async function exportFile() {
         { header: 'Tên KH', key: 'tenKh', width: 24 },
         { header: 'SĐT KH', key: 'sdt', width: 14 },
         { header: 'Tổng tiền TT (₫)', key: 'tien', width: 18, money: true },
-        { header: 'Loại đơn', key: 'loai', width: 12 },
+        { header: kenh.value === 'ONLINE' ? 'Loại đơn' : 'Hình thức mua', key: 'loai', width: 16 },
         { header: 'Ngày tạo', key: 'ngay', width: 12 },
         { header: 'Trạng thái', key: 'trangThai', width: 16 },
       ],
@@ -244,7 +244,7 @@ async function exportFile() {
         tenKh: tenKhach(hd),
         sdt: hd.sdtKhachHang || '',
         tien: Number(hd.tongTien) || 0, // để dạng SỐ để Excel cộng / lọc được
-        loai: hd.loaiDon,
+        loai: kenh.value === 'ONLINE' ? hd.loaiDon : hd.hinhThucMua || 'Mua tại quầy',
         ngay: formatNgay(hd.ngayTao),
         trangThai: trangThaiOf(hd.trangThai).label,
       })),
@@ -390,7 +390,7 @@ async function exportFile() {
                 <th>Tên KH</th>
                 <th>SĐT KH</th>
                 <th>Tổng tiền TT</th>
-                <th>Loại đơn</th>
+                <th>{{ kenh === 'ONLINE' ? 'Loại đơn' : 'Hình thức mua' }}</th>
                 <th>Ngày tạo</th>
                 <th>Trạng thái</th>
                 <th class="ad-col-actions">Hành động</th>
@@ -417,7 +417,12 @@ async function exportFile() {
                   <td class="ad-cell-wrap">{{ tenKhach(hd) }}</td>
                   <td class="ad-nowrap">{{ hd.sdtKhachHang || '—' }}</td>
                   <td class="ad-nowrap hd-money">{{ formatMoney(hd.tongTien) }}</td>
-                  <td class="ad-nowrap">{{ hd.loaiDon }}</td>
+                  <td class="ad-nowrap" data-testid="hd-hinh-thuc">
+                    <template v-if="kenh === 'ONLINE'">{{ hd.loaiDon }}</template>
+                    <span v-else class="hd-hinh-thuc" :class="{ 'is-giao': hd.hinhThucMua === 'Giao tận nơi' }">
+                      <i class="bi" :class="hd.hinhThucMua === 'Giao tận nơi' ? 'bi-truck' : 'bi-shop'" aria-hidden="true"></i> {{ hd.hinhThucMua || 'Mua tại quầy' }}
+                    </span>
+                  </td>
                   <td class="ad-nowrap">{{ formatNgay(hd.ngayTao) }}</td>
                   <td>
                     <span class="ad-pill" :class="trangThaiOf(hd.trangThai).pill">{{ trangThaiOf(hd.trangThai).label }}</span>
@@ -460,6 +465,21 @@ async function exportFile() {
   gap: 0.25rem;
   margin: -0.25rem 0 1rem;
   border-bottom: 1px solid var(--fs-line-soft, #e8edf3);
+}
+.hd-hinh-thuc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  border-radius: 999px;
+}
+.hd-hinh-thuc.is-giao {
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 .hd-kenh-tab {
   display: inline-flex;

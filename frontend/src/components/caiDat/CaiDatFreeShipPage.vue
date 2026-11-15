@@ -14,7 +14,7 @@ import { useSuKien } from '../../composables/useSuKien'
 import { nhanCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 import { CHU_DE } from '../../services/suKien'
 import { formatMoney, formatNgayGio } from '../../utils/format'
-import { NHOM_PHI, PHI_MAC_DINH, phiVanChuyenTheoTinh } from '../../utils/phiVanChuyenTinh'
+import { BANG_PHI_HIEN_THI, PHI_MAC_DINH, phiVanChuyenTheoTinh } from '../../utils/phiVanChuyenTinh'
 
 const NGUONG_TOI_DA = 10_000_000_000 // bằng backend CaiDatVanChuyenService.NGUONG_TOI_DA
 
@@ -54,7 +54,7 @@ const viDu = computed(() => {
   return { duoi, dat: n, phiTinh: phiVanChuyenTheoTinh(TINH_VI_DU) }
 })
 // Bảng phí theo tỉnh đang áp dụng (utils/phiVanChuyenTinh.js, khớp backend PhiVanChuyenTinh), chỉ để quản lý tham khảo
-const bangPhi = [...NHOM_PHI.map(([phi, ds]) => ({ tinh: ds.join(', '), phi })), { tinh: 'Địa chỉ không nhận ra tên tỉnh', phi: PHI_MAC_DINH }]
+const bangPhi = [...BANG_PHI_HIEN_THI, { tinh: 'Địa chỉ không nhận ra tên tỉnh', phi: PHI_MAC_DINH }]
 
 function datForm() {
   form.mienPhiBat = daLuu.mienPhiBat

@@ -13,6 +13,7 @@ import { formatMoney } from '../../utils/format'
 import { dongTienDon } from '../../utils/tienDon'
 import { useBaoGiaGioHang } from '../../composables/useBaoGiaGioHang'
 import api from '../../services/api'
+import { phieuChoGio, phieuTotNhat, taiPhieuChoKhach } from '../../services/phieuKhachService'
 
 const route = useRoute()
 const router = useRouter()
@@ -57,8 +58,9 @@ const form = ref({
   phuongThucThanhToan: 'COD', // COD hoặc QR
 })
 
-// Phí ship tính theo Tỉnh/Thành khách chọn (Hà Nội miễn phí, tỉnh khác tùy tỉnh)
+// Phí ship theo nơi khách chọn (Hà Nội: phường 25.000 / xã 30.000; tỉnh khác tùy tỉnh)
 watch(() => form.value.tinhThanh, (tinh) => { cartStore.tinhGiao = tinh || '' }, { immediate: true })
+watch(() => form.value.phuongXa, (p) => { cartStore.phuongGiao = p || '' }, { immediate: true })
 
 // Sổ địa chỉ đã lưu của khách đang đăng nhập (tự điền địa chỉ mặc định)
 const savedAddresses = ref([])
@@ -159,6 +161,64 @@ function validate() {
   return Object.keys(errs).length === 0
 }
 
+/* ----- Kiểm tra lại trước khi đặt (cô test case khó 14/11 + nhóm góp ý) -----
+ * Không tự đổi phiếu / giá sau lưng khách ("người ta không biết mình vừa chọn cái gì"). Bấm Đặt hàng thì hỏi lại máy chủ:
+ * - giá vừa đổi theo đợt giảm giá  -> báo tổng mới, khách đồng ý mới đặt;
+ * - phiếu đang dùng không còn dùng được -> hỏi đặt không dùng phiếu hay quay lại chọn phiếu khác;
+ * - có phiếu giảm nhiều hơn (kể cả khi chưa dùng phiếu) -> hỏi có muốn áp dụng không; chọn không thì đặt như cũ. */
+const hoiTruocKhiDat = ref(null) // { dong: [chuỗi], nut: [{ nhan, chinh, lam }] }
+
+async function kiemTraTruocKhiDat() {
+  const bg = await cartStore.taiBaoGia()
+  if (coSanPhamKhongDuHang.value) {
+    submitError.value = 'Một số sản phẩm trong đơn đã hết hoặc không đủ tồn kho (do quầy hoặc đơn khác vừa mua). Vui lòng kiểm tra lại.'
+    return null
+  }
+  const dong = []
+  if (bg?.doiGia) {
+    dong.push(`Giá một số sản phẩm vừa thay đổi theo đợt giảm giá hiện tại. Tổng thanh toán mới: ${formatMoney(cartStore.finalTotal)}.`)
+  }
+  const dangDung = cartStore.appliedVoucher
+  if (dangDung && cartStore.loiPhieu) {
+    dong.push(`Phiếu ${dangDung.ma} không còn dùng được: ${cartStore.loiPhieu}`)
+    return {
+      dong,
+      nut: [
+        { nhan: 'Đặt hàng không dùng phiếu', chinh: true, lam: async () => { cartStore.removeVoucher(); await cartStore.taiBaoGia(); await guiDon() } },
+        { nhan: 'Quay lại chọn phiếu khác', lam: null },
+      ],
+    }
+  }
+  const tot = phieuTotNhat(await taiPhieuChoKhach(Math.round(cartStore.subTotal)))
+  const dangGiam = dangDung ? Number(cartStore.discountAmount) || 0 : 0
+  if (tot && tot.ma !== dangDung?.ma && Number(tot.soTienGiam) > dangGiam) {
+    dong.push(
+      dangDung
+        ? `Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)}, nhiều hơn phiếu ${dangDung.ma} đang dùng (${formatMoney(dangGiam)}). Bạn có muốn áp dụng không?`
+        : `Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Bạn có muốn áp dụng không?`,
+    )
+    return {
+      dong,
+      nut: [
+        { nhan: `Áp dụng ${tot.ma} và đặt hàng`, chinh: true, lam: async () => { cartStore.setVoucher(phieuChoGio(tot)); await cartStore.taiBaoGia(); await guiDon() } },
+        { nhan: dangDung ? 'Không, giữ phiếu đang dùng' : 'Không, đặt hàng không dùng phiếu', lam: () => guiDon() },
+      ],
+    }
+  }
+  if (dong.length) {
+    return { dong, nut: [{ nhan: 'Đặt hàng với giá mới', chinh: true, lam: () => guiDon() }, { nhan: 'Quay lại xem', lam: null }] }
+  }
+  return 'ok'
+}
+
+async function chonTrongHoi(n) {
+  hoiTruocKhiDat.value = null
+  if (!n.lam) return
+  submitting.value = true
+  submitError.value = ''
+  await n.lam()
+}
+
 async function handleOrderSubmit() {
   if (cartStore.items.length === 0) {
     router.push('/shop/san-pham')
@@ -170,6 +230,18 @@ async function handleOrderSubmit() {
     return
   }
 
+  submitting.value = true
+  submitError.value = ''
+  const kq = await kiemTraTruocKhiDat()
+  if (kq !== 'ok') {
+    submitting.value = false
+    if (kq) hoiTruocKhiDat.value = kq
+    return
+  }
+  await guiDon()
+}
+
+async function guiDon() {
   submitting.value = true
   submitError.value = ''
 
@@ -265,10 +337,10 @@ async function handleOrderSubmit() {
 </script>
 
 <template>
-  <div class="checkout-view py-4">
-    <div class="container">
+  <div class="checkout-view tt-trang">
+    <div class="vnb-container">
       <!-- Breadcrumb -->
-      <nav aria-label="breadcrumb" class="mb-4">
+      <nav aria-label="breadcrumb" class="tt-duong-dan">
         <ol class="breadcrumb mb-0 small">
           <li class="breadcrumb-item"><RouterLink to="/shop">Trang chủ</RouterLink></li>
           <li class="breadcrumb-item"><RouterLink to="/shop/gio-hang">Giỏ hàng</RouterLink></li>
@@ -276,7 +348,16 @@ async function handleOrderSubmit() {
         </ol>
       </nav>
 
-      <div v-if="cartStore.items.length === 0" class="card border-0 shadow-sm rounded-4 p-5 text-center my-4">
+      <div class="tt-dau">
+        <h1 class="tt-tieu-de">Thanh toán</h1>
+        <ol class="tt-buoc" aria-label="Các bước đặt hàng">
+          <li class="is-xong"><span><i class="bi bi-check-lg"></i></span> Giỏ hàng</li>
+          <li class="is-dang"><span>2</span> Thông tin đặt hàng</li>
+          <li><span>3</span> Hoàn tất</li>
+        </ol>
+      </div>
+
+      <div v-if="cartStore.items.length === 0" class="tt-the tt-trong">
         <h4 class="fw-bold mb-3">Giỏ hàng của bạn đang trống</h4>
         <p class="text-muted mb-4">Vui lòng chọn sản phẩm vào giỏ hàng trước khi thanh toán.</p>
         <div>
@@ -286,13 +367,11 @@ async function handleOrderSubmit() {
         </div>
       </div>
 
-      <div v-else class="row g-4">
+      <div v-else class="tt-luoi">
         <!-- Cột Form Điền Thông Tin -->
-        <div class="col-lg-7">
-          <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
-            <h5 class="fw-bold mb-3 text-dark d-flex align-items-center gap-2">
-              <i class="bi bi-person-lines-fill text-primary"></i> 1. Thông tin người nhận hàng
-            </h5>
+        <div class="tt-cot-form">
+          <div class="tt-the">
+            <h5 class="tt-muc"><span>1</span> Thông tin người nhận hàng</h5>
 
             <div class="row g-3">
               <div class="col-md-6">
@@ -332,9 +411,10 @@ async function handleOrderSubmit() {
               </div>
             </div>
 
-            <h5 class="fw-bold mt-4 mb-3 text-dark d-flex align-items-center gap-2">
-              <i class="bi bi-geo-alt-fill text-primary"></i> 2. Địa chỉ nhận hàng
-            </h5>
+          </div>
+
+          <div class="tt-the">
+            <h5 class="tt-muc"><span>2</span> Địa chỉ nhận hàng</h5>
 
             <!-- Sổ địa chỉ gọn: một dòng địa chỉ đang dùng + nút "Thay đổi" mở pop-up chọn địa chỉ (giống cửa sổ địa chỉ bên admin) -->
             <div v-if="savedAddresses.length > 0" class="dc-gon mb-3" :class="{ 'is-loi': errors.soDiaChi }" data-testid="ck-dia-chi-gon">
@@ -436,12 +516,13 @@ async function handleOrderSubmit() {
               </div>
             </div>
 
-            <h5 class="fw-bold mt-4 mb-3 text-dark d-flex align-items-center gap-2">
-              <i class="bi bi-credit-card-fill text-primary"></i> 3. Hình thức thanh toán
-            </h5>
+          </div>
 
-            <div class="d-flex flex-column gap-2">
-              <label class="border rounded-3 p-3 d-flex align-items-center gap-3 cursor-pointer" :class="{ 'border-primary bg-light': form.phuongThucThanhToan === 'COD' }">
+          <div class="tt-the">
+            <h5 class="tt-muc"><span>3</span> Hình thức thanh toán</h5>
+
+            <div class="tt-pttt-ds">
+              <label class="tt-pttt" :class="{ 'is-chon': form.phuongThucThanhToan === 'COD' }">
                 <input
                   type="radio"
                   class="form-check-input mt-0"
@@ -450,16 +531,15 @@ async function handleOrderSubmit() {
                   v-model="form.phuongThucThanhToan"
                 />
                 <div class="flex-grow-1">
-                  <div class="fw-bold small d-flex align-items-center gap-2">
-                    <i class="bi bi-cash-stack text-success fs-5"></i> Thanh toán khi nhận hàng (COD)
-                  </div>
-                  <div class="text-muted" style="font-size: 0.8rem;">
+                  <div class="tt-pttt-ten">Thanh toán khi nhận hàng (COD)</div>
+                  <div class="tt-pttt-mo-ta">
                     Kiểm tra hàng thoải mái trước khi thanh toán tiền mặt cho nhân viên giao hàng.
                   </div>
                 </div>
+                <span class="tt-pttt-icon is-cod"><i class="bi bi-cash-stack"></i></span>
               </label>
 
-              <label class="border rounded-3 p-3 d-flex align-items-center gap-3 cursor-pointer" :class="{ 'border-primary bg-light': form.phuongThucThanhToan === 'QR' }">
+              <label class="tt-pttt" :class="{ 'is-chon': form.phuongThucThanhToan === 'QR' }">
                 <input
                   type="radio"
                   class="form-check-input mt-0"
@@ -468,21 +548,20 @@ async function handleOrderSubmit() {
                   v-model="form.phuongThucThanhToan"
                 />
                 <div class="flex-grow-1">
-                  <div class="fw-bold small d-flex align-items-center gap-2">
-                    <i class="bi bi-qr-code text-primary fs-5"></i> Chuyển khoản VietQR Ngân Hàng
-                  </div>
-                  <div class="text-muted" style="font-size: 0.8rem;">
+                  <div class="tt-pttt-ten">Chuyển khoản VietQR Ngân Hàng</div>
+                  <div class="tt-pttt-mo-ta">
                     Quét mã QR tự động điền số tiền và nội dung qua ứng dụng ngân hàng bất kỳ.
                   </div>
                 </div>
+                <span class="tt-pttt-icon"><i class="bi bi-qr-code"></i></span>
               </label>
             </div>
           </div>
         </div>
 
         <!-- Cột Tóm Tắt Đơn Hàng -->
-        <div class="col-lg-5">
-          <div class="card border-0 shadow-sm rounded-4 p-4 sticky-top" style="top: 20px; z-index: 10;">
+        <div class="tt-cot-tom-tat">
+          <div class="tt-the tt-tom-tat">
             <h5 class="co-title">Đơn hàng ({{ cartStore.totalCount }} sản phẩm)</h5>
 
             <!-- Danh sách sản phẩm -->
@@ -548,9 +627,31 @@ async function handleOrderSubmit() {
 
             <div v-if="submitError" class="alert alert-danger py-2 small mb-3">{{ submitError }}</div>
 
+            <!-- Hỏi lại trước khi đặt: giá / phiếu vừa thay đổi -->
+            <BaseModal v-if="hoiTruocKhiDat" title="Kiểm tra lại trước khi đặt hàng" size="md" @close="hoiTruocKhiDat = null">
+              <div data-testid="hoi-truoc-khi-dat">
+                <p v-for="(d, i) in hoiTruocKhiDat.dong" :key="i" class="tt-hoi-dong">
+                  <i class="bi bi-info-circle-fill"></i> <span>{{ d }}</span>
+                </p>
+                <div class="tt-hoi-nut">
+                  <button
+                    v-for="n in hoiTruocKhiDat.nut"
+                    :key="n.nhan"
+                    type="button"
+                    class="btn"
+                    :class="n.chinh ? 'btn-primary' : 'btn-outline-secondary'"
+                    @click="chonTrongHoi(n)"
+                  >
+                    {{ n.nhan }}
+                  </button>
+                </div>
+              </div>
+            </BaseModal>
+
             <button type="button" class="co-submit" :disabled="submitting || coSanPhamKhongDuHang" @click="handleOrderSubmit">
               <span v-if="submitting" class="spinner-border spinner-border-sm me-2"></span>
-              <span>ĐẶT HÀNG</span>
+              <span>Đặt hàng</span>
+              <i v-if="!submitting" class="bi bi-arrow-right"></i>
             </button>
 
             <RouterLink to="/shop/gio-hang" class="co-back">Quay lại giỏ hàng</RouterLink>
@@ -698,7 +799,7 @@ async function handleOrderSubmit() {
   font-size: 0.68rem;
   font-weight: 700;
   color: #fff;
-  background: #0d6efd;
+  background: var(--vnb-orange);
   border-radius: 999px;
   border: 2px solid #fff;
 }
@@ -764,7 +865,7 @@ async function handleOrderSubmit() {
 }
 .co-total-val {
   font-size: 1.5rem;
-  color: #0d6efd;
+  color: var(--vnb-orange);
 }
 .co-submit {
   width: 100%;
@@ -773,13 +874,13 @@ async function handleOrderSubmit() {
   font-weight: 800;
   letter-spacing: 0.04em;
   color: #fff;
-  background: #0d6efd;
+  background: var(--vnb-orange);
   border: 0;
   border-radius: 10px;
   box-shadow: 0 8px 18px rgba(13, 110, 253, 0.28);
 }
 .co-submit:hover:not(:disabled) {
-  background: #0b5ed7;
+  background: var(--vnb-orange-hover);
 }
 .co-submit:disabled {
   opacity: 0.7;
@@ -793,12 +894,313 @@ async function handleOrderSubmit() {
   text-decoration: none;
 }
 .co-back:hover {
-  color: #0d6efd;
+  color: var(--vnb-orange);
 }
 .co-note {
   margin-top: 0.8rem;
   text-align: center;
   font-size: 0.72rem;
   color: #9aa3b2;
+}
+.tt-hoi-dong {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  font-size: 0.92rem;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border-radius: 12px;
+}
+.tt-hoi-nut {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+.tt-hoi-nut .btn {
+  border-radius: 999px;
+  font-weight: 600;
+}
+/* ===== Giao diện mới 15/11 ===== */
+.tt-trang {
+  min-height: calc(100vh - 260px);
+  padding: 18px 0 72px;
+  background: var(--ft-bg, #f6f7f9);
+}
+.tt-duong-dan {
+  margin-bottom: 10px;
+}
+.tt-dau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-bottom: 22px;
+}
+.tt-tieu-de {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ft-ink, #0f172a);
+}
+.tt-buoc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+.tt-buoc li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.tt-buoc li + li::before {
+  content: '';
+  width: 32px;
+  height: 2px;
+  margin-right: 2px;
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+.tt-buoc li > span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 50%;
+}
+.tt-buoc li.is-xong,
+.tt-buoc li.is-dang {
+  color: var(--ft-ink, #0f172a);
+}
+.tt-buoc li.is-xong > span {
+  color: #fff;
+  background: #16a34a;
+  border-color: #16a34a;
+}
+.tt-buoc li.is-dang > span {
+  color: #fff;
+  background: var(--ft-primary, #1d4ed8);
+  border-color: var(--ft-primary, #1d4ed8);
+}
+.tt-the {
+  margin-bottom: 18px;
+  padding: 24px 26px;
+  background: #fff;
+  border: 1px solid var(--ft-line-2, #eef0f4);
+  border-radius: 24px;
+}
+.tt-trong {
+  padding: 56px 20px;
+  text-align: center;
+}
+.tt-luoi {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 24px;
+  align-items: start;
+}
+.tt-muc {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--ft-ink, #0f172a);
+}
+.tt-muc > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  font-size: 0.85rem;
+  color: #fff;
+  background: var(--ft-ink, #0f172a);
+  border-radius: 50%;
+}
+.tt-the :deep(.form-label) {
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ft-ink-2, #334155);
+}
+.tt-the :deep(.form-control),
+.tt-the :deep(.form-select) {
+  min-height: 46px;
+  padding-left: 14px;
+  font-size: 0.95rem;
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  border-radius: 12px;
+}
+.tt-the :deep(textarea.form-control) {
+  min-height: 0;
+}
+.tt-the :deep(.form-control:focus),
+.tt-the :deep(.form-select:focus) {
+  background-color: #fff;
+  border-color: var(--ft-primary, #1d4ed8);
+  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.12);
+}
+.tt-pttt-ds {
+  display: grid;
+  gap: 10px;
+}
+.tt-pttt {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  cursor: pointer;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.tt-pttt:hover {
+  border-color: #cbd5e1;
+}
+.tt-pttt.is-chon {
+  background: #f8fbff;
+  border-color: var(--ft-primary, #1d4ed8);
+  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.08);
+}
+.tt-pttt .form-check-input {
+  flex-shrink: 0;
+  width: 1.2em;
+  height: 1.2em;
+}
+.tt-pttt-ten {
+  font-weight: 700;
+  color: var(--ft-ink, #0f172a);
+}
+.tt-pttt-mo-ta {
+  margin-top: 2px;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+.tt-pttt-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  font-size: 1.3rem;
+  color: var(--ft-primary, #1d4ed8);
+  background: #eff6ff;
+  border-radius: 12px;
+}
+.tt-pttt-icon.is-cod {
+  color: #15803d;
+  background: #f0fdf4;
+}
+.tt-tom-tat {
+  position: sticky;
+  top: 120px;
+  margin-bottom: 0;
+}
+.co-title {
+  font-size: 1.15rem;
+}
+.co-item-img {
+  flex-basis: 64px;
+  height: 64px;
+  padding: 6px;
+  background: #f3f4f6;
+  border: 0;
+  border-radius: 14px;
+}
+.co-item-img img {
+  mix-blend-mode: multiply;
+}
+.co-badge {
+  background: var(--ft-ink, #0f172a);
+}
+.co-row {
+  gap: 12px;
+  font-size: 0.9rem;
+  color: #475569;
+}
+.co-row > span:first-child {
+  flex-shrink: 0;
+}
+.co-row > .co-val {
+  text-align: right;
+}
+.co-ship :deep(.vc) {
+  flex-wrap: nowrap;
+}
+.co-ship :deep(.vc-ten) {
+  display: none;
+}
+.co-total {
+  border-top: 1px dashed #cbd5e1;
+}
+.co-total-val {
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  color: #e11d48;
+}
+.co-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 56px;
+  font-size: 1.05rem;
+  letter-spacing: 0;
+  background: var(--ft-primary, #1d4ed8);
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(29, 78, 216, 0.25);
+}
+.co-submit:hover:not(:disabled) {
+  background: #1e40af;
+}
+@media (max-width: 1199px) {
+  .tt-luoi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tt-tom-tat {
+    position: static;
+  }
+}
+@media (max-width: 767px) {
+  .tt-tieu-de {
+    font-size: 1.6rem;
+  }
+  .tt-buoc {
+    font-size: 0.78rem;
+  }
+  .tt-buoc li + li::before {
+    width: 14px;
+  }
+  /* điện thoại: chỉ ghi chữ ở bước đang làm, các bước khác còn vòng số */
+  .tt-buoc li:not(.is-dang) {
+    gap: 0;
+    font-size: 0;
+  }
+  .tt-buoc li:not(.is-dang) + li::before,
+  .tt-buoc li + li:not(.is-dang)::before {
+    margin-right: 8px;
+  }
+  .tt-the {
+    padding: 18px 16px;
+    border-radius: 20px;
+  }
 }
 </style>

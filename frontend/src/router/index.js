@@ -232,6 +232,12 @@ const routes = [
         meta: { congKhai: true, title: 'Trang chủ - FootStyle' },
       },
       {
+        path: 'chinh-sach',
+        name: 'shop-chinh-sach',
+        component: () => import('../views/client/ChinhSachView.vue'),
+        meta: { congKhai: true, title: 'Chính sách cửa hàng - FootStyle' },
+      },
+      {
         path: 'uu-dai',
         name: 'shop-uu-dai',
         component: () => import('../views/client/UuDaiView.vue'),

@@ -6,9 +6,10 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Phí vận chuyển theo Tỉnh/Thành phố nhận hàng (cửa hàng ở Hà Nội).
+ * Phí vận chuyển theo nơi nhận hàng (cửa hàng ở Hà Nội).
  * <ul>
- *   <li>Hà Nội: miễn phí, bất kể giá trị đơn.</li>
+ *   <li>Hà Nội: CÓ tính phí (góp ý 15/11, video 22:22 [14:39–15:55]: "nội thành 20-25 nghìn, ngoại thành trên 30 nghìn"):
+ *       giao tới phường {@link #PHI_HA_NOI_PHUONG}, giao tới xã {@link #PHI_HA_NOI_XA}; chưa biết phường/xã thì tính như phường.</li>
  *   <li>Tỉnh/thành khác: mức phí tùy tỉnh (xa Hà Nội thì phí cao hơn).</li>
  * </ul>
  * Lớp này chỉ tính phí theo tỉnh. Đơn đạt ngưỡng miễn phí vận chuyển theo giá trị đơn (quản lý cài đặt) thì nơi gọi đưa phí về 0
@@ -20,6 +21,11 @@ public final class PhiVanChuyenTinh {
 
     /** Phí khi không nhận ra tên tỉnh (vd địa chỉ cũ ghi tay). */
     public static final long PHI_MAC_DINH = 35_000L;
+    /** Giao trong Hà Nội tới phường (nội thành). */
+    public static final long PHI_HA_NOI_PHUONG = 25_000L;
+    /** Giao trong Hà Nội tới xã (ngoại thành). */
+    public static final long PHI_HA_NOI_XA = 30_000L;
+    private static final String KHOA_HA_NOI = khoa("Hà Nội");
 
     private static final Map<String, Long> BANG_PHI = new LinkedHashMap<>();
 
@@ -28,7 +34,7 @@ public final class PhiVanChuyenTinh {
     }
 
     static {
-        them(0L, "Hà Nội");
+        them(PHI_HA_NOI_PHUONG, "Hà Nội"); // phường; giao tới xã xem phi(tinh, phuongXa)
         // Lân cận Hà Nội
         them(25_000L, "Bắc Ninh", "Hưng Yên", "Phú Thọ", "Thái Nguyên", "Hải Phòng", "Ninh Bình");
         // Miền núi phía Bắc, Quảng Ninh
@@ -58,13 +64,27 @@ public final class PhiVanChuyenTinh {
         return t.replaceAll("[^a-z0-9]", "");
     }
 
-    /** Phí giao hàng tới tỉnh/thành này; trống hoặc không nhận ra tên thì {@link #PHI_MAC_DINH}. */
+    /** Phí giao hàng tới tỉnh/thành này (Hà Nội tính như phường); trống hoặc không nhận ra tên thì {@link #PHI_MAC_DINH}. */
     public static long phi(String tinhThanh) {
-        Long phi = BANG_PHI.get(khoa(tinhThanh));
+        return phi(tinhThanh, null);
+    }
+
+    /** Phí giao hàng tới phường/xã của tỉnh/thành này: Hà Nội phân biệt phường / xã, tỉnh khác chỉ theo tỉnh. */
+    public static long phi(String tinhThanh, String phuongXa) {
+        String k = khoa(tinhThanh);
+        if (KHOA_HA_NOI.equals(k)) return laXa(phuongXa) ? PHI_HA_NOI_XA : PHI_HA_NOI_PHUONG;
+        Long phi = BANG_PHI.get(k);
         return phi != null ? phi : PHI_MAC_DINH;
     }
 
-    /** Mức phí thấp nhất trong các tỉnh/thành CÓ tính phí (không kể nơi miễn phí). */
+    /** "Xã Sóc Sơn" -> true; "Phường Hà Đông", trống -> false. */
+    static boolean laXa(String phuongXa) {
+        if (phuongXa == null) return false;
+        String t = Normalizer.normalize(phuongXa.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
+        return t.startsWith("xa ");
+    }
+
+    /** Mức phí thấp nhất trong bảng (Hà Nội tới phường). */
     public static long phiThapNhat() {
         return BANG_PHI.values().stream().filter(p -> p > 0).mapToLong(Long::longValue).min().orElse(PHI_MAC_DINH);
     }
@@ -87,6 +107,7 @@ public final class PhiVanChuyenTinh {
         if (diaChi == null || diaChi.isBlank()) return null;
         String[] phan = diaChi.split(",");
         String tinh = phan[phan.length - 1];
-        return nhanRa(tinh) ? phi(tinh) : null;
+        String phuong = phan.length >= 2 ? phan[phan.length - 2] : null; // "..., Xã Sóc Sơn, Thành phố Hà Nội"
+        return nhanRa(tinh) ? phi(tinh, phuong) : null;
     }
 }

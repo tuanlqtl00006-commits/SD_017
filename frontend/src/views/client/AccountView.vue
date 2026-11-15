@@ -10,12 +10,62 @@ import { docDonHang, ghiDonHang, dongBoTrangThaiDon } from '../../utils/donHangL
 import { khachDiaChiService } from '../../services/khachDiaChiService'
 import DiaChiHanhChinhSelect from '../../components/common/DiaChiHanhChinhSelect.vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
+import HoaDonNoiDung from '../../components/hoaDon/HoaDonNoiDung.vue'
+import SuaGiaoHangModal from '../../components/hoaDon/SuaGiaoHangModal.vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
 
 const activeTab = ref('orders') // 'profile' | 'addresses' | 'orders'
+
+// Chi tiết một đơn ngay trong "Đơn hàng của tôi" (cô review 14/11: "tra cứu là tra cứu, đơn hàng của tôi là đơn hàng của tôi,
+// sao chung một màn"). Dùng chung khung chi tiết HoaDonNoiDung với màn admin / tra cứu; đường dẫn ?tab=orders&don=HD12.
+const donDangXem = ref(null) // dữ liệu chi tiết (dạng chiTietDon của máy chủ)
+const maDonDangXem = ref('')
+const dangTaiDon = ref(false)
+// Khách tự đổi người nhận / SĐT / địa chỉ giao: 1 lần, trước khi cửa hàng giao cho đơn vị vận chuyển (góp ý 14/11)
+const moSuaGiao = ref(false)
+const daDoiGiao = ref('')
+function daSuaGiaoHang(d) {
+  moSuaGiao.value = false
+  donDangXem.value = d?.chiTietDon || donDangXem.value
+  daDoiGiao.value = 'Đã cập nhật thông tin giao hàng. Mỗi đơn chỉ đổi được một lần.'
+}
+const loiDon = ref('')
+async function taiChiTietDon(ma) {
+  maDonDangXem.value = ma
+  dangTaiDon.value = true
+  loiDon.value = ''
+  try {
+    const d = (await api.get(`/khach/don-hang/${encodeURIComponent(ma)}`)).data
+    donDangXem.value = d?.chiTietDon || null
+    if (!donDangXem.value) loiDon.value = 'Không đọc được chi tiết đơn hàng.'
+  } catch (e) {
+    donDangXem.value = null
+    loiDon.value = e?.message || 'Không tải được chi tiết đơn hàng.'
+  } finally {
+    dangTaiDon.value = false
+  }
+}
+function xemChiTietDon(ma) {
+  router.push({ path: '/shop/tai-khoan', query: { tab: 'orders', don: ma } })
+}
+function veDanhSachDon() {
+  router.push({ path: '/shop/tai-khoan', query: { tab: 'orders' } })
+}
+watch(
+  () => [route.query.tab, route.query.don],
+  ([tab, don]) => {
+    if (tab) activeTab.value = String(tab)
+    if (don && auth.daDangNhap.value) taiChiTietDon(String(don))
+    else {
+      donDangXem.value = null
+      maDonDangXem.value = ''
+      loiDon.value = ''
+    }
+  },
+)
 
 // 1. Hồ sơ cá nhân (lấy từ tài khoản thực tế đang đăng nhập)
 const profile = ref({
@@ -61,6 +111,7 @@ onMounted(async () => {
   if (route.query.tab) {
     activeTab.value = String(route.query.tab)
   }
+  if (route.query.don) taiChiTietDon(String(route.query.don))
   loadOrders()
 })
 
@@ -529,7 +580,37 @@ async function xacNhanHuyDon() {
         <!-- Cột Nội dung Tab -->
         <div class="col-lg-9">
           <!-- TAB 1: THEO DÕI ĐƠN HÀNG (USE CASE 4) -->
-          <div v-if="activeTab === 'orders'" class="card border-0 shadow-sm rounded-4 p-4">
+          <!-- Chi tiết một đơn ngay trong trang tài khoản -->
+          <div v-if="activeTab === 'orders' && maDonDangXem" class="card border-0 shadow-sm rounded-4 p-4" data-testid="ac-chi-tiet-don">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+              <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
+                <i class="bi bi-receipt text-primary"></i> Đơn hàng {{ maDonDangXem }}
+              </h5>
+              <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" data-testid="ac-ve-danh-sach" @click="veDanhSachDon">
+                <i class="bi bi-arrow-left me-1"></i>Danh sách đơn
+              </button>
+            </div>
+            <div v-if="dangTaiDon" class="text-center text-muted py-5">Đang tải chi tiết đơn hàng…</div>
+            <div v-else-if="loiDon" class="alert alert-warning mb-0">{{ loiDon }}</div>
+            <template v-else-if="donDangXem">
+              <div v-if="donDangXem.hoaDon?.duocSuaGiaoHang" class="ac-sua-giao" data-testid="ac-sua-giao-hang">
+                <span><i class="bi bi-geo-alt"></i> Cần đổi người nhận hoặc địa chỉ? Bạn được đổi <strong>một lần</strong> trước khi đơn được giao đi.</span>
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" @click="moSuaGiao = true">Sửa thông tin giao hàng</button>
+              </div>
+              <p v-if="daDoiGiao" class="alert alert-success py-2 small" data-testid="ac-da-doi-giao">{{ daDoiGiao }}</p>
+              <HoaDonNoiDung :data="donDangXem" che-do-khach />
+              <SuaGiaoHangModal
+                v-if="moSuaGiao"
+                :data="donDangXem"
+                :url="`/khach/don-hang/${encodeURIComponent(maDonDangXem)}/sua-giao-hang`"
+                la-khach
+                @close="moSuaGiao = false"
+                @saved="daSuaGiaoHang"
+              />
+            </template>
+          </div>
+
+          <div v-else-if="activeTab === 'orders'" class="card border-0 shadow-sm rounded-4 p-4">
             <h5 class="fw-bold mb-3 text-dark d-flex align-items-center gap-2">
               <i class="bi bi-bag-check-fill text-primary"></i> Đơn hàng của tôi
             </h5>
@@ -594,12 +675,14 @@ async function xacNhanHuyDon() {
                     >
                       <i class="bi bi-x-circle me-1"></i>Hủy đơn
                     </button>
-                    <RouterLink
-                      :to="{ path: '/shop/tra-cuu', query: { ma: order.maHoaDon } }"
+                    <button
+                      type="button"
                       class="btn btn-primary btn-sm rounded-pill px-3"
+                      data-testid="ac-xem-don"
+                      @click="xemChiTietDon(order.maHoaDon)"
                     >
-                      <i class="bi bi-truck me-1"></i>Chi tiết hành trình
-                    </RouterLink>
+                      <i class="bi bi-truck me-1"></i>Chi tiết đơn hàng
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1113,5 +1196,18 @@ async function xacNhanHuyDon() {
   margin-left: 0.4rem;
   font-size: 1.1rem;
   color: #dc3545;
+}
+.ac-sua-giao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border-radius: 14px;
 }
 </style>

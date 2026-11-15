@@ -44,6 +44,12 @@ public class CuaHangController {
         return service.sanPhamKhuyenMai();
     }
 
+    /** Sản phẩm bán chạy cho trang chủ: tính từ đơn đã hoàn thành trong 30 ngày gần nhất. */
+    @GetMapping("/ban-chay")
+    public Map<String, Object> sanPhamBanChay() {
+        return service.sanPhamBanChay();
+    }
+
     /** Các đợt giảm giá đang diễn ra (trang Ưu đãi của khách). */
     @GetMapping("/dot-giam-gia")
     public List<Map<String, Object>> dotGiamGiaDangChay() {
@@ -72,6 +78,12 @@ public class CuaHangController {
             @RequestParam(required = false) String sdt
     ) {
         return service.traCuuDonHang(maHoaDon, sdt);
+    }
+
+    /** Đơn chuyển khoản chưa trả tiền (thường là quá 5 phút, đơn treo): khách đổi sang thanh toán khi nhận hàng. Body: { sdt }. */
+    @PostMapping("/don-hang/{maHoaDon}/doi-sang-cod")
+    public Map<String, Object> doiSangCod(@PathVariable String maHoaDon, @RequestBody(required = false) Map<String, String> body) {
+        return service.doiSangCod(maHoaDon, body == null ? null : body.get("sdt"));
     }
 
     /** Tra cứu theo số điện thoại: danh sách đơn gọn của số đó; xem chi tiết từng đơn thì dùng /tra-cuu (mã đơn + SĐT). */

@@ -5,6 +5,7 @@ import { cuaHangService } from '../../services/cuaHangService'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
+import TheSanPham from '../../components/shop/TheSanPham.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -81,7 +82,27 @@ async function loadProductDetail(id) {
   }
 }
 
+// Sản phẩm tương tự: cùng danh mục, cùng hãng xếp trước, tối đa 4; lỗi tải thì ẩn khối
+const tatCaSanPham = ref([])
+async function taiSanPhamTuongTu() {
+  try {
+    const ds = await cuaHangService.getDanhSachSanPham()
+    tatCaSanPham.value = Array.isArray(ds) ? ds : []
+  } catch {
+    tatCaSanPham.value = []
+  }
+}
+const sanPhamTuongTu = computed(() => {
+  const p = product.value
+  if (!p) return []
+  return tatCaSanPham.value
+    .filter((x) => x && x.id !== p.id && (!p.idDanhMuc || x.idDanhMuc === p.idDanhMuc))
+    .sort((a, b) => Number(b.idThuongHieu === p.idThuongHieu) - Number(a.idThuongHieu === p.idThuongHieu))
+    .slice(0, 4)
+})
+
 onMounted(() => {
+  taiSanPhamTuongTu()
   loadProductDetail(Number(route.params.id))
 })
 
@@ -320,8 +341,8 @@ function buyNow() {
 </script>
 
 <template>
-  <div class="product-detail-view py-4">
-    <div class="container">
+  <div class="product-detail-view">
+    <div class="vnb-container">
       <!-- Toast Thông báo nhanh -->
       <Transition name="toast-slide">
         <div
@@ -347,7 +368,7 @@ function buyNow() {
       </Transition>
 
       <!-- Breadcrumb -->
-      <nav aria-label="breadcrumb" class="mb-4">
+      <nav aria-label="breadcrumb" class="pd-duong-dan">
         <ol class="breadcrumb mb-0 small">
           <li class="breadcrumb-item"><RouterLink to="/shop">Trang chủ</RouterLink></li>
           <li class="breadcrumb-item"><RouterLink to="/shop/san-pham">Sản phẩm</RouterLink></li>
@@ -360,7 +381,7 @@ function buyNow() {
         <p class="text-muted mt-2">Đang tải thông tin sản phẩm...</p>
       </div>
 
-      <div v-else-if="!product" class="text-center py-5 card border-0 shadow-sm rounded-4 p-5">
+      <div v-else-if="!product" class="pd-trong">
         <div class="mb-3">
           <i class="bi bi-exclamation-circle text-warning display-4"></i>
         </div>
@@ -373,11 +394,11 @@ function buyNow() {
 
       <div v-else>
         <!-- Thông tin sản phẩm chính -->
-        <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
-          <div class="row g-4">
+        <div class="pd-chinh">
+          <div class="pd-luoi">
             <!-- Cột Thư viện ảnh -->
-            <div class="col-lg-5 col-md-6">
-              <div class="product-gallery text-center p-3 rounded-4 position-relative d-flex align-items-center justify-content-center">
+            <div class="pd-cot-anh">
+              <div class="product-gallery">
                 <span
                   v-if="currentPricing.discountPercent > 0"
                   class="product-badge-sale"
@@ -385,18 +406,13 @@ function buyNow() {
                 >
                   -{{ currentPricing.discountPercent }}%
                 </span>
-                <img
-                  :src="activeImage || product.anhChinh || '/logo.png'"
-                  :alt="product.ten"
-                  class="img-fluid"
-                  style="max-height: 440px; max-width: 100%; object-fit: contain; transition: transform 0.3s ease;"
-                />
+                <img :src="activeImage || product.anhChinh || '/logo.png'" :alt="product.ten" class="pd-anh-chinh" />
               </div>
 
               <!-- Thumbnails gallery -->
               <div
                 v-if="anhNho.length > 1"
-                class="d-flex flex-wrap justify-content-center gap-2 mt-3"
+                class="pd-anh-nho"
               >
                 <div
                   v-for="(img, idx) in anhNho"
@@ -411,27 +427,25 @@ function buyNow() {
             </div>
 
             <!-- Cột Chi tiết & Chọn biến thể -->
-            <div class="col-lg-7 col-md-6">
+            <div class="pd-cot-thong-tin">
               <div class="product-info-wrap">
-                <span class="badge bg-primary-subtle text-primary fw-bold text-uppercase px-2 py-1 mb-2">
-                  {{ brandName }}
-                </span>
-                <h1 class="h3 fw-bold text-dark mb-2">{{ product.ten }}</h1>
-                <div class="small text-muted mb-3">Mã sản phẩm: <strong class="text-dark">{{ product.ma }}</strong></div>
+                <div class="pd-hang">{{ brandName }}</div>
+                <h1 class="pd-ten">{{ product.ten }}</h1>
+                <div class="pd-ma">Mã sản phẩm: <strong>{{ product.ma }}</strong></div>
 
                 <!-- Khối Giá bán -->
-                <div class="pd-khoi-gia p-3 rounded-3 mb-4">
-                  <div v-if="currentPricing.sale > 0" class="d-flex align-items-baseline gap-3">
-                    <span class="fs-2 fw-bold text-danger">{{ formatMoney(currentPricing.sale) }}</span>
+                <div class="pd-khoi-gia">
+                  <div v-if="currentPricing.sale > 0" class="pd-gia-dong">
+                    <span class="pd-gia" :class="{ 'is-giam': currentPricing.original > currentPricing.sale }">{{ formatMoney(currentPricing.sale) }}</span>
                     <span
                       v-if="currentPricing.original > currentPricing.sale"
-                      class="text-decoration-line-through text-muted fs-5"
+                      class="pd-gia-goc"
                     >
                       {{ formatMoney(currentPricing.original) }}
                     </span>
                     <span
                       v-if="currentPricing.discountPercent > 0"
-                      class="badge bg-danger text-white rounded-pill px-2 py-1"
+                      class="pd-tiet-kiem"
                     >
                       Tiết kiệm {{ currentPricing.discountPercent }}%
                     </span>
@@ -439,7 +453,7 @@ function buyNow() {
                   <div v-else class="fs-4 fw-bold text-muted">
                     Liên hệ cửa hàng
                   </div>
-                  <div class="small text-success mt-1">
+                  <div class="pd-gia-ghi-chu">
                     <i class="bi bi-shield-check me-1"></i> Giá đã bao gồm thuế VAT & Bảo hành chính hãng
                   </div>
                 </div>
@@ -450,11 +464,9 @@ function buyNow() {
                 </div>
 
                 <!-- Chọn Màu Sắc -->
-                <div class="mb-3" v-if="availableColors.length > 0">
-                  <label class="form-label fw-bold small text-muted text-uppercase mb-2">
-                    Màu sắc:
-                  </label>
-                  <div class="d-flex flex-wrap gap-2">
+                <div class="pd-nhom-chon" v-if="availableColors.length > 0">
+                  <label class="pd-nhan-chon">Màu sắc</label>
+                  <div class="pd-cac-nut">
                     <button
                       type="button"
                       v-for="c in availableColors"
@@ -471,11 +483,9 @@ function buyNow() {
                 </div>
 
                 <!-- Chọn Trọng Lượng / Size -->
-                <div class="mb-3" v-if="availableWeights.length > 0">
-                  <label class="form-label fw-bold small text-muted text-uppercase mb-2">
-                    {{ isFootwearOrApparel ? 'Kích thước / Size:' : 'Trọng lượng:' }}
-                  </label>
-                  <div class="d-flex flex-wrap gap-2">
+                <div class="pd-nhom-chon" v-if="availableWeights.length > 0">
+                  <label class="pd-nhan-chon">{{ isFootwearOrApparel ? 'Kích thước / Size' : 'Trọng lượng' }}</label>
+                  <div class="pd-cac-nut">
                     <button
                       type="button"
                       v-for="w in availableWeights"
@@ -492,11 +502,9 @@ function buyNow() {
                 </div>
 
                 <!-- Chọn Chu Vi Cán -->
-                <div class="mb-4" v-if="availableGrips.length > 0 && !isFootwearOrApparel">
-                  <label class="form-label fw-bold small text-muted text-uppercase mb-2">
-                    Chu vi cán cầm:
-                  </label>
-                  <div class="d-flex flex-wrap gap-2">
+                <div class="pd-nhom-chon" v-if="availableGrips.length > 0 && !isFootwearOrApparel">
+                  <label class="pd-nhan-chon">Chu vi cán cầm</label>
+                  <div class="pd-cac-nut">
                     <button
                       type="button"
                       v-for="g in availableGrips"
@@ -513,20 +521,21 @@ function buyNow() {
                 </div>
 
                 <!-- Số lượng tồn kho & Chọn số lượng -->
-                <div class="d-flex align-items-center gap-4 mb-4">
-                  <div class="d-flex align-items-center">
+                <div class="pd-so-luong-dong">
+                  <div class="pd-so-luong">
                     <button
                       type="button"
-                      class="btn btn-outline-secondary btn-sm px-3"
+                      class="pd-so-luong-nut"
+                      aria-label="Giảm số lượng"
                       @click="changeQuantity(-1)"
                       :disabled="quantity <= 1"
                     >
-                      -
+                      <i class="bi bi-dash-lg"></i>
                     </button>
                     <input
                       type="number"
-                      class="form-control form-control-sm text-center fw-bold fs-6 mx-1 no-spinner"
-                      style="width: 60px;"
+                      class="pd-so-luong-o no-spinner"
+                      aria-label="Số lượng"
                       :value="quantity"
                       :min="1"
                       :max="currentVariant?.soLuongTon ?? 99"
@@ -535,11 +544,12 @@ function buyNow() {
                     />
                     <button
                       type="button"
-                      class="btn btn-outline-secondary btn-sm px-3"
+                      class="pd-so-luong-nut"
+                      aria-label="Tăng số lượng"
                       @click="changeQuantity(1)"
                       :disabled="quantity >= (currentVariant?.soLuongTon ?? 99)"
                     >
-                      +
+                      <i class="bi bi-plus-lg"></i>
                     </button>
                   </div>
 
@@ -559,79 +569,89 @@ function buyNow() {
                 </div>
 
                 <!-- Nút Hành động Mua hàng -->
-                <div class="d-flex flex-wrap gap-3">
+                <div class="pd-nut-dong">
                   <button
                     type="button"
-                    class="btn pd-nut-gio btn-lg px-4 fw-semibold rounded-pill d-flex align-items-center gap-2"
+                    class="btn pd-nut-gio"
                     :disabled="variants.length === 0 || !currentVariant || (currentVariant?.soLuongTon || 0) < 1"
                     @click="addToCart"
                   >
-                    <i class="bi bi-cart-plus fs-5"></i> Thêm vào giỏ
+                    <i class="bi bi-bag-plus"></i> Thêm vào giỏ
                   </button>
 
                   <button
                     type="button"
-                    class="btn pd-nut-mua btn-lg px-5 fw-bold rounded-pill shadow-sm"
+                    class="btn pd-nut-mua"
                     :disabled="variants.length === 0 || !currentVariant || (currentVariant?.soLuongTon || 0) < 1"
                     @click="buyNow"
                   >
                     Mua ngay
                   </button>
                 </div>
+
+                <!-- Cam kết: đúng chính sách ở trang Chính sách -->
+                <ul class="pd-cam-ket">
+                  <li><i class="bi bi-patch-check"></i><span><strong>Chính hãng 100%</strong>Hàng nhập từ thương hiệu</span></li>
+                  <li><i class="bi bi-arrow-repeat"></i><span><strong>Đổi trả 7 ngày</strong><RouterLink to="/shop/chinh-sach#doi-tra">Lỗi do nhà sản xuất</RouterLink></span></li>
+                  <li><i class="bi bi-truck"></i><span><strong>Giao Hàng Nhanh</strong><RouterLink to="/shop/chinh-sach#giao-hang">Toàn quốc, xem bảng phí</RouterLink></span></li>
+                </ul>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Thông số kỹ thuật & Mô tả chi tiết -->
-        <div class="row g-4">
-          <div class="col-lg-6">
-            <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
-              <h5 class="fw-bold mb-3 d-flex align-items-center gap-2 text-dark">
-                <i class="bi bi-sliders text-primary"></i> Thông số kỹ thuật
-              </h5>
-              <table class="table table-striped table-borderless small mb-0">
+        <div class="pd-duoi">
+          <div class="pd-the">
+              <h2 class="pd-the-tieu-de">Thông số kỹ thuật</h2>
+              <table class="pd-bang">
                 <tbody>
                   <tr>
-                    <th class="text-muted w-40">Thương hiệu</th>
+                    <th>Thương hiệu</th>
                     <td class="fw-semibold">{{ brandName }}</td>
                   </tr>
                   <tr>
-                    <th class="text-muted">Xuất xứ</th>
+                    <th>Xuất xứ</th>
                     <td>{{ originName }}</td>
                   </tr>
                   <tr>
-                    <th class="text-muted">{{ isFootwearOrApparel ? 'Chất liệu' : 'Chất liệu thân vợt' }}</th>
+                    <th>{{ isFootwearOrApparel ? 'Chất liệu' : 'Chất liệu thân vợt' }}</th>
                     <td>{{ materialName }}</td>
                   </tr>
                   <tr>
-                    <th class="text-muted">{{ isFootwearOrApparel ? 'Đặc tính' : 'Độ cứng thân' }}</th>
+                    <th>{{ isFootwearOrApparel ? 'Đặc tính' : 'Độ cứng thân' }}</th>
                     <td>{{ flexName }}</td>
                   </tr>
                   <tr>
-                    <th class="text-muted">{{ isFootwearOrApparel ? 'Kiểu dáng / Đế' : 'Điểm cân bằng' }}</th>
+                    <th>{{ isFootwearOrApparel ? 'Kiểu dáng / Đế' : 'Điểm cân bằng' }}</th>
                     <td>{{ balanceName }}</td>
                   </tr>
                   <tr>
-                    <th class="text-muted">Mã sản phẩm</th>
+                    <th>Mã sản phẩm</th>
                     <td>{{ product.ma }}</td>
                   </tr>
                 </tbody>
               </table>
-            </div>
           </div>
 
-          <div class="col-lg-6">
-            <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
-              <h5 class="fw-bold mb-3 d-flex align-items-center gap-2 text-dark">
-                <i class="bi bi-info-circle text-primary"></i> Mô tả chi tiết
-              </h5>
-              <div class="text-muted" style="line-height: 1.7; white-space: pre-line;">
-                {{ product.moTa || 'Dòng sản phẩm thể thao chính hãng chất lượng cao phân phối độc quyền tại FootStyle. Thiết kế hiện đại, trợ lực tốt phù hợp cho cả người mới chơi lẫn vận động viên chuyên nghiệp.' }}
+          <div class="pd-the">
+              <h2 class="pd-the-tieu-de">Mô tả sản phẩm</h2>
+              <div class="pd-mo-ta">
+                {{ product.moTa || 'Chưa có mô tả cho sản phẩm này.' }}
               </div>
-            </div>
           </div>
         </div>
+
+        <!-- Sản phẩm tương tự -->
+        <section v-if="sanPhamTuongTu.length" class="pd-tuong-tu" data-testid="pd-tuong-tu">
+          <div class="pd-tuong-tu-dau">
+            <h2>Sản phẩm tương tự</h2>
+            <RouterLink to="/shop/san-pham">Xem tất cả <i class="bi bi-arrow-right"></i></RouterLink>
+          </div>
+          <div class="pd-tuong-tu-luoi">
+            <TheSanPham v-for="sp in sanPhamTuongTu" :key="sp.id" :sp="sp" />
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -735,105 +755,435 @@ function buyNow() {
 }
 
 .product-detail-view {
-  background-color: #f8fafc;
   min-height: calc(100vh - 200px);
+  padding: 18px 0 72px;
+  background: var(--ft-bg, #f6f7f9);
+}
+.pd-duong-dan {
+  margin-bottom: 18px;
+}
+.pd-trong {
+  padding: 56px 20px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--ft-line-2, #eef0f4);
+  border-radius: 24px;
+}
+.pd-chinh {
+  margin-bottom: 24px;
+  padding: 28px;
+  background: #fff;
+  border: 1px solid var(--ft-line-2, #eef0f4);
+  border-radius: 28px;
+}
+.pd-luoi {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 44px;
+  align-items: start;
+}
+.pd-cot-anh {
+  position: sticky;
+  top: 120px;
 }
 .product-gallery {
-  background: #ffffff;
-  border: 1px solid #f1f5f9;
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  padding: 36px;
+  background: #f3f4f6;
+  border-radius: 22px;
+  overflow: hidden;
+}
+.pd-anh-chinh {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  transition: transform 0.4s ease;
+}
+.product-gallery:hover .pd-anh-chinh {
+  transform: scale(1.05);
 }
 .product-badge-sale {
   position: absolute;
-  top: 15px;
-  left: 15px;
-  background-color: #ef4444;
-  color: #fff;
+  top: 18px;
+  left: 18px;
+  z-index: 1;
+  padding: 5px 12px;
+  font-size: 0.85rem;
   font-weight: 700;
+  color: #fff;
+  background: #e11d48;
   border-radius: 999px;
+}
+.pd-anh-nho {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.thumbnail-box {
+  width: 76px;
+  height: 76px;
+  padding: 6px;
+  cursor: pointer;
+  background: #f3f4f6;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+.thumbnail-box img {
+  mix-blend-mode: multiply;
+}
+.thumbnail-box:hover {
+  border-color: #cbd5e1;
+}
+.thumbnail-box.active {
+  border-color: var(--ft-ink, #0f172a);
+}
+.pd-hang {
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ft-primary, #1d4ed8);
+}
+.pd-ten {
+  margin: 0 0 8px;
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ft-ink, #0f172a);
+}
+.pd-ma {
+  font-size: 0.88rem;
+  color: #64748b;
+}
+.pd-ma strong {
+  color: var(--ft-ink-2, #334155);
+}
+.pd-khoi-gia {
+  margin: 20px 0 24px;
+  padding: 20px 0;
+  border-top: 1px solid var(--ft-line-2, #eef0f4);
+  border-bottom: 1px solid var(--ft-line-2, #eef0f4);
+}
+.pd-gia-dong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+.pd-gia {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ft-ink, #0f172a);
+}
+.pd-gia.is-giam {
+  color: #e11d48;
+}
+.pd-gia-goc {
+  font-size: 1.1rem;
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+.pd-tiet-kiem {
   padding: 4px 10px;
-  box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #be123c;
+  background: #ffe4e6;
+  border-radius: 999px;
+}
+.pd-gia-ghi-chu {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #15803d;
+}
+.pd-nhom-chon {
+  margin-bottom: 20px;
+}
+.pd-nhan-chon {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ft-ink, #0f172a);
+}
+.pd-cac-nut {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .variant-pill {
-  padding: 8px 16px;
+  min-width: 64px;
+  padding: 10px 18px;
   font-size: 0.9rem;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background-color: #fff;
-  color: #334155;
+  font-weight: 600;
+  color: var(--ft-ink-2, #334155);
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 500;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 .variant-pill:hover:not(:disabled) {
-  border-color: var(--vnb-orange);
-  color: var(--vnb-orange);
+  border-color: var(--ft-ink, #0f172a);
 }
 .variant-pill.active {
-  border-color: var(--vnb-orange);
-  background-color: var(--vnb-orange-light);
-  color: var(--vnb-orange-hover);
-  font-weight: 700;
-  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.18);
+  color: #fff;
+  background: var(--ft-ink, #0f172a);
+  border-color: var(--ft-ink, #0f172a);
 }
 /* Phiên bản hết hàng: nét đứt, làm mờ nhưng vẫn bấm xem được (giá, tồn kho của phiên bản đó) */
 .variant-pill.het-hang {
-  background-color: #f8fafc;
-  border: 1px dashed #cbd5e1;
   color: #94a3b8;
+  text-decoration: line-through;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
 }
 .variant-pill.het-hang.active {
-  border: 1px dashed var(--vnb-orange);
-  color: var(--vnb-orange-hover);
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1.5px dashed var(--ft-ink, #0f172a);
+}
+.pd-so-luong-dong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin: 26px 0 22px;
+  font-size: 0.9rem;
+}
+.pd-so-luong {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 999px;
+}
+.pd-so-luong-nut {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: var(--ft-ink, #0f172a);
+  background: #fff;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+.pd-so-luong-nut:disabled {
+  color: #cbd5e1;
   box-shadow: none;
 }
-.thumbnail-box {
-  width: 68px;
-  height: 68px;
-  cursor: pointer;
-  border: 2px solid #e2e8f0;
-  border-radius: 10px;
-  overflow: hidden;
-  transition: all 0.2s ease;
-  padding: 4px;
-  background: #fff;
+.pd-so-luong-o {
+  width: 56px;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ft-ink, #0f172a);
+  background: transparent;
+  border: 0;
+  outline: none;
 }
-.thumbnail-box:hover,
-.thumbnail-box.active {
-  border-color: var(--vnb-orange);
-  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.2);
+.pd-nut-dong {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
-/* Cùng màu xanh với trang chủ / trang sản phẩm (trước là cam + đỏ); đỏ chỉ còn ở giá và nhãn giảm giá */
-.product-gallery {
-  min-height: 460px;
-  background: #fff;
-  border: 1px solid var(--vnb-border);
-}
-.pd-khoi-gia {
-  background: var(--vnb-orange-light);
-  border: 1px solid #dbeafe;
+.pd-nut-gio,
+.pd-nut-mua {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 54px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 999px;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
 }
 .pd-nut-gio {
-  color: var(--vnb-orange);
-  border: 1.5px solid var(--vnb-orange);
+  color: var(--ft-ink, #0f172a);
   background: #fff;
+  border: 1.5px solid var(--ft-ink, #0f172a);
 }
 .pd-nut-gio:hover:not(:disabled) {
-  background: var(--vnb-orange-light);
-  color: var(--vnb-orange-hover);
-  border-color: var(--vnb-orange-hover);
+  color: #fff;
+  background: var(--ft-ink, #0f172a);
 }
 .pd-nut-mua {
-  background: var(--vnb-orange);
-  border: 1.5px solid var(--vnb-orange);
   color: #fff;
+  background: var(--ft-primary, #1d4ed8);
+  border: 1.5px solid var(--ft-primary, #1d4ed8);
+  box-shadow: 0 10px 24px rgba(29, 78, 216, 0.25);
 }
 .pd-nut-mua:hover:not(:disabled) {
-  background: var(--vnb-orange-hover);
-  border-color: var(--vnb-orange-hover);
   color: #fff;
+  background: #1e40af;
+  border-color: #1e40af;
+}
+.pd-nut-gio:active:not(:disabled),
+.pd-nut-mua:active:not(:disabled) {
+  transform: scale(0.98);
 }
 .pd-nut-gio:disabled,
 .pd-nut-mua:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
+  box-shadow: none;
+}
+.pd-cam-ket {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.pd-cam-ket li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  font-size: 0.8rem;
+  background: #f8fafc;
+  border-radius: 14px;
+}
+.pd-cam-ket i {
+  font-size: 1.15rem;
+  color: var(--ft-primary, #1d4ed8);
+}
+.pd-cam-ket span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: #64748b;
+}
+.pd-cam-ket strong {
+  font-size: 0.85rem;
+  color: var(--ft-ink, #0f172a);
+}
+.pd-cam-ket a {
+  color: #64748b;
+  text-decoration: none;
+}
+.pd-cam-ket a:hover {
+  color: var(--ft-primary, #1d4ed8);
+  text-decoration: underline;
+}
+.pd-duoi {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.pd-the {
+  padding: 26px 28px;
+  background: #fff;
+  border: 1px solid var(--ft-line-2, #eef0f4);
+  border-radius: 24px;
+}
+.pd-the-tieu-de {
+  margin: 0 0 16px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--ft-ink, #0f172a);
+}
+.pd-bang {
+  width: 100%;
+  font-size: 0.92rem;
+  border-collapse: collapse;
+}
+.pd-bang th,
+.pd-bang td {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ft-line-2, #eef0f4);
+}
+.pd-bang tr:last-child th,
+.pd-bang tr:last-child td {
+  border-bottom: 0;
+}
+.pd-bang th {
+  width: 42%;
+  font-weight: 500;
+  color: #64748b;
+}
+.pd-bang td {
+  font-weight: 600;
+  color: var(--ft-ink, #0f172a);
+}
+.pd-mo-ta {
+  line-height: 1.75;
+  white-space: pre-line;
+  color: var(--ft-ink-2, #334155);
+}
+.pd-tuong-tu {
+  margin-top: 48px;
+}
+.pd-tuong-tu-dau {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.pd-tuong-tu-dau h2 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ft-ink, #0f172a);
+}
+.pd-tuong-tu-dau a {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ft-ink, #0f172a);
+  text-decoration: none;
+}
+.pd-tuong-tu-luoi {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (max-width: 991px) {
+  .pd-luoi {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .pd-cot-anh {
+    position: static;
+  }
+  .pd-duoi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pd-tuong-tu-luoi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 575px) {
+  .pd-chinh {
+    padding: 14px;
+    border-radius: 20px;
+  }
+  .product-gallery {
+    padding: 20px;
+  }
+  .pd-gia {
+    font-size: 1.6rem;
+  }
+  .pd-cam-ket {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pd-the {
+    padding: 20px;
+  }
+  .pd-tuong-tu-luoi {
+    gap: 10px;
+  }
 }
 </style>

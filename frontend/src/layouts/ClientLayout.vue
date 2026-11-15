@@ -7,11 +7,15 @@ import { formatMoney } from '../utils/format'
 import { cuaHangService } from '../services/cuaHangService'
 import NutChatKhach from '../components/chat/NutChatKhach.vue'
 import '../assets/client.css'
+import '../assets/client-theme.css'
+import { dungCaiDatVanChuyen } from '../services/caiDatVanChuyen'
 
 const router = useRouter()
 
 const cartStore = useCartStore()
 const auth = useAuth()
+// Dải thông báo trên cùng: ngưỡng miễn phí vận chuyển lấy từ cài đặt thật của quản lý
+const caiDatShip = dungCaiDatVanChuyen()
 
 const searchQuery = ref('')
 const showAccountDropdown = ref(false)
@@ -102,6 +106,13 @@ function handleSearch() {
   <div class="client-app">
     <!-- Thanh điều hướng một hàng: menu trái, tìm kiếm + giỏ hàng + đăng nhập phải -->
     <div class="vnb-nav-wrapper">
+      <div class="ft-thong-bao" data-testid="dai-thong-bao">
+        <div class="vnb-container ft-thong-bao-noi">
+          <span><i class="bi bi-patch-check"></i> Vợt cầu lông chính hãng</span>
+          <span v-if="caiDatShip.mienPhiBat && caiDatShip.mienPhiTu > 0"><i class="bi bi-truck"></i> Miễn phí vận chuyển đơn từ {{ formatMoney(caiDatShip.mienPhiTu) }}</span>
+          <span class="d-none d-md-inline"><i class="bi bi-arrow-repeat"></i> Đổi trả trong 7 ngày</span>
+        </div>
+      </div>
       <nav class="vnb-header-bar">
         <div class="vnb-container d-flex align-items-center gap-4 flex-nowrap">
           <RouterLink to="/shop" class="d-flex align-items-center text-decoration-none flex-shrink-0">
@@ -110,22 +121,19 @@ function handleSearch() {
 
           <ul class="vnb-nav-list flex-grow-1">
             <li class="vnb-nav-item">
-              <RouterLink to="/shop" class="vnb-nav-link">TRANG CHỦ</RouterLink>
+              <RouterLink to="/shop" class="vnb-nav-link">Trang chủ</RouterLink>
             </li>
             <li class="vnb-nav-item">
-              <RouterLink to="/shop/san-pham" class="vnb-nav-link">SẢN PHẨM</RouterLink>
+              <RouterLink to="/shop/san-pham" class="vnb-nav-link">Sản phẩm</RouterLink>
             </li>
             <li class="vnb-nav-item">
-              <RouterLink to="/shop/uu-dai" class="vnb-nav-link">ƯU ĐÃI</RouterLink>
+              <RouterLink to="/shop/uu-dai" class="vnb-nav-link">Ưu đãi</RouterLink>
             </li>
             <li class="vnb-nav-item">
-              <RouterLink :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }" class="vnb-nav-link vnb-no-active">ĐƠN HÀNG</RouterLink>
+              <RouterLink to="/shop/tra-cuu" class="vnb-nav-link">Tra cứu đơn</RouterLink>
             </li>
             <li class="vnb-nav-item">
-              <RouterLink to="/shop/tra-cuu" class="vnb-nav-link">TRA CỨU</RouterLink>
-            </li>
-            <li class="vnb-nav-item">
-              <RouterLink to="/shop/lien-he" class="vnb-nav-link">LIÊN HỆ</RouterLink>
+              <RouterLink to="/shop/lien-he" class="vnb-nav-link">Liên hệ</RouterLink>
             </li>
           </ul>
 
@@ -277,7 +285,7 @@ function handleSearch() {
                 <template v-if="auth.daDangNhap.value">{{ (auth.trangThai.nguoiDung?.hoTen || 'T').trim().charAt(0).toUpperCase() }}</template>
                 <i v-else class="bi bi-person-fill"></i>
               </span>
-              <span class="vnb-login-text">{{ auth.daDangNhap.value ? (auth.trangThai.nguoiDung?.hoTen || 'TÀI KHOẢN') : 'ĐĂNG NHẬP' }}</span>
+              <span class="vnb-login-text">{{ auth.daDangNhap.value ? (auth.trangThai.nguoiDung?.hoTen || 'Tài khoản') : 'Đăng nhập' }}</span>
             </RouterLink>
             <!-- Popup menu khi di chuột -->
             <div
@@ -377,22 +385,22 @@ function handleSearch() {
             <h6 class="vnb-footer-title text-uppercase fw-bold mb-3">Chính sách</h6>
             <ul class="list-unstyled small d-flex flex-column gap-2 vnb-footer-text">
               <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="vnb-footer-link text-decoration-none">
+                <RouterLink :to="{ path: '/shop/chinh-sach', hash: '#doi-tra' }" class="vnb-footer-link text-decoration-none">
                   Chính sách bảo hành
                 </RouterLink>
               </li>
               <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'bao-hanh' } }" class="vnb-footer-link text-decoration-none">
+                <RouterLink :to="{ path: '/shop/chinh-sach', hash: '#doi-tra' }" class="vnb-footer-link text-decoration-none">
                   Đổi trả trong 7 ngày
                 </RouterLink>
               </li>
               <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="vnb-footer-link text-decoration-none">
+                <RouterLink :to="{ path: '/shop/chinh-sach', hash: '#giao-hang' }" class="vnb-footer-link text-decoration-none">
                   Chính sách giao hàng
                 </RouterLink>
               </li>
               <li>
-                <RouterLink :to="{ path: '/shop/huong-dan', query: { tab: 'mua-hang' } }" class="vnb-footer-link text-decoration-none">
+                <RouterLink :to="{ path: '/shop/chinh-sach', hash: '#bao-mat' }" class="vnb-footer-link text-decoration-none">
                   Bảo mật thông tin
                 </RouterLink>
               </li>
@@ -424,7 +432,7 @@ function handleSearch() {
               <span class="badge vnb-footer-badge p-2">VietQR Banking</span>
             </div>
             <div class="small vnb-footer-text mb-3">
-              Vận chuyển hỏa tốc toàn quốc qua GHTK, GHN, ViettelPost.
+              Giao hàng toàn quốc qua Giao Hàng Nhanh (GHN). Phí giao theo nơi nhận, xem Chính sách giao hàng.
             </div>
             <div>
               <RouterLink to="/shop/nhuong-quyen" class="btn btn-outline-light btn-sm rounded-pill fw-bold">
@@ -452,10 +460,12 @@ function handleSearch() {
   border-top: 4px solid var(--vnb-orange);
 }
 .vnb-footer-logo {
-  height: 46px;
-  padding: 6px 10px;
+  height: 64px;
+  width: auto;
+  padding: 4px 14px;
   background: #fff;
-  border-radius: 10px;
+  border-radius: 12px;
+  object-fit: contain;
 }
 .vnb-footer-title {
   color: #fff;

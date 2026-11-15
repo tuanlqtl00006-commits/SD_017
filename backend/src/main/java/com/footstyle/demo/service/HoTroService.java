@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.scheduling.annotation.Scheduled;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,10 @@ public class HoTroService {
     public record MaRequest(String ma) {
     }
 
+    /** Đánh giá sau phiên chat có nhân viên: mucDo TOT / BINH_THUONG / CHUA_TOT, đã giải quyết được yêu cầu chưa, góp ý (không bắt buộc). */
+    public record DanhGiaRequest(String ma, String mucDo, Boolean daGiaiQuyet, String gopY) {
+    }
+
     public record NoiDungRequest(String noiDung) {
     }
 
@@ -56,6 +61,11 @@ public class HoTroService {
     static final int SO_HOI_THOAI_MOI_GIO = 5;
     static final int SO_TIN_KHACH_MOI_PHUT = 20;
     static final String TEN_TRO_LY = "Trợ lý ảo";
+    /** Cô review 14/11 [20:24–23:17]: phiên chat tự đóng sau khoảng 30 phút không có tin nhắn mới. */
+    public static final int TU_DONG_DONG_PHUT = 30;
+    /** Tin hệ thống ghi kết quả đánh giá bắt đầu bằng chữ này (dùng để biết khách đã đánh giá chưa, không cần thêm cột). */
+    public static final String MO_DAU_DANH_GIA = "Khách đánh giá: ";
+    static final Map<String, String> MUC_DO = Map.of("TOT", "Tốt", "BINH_THUONG", "Bình thường", "CHUA_TOT", "Chưa tốt");
 
     private final HoiThoaiRepository hoiThoaiRepo;
     private final TinNhanRepository tinNhanRepo;
@@ -151,7 +161,7 @@ public class HoTroService {
         List<String> goiY = List.of();
         if (Integer.valueOf(HoiThoai.TRO_LY_AO).equals(h.getCheDo())) {
             TroLyAoService.TraLoi tl = troLy.traLoi(noiDung, new TroLyAoService.NguCanh(h.getTenKhach(), h.getSdtKhach()));
-            moi.add(luuTin(h, TinNhan.TRO_LY_AO, null, TEN_TRO_LY, tl.noiDung(), now));
+            moi.add(luuTin(h, TinNhan.TRO_LY_AO, null, TEN_TRO_LY, tl.noiDungLuu(), now));
             if (tl.chuyenNhanVien()) h.setCheDo(HoiThoai.CHO_NHAN_VIEN);
             goiY = tl.goiY();
         }
@@ -190,6 +200,54 @@ public class HoTroService {
         return phienKhach(h, moi, List.of());
     }
 
+    /**
+     * Khách đánh giá cuộc trò chuyện ĐÃ KẾT THÚC có nhân viên tham gia (chỉ trợ lý ảo thì không cần đánh giá), mỗi cuộc 1 lần.
+     * Kết quả lưu thành tin hệ thống "Khách đánh giá: ..." nên nhân viên / quản lý xem lại được ngay trong cuộc chat.
+     */
+    @Transactional
+    public Map<String, Object> danhGia(Integer id, DanhGiaRequest req) {
+        HoiThoai h = hoiThoaiCuaKhach(id, req == null ? null : req.ma());
+        if (!Integer.valueOf(HoiThoai.DA_DONG).equals(h.getCheDo())) throw ApiException.conflict("Cuộc trò chuyện chưa kết thúc.");
+        if (h.getIdNhanVienPhuTrach() == null) throw ApiException.conflict("Cuộc trò chuyện chỉ có trợ lý ảo, không cần đánh giá.");
+        if (daDanhGia(h)) throw ApiException.conflict("Bạn đã đánh giá cuộc trò chuyện này rồi. Cảm ơn bạn!");
+        LoiForm loi = new LoiForm();
+        String muc = req.mucDo() == null ? null : MUC_DO.get(req.mucDo().trim().toUpperCase(java.util.Locale.ROOT));
+        loi.neu(muc == null, "mucDo", "Hãy chọn mức độ hài lòng.");
+        loi.neu(req.daGiaiQuyet() == null, "daGiaiQuyet", "Hãy cho biết yêu cầu của bạn đã được giải quyết chưa.");
+        String gopY = QuyTacDuLieu.cat(req.gopY());
+        loi.neu(gopY.length() > 300, "gopY", "Góp ý tối đa 300 ký tự.");
+        loi.nemNeuCoLoi();
+        String noiDung = MO_DAU_DANH_GIA + muc + " · " + (req.daGiaiQuyet() ? "Đã giải quyết yêu cầu" : "Chưa giải quyết yêu cầu")
+                + (gopY.isEmpty() ? "" : " · Góp ý: " + gopY);
+        TinNhan t = luuTin(h, TinNhan.HE_THONG, null, null, noiDung, bayGio());
+        return phienKhach(h, List.of(t), List.of());
+    }
+
+    private boolean daDanhGia(HoiThoai h) {
+        return ChatChung.tin(tinNhanRepo, h.getId(), null).stream()
+                .anyMatch(t -> Integer.valueOf(TinNhan.HE_THONG).equals(t.getLoaiNguoiGui()) && t.getNoiDung() != null && t.getNoiDung().startsWith(MO_DAU_DANH_GIA));
+    }
+
+    /**
+     * Tự đóng các cuộc chat không có tin nhắn mới trong {@link #TU_DONG_DONG_PHUT} phút (chạy mỗi phút).
+     * Có nhân viên tham gia thì khách được mời đánh giá; chỉ trợ lý ảo thì đóng luôn, không cần đánh giá.
+     */
+    @Scheduled(fixedDelay = 60_000L, initialDelay = 60_000L)
+    @Transactional
+    public int tuDongDongPhienRanh() {
+        LocalDateTime now = bayGio();
+        int dem = 0;
+        for (HoiThoai h : hoiThoaiRepo.findByLoaiAndCheDoNotAndNgayCapNhatBefore(HoiThoai.HO_TRO_KHACH, HoiThoai.DA_DONG, now.minusMinutes(TU_DONG_DONG_PHUT).plusSeconds(1))) {
+            h.setCheDo(HoiThoai.DA_DONG);
+            h.setNgayCapNhat(now);
+            luuTin(h, TinNhan.HE_THONG, null, null, "Cuộc trò chuyện tự kết thúc vì không có tin nhắn mới trong " + TU_DONG_DONG_PHUT + " phút."
+                    + (h.getIdNhanVienPhuTrach() != null ? " Bạn đánh giá giúp cửa hàng chất lượng hỗ trợ nhé." : ""), now);
+            hoiThoaiRepo.save(h);
+            dem++;
+        }
+        return dem;
+    }
+
     /** Sai id hay sai mã đều báo "không tìm thấy" như nhau (không cho dò xem id nào đang tồn tại). */
     HoiThoai hoiThoaiCuaKhach(Integer id, String ma) {
         Optional<HoiThoai> h = id == null ? Optional.empty() : hoiThoaiRepo.findById(id);
@@ -219,6 +277,11 @@ public class HoTroService {
         m.put("tenNhanVien", tenNhanVien(h.getIdNhanVienPhuTrach()));
         m.put("tinNhan", ChatChung.dto(tin, true));
         m.put("goiY", goiY == null ? List.of() : goiY);
+        // Đã kết thúc + có nhân viên tham gia: mời khách đánh giá (1 lần)
+        boolean dong = Integer.valueOf(HoiThoai.DA_DONG).equals(h.getCheDo());
+        boolean daDg = dong && h.getIdNhanVienPhuTrach() != null && daDanhGia(h);
+        m.put("daDanhGia", daDg);
+        m.put("canDanhGia", dong && h.getIdNhanVienPhuTrach() != null && !daDg);
         return m;
     }
 

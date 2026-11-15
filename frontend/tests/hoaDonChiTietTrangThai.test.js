@@ -637,3 +637,62 @@ describe('Xử lý hoàn tiền khi đơn hết hàng hoặc hủy đơn có ti�
     expect(post).toHaveBeenCalledWith('/hoa-don/1/xac-nhan-hoan-tien', { maGiaoDich: '' })
   })
 })
+
+// Góp ý 14/11 (video 22:22 [12:42–14:03]): đơn online quầy vừa bán hết thì không hủy, nhân viên gửi thư chăm sóc khách
+describe('Đơn online tạm hết hàng', () => {
+  it('có nút "Báo hết hàng cho khách" khi máy chủ báo thiếu hàng; bấm thì gọi /bao-het-hang, đơn vẫn Chờ xác nhận', async () => {
+    const don = donGiaoHang(1)
+    don.duocBaoHetHang = true
+    const sau = donGiaoHang(1, [TAO, { id: 9, trangThai: null, hanhDong: 'Báo hết hàng cho khách', thoiGian: '2026-10-08T09:20:00', nguoiThaoTac: 'Quản lý', moTa: 'Đã gửi thư' }])
+    const post = vi.fn(async () => ({ data: sau }))
+    const w = await montar(don, vi.fn(), post)
+    await w.get('[data-testid="hd-bao-het-hang"]').trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/hoa-don/1/bao-het-hang')
+    expect(w.find('[data-testid="hd-bao-het-hang"]').exists()).toBe(false)
+  })
+
+  it('đơn đủ hàng thì không có nút', async () => {
+    const w = await montar(donGiaoHang(1))
+    expect(w.find('[data-testid="hd-bao-het-hang"]').exists()).toBe(false)
+  })
+})
+
+// Góp ý 14/11: "Sửa thông tin giao hàng" tách khỏi "Chỉnh sửa đơn", mỗi đơn 1 lần
+describe('Sửa thông tin giao hàng', () => {
+  it('nút hiện khi máy chủ cho phép; hộp thoại điền sẵn địa chỉ, lưu thì PUT /sua-giao-hang', async () => {
+    const don = donGiaoHang(1, [TAO], { duocSuaGiaoHang: true, duocChinhSua: true })
+    don.giaoHang.diaChi = 'Số 12 ngõ 45, Phường Cửa Nam, Thành phố Hà Nội'
+    const sau = donGiaoHang(1, [TAO], { duocSuaGiaoHang: false, daSuaGiaoHang: true })
+    const put = vi.fn(async () => ({ data: sau }))
+    const w = await montar(don, put)
+    expect(w.find('[data-testid="hd-sua-don"]').exists()).toBe(true) // nút sửa sản phẩm vẫn còn, tách riêng
+    await w.get('[data-testid="hd-sua-giao-hang"]').trigger('click')
+    await flushPromises()
+    const hop = document.body.querySelector('[data-testid="sua-giao-hang"]')
+    expect(hop).not.toBeNull()
+    expect(document.body.querySelector('#sgh-cu-the').value).toBe('Số 12 ngõ 45')
+    expect(document.body.querySelector('#sgh-ten').value).toBe('Nguyễn Thị Lan')
+    document.body.querySelector('[data-testid="sgh-luu"]').click()
+    await flushPromises()
+    expect(put).toHaveBeenCalledWith('/hoa-don/1/sua-giao-hang', expect.objectContaining({
+      hoTenNguoiNhan: 'Nguyễn Thị Lan', diaChiCuThe: 'Số 12 ngõ 45', phuongXa: 'Phường Cửa Nam', tinhThanh: 'Thành phố Hà Nội',
+    }))
+    expect(document.body.querySelector('[data-testid="sua-giao-hang"]')).toBeNull()
+    expect(w.find('[data-testid="hd-sua-giao-hang"]').exists()).toBe(false)
+  })
+
+  it('máy chủ báo lỗi theo ô thì hiện dưới đúng ô, hộp thoại vẫn mở', async () => {
+    const don = donGiaoHang(1, [TAO], { duocSuaGiaoHang: true })
+    const loi = Object.assign(new Error('Dữ liệu chưa hợp lệ'), { loiTheoTruong: { lyDo: 'Vui lòng ghi lý do (vd: khách gọi đổi địa chỉ).' } })
+    const put = vi.fn(async () => { throw loi })
+    const w = await montar(don, put)
+    await w.get('[data-testid="hd-sua-giao-hang"]').trigger('click')
+    await flushPromises()
+    document.body.querySelector('[data-testid="sgh-luu"]').click()
+    await flushPromises()
+    expect(document.body.textContent).toContain('Vui lòng ghi lý do')
+    expect(document.body.querySelector('[data-testid="sua-giao-hang"]')).not.toBeNull()
+  })
+})
+

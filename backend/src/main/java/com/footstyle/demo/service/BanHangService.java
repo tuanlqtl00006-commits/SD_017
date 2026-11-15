@@ -178,6 +178,23 @@ public class BanHangService {
         return kq;
     }
 
+    /**
+     * Số lượng từng biến thể đang nằm trong đơn giao hàng "Chờ xác nhận" (đơn online chưa trừ kho).
+     * Cô test case khó 14/11 [29:22–34:07]: quầy bán nốt hàng của đơn online chưa thanh toán. Quầy vẫn được bán
+     * (đơn online chưa trừ kho), nhưng nhân viên thấy để báo khách tại quầy / biết đơn online sẽ thiếu hàng.
+     */
+    @Transactional(readOnly = true)
+    public Map<Integer, Long> dangChoOnline(List<Integer> ids) {
+        Map<Integer, Long> kq = new LinkedHashMap<>();
+        if (ids == null || ids.isEmpty()) return kq;
+        List<Integer> gon = ids.stream().filter(java.util.Objects::nonNull).distinct().limit(200).toList();
+        for (Object[] r : chiTietRepo.tongSoLuongTheoBienThe(HoaDon.GIAO_HANG, HoaDon.CHO_XAC_NHAN, gon)) {
+            long sl = r[1] == null ? 0 : ((Number) r[1]).longValue();
+            if (sl > 0) kq.put(((Number) r[0]).intValue(), sl);
+        }
+        return kq;
+    }
+
     /** Quét mã QR / mã vạch: đúng mã biến thể (không phân biệt hoa thường). */
     @Transactional(readOnly = true)
     public Map<String, Object> timTheoMa(String ma) {
@@ -589,7 +606,7 @@ public class BanHangService {
                 loi.nemNeuCoLoi();
             }
         }
-        // Nhân viên nhập phí thì lấy số đó; không nhập thì theo tỉnh ở cuối địa chỉ (Hà Nội miễn phí, tỉnh khác tùy tỉnh), không nhận ra tỉnh thì tính phí mặc định
+        // Nhân viên nhập phí thì lấy số đó; không nhập thì theo tỉnh ở cuối địa chỉ (Hà Nội: phường 25.000, xã 30.000; tỉnh khác tùy tỉnh), không nhận ra tỉnh thì tính phí mặc định
         Long phiNhap = giao ? gh.phiVanChuyen() : null;
         if (phiNhap != null && phiNhap < 0) throw ApiException.badRequest("Phí vận chuyển không được âm.");
         if (phiNhap != null && phiNhap > TIEN_TOI_DA) throw ApiException.badRequest("Số tiền quá lớn.");

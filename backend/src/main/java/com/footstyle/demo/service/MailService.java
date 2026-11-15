@@ -651,6 +651,87 @@ public class MailService {
     }
 
     /**
+     * Thư chăm sóc khách khi sản phẩm trong đơn online tạm hết hàng (quầy hoặc đơn khác vừa mua hết). Đơn KHÔNG bị hủy:
+     * cửa hàng giữ đơn và sẽ gọi cho khách để đổi sang sản phẩm khác, chờ hàng về, hoặc hủy (đã chuyển khoản thì hoàn tiền).
+     * Góp ý 14/11 (video 22:22 [12:42–14:03]): "đừng hủy", gửi mail chăm sóc khách hàng hỏi có muốn đổi sản phẩm khác không.
+     */
+    public void guiThongBaoHetHang(String hoTen, String email, String maHoaDon, java.util.List<String> monThieu, String daChuyenKhoan) {
+        if (email == null || !email.contains("@")) return;
+        final String den = email.trim();
+        String ten = hoTen == null || hoTen.isBlank() ? "quý khách" : hoTen.trim();
+        String ma = String.valueOf(maHoaDon);
+        java.util.List<String> ds = monThieu == null ? java.util.List.of() : monThieu;
+        String tieuDe = "[" + tenCuaHang + "] Đơn hàng " + ma + ": sản phẩm tạm hết hàng";
+        StringBuilder chu = new StringBuilder();
+        chu.append("Xin chào ").append(ten).append(",\n\n")
+                .append("Một số sản phẩm trong đơn hàng ").append(ma).append(" hiện không còn đủ trong kho:\n");
+        for (String m : ds) chu.append("- ").append(m).append("\n");
+        chu.append("\nĐơn hàng của bạn vẫn được giữ, chưa bị hủy.");
+        if (daChuyenKhoan != null && !daChuyenKhoan.isBlank()) chu.append(" Cửa hàng đã nhận ").append(daChuyenKhoan).append(" bạn chuyển khoản.");
+        chu.append("\nBộ phận chăm sóc khách hàng sẽ gọi cho bạn để hỏi bạn muốn đổi sang sản phẩm khác, chờ hàng về,")
+                .append(" hay hủy đơn (nếu đã chuyển khoản, cửa hàng hoàn lại tiền).\n");
+
+        final byte[] logoGan = logo;
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        StringBuilder h = new StringBuilder(4000);
+        moKhungHtml(h, tieuDe, "Sản phẩm trong đơn " + ma + " tạm hết hàng — đơn vẫn được giữ", "#d97706", logoGan != null, "SẢN PHẨM TẠM HẾT HÀNG", "Thông báo từ bộ phận chăm sóc khách hàng");
+        h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
+                .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>")
+                .append("Một số sản phẩm trong đơn hàng <strong>").append(esc(ma)).append("</strong> hiện không còn đủ trong kho:</td></tr>\n");
+        h.append("<tr><td style=\"padding:8px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#fffbeb;border:1.5px dashed #d97706;border-radius:12px;\">")
+                .append("<tr><td style=\"padding:14px 18px;").append(phong).append("font-size:14px;line-height:22px;color:#92400e;\">");
+        for (String m : ds) h.append("• ").append(esc(m)).append("<br>");
+        h.append("</td></tr></table></td></tr>\n");
+        h.append("<tr><td style=\"padding:8px 28px 12px 28px;").append(phong).append("font-size:14px;line-height:22px;color:#4b5563;\">")
+                .append("<strong>Đơn hàng của bạn vẫn được giữ, chưa bị hủy.</strong>");
+        if (daChuyenKhoan != null && !daChuyenKhoan.isBlank()) h.append(" Cửa hàng đã nhận <strong>").append(esc(daChuyenKhoan)).append("</strong> bạn chuyển khoản.");
+        h.append("<br>Bộ phận chăm sóc khách hàng sẽ gọi cho bạn để hỏi bạn muốn <strong>đổi sang sản phẩm khác</strong>, chờ hàng về,")
+                .append(" hay hủy đơn (nếu đã chuyển khoản, cửa hàng hoàn lại tiền).</td></tr>\n");
+        dongKhungHtml(h);
+
+        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
+        luongGui.submit(() -> gui(den, thu, logoGan));
+    }
+
+    /**
+     * Báo khách cửa hàng ĐÃ chuyển trả tiền (nhân viên bấm "Xác nhận đã hoàn tiền"). Thư "sẽ hoàn tiền" gửi lúc hủy đơn;
+     * thư này để khách biết tiền đã được trả (cô test case khó 14/11 [08:21–09:27]: "khách nhận được email", "đã hoàn tiền hay chưa").
+     */
+    public void guiDaHoanTien(String hoTen, String email, String maHoaDon, String soTien, String maGiaoDich) {
+        if (email == null || !email.contains("@")) return;
+        final String den = email.trim();
+        String ten = hoTen == null || hoTen.isBlank() ? "quý khách" : hoTen.trim();
+        String ma = String.valueOf(maHoaDon);
+        String tieuDe = "[" + tenCuaHang + "] Đã hoàn tiền đơn hàng " + ma;
+        String chu = "Xin chào " + ten + ",\n\n" + tenCuaHang + " đã chuyển trả " + soTien + " cho đơn hàng " + ma + "."
+                + (maGiaoDich == null || maGiaoDich.isBlank() ? "" : "\nMã giao dịch hoàn tiền: " + maGiaoDich.trim())
+                + "\nTùy ngân hàng, tiền có thể về tài khoản của bạn sau vài phút đến 1 ngày làm việc.\n"
+                + "Nếu chưa nhận được, bạn vui lòng liên hệ cửa hàng để được kiểm tra.\n";
+
+        final byte[] logoGan = logo;
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        StringBuilder h = new StringBuilder(4000);
+        moKhungHtml(h, tieuDe, "Đơn hàng " + ma + ": đã hoàn " + soTien, "#16a34a", logoGan != null, "ĐÃ HOÀN TIỀN", "Xác nhận hoàn tiền");
+        h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
+                .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>")
+                .append(esc(tenCuaHang)).append(" đã chuyển trả <strong>").append(esc(soTien)).append("</strong> cho đơn hàng <strong>")
+                .append(esc(ma)).append("</strong>.</td></tr>\n");
+        h.append("<tr><td style=\"padding:8px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;\">")
+                .append("<tr><td style=\"padding:14px 18px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;\">");
+        dongThongTinDon(h, "Mã đơn hàng", ma, true);
+        dongThongTinDon(h, "Số tiền đã hoàn", soTien, false);
+        if (maGiaoDich != null && !maGiaoDich.isBlank()) dongThongTinDon(h, "Mã giao dịch", maGiaoDich.trim(), false);
+        h.append("</table></td></tr></table></td></tr>\n");
+        h.append("<tr><td style=\"padding:8px 28px 12px 28px;").append(phong).append("font-size:14px;line-height:22px;color:#4b5563;\">")
+                .append("Tùy ngân hàng, tiền có thể về tài khoản của bạn sau vài phút đến 1 ngày làm việc. Nếu chưa nhận được, bạn vui lòng liên hệ cửa hàng.</td></tr>\n");
+        dongKhungHtml(h);
+        final ThuMail thu = new ThuMail(tieuDe, chu, h.toString());
+        luongGui.submit(() -> gui(den, thu, logoGan));
+    }
+
+    /**
      * Báo cho khách biết đơn hàng đã bị hủy và cửa hàng đang tiến hành hoàn tiền thanh toán (chuyển khoản).
      * Gửi ở luồng riêng (không làm chậm hệ thống); không có email hợp lệ thì bỏ qua;
      * chưa cấu hình Gmail thì chỉ ghi log (như các thư khác).

@@ -241,7 +241,7 @@ describe('Hóa đơn: bố cục chuẩn của trang quản lý, tab trạng th�
     expect(w.find('.ad-page').exists()).toBe(true)
     expect(w.text()).toContain('Đặt lại bộ lọc')
     expect(w.text()).toContain('Xuất Excel')
-    expect(w.text()).toContain('Loại đơn')
+    expect(w.text()).toContain('Hình thức mua') // tab Đơn tại quầy (cô review 14/11 [11:32]); tab online vẫn là "Loại đơn"
     expect(w.text()).toContain('Mã NV')
     expect(w.text()).toContain('SĐT KH')
     w.unmount()
@@ -288,7 +288,7 @@ describe('Hóa đơn: bố cục chuẩn của trang quản lý, tab trạng th�
 describe('Trang hóa đơn (thiết kế mới)', () => {
   const HD = [
     { id: 1, maHoaDon: 'HD001', maNhanVien: 'LQT0001', tenKhachHang: 'Nguyễn Thị Lan', sdtKhachHang: '0901000001', tongTien: 1500000, loaiDon: 'Tại quầy', ngayTao: '2026-10-09T08:00:00', trangThai: 6 },
-    { id: 2, maHoaDon: 'HD002', maNhanVien: null, tenKhachHang: null, sdtKhachHang: null, tongTien: 250000, loaiDon: 'Trực tuyến', ngayTao: '2026-10-10T09:30:00', trangThai: 3 },
+    { id: 2, maHoaDon: 'HD002', maNhanVien: null, tenKhachHang: null, sdtKhachHang: null, tongTien: 250000, loaiDon: 'Tại quầy', hinhThucMua: 'Giao tận nơi', ngayTao: '2026-10-10T09:30:00', trangThai: 3 },
   ]
   const DEM = { tatCa: 12, 0: 1, 1: 2, 2: 1, 3: 3, 4: 1, 5: 1, 6: 2, 7: 1, 8: 2 }
 
@@ -306,13 +306,13 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
     return w
   }
 
-  it('đủ cột theo thiết kế: Mã NV, SĐT KH, Loại đơn, Trạng thái; có Đặt lại bộ lọc và Xuất Excel', async () => {
+  it('đủ cột theo thiết kế: Mã NV, SĐT KH, Hình thức mua (tab tại quầy), Trạng thái; có Đặt lại bộ lọc và Xuất Excel', async () => {
     moApi()
     const w = await moTrang()
-    expect(w.findAll('thead th').map((t) => t.text())).toEqual(['STT', 'Mã HD', 'Mã NV', 'Tên KH', 'SĐT KH', 'Tổng tiền TT', 'Loại đơn', 'Ngày tạo', 'Trạng thái', 'Hành động'])
+    expect(w.findAll('thead th').map((t) => t.text())).toEqual(['STT', 'Mã HD', 'Mã NV', 'Tên KH', 'SĐT KH', 'Tổng tiền TT', 'Hình thức mua', 'Ngày tạo', 'Trạng thái', 'Hành động'])
     expect(w.text()).toContain('Đặt lại bộ lọc')
     expect(w.text()).toContain('Xuất Excel')
-    expect(w.text()).toContain('Loại đơn')
+    expect(w.text()).toContain('Hình thức mua')
     expect(w.find('.ad-page').exists()).toBe(true)
     w.unmount()
   })
@@ -328,7 +328,8 @@ describe('Trang hóa đơn (thiết kế mới)', () => {
     expect(dong[0].text()).toContain('Đã hoàn thành')
     expect(dong[1].text()).toContain('Khách vãng lai')
     expect(dong[1].text()).toContain('Chờ giao hàng')
-    expect(dong[1].text()).toContain('Trực tuyến')
+    expect(dong[0].text()).toContain('Mua tại quầy')
+    expect(dong[1].text()).toContain('Giao tận nơi')
     expect(dong[1].text()).toContain('—')
     w.unmount()
   })

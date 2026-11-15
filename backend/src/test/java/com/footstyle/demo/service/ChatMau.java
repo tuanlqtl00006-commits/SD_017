@@ -45,6 +45,8 @@ class ChatMau {
             case "findTop200ByLoaiOrderByNgayCapNhatDesc" -> hoiThoais.stream().filter(h -> h.getLoai().equals(a[0]))
                     .sorted(Comparator.comparing(HoiThoai::getNgayCapNhat).reversed().thenComparing(HoiThoai::getId, Comparator.reverseOrder()))
                     .limit(200).toList();
+            case "findByLoaiAndCheDoNotAndNgayCapNhatBefore" -> hoiThoais.stream().filter(h -> h.getLoai().equals(a[0])
+                    && !Objects.equals(h.getCheDo(), a[1]) && h.getNgayCapNhat().isBefore((LocalDateTime) a[2])).toList();
             case "countByLoaiAndSdtKhachAndNgayTaoAfter" -> hoiThoais.stream().filter(h -> h.getLoai().equals(a[0])
                     && Objects.equals(h.getSdtKhach(), a[1]) && h.getNgayTao().isAfter((LocalDateTime) a[2])).count();
             default -> KhoGia.KHONG_CO;

@@ -57,12 +57,14 @@ beforeEach(() => {
 })
 
 describe('Thanh toán online', () => {
-  it('phí ship theo tỉnh: Hà Nội miễn phí dù đơn nhỏ, tỉnh khác mất phí tùy tỉnh dù đơn lớn, chưa chọn tỉnh thì chưa tính', async () => {
+  it('phí ship theo nơi nhận: Hà Nội phường 25.000 / xã 30.000, tỉnh khác tùy tỉnh dù đơn lớn, chưa chọn tỉnh thì chưa tính', async () => {
     const { cart } = await moTrang({ tien: 480000, soLuong: 2 })
     expect(cart.chuaCoTinh).toBe(true)
     expect(cart.shippingFee).toBe(0)
     cart.tinhGiao = 'Thành phố Hà Nội'
-    expect(cart.shippingFee).toBe(0)
+    expect(cart.shippingFee).toBe(25000)
+    cart.phuongGiao = 'Xã Sóc Sơn'
+    expect(cart.shippingFee).toBe(30000)
     cart.tinhGiao = 'Thành phố Đà Nẵng'
     expect(cart.chuaCoTinh).toBe(false)
     expect(cart.shippingFee).toBe(40000)

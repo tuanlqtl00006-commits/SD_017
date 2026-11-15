@@ -116,7 +116,7 @@ describe('Chọn biến thể ở trang chi tiết', () => {
 
   it('đổi sang biến thể ít hàng hơn: số lượng đang chọn tự về đúng số tồn', async () => {
     const w = await moTrang()
-    for (let i = 0; i < 4; i++) await nutChu(w, '+').trigger('click') // Đen 3U G5: chọn 5
+    for (let i = 0; i < 4; i++) await w.find('[aria-label="Tăng số lượng"]').trigger('click') // Đen 3U G5: chọn 5
     expect(w.text()).toContain('5')
     await nut(w, 'chon-chu-vi')[1].trigger('click') // G6 chỉ còn 2
     await nutChu(w, 'Thêm vào giỏ').trigger('click')

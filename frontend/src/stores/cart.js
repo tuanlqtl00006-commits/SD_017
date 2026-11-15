@@ -89,10 +89,12 @@ export const useCartStore = defineStore('cart', () => {
    * giỏ vừa đổi mà chưa có báo giá mới thì tạm dùng số tính trên máy. */
   // Tỉnh/Thành khách chọn ở trang thanh toán (giỏ hàng chưa biết tỉnh thì chưa tính được phí ship)
   const tinhGiao = ref('')
+  // Phường/Xã nhận (Hà Nội: phường 25.000, xã 30.000)
+  const phuongGiao = ref('')
 
   const baoGia = ref(null)
   const khoaBaoGia = computed(() =>
-    JSON.stringify({ i: items.value.map((i) => [i.bienTheId, Number(i.soLuong) || 0]), v: appliedVoucher.value?.ma || '', t: tinhGiao.value || '' }),
+    JSON.stringify({ i: items.value.map((i) => [i.bienTheId, Number(i.soLuong) || 0]), v: appliedVoucher.value?.ma || '', t: tinhGiao.value || '', p: phuongGiao.value || '' }),
   )
   const baoGiaHopLe = computed(() => (baoGia.value && baoGia.value.khoa === khoaBaoGia.value ? baoGia.value : null))
   let lanBaoGia = 0
@@ -110,6 +112,7 @@ export const useCartStore = defineStore('cart', () => {
         maPhieuGiamGia: appliedVoucher.value?.ma || null,
         idKhachHang: nd?.vaiTro === 'KHACH_HANG' ? (nd.id ?? null) : null,
         tinhThanh: tinhGiao.value || null,
+        phuongXa: phuongGiao.value || null,
       })
       // lần hỏi cũ về chậm, hoặc giỏ đã đổi trong lúc chờ: bỏ, không đè số mới
       if (lan !== lanBaoGia || khoa !== khoaBaoGia.value || !data) return null
@@ -191,7 +194,7 @@ export const useCartStore = defineStore('cart', () => {
     const pvc = baoGiaHopLe.value?.phiVanChuyen
     if (pvc !== null && pvc !== undefined) return Number(pvc) || 0
     if (mienPhiShip.value) return 0
-    return phiVanChuyenTheoTinh(tinhGiao.value) ?? 0
+    return phiVanChuyenTheoTinh(tinhGiao.value, phuongGiao.value) ?? 0
   })
 
   /**
@@ -269,6 +272,7 @@ export const useCartStore = defineStore('cart', () => {
     items.value = []
     appliedVoucher.value = null
     tinhGiao.value = ''
+    phuongGiao.value = ''
     saveToStorage(items.value)
   }
 
@@ -299,6 +303,7 @@ export const useCartStore = defineStore('cart', () => {
     taiBaoGia,
     discountAmount,
     tinhGiao,
+    phuongGiao,
     chuaCoTinh,
     mienPhiShip,
     conThieuMienPhiShip,

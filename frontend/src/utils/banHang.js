@@ -149,9 +149,9 @@ export function chuoiVietQR({ bin, soTaiKhoan, soTien, noiDung }) {
 }
 
 /**
- * Phí giao hàng theo tỉnh nhận (giống backend PhiVanChuyenTinh): Hà Nội miễn phí, tỉnh khác tùy tỉnh.
+ * Phí giao hàng theo nơi nhận (giống backend PhiVanChuyenTinh): Hà Nội phường 25.000 / xã 30.000, tỉnh khác tùy tỉnh.
  * Tỉnh còn trống thì trả null (chưa tính được).
  */
-export function phiGiaoHang(tinhThanh) {
-  return phiVanChuyenTheoTinh(tinhThanh)
+export function phiGiaoHang(tinhThanh, phuongXa = '') {
+  return phiVanChuyenTheoTinh(tinhThanh, phuongXa)
 }

@@ -4,8 +4,10 @@ import { useRouter } from 'vue-router'
 import { cuaHangService } from '../../services/cuaHangService'
 import { useCartStore } from '../../stores/cart'
 import { useAuth } from '../../composables/useAuth'
-import { formatMoney } from '../../utils/format'
+import { formatMoney, formatNgay } from '../../utils/format'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
+import api from '../../services/api'
+import TheSanPham from '../../components/shop/TheSanPham.vue'
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -16,48 +18,65 @@ const products = ref([])
 const variants = ref([])
 const discounts = ref({}) // { idBienThe: phanTram }
 
-// 1. DỮ LIỆU BANNER SLIDER (Tone xanh dương đồng điệu)
+// 1. BANNER: dựng từ dữ liệu thật (ảnh sản phẩm đang bán, mức giảm đang chạy). Trước đây có banner "ASTROX 100ZZ KURENAI"
+// và khung logo trắng: sản phẩm đó không có trong cửa hàng, ảnh không phải sản phẩm.
 const currentBannerIndex = ref(0)
-const bannerList = [
-  {
-    tag: 'DANH MỤC',
-    title: 'VỢT CHO NGƯỜI MỚI',
-    subtitle: 'DÀNH CHO NGƯỜI MỚI BẮT ĐẦU CHƠI',
-    desc: 'Các mẫu vợt trong danh mục Vợt cầu lông người mới đang bán tại FootStyle.',
-    btnText: 'XEM DANH MỤC',
-    btnLink: '/shop/san-pham?danhMuc=2',
-    bgGradient: 'linear-gradient(135deg, #0c4a6e 0%, #0284c7 50%, #38bdf8 100%)',
-    badgeClass: 'bg-warning text-dark',
-  },
-  {
-    tag: 'SIÊU PHẨM TẤN CÔNG',
-    title: 'ASTROX 100ZZ KURENAI',
-    subtitle: 'HYPER SLIM SHAFT - SMASH HỦY DIỆT SÂN CẦU',
-    desc: 'Vũ khí tối thượng của số 1 thế giới Viktor Axelsen. Điểm cân bằng nặng đầu, đũa siêu mỏng tạo ra những cú đập cầu cắm sân không thể cản phá.',
-    btnText: 'MUA NGAY - TẶNG CƯỚC BG65',
-    btnLink: '/shop/san-pham?search=Astrox',
-    bgGradient: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #60a5fa 100%)',
-    badgeClass: 'bg-warning text-dark',
-  },
-  {
-    tag: 'ƯU ĐÃI',
-    title: 'VỢT ĐANG GIẢM GIÁ',
-    subtitle: 'CÁC ĐỢT GIẢM GIÁ ĐANG DIỄN RA',
-    desc: 'Xem các mẫu vợt đang được giảm giá theo đợt tại FootStyle.',
-    btnText: 'XEM ƯU ĐÃI',
-    btnLink: '/shop/san-pham?khuyenMai=1',
-    bgGradient: 'linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #7dd3fc 100%)',
-    badgeClass: 'bg-warning text-dark',
-  },
-]
+const bannerList = computed(() => {
+  const ds = enrichedProducts.value.filter((p) => p.anhChinh && p.anhChinh !== '/logo.png')
+  const anh = (p) => p?.anhChinh || '/logo.png'
+  const dauTien = ds[0]
+  const nguoiMoi = ds.find((p) => String(p.idDanhMuc) === '2') || ds[1] || dauTien
+  const giamNhieu = [...ds].sort((a, b) => (b.maxDiscountPercent || 0) - (a.maxDiscountPercent || 0))[0]
+  const giamMax = Math.round(giamNhieu?.maxDiscountPercent || 0)
+  const tenHang = thuongHieu.value.map((t) => t.ten).join(', ')
+  const slides = [
+    {
+      tag: 'FOOTSTYLE',
+      title: 'VỢT CẦU LÔNG CHÍNH HÃNG',
+      subtitle: `${ds.length || ''} MẪU VỢT ĐANG BÁN`.trim(),
+      desc: tenHang ? `Vợt cầu lông chính hãng từ ${tenHang}. Chọn theo trọng lượng, chu vi cán và điểm cân bằng hợp với lối chơi của bạn.` : 'Vợt cầu lông chính hãng, chọn theo trọng lượng, chu vi cán và điểm cân bằng.',
+      btnText: 'MUA SẮM NGAY',
+      btnLink: '/shop/san-pham',
+      bgGradient: 'linear-gradient(135deg, #0b1b3f 0%, #1e3a8a 100%)',
+      anh: anh(dauTien),
+      tenAnh: dauTien?.ten,
+    },
+    {
+      tag: 'DANH MỤC',
+      title: 'VỢT CHO NGƯỜI MỚI',
+      subtitle: 'NHẸ, DỄ ĐÁNH, GIÁ VỪA TÚI',
+      desc: 'Các mẫu vợt trong danh mục Vợt cầu lông người mới, phù hợp người mới tập và học sinh.',
+      btnText: 'XEM DANH MỤC',
+      btnLink: '/shop/san-pham?danhMuc=2',
+      bgGradient: 'linear-gradient(135deg, #062a3a 0%, #0e5a73 100%)',
+      anh: anh(nguoiMoi),
+      tenAnh: nguoiMoi?.ten,
+    },
+  ]
+  if (giamMax > 0) {
+    slides.push({
+      tag: 'ƯU ĐÃI',
+      title: `GIẢM ĐẾN ${giamMax}%`,
+      subtitle: 'CÁC ĐỢT GIẢM GIÁ ĐANG DIỄN RA',
+      desc: 'Giá đã giảm sẵn, không cần nhập mã. Xem thêm phiếu giảm giá đang áp dụng ở trang Ưu đãi.',
+      btnText: 'XEM ƯU ĐÃI',
+      btnLink: '/shop/uu-dai',
+      bgGradient: 'linear-gradient(135deg, #3b0a1c 0%, #9f1239 100%)',
+      anh: anh(giamNhieu),
+      tenAnh: giamNhieu?.ten,
+    })
+  }
+  return slides
+})
+const bannerHienTai = computed(() => bannerList.value[currentBannerIndex.value] || bannerList.value[0])
 
 let bannerTimer = null
 function nextBanner() {
-  currentBannerIndex.value = (currentBannerIndex.value + 1) % bannerList.length
+  currentBannerIndex.value = (currentBannerIndex.value + 1) % bannerList.value.length
 }
 function prevBanner() {
   currentBannerIndex.value =
-    (currentBannerIndex.value - 1 + bannerList.length) % bannerList.length
+    (currentBannerIndex.value - 1 + bannerList.value.length) % bannerList.value.length
 }
 function setBanner(index) {
   currentBannerIndex.value = index
@@ -84,33 +103,44 @@ const homeCategories = ref([
 const selectedCatTab = ref('ALL')
 const currentSlide = ref(0)
 
-// 4. BEST SELLERS LIST (Top 4 bán chạy)
+// 4. BÁN CHẠY: số thật từ GET /cua-hang/ban-chay (đơn "Đã hoàn thành" trong 30 ngày gần nhất, giống màn Thống kê).
+// Trước đây là số bịa "100+ lượt mua" và 5 sao: hệ thống không có dữ liệu đánh giá nên bỏ hẳn phần sao.
+const banChay = ref({ soNgay: 30, ds: [] })
 const bestSellerList = computed(() => {
-  return enrichedProducts.value.slice(0, 4).map((p, idx) => ({
-    rank: idx + 1,
-    id: p.id,
-    ten: p.ten,
-    gia: p.minPrice,
-    giaGoc: p.originalPrice || p.minPrice,
-    daBan: `${100 + idx * 50}+`,
-    danhGia: '5.0',
-    anh: p.anhChinh || '/logo.png',
-  }))
+  const theoId = new Map(enrichedProducts.value.map((p) => [String(p.id), p]))
+  return (banChay.value.ds || [])
+    .map((b) => ({ b, p: theoId.get(String(b.idSanPham)) }))
+    .filter((x) => x.p)
+    .map(({ b, p }, idx) => ({
+      rank: idx + 1,
+      sp: p,
+      id: p.id,
+      ten: p.ten,
+      gia: p.minPrice,
+      giaGoc: p.originalPrice || p.minPrice,
+      daBan: Number(b.daBan) || 0,
+      anh: p.anhChinh || '/logo.png',
+    }))
 })
 
-// 5. THƯƠNG HIỆU ĐỐI TÁC
-const brandLogos = [
-  { name: 'YONEX', slogan: 'Far beyond ordinary' },
-  { name: 'LINING', slogan: 'Anything is possible' },
-  { name: 'VICTOR', slogan: 'Ready to win' },
-  { name: 'MIZUNO', slogan: 'Reach beyond' },
-  { name: 'KUMPOO', slogan: 'Speed & Power' },
-  { name: 'KAWASAKI', slogan: 'Pro Badminton' },
-]
+// 5. THƯƠNG HIỆU: lấy từ danh sách thương hiệu đang bán (trước ghi cứng, có cả KAWASAKI không có trong cửa hàng)
+const thuongHieu = ref([])
+const brandLogos = computed(() => thuongHieu.value.map((t) => ({ id: t.id, name: String(t.ten || '').toUpperCase() })))
+
+// 6. ĐỢT GIẢM GIÁ ĐANG CHẠY (thay khối ảnh tĩnh "GIẢM TỪ 20% ĐẾN 50% - TẶNG CƯỚC BG65" không có thật)
+const dotGiamGia = ref([])
+const dotNoiBat = computed(() => dotGiamGia.value.slice(0, 3))
+
+async function taiBanChayVaUuDai() {
+  const [bc, dot] = await Promise.allSettled([api.get('/cua-hang/ban-chay'), api.get('/cua-hang/dot-giam-gia')])
+  if (bc.status === 'fulfilled' && bc.value?.data) banChay.value = bc.value.data
+  if (dot.status === 'fulfilled' && Array.isArray(dot.value?.data)) dotGiamGia.value = dot.value.data
+}
 
 onMounted(async () => {
   bannerTimer = setInterval(nextBanner, 5000)
 
+  taiBanChayVaUuDai()
   try {
     loading.value = true
     const [spRes, btRes, dggRes, dmThRes] = await Promise.all([
@@ -124,6 +154,7 @@ onMounted(async () => {
     variants.value = btRes || []
     discounts.value = dggRes || {}
 
+    thuongHieu.value = (dmThRes?.thuongHieu || []).filter((t) => t.trangThai !== 0 && t.hoatDong !== false)
     if (dmThRes?.danhMuc?.length > 0) {
       homeCategories.value = [
         { id: 'ALL', ten: 'Tất cả' },
@@ -144,8 +175,9 @@ async function taiNgam() {
   if (loading.value) return
   const ds = await cuaHangService.getDanhSachSanPham()
   if (Array.isArray(ds) && ds.length) products.value = ds
+  await taiBanChayVaUuDai()
 }
-useAutoRefresh(taiNgam, 3000, { chuKyMs: 30_000, chuDe: ['san-pham', 'ton-kho', 'giam-gia'] })
+useAutoRefresh(taiNgam, 3000, { chuKyMs: 30_000, chuDe: ['san-pham', 'ton-kho', 'giam-gia', 'hoa-don'] })
 
 onUnmounted(() => {
   if (bannerTimer) clearInterval(bannerTimer)
@@ -206,8 +238,6 @@ const enrichedProducts = computed(() => {
         originalPrice: Number(originalPrice) || 0,
         maxDiscountPercent,
         hasDiscount: maxDiscountPercent > 0,
-        rating: 5.0,
-        soldCount: sp.tongSoLuongTon || 0,
         isNew: true,
         idDanhMuc: sp.idDanhMuc,
         tenDanhMuc: sp.tenDanhMuc || '',
@@ -308,7 +338,7 @@ function quickAddToCart(item, event) {
 
 <template>
   <div class="home-view">
-    <!-- TOAST NOTIFICATION NỔI -->
+    <!-- Thông báo nổi khi thêm giỏ -->
     <transition name="fade">
       <div v-if="toastVisible" class="vnb-floating-toast shadow-lg">
         <div class="d-flex align-items-center gap-2">
@@ -323,1051 +353,751 @@ function quickAddToCart(item, event) {
       </div>
     </transition>
 
-    <!-- 1. HERO SLIDER BANNER (Tone Xanh Đậm Đà Đồng Bộ) -->
-    <section class="vnb-hero-banner mb-4">
-      <div
-        class="position-relative overflow-hidden transition-bg"
-        :style="{ background: bannerList[currentBannerIndex].bgGradient, minHeight: '400px' }"
-      >
-        <div class="vnb-container py-5">
-          <div class="row align-items-center g-4">
-            <div class="col-lg-7 text-white">
-              <span
-                class="badge px-3 py-1 fw-bold rounded-pill mb-3"
-                :class="bannerList[currentBannerIndex].badgeClass"
-              >
-                {{ bannerList[currentBannerIndex].tag }}
-              </span>
-              <h1 class="display-4 fw-black text-uppercase fst-italic mb-2" style="font-weight: 900; letter-spacing: -1px;">
-                {{ bannerList[currentBannerIndex].title }}
-              </h1>
-              <h5 class="fw-bold text-uppercase text-light mb-3 opacity-90">
-                {{ bannerList[currentBannerIndex].subtitle }}
-              </h5>
-              <p class="lead opacity-90 small mb-4" style="max-width: 620px;">
-                {{ bannerList[currentBannerIndex].desc }}
-              </p>
-              <div class="d-flex gap-3 flex-wrap">
-                <RouterLink
-                  :to="bannerList[currentBannerIndex].btnLink"
-                  class="btn btn-warning btn-lg fw-bold px-4 py-2 rounded-pill text-dark shadow"
-                >
-                  {{ bannerList[currentBannerIndex].btnText }} <i class="bi bi-arrow-right ms-1"></i>
-                </RouterLink>
-                <RouterLink
-                  to="/shop/san-pham"
-                  class="btn btn-outline-light btn-lg fw-bold px-4 py-2 rounded-pill shadow-sm"
-                >
-                  XEM TẤT CẢ SẢN PHẨM
-                </RouterLink>
-              </div>
+    <!-- 1. BANNER: dữ liệu thật, ảnh sản phẩm đang bán -->
+    <section class="hm-hero" data-testid="home-banner">
+      <div class="vnb-container">
+        <div class="hm-hero-khung" :style="{ '--hm-nen': bannerHienTai.bgGradient }">
+          <div class="hm-hero-chu">
+            <span class="hm-hero-tag">{{ bannerHienTai.tag }}</span>
+            <h1 class="hm-hero-tieu-de">{{ bannerHienTai.title }}</h1>
+            <p class="hm-hero-phu">{{ bannerHienTai.subtitle }}</p>
+            <p class="hm-hero-mo-ta">{{ bannerHienTai.desc }}</p>
+            <div class="hm-hero-nut">
+              <RouterLink :to="bannerHienTai.btnLink" class="hm-nut hm-nut-trang">
+                {{ bannerHienTai.btnText }} <i class="bi bi-arrow-right"></i>
+              </RouterLink>
+              <RouterLink to="/shop/san-pham" class="hm-nut hm-nut-vien">Xem tất cả sản phẩm</RouterLink>
             </div>
-            <div class="col-lg-5 text-center">
-              <div class="hero-image-wrapper p-3">
-                <img
-                  src="/logo.png"
-                  alt="Banner FootStyle"
-                  class="img-fluid rounded-4 shadow-lg p-3 bg-white hero-banner-img"
-                  style="max-height: 270px; object-fit: contain;"
-                />
-              </div>
+            <div class="hm-hero-cham">
+              <button
+                v-for="(b, idx) in bannerList"
+                :key="idx"
+                type="button"
+                class="hm-cham"
+                :class="{ active: currentBannerIndex === idx }"
+                :aria-label="`Banner ${idx + 1}`"
+                @click="setBanner(idx)"
+              ></button>
             </div>
           </div>
+          <div class="hm-hero-anh">
+            <div class="hm-hero-vong"></div>
+            <img :src="bannerHienTai.anh" :alt="bannerHienTai.tenAnh || 'Vợt cầu lông FootStyle'" />
+            <span v-if="bannerHienTai.tenAnh" class="hm-hero-ten-anh">{{ bannerHienTai.tenAnh }}</span>
+          </div>
+          <button type="button" class="hm-mui-ten banner-prev" aria-label="Banner trước" @click="prevBanner"><i class="bi bi-chevron-left"></i></button>
+          <button type="button" class="hm-mui-ten banner-next" aria-label="Banner sau" @click="nextBanner"><i class="bi bi-chevron-right"></i></button>
         </div>
 
-        <!-- Mũi tên chuyển Banner -->
-        <button
-          type="button"
-          class="banner-nav-btn banner-prev"
-          @click="prevBanner"
-          aria-label="Banner trước"
-        >
-          <i class="bi bi-chevron-left"></i>
-        </button>
-        <button
-          type="button"
-          class="banner-nav-btn banner-next"
-          @click="nextBanner"
-          aria-label="Banner sau"
-        >
-          <i class="bi bi-chevron-right"></i>
-        </button>
-
-        <!-- Dots chỉ báo vị trí Slide -->
-        <div class="banner-dots">
-          <span
-            v-for="(banner, idx) in bannerList"
-            :key="idx"
-            class="banner-dot"
-            :class="{ active: currentBannerIndex === idx }"
-            @click="setBanner(idx)"
-          ></span>
+        <!-- Cam kết: theo đúng chính sách thật của cửa hàng -->
+        <div class="hm-cam-ket">
+          <div class="hm-cam-ket-o"><i class="bi bi-patch-check"></i><div><strong>Chính hãng 100%</strong><span>Vợt từ {{ thuongHieu.length }} thương hiệu</span></div></div>
+          <div class="hm-cam-ket-o"><i class="bi bi-truck"></i><div><strong>Giao Hàng Nhanh</strong><span>Toàn quốc, kiểm tra hàng khi nhận</span></div></div>
+          <div class="hm-cam-ket-o"><i class="bi bi-arrow-repeat"></i><div><strong>Đổi trả 7 ngày</strong><span>Lỗi do nhà sản xuất</span></div></div>
+          <div class="hm-cam-ket-o"><i class="bi bi-shield-lock"></i><div><strong>Thanh toán an toàn</strong><span>COD hoặc chuyển khoản VietQR</span></div></div>
         </div>
       </div>
     </section>
 
-    <div class="vnb-container vnb-main-content">
-      <!-- 2. SẢN PHẨM BÁN CHẠY NHẤT (Top 4 - Giữ nguyên nút ban đầu & nền xanh dương nhạt) -->
-      <section class="vnb-section mb-4">
-        <div class="vnb-section-header d-flex flex-wrap align-items-center justify-content-between gap-3">
-          <div class="d-flex align-items-center gap-3">
-            <div class="vnb-header-icon-box">
-              <i class="bi bi-fire text-danger"></i>
-            </div>
-            <div>
-              <div class="d-flex align-items-center gap-2">
-                <h2 class="vnb-header-title mb-0">Sản Phẩm Bán Chạy Nhất</h2>
-                <span class="badge bg-danger rounded-pill fw-bold px-2 py-1 small">HOT 🔥</span>
-              </div>
-              <p class="vnb-header-subtitle mb-0">Được khách hàng tin dùng & đánh giá cao nhất</p>
-            </div>
+    <div class="vnb-container hm-noi-dung">
+      <!-- 2. BÁN CHẠY -->
+      <section v-if="bestSellerList.length" class="hm-muc" data-testid="home-ban-chay">
+        <header class="hm-muc-dau">
+          <div>
+            <h2 class="hm-muc-ten">Bán chạy nhất</h2>
+            <p class="hm-muc-phu">Theo số lượng đã bán trong {{ banChay.soNgay }} ngày gần nhất</p>
           </div>
-          <RouterLink to="/shop/san-pham" class="vnb-view-all-link">
-            Xem tất cả <i class="bi bi-arrow-right ms-1"></i>
-          </RouterLink>
-        </div>
-
-        <!-- 4 Card Bán Chạy Đều Đặn, Thanh Lịch -->
-        <div class="row g-3">
-          <div
+          <RouterLink to="/shop/san-pham" class="hm-xem-tat-ca">Xem tất cả <i class="bi bi-arrow-right"></i></RouterLink>
+        </header>
+        <div class="hm-luoi hm-luoi-4">
+          <TheSanPham
             v-for="item in bestSellerList"
             :key="item.id"
-            class="col-xl-3 col-md-6"
-          >
-            <div class="bestseller-card h-100">
-              <!-- Rank badge góc trên trái -->
-              <div
-                class="rank-badge"
-                :class="{
-                  'rank-1': item.rank === 1,
-                  'rank-2': item.rank === 2,
-                  'rank-3': item.rank === 3,
-                  'rank-other': item.rank > 3,
-                }"
-              >
-                TOP {{ item.rank }}
-              </div>
-
-              <div class="text-center pt-2">
-                <div class="bestseller-img-wrap mb-2" @click="goToDetail(item.id)">
-                  <img :src="item.anh" :alt="item.ten" class="bestseller-img" />
-                </div>
-                <div class="bestseller-sold-badge mb-2">
-                  <i class="bi bi-bag-check-fill me-1"></i>
-                  <span>{{ item.daBan }} lượt mua</span>
-                </div>
-                <h6 class="fw-bold text-truncate-2 small mb-1 bestseller-name" :title="item.ten" @click="goToDetail(item.id)">
-                  {{ item.ten }}
-                </h6>
-                <div class="text-warning small mb-2 d-flex align-items-center justify-content-center gap-1">
-                  <i v-for="s in 5" :key="s" class="bi bi-star-fill"></i>
-                  <span class="text-secondary fw-semibold ms-1">5.0</span>
-                </div>
-                <div class="mb-3 d-flex align-items-baseline justify-content-center gap-2">
-                  <span class="fw-bold text-danger fs-6">{{ formatMoney(item.gia) }}</span>
-                  <span v-if="item.giaGoc && item.giaGoc !== item.gia" class="text-muted text-decoration-line-through small">{{ formatMoney(item.giaGoc) }}</span>
-                </div>
-              </div>
-
-              <!-- Hai nút nguyên bản: Mua ngay (xanh dương đậm) + Xem chi tiết (mắt) -->
-              <div class="d-flex gap-2 mt-auto">
-                <button
-                  type="button"
-                  class="btn btn-primary btn-sm flex-grow-1 rounded-pill fw-bold d-flex align-items-center justify-content-center gap-1 shadow-sm"
-                  @click="goToDetail(item.id)"
-                >
-                  <i class="bi bi-cart-plus"></i> Mua ngay
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-outline-secondary btn-sm rounded-pill px-3"
-                  @click="goToDetail(item.id)"
-                  title="Xem chi tiết"
-                >
-                  <i class="bi bi-eye"></i>
-                </button>
-              </div>
-            </div>
-          </div>
+            :sp="item.sp"
+            :hang="item.rank"
+            :nhan="`Đã bán ${item.daBan}`"
+          />
         </div>
       </section>
 
-      <!-- 3. PHẦN SẢN PHẨM MỚI (Split Layout Tương Tác Hài Hòa) -->
-      <section class="vnb-section mb-4">
-        <div class="vnb-section-header d-flex flex-wrap align-items-center justify-content-between gap-3">
-          <div class="d-flex align-items-center gap-3">
-            <div class="vnb-header-icon-box">
-              <i class="bi bi-stars text-primary"></i>
-            </div>
-            <div>
-              <div class="d-flex align-items-center gap-2">
-                <h2 class="vnb-header-title mb-0">Khám Phá Sản Phẩm Mới</h2>
-                <span class="badge bg-primary rounded-pill fw-bold px-2 py-1 small">✦ MỚI</span>
-              </div>
-              <p class="vnb-header-subtitle mb-0">Hàng mới về — cập nhật liên tục mỗi ngày</p>
-            </div>
+      <!-- 3. ĐỢT GIẢM GIÁ ĐANG DIỄN RA -->
+      <section v-if="dotNoiBat.length" class="hm-muc" data-testid="home-dot-giam-gia">
+        <header class="hm-muc-dau">
+          <div>
+            <h2 class="hm-muc-ten">Đang giảm giá</h2>
+            <p class="hm-muc-phu">Giá đã giảm sẵn, không cần nhập mã</p>
           </div>
+          <RouterLink to="/shop/uu-dai" class="hm-xem-tat-ca">Tất cả ưu đãi <i class="bi bi-arrow-right"></i></RouterLink>
+        </header>
+        <div class="hm-luoi hm-luoi-3">
+          <RouterLink
+            v-for="(d, idx) in dotNoiBat"
+            :key="d.id"
+            :to="{ path: '/shop/san-pham', query: { dot: d.id } }"
+            class="hm-dot"
+            :class="`hm-dot-${idx % 3}`"
+            data-testid="home-the-dot"
+          >
+            <span class="hm-dot-nhan">Giảm đến</span>
+            <strong class="hm-dot-muc">{{ d.phanTramGiamMax }}%</strong>
+            <span class="hm-dot-ten">{{ d.tenDot }}</span>
+            <span class="hm-dot-phu">{{ d.soSanPham }} sản phẩm · đến {{ formatNgay(d.ngayKetThuc) }}</span>
+            <span class="hm-dot-xem">Xem sản phẩm <i class="bi bi-arrow-right"></i></span>
+          </RouterLink>
+        </div>
+      </section>
 
-          <!-- Tab danh mục thật từ CSDL -->
-          <div class="spm-tabs-wrap">
+      <!-- 4. SẢN PHẨM -->
+      <section class="hm-muc">
+        <header class="hm-muc-dau">
+          <div>
+            <h2 class="hm-muc-ten">Khám phá vợt</h2>
+            <p class="hm-muc-phu">Chọn theo danh mục</p>
+          </div>
+          <div class="hm-tab">
             <button
               v-for="cat in homeCategories"
               :key="cat.id"
-              class="spm-tab"
+              type="button"
+              class="hm-tab-nut"
               :class="{ active: String(selectedCatTab) === String(cat.id) }"
-              @click="selectedCatTab = cat.id; currentSlide = 0"
+              @click="selectedCatTab = cat.id"
             >
               {{ cat.ten }}
             </button>
           </div>
-        </div>
-
-        <!-- Loading -->
-        <div v-if="loading" class="text-center py-5">
-          <div class="spinner-border text-primary" role="status"></div>
-          <p class="small text-muted mt-2">Đang tải sản phẩm mới...</p>
-        </div>
-
-        <!-- Empty -->
-        <div v-else-if="tabFilteredProducts.length === 0" class="text-center py-5 text-muted small">
-          Không có sản phẩm nào trong danh mục này.
-        </div>
-
-        <!-- Split layout -->
-        <div v-else class="spm-split-layout">
-          <!-- LEFT: Featured product -->
-          <div class="spm-featured">
-            <!-- Badge NEW + discount -->
-            <div class="spm-featured-badges">
-              <span class="badge bg-primary rounded-pill px-3 py-1 fw-bold shadow-sm">✦ MỚI RA MẮT</span>
-              <span v-if="spmFeatured?.hasDiscount" class="badge bg-danger rounded-pill px-2 py-1 fw-bold shadow-sm">
-                -{{ spmFeatured?.maxDiscountPercent }}%
-              </span>
-            </div>
-
-            <!-- Image -->
-            <div class="spm-featured-img-wrap" @click="goToDetail(spmFeatured?.id)">
-              <img
-                :src="spmFeatured?.anhChinh || '/logo.png'"
-                :alt="spmFeatured?.ten"
-                class="spm-featured-img"
-              />
-            </div>
-
-            <!-- Info -->
-            <div class="spm-featured-info">
-              <div v-if="spmFeatured?.brandName" class="spm-featured-brand">
-                {{ spmFeatured?.brandName }}
-              </div>
-              <h4 class="spm-featured-name" @click="goToDetail(spmFeatured?.id)">
-                {{ spmFeatured?.ten }}
-              </h4>
-
-              <div class="spm-featured-stars mb-2">
-                <i v-for="s in 5" :key="s" class="bi bi-star-fill text-warning"></i>
-                <span class="ms-1 text-muted small">({{ spmFeatured?.soldCount || 100 }}+ đã bán)</span>
-              </div>
-
-              <div class="spm-featured-price-row mb-3">
-                <span class="spm-featured-price text-danger fw-bold fs-4">{{ formatMoney(spmFeatured?.minPrice) }}</span>
-                <span v-if="spmFeatured?.originalPrice > spmFeatured?.minPrice" class="text-muted text-decoration-line-through ms-2 small">
-                  {{ formatMoney(spmFeatured?.originalPrice) }}
-                </span>
-              </div>
-
-              <!-- Hai nút nguyên bản -->
-              <div class="spm-featured-actions d-flex gap-2">
-                <button
-                  type="button"
-                  class="btn btn-primary rounded-pill fw-bold px-4 py-2 shadow-sm d-flex align-items-center gap-1"
-                  @click="quickAddToCart(spmFeatured, $event)"
-                >
-                  <i class="bi bi-cart-plus"></i> Thêm vào giỏ
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold d-flex align-items-center gap-1"
-                  @click="goToDetail(spmFeatured?.id)"
-                >
-                  <i class="bi bi-eye"></i> Xem chi tiết
-                </button>
-              </div>
-            </div>
-
-            <!-- Dots navigation -->
-            <div class="spm-dots">
-              <span
-                v-for="(item, idx) in tabFilteredProducts.slice(0, Math.min(tabFilteredProducts.length, 6))"
-                :key="item.id"
-                class="spm-dot"
-                :class="{ active: idx === currentSlide }"
-                @click.stop="currentSlide = idx"
-              ></span>
-            </div>
-
-            <!-- Prev / Next arrows -->
-            <button class="spm-arrow spm-arrow-left" @click.stop="prevSlide" aria-label="Trước">
-              <i class="bi bi-chevron-left"></i>
-            </button>
-            <button class="spm-arrow spm-arrow-right" @click.stop="nextSlide" aria-label="Sau">
-              <i class="bi bi-chevron-right"></i>
-            </button>
+        </header>
+        <div v-if="loading" class="hm-trong">Đang tải sản phẩm…</div>
+        <div v-else-if="tabFilteredProducts.length === 0" class="hm-trong">Không có sản phẩm nào trong danh mục này.</div>
+        <template v-else>
+          <div class="hm-luoi hm-luoi-4" data-testid="home-kham-pha">
+            <TheSanPham v-for="p in tabFilteredProducts.slice(0, 8)" :key="p.id" :sp="p" />
           </div>
-
-          <!-- RIGHT: Interactive Side list -->
-          <div class="spm-side-list">
-            <div
-              v-for="item in spmSideList"
-              :key="item.id"
-              class="spm-side-item"
-              :class="{ active: spmFeatured?.id === item.id }"
-              @click="selectFeaturedProduct(item)"
+          <div class="text-center mt-4">
+            <RouterLink
+              :to="selectedCatTab === 'ALL' ? '/shop/san-pham' : { path: '/shop/san-pham', query: { danhMuc: selectedCatTab } }"
+              class="hm-nut hm-nut-dam"
             >
-              <div class="spm-side-img-wrap">
-                <img :src="item.anhChinh || '/logo.png'" :alt="item.ten" class="spm-side-img" />
-                <span v-if="item.hasDiscount" class="spm-side-badge">-{{ item.maxDiscountPercent }}%</span>
-              </div>
-              <div class="spm-side-info">
-                <div class="spm-side-name">{{ item.ten }}</div>
-                <div class="spm-side-price">{{ formatMoney(item.minPrice) }}</div>
-              </div>
-              <i class="bi bi-chevron-right spm-side-arrow"></i>
-            </div>
+              Xem tất cả {{ tabFilteredProducts.length }} sản phẩm <i class="bi bi-arrow-right"></i>
+            </RouterLink>
           </div>
-        </div>
+        </template>
       </section>
 
-      <!-- 4. PHẦN SALE OFF (3 Banner khuyến mãi hàng ngang) -->
-      <section class="vnb-section mb-4">
-        <div class="vnb-section-header d-flex flex-wrap align-items-center justify-content-between gap-3">
-          <div class="d-flex align-items-center gap-3">
-            <div class="vnb-header-icon-box">
-              <i class="bi bi-tag-fill text-warning"></i>
-            </div>
-            <div>
-              <div class="d-flex align-items-center gap-2">
-                <h2 class="vnb-header-title mb-0">Chương Trình Khuyến Mãi</h2>
-                <span class="badge bg-warning text-dark rounded-pill fw-bold px-2 py-1 small">ƯU ĐÃI</span>
-              </div>
-              <p class="vnb-header-subtitle mb-0">Săn deal giá tốt cùng quà tặng chính hãng kèm theo</p>
-            </div>
+      <!-- 5. DANH MỤC -->
+      <section class="hm-muc">
+        <header class="hm-muc-dau">
+          <div>
+            <h2 class="hm-muc-ten">Danh mục</h2>
+            <p class="hm-muc-phu">Vợt cầu lông chính hãng cho mọi trình độ</p>
           </div>
-          <RouterLink to="/shop/uu-dai" class="vnb-view-all-link">
-            Xem ưu đãi <i class="bi bi-arrow-right ms-1"></i>
+        </header>
+        <div class="hm-luoi hm-luoi-2">
+          <RouterLink to="/shop/san-pham?danhMuc=1" class="hm-dm hm-dm-1">
+            <div>
+              <span class="hm-dm-nhan">Danh mục</span>
+              <h3>Vợt cầu lông</h3>
+              <p>Tấn công, phòng thủ, công thủ toàn diện</p>
+              <span class="hm-dm-xem">Mua ngay <i class="bi bi-arrow-right"></i></span>
+            </div>
+            <img src="/images/san-pham/sp13_lining_halbertec_9000.webp" alt="Vợt cầu lông" loading="lazy" />
+          </RouterLink>
+          <RouterLink to="/shop/san-pham?danhMuc=2" class="hm-dm hm-dm-2">
+            <div>
+              <span class="hm-dm-nhan">Danh mục</span>
+              <h3>Vợt cho người mới</h3>
+              <p>Nhẹ, dễ đánh, giá vừa túi</p>
+              <span class="hm-dm-xem">Mua ngay <i class="bi bi-arrow-right"></i></span>
+            </div>
+            <img src="/images/san-pham/sp25_yonex_astrox_10.webp" alt="Vợt cầu lông người mới" loading="lazy" />
           </RouterLink>
         </div>
-
-        <div class="row g-3">
-          <div class="col-12">
-            <div
-              class="promo-banner-card rounded-4 p-4 text-white text-center shadow-sm cursor-pointer position-relative overflow-hidden"
-              style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center;"
-              @click="router.push('/shop/san-pham?khuyenMai=1')"
-            >
-              <span class="badge bg-warning text-dark fw-bold px-2 py-1 mb-2" style="font-size: 0.75rem;">SALE OFF</span>
-              <h5 class="fw-black text-uppercase mb-1" style="font-weight: 900;">VỢT CẦU LÔNG CHÍNH HÃNG</h5>
-              <div class="text-warning fw-bold small">GIẢM TỪ 20% ĐẾN 50% - TẶNG CƯỚC BG65</div>
-            </div>
-          </div>
-
-        </div>
       </section>
 
-      <!-- 5. PHẦN DANH MỤC CẦU LÔNG (4 Card danh mục) -->
-      <section class="vnb-section mb-4">
-        <div class="vnb-section-header d-flex flex-wrap align-items-center justify-content-between gap-3">
-          <div class="d-flex align-items-center gap-3">
-            <div class="vnb-header-icon-box">
-              <i class="bi bi-grid-fill text-primary"></i>
-            </div>
-            <div>
-              <h2 class="vnb-header-title mb-0">Danh Mục Nổi Bật</h2>
-              <p class="vnb-header-subtitle mb-0">Vợt cầu lông chính hãng</p>
-            </div>
+      <!-- 6. THƯƠNG HIỆU -->
+      <section v-if="brandLogos.length" class="hm-muc hm-muc-cuoi">
+        <header class="hm-muc-dau hm-muc-dau-giua">
+          <div>
+            <h2 class="hm-muc-ten">Thương hiệu</h2>
+            <p class="hm-muc-phu">Các thương hiệu vợt đang bán tại FootStyle</p>
           </div>
-          <RouterLink to="/shop/san-pham" class="vnb-view-all-link">
-            Tất cả danh mục <i class="bi bi-arrow-right ms-1"></i>
-          </RouterLink>
-        </div>
-
-        <div class="row g-4 justify-content-center">
-          <!-- Card 1: VỢT CẦU LÔNG -->
-          <div class="col-lg-3 col-6">
-            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham')">
-              <img src="/images/san-pham/sp13_lining_halbertec_9000.webp" alt="Vợt cầu lông" class="dm-img dm-img-vot" loading="lazy" />
-              <div class="vnb-cat-ribbon dm-ribbon">VỢT CẦU LÔNG</div>
-              <div class="dm-sub">Yonex, Lining, Victor</div>
-            </div>
-          </div>
-
-          <!-- Card 2: VỢT CẦU LÔNG NGƯỜI MỚI (cửa hàng chỉ bán vợt: hai danh mục) -->
-          <div class="col-lg-3 col-6">
-            <div class="vnb-cat-card dm-card" @click="router.push('/shop/san-pham?danhMuc=2')">
-              <img src="/images/san-pham/sp25_yonex_astrox_10.webp" alt="Vợt cầu lông người mới" class="dm-img dm-img-vot" loading="lazy" />
-              <div class="vnb-cat-ribbon dm-ribbon">VỢT NGƯỜI MỚI</div>
-              <div class="dm-sub">Dành cho người mới chơi</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 6. THƯƠNG HIỆU HÀNG ĐẦU (Brand Partners) -->
-      <section class="vnb-section mb-4">
-        <div class="vnb-section-header text-center pb-2">
-          <div class="text-center w-100">
-            <div class="vnb-header-icon-box mx-auto mb-2">
-              <i class="bi bi-patch-check-fill text-primary"></i>
-            </div>
-            <h2 class="vnb-header-title mb-1">Thương Hiệu Đồng Hành</h2>
-            <p class="vnb-header-subtitle mb-0">Đại lý ủy quyền phân phối thiết bị cầu lông chính hãng từ các thương hiệu hàng đầu</p>
-          </div>
-        </div>
-
-        <div class="row g-3 justify-content-center align-items-center text-center">
-          <div
+        </header>
+        <div class="hm-hang">
+          <button
             v-for="brand in brandLogos"
-            :key="brand.name"
-            class="col-lg-2 col-md-4 col-6"
+            :key="brand.id"
+            type="button"
+            class="hm-hang-o"
+            data-testid="home-thuong-hieu"
+            @click="router.push({ path: '/shop/san-pham', query: { thuongHieu: brand.id } })"
           >
-            <div
-              class="brand-badge-box p-3 rounded-3 cursor-pointer"
-              @click="router.push(`/shop/san-pham?search=${brand.name}`)"
-            >
-              <h5 class="fw-black text-dark m-0 brand-text" style="font-weight: 900; letter-spacing: 1px;">
-                {{ brand.name }}
-              </h5>
-              <small class="text-muted" style="font-size: 0.7rem;">{{ brand.slogan }}</small>
-            </div>
-          </div>
+            <h5>{{ brand.name }}</h5>
+            <span>Xem sản phẩm</span>
+          </button>
         </div>
       </section>
     </div>
 
-    <!-- Nút Cuộn Lên Đầu Trang -->
-    <button
-      type="button"
-      class="vnb-back-to-top"
-      @click="scrollToTop"
-      aria-label="Cuộn lên đầu trang"
-    >
+    <button type="button" class="vnb-back-to-top" aria-label="Cuộn lên đầu trang" @click="scrollToTop">
       <i class="bi bi-chevron-up"></i>
     </button>
   </div>
 </template>
 
 <style scoped>
-/* ═══════════════════════════════════════════════════════════════════════
-   LIGHT BLUE STOREFRONT DESIGN SYSTEM
-   - Màu chủ đạo: Xanh dương nhạt (#f0f7ff, #e0f2fe, #eff6ff, #bfdbfe)
-   - Nút hành động giữ nguyên màu ban đầu:
-     + btn-primary: Xanh dương chuẩn (#1d4ed8)
-     + btn-warning: Vàng (#fbbf24)
-     + btn-outline-secondary: Viền xám thanh lịch
-═══════════════════════════════════════════════════════════════════════ */
-
-/* Nền toàn trang nhẹ nhàng mát mắt */
 .home-view {
-  background: #f0f7ff;
-  min-height: 100vh;
+  padding-bottom: 24px;
 }
 
-.vnb-main-content {
-  background: transparent;
-  padding-top: 1rem;
-  padding-bottom: 2.5rem;
+/* ---------- Banner ---------- */
+.hm-hero {
+  padding-top: 20px;
 }
-
-/* KHUNG CHUNG CHO MỌI SECTION — Thẻ trắng viền xanh nhạt đồng bộ tuyệt đối */
-.vnb-section {
-  background: #ffffff;
-  border-radius: 20px;
-  border: 1.5px solid #e0f2fe;
-  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.05);
-  padding: 1.75rem 2rem;
-}
-
-/* HEADER CHUNG CHO CẢ TRANG — Nhất quán từ đầu đến cuối */
-.vnb-section-header {
-  border-bottom: 1.5px solid #f0f7ff;
-  padding-bottom: 0.85rem;
-  margin-bottom: 1.5rem;
-}
-
-.vnb-header-icon-box {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: #eff6ff;
-  border: 1.5px solid #dbeafe;
-  display: flex;
+.hm-hero-khung {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  color: #1d4ed8;
-  flex-shrink: 0;
+  gap: 32px;
+  min-height: 460px;
+  padding: 56px 72px;
+  overflow: hidden;
+  color: #fff;
+  border-radius: 28px;
+  background: radial-gradient(circle at 78% 40%, rgba(96, 165, 250, 0.45), transparent 55%), var(--hm-nen, #0b1b3f);
+  transition: background 0.5s ease;
 }
-
-.vnb-header-title {
-  font-size: 1.35rem;
+.hm-hero-tag {
+  display: inline-block;
+  margin-bottom: 18px;
+  padding: 5px 14px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+}
+.hm-hero-tieu-de {
+  margin: 0 0 10px;
+  font-size: clamp(2.2rem, 4.2vw, 3.6rem);
   font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.2px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-transform: uppercase;
 }
-
-.vnb-header-subtitle {
-  font-size: 0.85rem;
-  color: #64748b;
-  font-weight: 500;
+.hm-hero-phu {
+  margin: 0 0 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #bfdbfe;
+  text-transform: uppercase;
 }
-
-.vnb-view-all-link {
+.hm-hero-mo-ta {
+  max-width: 520px;
+  margin: 0 0 28px;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: #dbeafe;
+}
+.hm-hero-nut {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.hm-nut {
   display: inline-flex;
   align-items: center;
-  padding: 6px 18px;
-  border-radius: 999px;
-  background: #eff6ff;
-  border: 1.5px solid #bfdbfe;
-  color: #1d4ed8;
+  gap: 8px;
+  padding: 13px 26px;
+  font-size: 0.95rem;
   font-weight: 700;
-  font-size: 0.85rem;
   text-decoration: none;
-  transition: all 0.2s;
-  white-space: nowrap;
+  border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
-
-.vnb-view-all-link:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
+.hm-nut:hover {
   transform: translateY(-1px);
 }
-
-.cursor-pointer {
-  cursor: pointer;
+.hm-nut-trang {
+  color: #0b1b3f;
+  background: #fff;
 }
-
-.transition-bg {
-  transition: background 0.6s ease-in-out;
+.hm-nut-trang:hover {
+  color: #0b1b3f;
+  background: #e0e7ff;
 }
-
-/* ═══════════════════════════════════════════════
-   HERO BANNER
-═══════════════════════════════════════════════ */
-.banner-nav-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.25);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  z-index: 10;
+.hm-nut-vien {
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
 }
-
-.banner-nav-btn:hover {
-  background: white;
-  color: #1d4ed8;
+.hm-nut-vien:hover {
+  color: #0b1b3f;
+  background: #fff;
 }
-
-.banner-prev { left: 16px; }
-.banner-next { right: 16px; }
-
-.banner-dots {
-  position: absolute;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
+.hm-nut-dam {
+  color: #fff;
+  background: #0f172a;
+}
+.hm-nut-dam:hover {
+  color: #fff;
+  background: #1d4ed8;
+}
+.hm-hero-cham {
   display: flex;
   gap: 8px;
-  z-index: 10;
+  margin-top: 36px;
 }
-
-.banner-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.4);
-  cursor: pointer;
-  transition: all 0.25s;
+.hm-cham {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  transition: width 0.3s ease, background 0.3s ease;
 }
-
-.banner-dot.active {
-  background: #fbbf24;
+.hm-cham.active {
   width: 28px;
-  border-radius: 9999px;
+  background: #fff;
 }
-
-/* ═══════════════════════════════════════════════
-   BEST SELLERS (Sản phẩm bán chạy nhất)
-═══════════════════════════════════════════════ */
-.bestseller-card {
-  background: #ffffff;
-  border: 1.5px solid #e0f2fe;
-  border-radius: 18px;
-  padding: 1.15rem;
+.hm-hero-anh {
   position: relative;
-  transition: all 0.25s ease;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 340px;
 }
-
-.bestseller-card:hover {
-  transform: translateY(-4px);
-  border-color: #93c5fa;
-  box-shadow: 0 12px 28px rgba(29, 78, 216, 0.12);
-}
-
-.rank-badge {
+.hm-hero-vong {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 3px 9px;
-  border-radius: 6px;
-  color: white;
-  z-index: 2;
-  letter-spacing: 0.3px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  width: min(100%, 380px);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 30px 60px rgba(2, 6, 23, 0.35);
+}
+.hm-hero-anh img {
+  position: relative;
+  width: min(80%, 300px);
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+.hm-hero-ten-anh {
+  position: absolute;
+  bottom: 6px;
+  max-width: 90%;
+  padding: 7px 16px;
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #0f172a;
+  background: #fff;
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.2);
+}
+.hm-mui-ten {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  transform: translateY(-50%);
+  transition: background 0.2s ease;
+}
+.hm-mui-ten:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+.banner-prev {
+  left: 18px;
+}
+.banner-next {
+  right: 18px;
 }
 
-.rank-1 { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
-.rank-2 { background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%); }
-.rank-3 { background: linear-gradient(135deg, #b45309 0%, #78350f 100%); }
-.rank-other { background-color: #1d4ed8; }
-
-.bestseller-img-wrap {
-  height: 165px;
+/* Cam kết */
+.hm-cam-ket {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.hm-cam-ket-o {
   display: flex;
   align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #eef0f4;
+  border-radius: 16px;
+}
+.hm-cam-ket-o .bi {
+  flex: 0 0 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  color: #1d4ed8;
+  background: #eef4ff;
+  border-radius: 12px;
+}
+.hm-cam-ket-o strong {
+  display: block;
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+.hm-cam-ket-o span {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* ---------- Mục chung ---------- */
+.hm-noi-dung {
+  padding-top: 8px;
+}
+.hm-muc {
+  margin-top: 56px;
+}
+.hm-muc-dau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-bottom: 22px;
+}
+.hm-muc-dau-giua {
   justify-content: center;
-  padding: 8px;
-  cursor: pointer;
+  text-align: center;
 }
-
-.bestseller-img {
-  max-height: 100%;
-  max-width: 100%;
-  object-fit: contain;
-  transition: transform 0.3s;
+.hm-muc-ten {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
 }
-
-.bestseller-card:hover .bestseller-img {
-  transform: scale(1.06);
+.hm-muc-phu {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  color: #64748b;
 }
-
-.bestseller-sold-badge {
+.hm-xem-tat-ca {
   display: inline-flex;
   align-items: center;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #1d4ed8;
-  background: #eff6ff;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid #dbeafe;
-}
-
-.bestseller-name {
+  gap: 6px;
   font-size: 0.92rem;
   font-weight: 700;
   color: #0f172a;
-  line-height: 1.35;
-  height: 2.5rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  cursor: pointer;
+  text-decoration: none;
 }
-
-.bestseller-name:hover {
+.hm-xem-tat-ca:hover {
   color: #1d4ed8;
 }
+.hm-luoi {
+  display: grid;
+  gap: 18px;
+}
+.hm-luoi-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.hm-luoi-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.hm-luoi-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.hm-trong {
+  padding: 48px 16px;
+  text-align: center;
+  color: #64748b;
+  background: #fff;
+  border: 1px dashed #e2e8f0;
+  border-radius: 16px;
+}
 
-/* ═══════════════════════════════════════════════
-   SẢN PHẨM MỚI (Split Layout)
-═══════════════════════════════════════════════ */
-.spm-tabs-wrap {
+/* Tab danh mục */
+.hm-tab {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-}
-
-.spm-tab {
-  border: 1.5px solid #bfdbfe;
-  border-radius: 999px;
-  padding: 6px 16px;
-  background: #ffffff;
-  color: #1d4ed8;
-  font-weight: 600;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.spm-tab:hover {
-  border-color: #1d4ed8;
-  background: #eff6ff;
-}
-
-.spm-tab.active {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
-}
-
-.spm-split-layout {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 20px;
-  min-height: 440px;
-}
-
-@media (max-width: 991px) {
-  .spm-split-layout {
-    grid-template-columns: 1fr;
-  }
-  .spm-side-list {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-}
-
-/* Featured Card (Trái) */
-.spm-featured {
-  position: relative;
-  border-radius: 18px;
-  overflow: hidden;
-  background: #ffffff;
-  border: 1.5px solid #e0f2fe;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.05);
-  transition: all 0.25s ease;
-}
-
-.spm-featured:hover {
-  border-color: #93c5fd;
-  box-shadow: 0 8px 24px rgba(29, 78, 216, 0.1);
-}
-
-.spm-featured-badges {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  display: flex;
   gap: 6px;
-  z-index: 3;
-}
-
-.spm-featured-img-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 24px 20px;
-  background: radial-gradient(ellipse at 50% 50%, #ffffff 0%, #f0f7ff 60%, #e0f2fe 100%);
-  cursor: pointer;
-}
-
-.spm-featured-img {
-  max-height: 230px;
-  max-width: 100%;
-  object-fit: contain;
-  transition: transform 0.4s ease;
-}
-
-.spm-featured:hover .spm-featured-img {
-  transform: scale(1.05);
-}
-
-.spm-featured-info {
-  background: #ffffff;
-  padding: 16px 20px 48px;
-  position: relative;
-  border-top: 1px solid #f0f7ff;
-}
-
-.spm-featured-brand {
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: #1d4ed8;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  margin-bottom: 4px;
-}
-
-.spm-featured-name {
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: #0f172a;
-  margin-bottom: 6px;
-  cursor: pointer;
-}
-
-.spm-featured-name:hover {
-  color: #1d4ed8;
-}
-
-.spm-dots {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 6px;
-  z-index: 4;
-}
-
-.spm-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: #bae6fd;
-  cursor: pointer;
-  transition: all 0.25s;
-}
-
-.spm-dot.active {
-  background: #1d4ed8;
-  width: 22px;
-}
-
-.spm-arrow {
-  position: absolute;
-  top: 42%;
-  transform: translateY(-50%);
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1.5px solid #bfdbfe;
+  padding: 5px;
   background: #fff;
-  color: #1d4ed8;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 4;
-  transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.12);
+  border: 1px solid #eef0f4;
+  border-radius: 999px;
 }
-
-.spm-arrow:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+.hm-tab-nut {
+  padding: 8px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #475569;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+}
+.hm-tab-nut.active {
   color: #fff;
+  background: #0f172a;
 }
 
-.spm-arrow-left { left: 10px; }
-.spm-arrow-right { right: 10px; }
-
-/* Side list (Phải) */
-.spm-side-list {
+/* Đợt giảm giá */
+.hm-dot {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-
-.spm-side-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #ffffff;
-  border-radius: 14px;
-  padding: 10px 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1.5px solid #e0f2fe;
-  position: relative;
-}
-
-.spm-side-item:hover {
-  border-color: #93c5fd;
-  background: #f8fbff;
-  transform: translateX(3px);
-}
-
-.spm-side-item.active {
-  background: #eff6ff;
-  border-color: #1d4ed8;
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.12);
-}
-
-.spm-side-img-wrap {
-  position: relative;
-  flex-shrink: 0;
-  width: 60px;
-  height: 60px;
-  border-radius: 10px;
-  background: #f0f7ff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-}
-
-.spm-side-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.spm-side-badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  background: #dc2626;
-  color: #fff;
-  font-size: 0.6rem;
-  font-weight: 800;
-  padding: 1px 5px;
-  border-radius: 4px;
-}
-
-.spm-side-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.spm-side-name {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #0f172a;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  min-height: 210px;
+  padding: 24px 26px;
   overflow: hidden;
-  line-height: 1.35;
-  margin-bottom: 4px;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 22px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
-
-.spm-side-price {
-  font-size: 0.9rem;
-  font-weight: 800;
-  color: #dc2626;
-}
-
-.spm-side-arrow {
-  color: #93c5fd;
-  font-size: 0.8rem;
-  flex-shrink: 0;
-  transition: color 0.2s;
-}
-
-.spm-side-item:hover .spm-side-arrow,
-.spm-side-item.active .spm-side-arrow {
-  color: #1d4ed8;
-}
-
-/* ═══════════════════════════════════════════════
-   DANH MỤC NỔI BẬT
-═══════════════════════════════════════════════ */
-.dm-card {
-  background: radial-gradient(circle at 50% 38%, #ffffff 0%, #f0f9ff 55%, #e0f2fe 100%);
-  border: 1.5px solid #bae6fd;
-}
-
-.dm-img {
+.hm-dot::after {
+  content: '';
   position: absolute;
-  top: 6%;
-  left: 12%;
-  width: 76%;
-  height: 58%;
+  right: -40px;
+  bottom: -60px;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+.hm-dot:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+}
+.hm-dot-0 {
+  background: linear-gradient(135deg, #e11d48, #9f1239);
+}
+.hm-dot-1 {
+  background: linear-gradient(135deg, #1d4ed8, #1e3a8a);
+}
+.hm-dot-2 {
+  background: linear-gradient(135deg, #0f172a, #334155);
+}
+.hm-dot-nhan {
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.hm-dot-muc {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.hm-dot-ten {
+  margin-top: 12px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.hm-dot-phu {
+  margin-top: 2px;
+  font-size: 0.84rem;
+  opacity: 0.85;
+}
+.hm-dot-xem {
+  margin-top: auto;
+  padding-top: 14px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+/* Danh mục */
+.hm-dm {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 240px;
+  padding: 32px 36px;
+  overflow: hidden;
+  color: #0f172a;
+  text-decoration: none;
+  border-radius: 24px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.hm-dm:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+}
+.hm-dm-1 {
+  background: linear-gradient(135deg, #e0e7ff, #f1f5f9);
+}
+.hm-dm-2 {
+  background: linear-gradient(135deg, #dcfce7, #f1f5f9);
+}
+.hm-dm-nhan {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.hm-dm h3 {
+  margin: 6px 0 6px;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+.hm-dm p {
+  margin: 0 0 18px;
+  color: #475569;
+}
+.hm-dm-xem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fff;
+  background: #0f172a;
+  border-radius: 999px;
+}
+.hm-dm img {
+  width: 42%;
+  max-height: 200px;
   object-fit: contain;
   mix-blend-mode: multiply;
-  transition: transform 0.4s;
+  transform: rotate(-12deg);
+  transition: transform 0.35s ease;
+}
+.hm-dm:hover img {
+  transform: rotate(-6deg) scale(1.05);
 }
 
-.dm-img-vot {
-  transform: rotate(-28deg);
+/* Thương hiệu */
+.hm-hang {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
 }
-
-.dm-card:hover .dm-img {
-  transform: scale(1.08);
-}
-
-.dm-card:hover .dm-img-vot {
-  transform: rotate(-28deg) scale(1.08);
-}
-
-.dm-ribbon {
-  top: 64%;
-  background: linear-gradient(135deg, #1d4ed8 0%, #38bdf8 100%);
-  color: #fff;
-}
-
-.dm-sub {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 7%;
+.hm-hang-o {
+  padding: 22px 12px;
   text-align: center;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #1d4ed8;
+  background: #fff;
+  border: 1px solid #eef0f4;
+  border-radius: 16px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
-
-/* ═══════════════════════════════════════════════
-   THƯƠNG HIỆU & TIN TỨC & TIỆN ÍCH
-═══════════════════════════════════════════════ */
-.brand-badge-box {
-  background: #f0f7ff;
-  border: 1.5px solid #e0f2fe;
-  border-radius: 14px;
-  transition: all 0.2s;
-}
-
-.brand-badge-box:hover {
-  background: #e0f2fe;
-  border-color: #93c5fd;
+.hm-hang-o:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.1);
+  border-color: #c7d2fe;
+}
+.hm-hang-o h5 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #0f172a;
+}
+.hm-hang-o span {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+.hm-muc-cuoi {
+  margin-bottom: 24px;
 }
 
-.brand-text {
-  transition: color 0.2s;
-}
-
-.brand-badge-box:hover .brand-text {
-  color: #1d4ed8 !important;
-}
-
+/* Thông báo nổi + nút lên đầu */
 .vnb-floating-toast {
   position: fixed;
-  top: 24px;
+  top: 96px;
   right: 24px;
-  background: #ffffff;
-  border-left: 5px solid #16a34a;
-  border-radius: 10px;
-  padding: 14px 20px;
-  z-index: 1050;
-  min-width: 280px;
+  z-index: 2000;
+  padding: 14px 18px;
+  background: #fff;
+  border-radius: 14px;
 }
-
+.vnb-back-to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 96px;
+  z-index: 1000;
+  width: 42px;
+  height: 42px;
+  color: #fff;
+  border: 0;
+}
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s, transform 0.3s;
+  transition: opacity 0.25s ease;
 }
-
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
+}
+
+/* ---------- Màn hình nhỏ ---------- */
+@media (max-width: 1199px) {
+  .hm-luoi-4 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .hm-cam-ket {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 991px) {
+  .hm-hero-khung {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 40px 56px 32px;
+  }
+  .hm-hero-anh {
+    min-height: 260px;
+  }
+  .hm-luoi-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .hm-luoi-4,
+  .hm-luoi-3,
+  .hm-luoi-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .hm-luoi-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hm-muc {
+    margin-top: 40px;
+  }
+}
+@media (max-width: 575px) {
+  .hm-hero {
+    padding-top: 12px;
+  }
+  .hm-hero-khung {
+    padding: 28px 22px 24px;
+    border-radius: 22px;
+  }
+  .hm-mui-ten {
+    display: none;
+  }
+  .hm-cam-ket {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hm-luoi-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hm-dm {
+    padding: 24px;
+    min-height: 200px;
+  }
+  .hm-dm h3 {
+    font-size: 1.3rem;
+  }
 }
 </style>

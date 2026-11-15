@@ -1,7 +1,7 @@
 <script setup>
 // Nút chat nổi ở góc trang bán hàng online: bấm để mở khung chat với trợ lý ảo (trả lời từ dữ liệu cửa hàng),
 // trong khung có nút "Gặp nhân viên". Đóng khung không kết thúc cuộc chat (KhungChatKhach lưu phiên trong trình duyệt).
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import KhungChatKhach from './KhungChatKhach.vue'
 
 defineProps({
@@ -9,6 +9,10 @@ defineProps({
 })
 
 const mo = ref(false)
+// Trang khác (vd Liên hệ) mở khung chat bằng: window.dispatchEvent(new Event('mo-chat-khach'))
+const moKhung = () => { mo.value = true }
+onMounted(() => window.addEventListener('mo-chat-khach', moKhung))
+onUnmounted(() => window.removeEventListener('mo-chat-khach', moKhung))
 </script>
 
 <template>

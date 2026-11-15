@@ -169,7 +169,7 @@ describe('Trang Ưu đãi', () => {
 describe('Giỏ hàng: nhắc mua thêm để được miễn phí vận chuyển', () => {
   const dong = { bienTheId: 62, sanPhamId: 30, ten: 'Vợt', giaBan: 1_250_000, giaGoc: 1_250_000, soLuong: 1, soLuongTon: 27 }
 
-  it('chưa đạt ngưỡng thì nhắc số còn thiếu; đạt rồi, hoặc giao Hà Nội (phí vốn bằng 0) thì không nhắc', () => {
+  it('chưa đạt ngưỡng thì nhắc số còn thiếu (kể cả giao Hà Nội, nay có phí); đạt rồi thì không nhắc', () => {
     nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 2_000_000 })
     const cart = useCartStore()
     cart.addItem({ ...dong })
@@ -178,8 +178,9 @@ describe('Giỏ hàng: nhắc mua thêm để được miễn phí vận chuyể
     expect(cart.shippingFee).toBe(40_000)
     expect(cart.conThieuMienPhiShip).toBe(750_000)
     cart.tinhGiao = 'Thành phố Hà Nội'
-    expect(cart.shippingFee).toBe(0)
-    expect(cart.conThieuMienPhiShip).toBe(0) // đã miễn phí theo tỉnh: không nhắc mua thêm
+    cart.phuongGiao = 'Xã Sóc Sơn'
+    expect(cart.shippingFee).toBe(30_000)
+    expect(cart.conThieuMienPhiShip).toBe(750_000) // Hà Nội nay có phí: vẫn nhắc mua thêm
     cart.tinhGiao = 'Thành phố Đà Nẵng'
     cart.updateQuantity(62, 2)
     expect(cart.mienPhiShip).toBe(true)

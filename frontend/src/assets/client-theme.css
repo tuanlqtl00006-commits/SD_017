@@ -1,0 +1,448 @@
+/* ==========================================================================
+   FootStyle - giao diện trang khách (làm lại 15/11)
+   Nạp SAU client.css (ClientLayout.vue) nên các quy tắc ở đây ghi đè kiểu cũ.
+   Hướng: cửa hàng thể thao cao cấp, nền sáng thoáng, một màu xanh chủ đạo, đỏ chỉ cho giá giảm,
+   chữ Be Vietnam Pro, không chữ in hoa nghiêng, ảnh sản phẩm lớn trên khung xám nhạt.
+   ========================================================================== */
+
+:root {
+  --ft-ink: #0f172a;
+  --ft-ink-2: #334155;
+  --ft-muted: #64748b;
+  --ft-line: #e5e7eb;
+  --ft-line-2: #eef0f4;
+  --ft-bg: #f6f7f9;
+  --ft-surface: #ffffff;
+  --ft-soft: #f3f4f6;
+  --ft-primary: #1d4ed8;
+  --ft-primary-hover: #1e40af;
+  --ft-primary-soft: #eef4ff;
+  --ft-navy: #0b1b3f;
+  --ft-sale: #e11d48;
+  --ft-ok: #16a34a;
+  --ft-radius: 16px;
+  --ft-radius-sm: 10px;
+  --ft-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(15, 23, 42, 0.06);
+  --ft-shadow-hover: 0 4px 10px rgba(15, 23, 42, 0.06), 0 18px 40px rgba(15, 23, 42, 0.1);
+}
+
+/* ---------- Nền, chữ ---------- */
+.client-app {
+  font-family: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  color: var(--ft-ink-2);
+  background-color: var(--ft-bg);
+  -webkit-font-smoothing: antialiased;
+}
+.client-app h1,
+.client-app h2,
+.client-app h3,
+.client-app h4,
+.client-app h5,
+.client-app h6 {
+  font-family: inherit;
+  color: var(--ft-ink);
+  letter-spacing: -0.01em;
+}
+.client-app .fst-italic {
+  font-style: normal !important;
+}
+.client-app a {
+  text-underline-offset: 3px;
+}
+.client-app .breadcrumb {
+  font-size: 0.85rem;
+}
+.client-app .breadcrumb a {
+  color: var(--ft-muted);
+  text-decoration: none;
+}
+.client-app .breadcrumb a:hover {
+  color: var(--ft-primary);
+}
+.client-app .breadcrumb-item.active {
+  color: var(--ft-ink);
+  font-weight: 600;
+}
+
+/* ---------- Dải thông báo trên cùng ---------- */
+.ft-thong-bao {
+  background: var(--ft-navy);
+  color: #cbd5e1;
+  font-size: 0.8rem;
+}
+.ft-thong-bao-noi {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ft-thong-bao .bi {
+  margin-right: 6px;
+  color: #93c5fd;
+}
+
+/* ---------- Thanh menu ---------- */
+.client-app .vnb-nav-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  background: transparent;
+  box-shadow: none;
+}
+.client-app .vnb-header-bar {
+  padding: 0;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--ft-line);
+  box-shadow: none;
+}
+.client-app .vnb-header-bar > .vnb-container {
+  min-height: 72px;
+  gap: 28px !important;
+}
+.client-app .vnb-header-bar .vnb-logo {
+  height: 52px;
+  max-width: 190px;
+}
+.client-app .vnb-header-bar .vnb-nav-list {
+  gap: 4px;
+  justify-content: center;
+}
+.client-app .vnb-header-bar .vnb-nav-link {
+  position: relative;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ft-ink-2);
+  border-radius: 999px;
+  background: transparent;
+}
+.client-app .vnb-header-bar .vnb-nav-link:hover {
+  color: var(--ft-ink);
+  background: var(--ft-soft);
+}
+.client-app .vnb-header-bar .vnb-nav-link.router-link-exact-active,
+.client-app .vnb-header-bar .vnb-nav-link:not([href="/shop"]):not([href="/shop/"]).router-link-active {
+  color: var(--ft-primary);
+  background: var(--ft-primary-soft);
+}
+.client-app .vnb-header-bar .vnb-nav-link::after,
+.client-app .vnb-nav-link.router-link-exact-active::after,
+.client-app .vnb-nav-link:not([href="/shop"]):not([href="/shop/"]).router-link-active::after {
+  display: none !important;
+}
+.client-app .vnb-header-bar .vnb-search-wrap {
+  width: 260px;
+  max-width: 260px;
+}
+.client-app .vnb-header-bar .vnb-search-input {
+  height: 42px;
+  padding-left: 18px;
+  font-size: 0.9rem;
+  color: var(--ft-ink);
+  background: var(--ft-soft);
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+.client-app .vnb-header-bar .vnb-search-input:focus {
+  background: #fff;
+  border-color: #bfdbfe;
+  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.1);
+}
+.client-app .vnb-cart-link {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: var(--ft-ink);
+  background: transparent;
+  border: 0;
+}
+.client-app .vnb-cart-link:hover {
+  background: var(--ft-soft);
+  color: var(--ft-primary);
+}
+.client-app .vnb-cart-link .vnb-cart-badge {
+  background: var(--ft-sale);
+  color: #fff;
+  border: 2px solid #fff;
+  font-weight: 700;
+}
+.client-app .vnb-login-pill {
+  padding: 4px 14px 4px 4px;
+  border-radius: 999px;
+  background: var(--ft-soft);
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+.client-app .vnb-login-pill:hover {
+  background: #fff;
+  border-color: var(--ft-line);
+}
+.client-app .vnb-login-avatar {
+  background: var(--ft-ink);
+  color: #fff;
+}
+.client-app .vnb-login-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ft-ink);
+  text-transform: none;
+}
+
+/* ---------- Nút ---------- */
+.client-app .btn {
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.client-app .btn.rounded-pill,
+.client-app .btn-lg {
+  border-radius: 999px;
+}
+
+/* ---------- Thẻ / khung chung ---------- */
+.client-app .card {
+  border: 1px solid var(--ft-line) !important;
+  border-radius: var(--ft-radius) !important;
+  box-shadow: none !important;
+}
+.client-app .shadow-sm {
+  box-shadow: var(--ft-shadow) !important;
+}
+
+/* ---------- Thẻ sản phẩm (trang Sản phẩm) ---------- */
+.client-app .vnb-product-item {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--ft-surface);
+  border: 1px solid var(--ft-line-2);
+  border-radius: var(--ft-radius);
+  box-shadow: none;
+  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+}
+.client-app .vnb-product-item:hover {
+  transform: translateY(-3px);
+  border-color: transparent;
+  box-shadow: var(--ft-shadow-hover);
+}
+.client-app .vnb-img-box {
+  position: relative;
+  margin: 10px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  padding: 18px;
+  background: var(--ft-soft);
+  border-radius: 12px;
+  border: 0;
+  overflow: hidden;
+}
+.client-app .vnb-product-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  transition: transform 0.35s ease;
+}
+.client-app .vnb-product-item:hover .vnb-product-img {
+  transform: scale(1.05);
+}
+.client-app .vnb-badge-discount {
+  top: 10px;
+  left: 10px;
+  padding: 3px 9px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ft-sale);
+  border-radius: 999px;
+  box-shadow: none;
+}
+.client-app .vnb-badge-premium {
+  display: none;
+}
+.client-app .vnb-product-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 4px 16px 16px;
+  border: 0;
+}
+.client-app .vnb-product-brand {
+  margin-bottom: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ft-muted);
+}
+.client-app .vnb-product-name {
+  min-height: 2.6em;
+  margin-bottom: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ft-ink);
+}
+.client-app .vnb-product-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: auto;
+  margin-bottom: 12px;
+}
+.client-app .vnb-product-price {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ft-ink);
+}
+.client-app .vnb-product-item:has(.vnb-badge-discount) .vnb-product-price {
+  color: var(--ft-sale);
+}
+.client-app .vnb-product-old-price {
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+.client-app .vnb-product-btn-cart {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ft-ink);
+  background: #fff;
+  border: 1px solid var(--ft-line);
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+.client-app .vnb-product-item:hover .vnb-product-btn-cart {
+  color: #fff;
+  background: var(--ft-ink);
+  border-color: var(--ft-ink);
+}
+
+/* ---------- Cột bộ lọc ---------- */
+.client-app .vnb-filter-panel {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--ft-line-2);
+  border-radius: var(--ft-radius);
+  box-shadow: none !important;
+}
+.client-app .vnb-filter-panel > .bg-light {
+  background: #fff !important;
+}
+.client-app .vnb-filter-section {
+  border-color: var(--ft-line-2);
+}
+.client-app .vnb-filter-section {
+  padding: 14px 18px;
+}
+.client-app .vnb-filter-section-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ft-ink);
+}
+.client-app .vnb-filter-section-title::first-letter {
+  text-transform: uppercase;
+}
+.client-app .catalog-cot-loc .vnb-filter-panel {
+  position: sticky;
+  top: 120px;
+}
+@media (min-width: 768px) {
+  .client-app .catalog-cot-loc .vnb-filter-panel {
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+  }
+}
+.client-app .vnb-filter-item label {
+  font-size: 0.9rem;
+  color: var(--ft-ink-2);
+}
+.client-app .vnb-filter-item input[type='checkbox'] {
+  accent-color: var(--ft-primary);
+}
+
+/* Thanh danh mục dạng viên */
+.client-app .vnb-cat-pills-bar {
+  background: #fff;
+  border: 1px solid var(--ft-line-2);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+/* ---------- Chân trang ---------- */
+.client-app .vnb-footer {
+  background: var(--ft-navy);
+  border-top: 0;
+}
+.client-app .vnb-footer-title {
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+}
+.client-app .vnb-footer-link,
+.client-app .vnb-footer-text {
+  color: #94a3b8;
+}
+.client-app .vnb-footer-link:hover {
+  color: #fff;
+}
+
+/* ---------- Nút nổi (lên đầu trang, chat) ---------- */
+.client-app .vnb-back-to-top {
+  background: var(--ft-ink) !important;
+  border-radius: 999px !important;
+  box-shadow: var(--ft-shadow) !important;
+}
+
+/* Thanh menu ở khung vừa (khung trang khách được phóng 1.2 lần nên chật hơn số px thật) */
+@media (max-width: 1360px) {
+  .client-app .vnb-header-bar > .vnb-container {
+    gap: 16px !important;
+  }
+  .client-app .vnb-header-bar .vnb-search-wrap {
+    width: 200px;
+    max-width: 200px;
+  }
+  .client-app .vnb-header-bar .vnb-nav-link {
+    padding: 8px 11px;
+    font-size: 0.9rem;
+  }
+}
+@media (max-width: 1160px) and (min-width: 992px) {
+  .client-app .vnb-login-text {
+    display: none;
+  }
+  .client-app .vnb-login-pill {
+    padding: 4px;
+  }
+  .client-app .vnb-header-bar .vnb-search-wrap {
+    width: 170px;
+    max-width: 170px;
+  }
+}
+/* Menu cuộn ngang ở màn hẹp: canh trái để mục đầu "Trang chủ" không bị cắt mất (canh giữa + tràn thì không cuộn tới được) */
+@media (max-width: 991px) {
+  .client-app .vnb-nav-list {
+    justify-content: flex-start !important;
+  }
+}
+/* Điện thoại: ô tìm kiếm rộng hết dòng, dải thông báo chỉ giữ một dòng (miễn phí vận chuyển nếu có) */
+@media (max-width: 575px) {
+  .client-app .vnb-header-bar .vnb-search-wrap {
+    width: 100%;
+    max-width: none;
+  }
+  /* đủ 3 mục (có miễn phí vận chuyển): ẩn "chính hãng"; "đổi trả" đã ẩn sẵn ở điện thoại */
+  .ft-thong-bao-noi > span:first-child:nth-last-child(3) {
+    display: none;
+  }
+}

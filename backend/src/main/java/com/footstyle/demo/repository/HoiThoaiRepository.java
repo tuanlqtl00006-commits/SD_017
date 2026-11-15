@@ -18,4 +18,7 @@ public interface HoiThoaiRepository extends JpaRepository<HoiThoai, Integer> {
     long countByLoaiAndSdtKhachAndNgayTaoAfter(Integer loai, String sdtKhach, LocalDateTime moc);
 
     long countByLoaiAndCheDo(Integer loai, Integer cheDo);
+
+    /** Hội thoại chưa đóng mà không có hoạt động từ một mốc (để tự đóng phiên). */
+    List<HoiThoai> findByLoaiAndCheDoNotAndNgayCapNhatBefore(Integer loai, Integer cheDo, LocalDateTime moc);
 }

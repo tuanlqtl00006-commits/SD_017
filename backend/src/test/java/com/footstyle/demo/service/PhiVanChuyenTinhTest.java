@@ -8,12 +8,15 @@ import org.junit.jupiter.api.Test;
 
 class PhiVanChuyenTinhTest {
 
+    // Góp ý 15/11 (video 22:22 [14:39–15:55]): Hà Nội không miễn phí; nội thành (phường) rẻ hơn ngoại thành (xã)
     @Test
-    void haNoiMienPhi_moiCachGhiTen() {
-        assertEquals(0L, PhiVanChuyenTinh.phi("Hà Nội"));
-        assertEquals(0L, PhiVanChuyenTinh.phi("Thành phố Hà Nội"));
-        assertEquals(0L, PhiVanChuyenTinh.phi("  TP. Hà Nội "));
-        assertEquals(0L, PhiVanChuyenTinh.phi("ha noi"));
+    void haNoi_phuong25k_xa30k_moiCachGhiTen() {
+        assertEquals(25_000L, PhiVanChuyenTinh.phi("Hà Nội"), "chưa biết phường/xã: tính như phường");
+        assertEquals(25_000L, PhiVanChuyenTinh.phi("Thành phố Hà Nội", "Phường Hà Đông"));
+        assertEquals(25_000L, PhiVanChuyenTinh.phi("  TP. Hà Nội ", "Phường Cửa Nam"));
+        assertEquals(30_000L, PhiVanChuyenTinh.phi("ha noi", "Xã Sóc Sơn"));
+        assertEquals(30_000L, PhiVanChuyenTinh.phi("Thành phố Hà Nội", " xã Ba Vì"));
+        assertEquals(25_000L, PhiVanChuyenTinh.phi("Tỉnh Bắc Ninh", "Xã Yên Phong"), "tỉnh khác không phân biệt phường / xã");
     }
 
     @Test
@@ -38,7 +41,8 @@ class PhiVanChuyenTinhTest {
 
     @Test
     void phiTheoDiaChi_layTinhOCuoiDiaChi() {
-        assertEquals(0L, PhiVanChuyenTinh.phiTheoDiaChi("Số 15 Trần Phú, Phường Hà Đông, Thành phố Hà Nội"));
+        assertEquals(25_000L, PhiVanChuyenTinh.phiTheoDiaChi("Số 15 Trần Phú, Phường Hà Đông, Thành phố Hà Nội"));
+        assertEquals(30_000L, PhiVanChuyenTinh.phiTheoDiaChi("Thôn 2, Xã Sóc Sơn, Thành phố Hà Nội"));
         assertEquals(50_000L, PhiVanChuyenTinh.phiTheoDiaChi("xcv, Phường Bảo Vinh, Thành phố Đồng Nai"));
         assertNull(PhiVanChuyenTinh.phiTheoDiaChi("Số 15 Trần Phú, khu phố 3"));
         assertNull(PhiVanChuyenTinh.phiTheoDiaChi(" "));

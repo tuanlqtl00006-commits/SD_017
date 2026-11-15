@@ -703,6 +703,9 @@ const luuYKy = computed(() => {
   return ''
 })
 
+/* Góp ý 14/11 (video 22:22 [10:50]): các bảng dài gập lại, bấm tiêu đề mới mở ra */
+const moBang = reactive({ chiSo: false, thuongHieu: false, sanPham: false })
+
 /* ----- Bảng đối chiếu chỉ số (dòng = chỉ số, cột = kỳ) ----- */
 const bangChiSo = computed(() => {
   const ds = cacKyDoiChieu.value
@@ -1756,14 +1759,15 @@ async function guiEmail() {
 
       <!-- 5. Bảng đối chiếu chỉ số -->
       <section class="ad-card ss-section-card" data-test="ss-bang-chi-so">
-        <div class="ss-section-head">
+        <div class="ss-section-head ss-head-gap" :class="{ 'is-gap': !moBang.chiSo }" role="button" tabindex="0" :aria-expanded="moBang.chiSo" data-test="ss-bang-chi-so-dau" @click="moBang.chiSo = !moBang.chiSo" @keydown.enter.prevent="moBang.chiSo = !moBang.chiSo">
           <div class="d-flex flex-wrap align-items-center gap-2">
             <h3 class="ss-section-title m-0">Bảng đối chiếu chỉ số</h3>
             <span class="ss-count-badge">{{ cacKyDoiChieu.length }} kỳ</span>
           </div>
           <span v-if="kySoSanh" class="ss-unit-pill">{{ kyChinh.nhan }} so với {{ kySoSanh.nhan }}</span>
+          <span class="ss-gap-nut">{{ moBang.chiSo ? 'Thu gọn' : 'Xem bảng' }} <i class="bi" :class="moBang.chiSo ? 'bi-chevron-up' : 'bi-chevron-down'" aria-hidden="true"></i></span>
         </div>
-
+        <div v-show="moBang.chiSo" class="ss-gap-than">
         <div class="ad-table-wrap">
           <div class="ad-table-scroll">
             <table class="ad-table ss-compare-table mb-0">
@@ -1800,18 +1804,20 @@ async function guiEmail() {
         <p v-if="coLocSanPham" class="ss-table-note mb-0">
           Đang lọc theo sản phẩm nên chỉ tính phần doanh thu của sản phẩm khớp lọc; số đơn là số đơn hoàn thành có chứa các sản phẩm đó.
         </p>
+        </div>
       </section>
 
       <!-- 6. Doanh thu theo thương hiệu -->
       <section class="ad-card ss-section-card" data-test="ss-thuong-hieu">
-        <div class="ss-section-head">
+        <div class="ss-section-head ss-head-gap" :class="{ 'is-gap': !moBang.thuongHieu }" role="button" tabindex="0" :aria-expanded="moBang.thuongHieu" data-test="ss-thuong-hieu-dau" @click="moBang.thuongHieu = !moBang.thuongHieu" @keydown.enter.prevent="moBang.thuongHieu = !moBang.thuongHieu">
           <div class="d-flex flex-wrap align-items-center gap-2">
             <h3 class="ss-section-title m-0">Doanh thu theo thương hiệu</h3>
             <span class="ss-count-badge">{{ bangThuongHieu.length }} thương hiệu</span>
           </div>
           <span class="ss-unit-pill">Đơn vị: VNĐ</span>
+          <span class="ss-gap-nut">{{ moBang.thuongHieu ? 'Thu gọn' : 'Xem bảng' }} <i class="bi" :class="moBang.thuongHieu ? 'bi-chevron-up' : 'bi-chevron-down'" aria-hidden="true"></i></span>
         </div>
-
+        <div v-show="moBang.thuongHieu" class="ss-gap-than">
         <div v-if="!bangThuongHieu.length" class="ad-empty">Các kỳ đã chọn chưa có sản phẩm nào được bán.</div>
         <div v-else class="ad-table-wrap">
           <div class="ad-table-scroll">
@@ -1847,18 +1853,20 @@ async function guiEmail() {
             </table>
           </div>
         </div>
+        </div>
       </section>
 
       <!-- 7. Sản phẩm bán chạy qua các kỳ -->
       <section class="ad-card ss-section-card" data-test="ss-san-pham">
-        <div class="ss-section-head">
+        <div class="ss-section-head ss-head-gap" :class="{ 'is-gap': !moBang.sanPham }" role="button" tabindex="0" :aria-expanded="moBang.sanPham" data-test="ss-san-pham-dau" @click="moBang.sanPham = !moBang.sanPham" @keydown.enter.prevent="moBang.sanPham = !moBang.sanPham">
           <div class="d-flex flex-wrap align-items-center gap-2">
             <h3 class="ss-section-title m-0">Sản phẩm bán chạy qua các kỳ</h3>
             <span class="ss-count-badge">{{ bangSanPhamDoiChieu.length }} sản phẩm</span>
           </div>
           <span class="ss-unit-pill">Số lượng bán theo kỳ</span>
+          <span class="ss-gap-nut">{{ moBang.sanPham ? 'Thu gọn' : 'Xem bảng' }} <i class="bi" :class="moBang.sanPham ? 'bi-chevron-up' : 'bi-chevron-down'" aria-hidden="true"></i></span>
         </div>
-
+        <div v-show="moBang.sanPham" class="ss-gap-than">
         <div v-if="!bangSanPhamDoiChieu.length" class="ad-empty">
           Chưa có sản phẩm nào khớp điều kiện lọc trong các kỳ đã chọn.
         </div>
@@ -1914,6 +1922,7 @@ async function guiEmail() {
               </tbody>
             </table>
           </div>
+        </div>
         </div>
       </section>
     </template>
@@ -2670,5 +2679,30 @@ async function guiEmail() {
   .ss-kpi-strip {
     grid-template-columns: 1fr;
   }
+}
+.ss-head-gap {
+  cursor: pointer;
+  user-select: none;
+}
+.ss-head-gap.is-gap {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.ss-head-gap:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+.ss-gap-nut {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 999px;
 }
 </style>

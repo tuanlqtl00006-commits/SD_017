@@ -114,7 +114,7 @@ export function locHoiThoai(ds = [], tuKhoa = '', boDau = (s) => s) {
 /** Xem trước tin cuối trong danh sách: "Bạn: ...", "Trợ lý: ...", "Lan: ..." */
 export function xemTruocTinCuoi(t, idToi = null, nhom = false) {
   if (!t) return 'Chưa có tin nhắn'
-  const nd = t.noiDung ?? ''
+  const nd = tachTheSanPham(t.noiDung).chu // bỏ dòng đánh dấu thẻ sản phẩm
   if (t.loaiNguoiGui === NGUOI_GUI.HE_THONG) return nd
   if (t.loaiNguoiGui === NGUOI_GUI.NHAN_VIEN && idToi !== null && t.idNhanVien === idToi) return `Bạn: ${nd}`
   if (t.loaiNguoiGui === NGUOI_GUI.TRO_LY_AO) return `Trợ lý: ${nd}`
@@ -171,3 +171,14 @@ export const TRA_LOI_NHANH = [
   'Anh/chị đợi em một chút để em kiểm tra kho nhé.',
   'Cảm ơn anh/chị đã liên hệ FootStyle, chúc anh/chị một ngày tốt lành!',
 ]
+
+/**
+ * Trợ lý ảo gửi kèm thẻ sản phẩm bằng dòng cuối "[[SP:12,15]]" (khớp TroLyAoService.MO_THE_SP).
+ * Tách ra phần chữ để hiện trong bong bóng và danh sách id để vẽ thẻ (ảnh, tên, giá) bấm sang trang chi tiết.
+ */
+export function tachTheSanPham(noiDung = '') {
+  const s = String(noiDung ?? '')
+  const m = s.match(/\n?\[\[SP:([\d,]+)\]\]\s*$/)
+  if (!m) return { chu: s, sanPham: [] }
+  return { chu: s.slice(0, m.index).trimEnd(), sanPham: m[1].split(',').map(Number).filter((x) => x > 0) }
+}

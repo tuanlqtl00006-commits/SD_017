@@ -49,6 +49,23 @@ const sanPhamThang10 = [
 ]
 
 describe('Thống kê so sánh', () => {
+  it('góp ý 14/11: 3 bảng (chỉ số, thương hiệu, sản phẩm) gập sẵn, bấm tiêu đề mới mở, bấm lại thì gập', async () => {
+    const w = mount(ThongKeSoSanh, { attachTo: document.body })
+    await flushPromises()
+    for (const ten of ['ss-bang-chi-so', 'ss-thuong-hieu', 'ss-san-pham']) {
+      const than = () => w.find(`[data-test="${ten}"] .ss-gap-than`)
+      const dau = w.find(`[data-test="${ten}-dau"]`)
+      expect(than().isVisible()).toBe(false)
+      expect(dau.text()).toContain('Xem bảng')
+      await dau.trigger('click')
+      expect(than().isVisible()).toBe(true)
+      expect(dau.text()).toContain('Thu gọn')
+      await dau.trigger('click')
+      expect(than().isVisible()).toBe(false)
+    }
+    w.unmount()
+  })
+
   it('so sánh kỳ mới nhất với kỳ liền trước: thẻ tóm tắt, biểu đồ, bảng chỉ số và sản phẩm', async () => {
     const w = mount(ThongKeSoSanh, { attachTo: document.body })
     await flushPromises()

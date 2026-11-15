@@ -39,6 +39,7 @@ class HoTroServiceTest {
         @Override
         public TraLoi traLoi(String cauHoi, NguCanh nc) {
             if (cauHoi.contains("gặp người")) return new TraLoi("Mình chuyển cho nhân viên nhé.", true, List.of());
+            if (cauHoi.contains("gợi ý thẻ")) return new TraLoi("Bấm vào thẻ để xem chi tiết.", false, List.of(), List.of(12, 15));
             return new TraLoi("Đáp: " + cauHoi + " (" + nc.sdtKhach() + ")", false, List.of("Gợi ý A"));
         }
     }
@@ -315,5 +316,64 @@ class HoTroServiceTest {
         assertFalse(HoTroService.dungMa("abc", "abd"));
         assertFalse(HoTroService.dungMa("abc", null));
         assertFalse(HoTroService.dungMa(null, "abc"));
+    }
+
+    /* ---------------- thẻ sản phẩm, tự đóng phiên, đánh giá (cô review 14/11 [20:24–23:17]) ---------------- */
+
+    @Test
+    void troLyGoiYSanPham_luuKemDanhSachThe() {
+        Map<String, Object> kq = batDau("Lan", "0901000001");
+        Map<String, Object> tl = service.guiKhach((Integer) kq.get("id"), new HoTroService.TinKhachRequest((String) kq.get("ma"), "gợi ý thẻ giúp mình"));
+        assertEquals("Bấm vào thẻ để xem chi tiết.\n[[SP:12,15]]", tin(tl).get(1).get("noiDung"));
+    }
+
+    @Test
+    void tuDongDong_sau30PhutKhongCoTinMoi_coNhanVienThiMoiDanhGia() {
+        Map<String, Object> a = batDau("Lan", "0901000001");
+        Integer idA = (Integer) a.get("id");
+        String maA = (String) a.get("ma");
+        service.gapNhanVien(idA, new HoTroService.MaRequest(maA));
+        ChatMau.dangNhap(c.m.bao);
+        service.gui(idA, new HoTroService.NoiDungRequest("Chào chị, em hỗ trợ ạ")); // nhân viên nhận
+        XacThuc.xoa();
+        Integer idB = (Integer) batDau("Hùng", "0912345678").get("id"); // chỉ trợ lý ảo
+
+        dongHo.tien(29 * 60);
+        assertEquals(0, service.tuDongDongPhienRanh(), "chưa đủ 30 phút");
+        dongHo.tien(60);
+        assertEquals(2, service.tuDongDongPhienRanh());
+        assertEquals(HoiThoai.DA_DONG, hoiThoai(idA).getCheDo());
+        assertEquals(HoiThoai.DA_DONG, hoiThoai(idB).getCheDo());
+
+        Map<String, Object> xemA = service.xemKhach(idA, maA, null);
+        assertTrue(String.valueOf(tin(xemA).get(tin(xemA).size() - 1).get("noiDung")).contains("không có tin nhắn mới trong 30 phút"));
+        assertEquals(true, xemA.get("canDanhGia"), "có nhân viên tham gia: mời đánh giá");
+        assertEquals(false, service.xemKhach(idB, hoiThoai(idB).getMaTruyCap(), null).get("canDanhGia"),
+                "chỉ trợ lý ảo: không cần đánh giá");
+        assertEquals(0, service.tuDongDongPhienRanh(), "đã đóng thì không đóng lại");
+    }
+
+    @Test
+    void danhGia_sauKhiKetThuc_motLan_luuThanhTinHeThong() {
+        Map<String, Object> kq = batDau("Lan", "0901000001");
+        Integer id = (Integer) kq.get("id");
+        String ma = (String) kq.get("ma");
+        assertThrows(ApiException.class, () -> service.danhGia(id, new HoTroService.DanhGiaRequest(ma, "TOT", true, null)), "chưa kết thúc");
+        service.gapNhanVien(id, new HoTroService.MaRequest(ma));
+        ChatMau.dangNhap(c.m.bao);
+        service.gui(id, new HoTroService.NoiDungRequest("Em chào chị"));
+        service.dong(id);
+        XacThuc.xoa();
+
+        ApiException e = assertThrows(ApiException.class, () -> service.danhGia(id, new HoTroService.DanhGiaRequest(ma, "SAI", null, null)));
+        assertEquals("Hãy chọn mức độ hài lòng.", e.getLoiTheoTruong().get("mucDo"));
+        assertTrue(e.getLoiTheoTruong().containsKey("daGiaiQuyet"));
+        Map<String, Object> sau = service.danhGia(id, new HoTroService.DanhGiaRequest(ma, "tot", true, "  Nhân viên nhiệt tình "));
+        assertEquals("Khách đánh giá: Tốt · Đã giải quyết yêu cầu · Góp ý: Nhân viên nhiệt tình", tin(sau).get(0).get("noiDung"));
+        assertEquals(false, sau.get("canDanhGia"));
+        assertEquals(true, sau.get("daDanhGia"));
+        assertThrows(ApiException.class, () -> service.danhGia(id, new HoTroService.DanhGiaRequest(ma, "CHUA_TOT", false, null)), "chỉ 1 lần");
+        // sai mã truy cập thì không đánh giá hộ người khác được
+        assertThrows(ApiException.class, () -> service.danhGia(id, new HoTroService.DanhGiaRequest("sai", "TOT", true, null)));
     }
 }

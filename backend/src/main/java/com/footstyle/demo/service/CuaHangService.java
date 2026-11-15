@@ -301,6 +301,43 @@ public class CuaHangService {
         return ds.stream().filter(m -> ((Integer) m.get("phanTramGiamMax")) > 0).limit(8).toList();
     }
 
+    /** Bán chạy tính trong bao nhiêu ngày gần nhất (cô review 14/11: bán chạy phải theo thời gian, tốt nhất theo tháng). */
+    static final int BAN_CHAY_SO_NGAY = 30;
+    /** Số sản phẩm bán chạy hiện ở trang chủ. */
+    static final int BAN_CHAY_TOI_DA = 4;
+
+    /**
+     * Sản phẩm bán chạy cho trang chủ, tính THẬT từ hóa đơn chi tiết của đơn "Đã hoàn thành" (cùng cách tính với màn Thống kê,
+     * không tính giỏ hàng, đơn đang xử lý hay đơn hủy): xếp theo tổng số lượng bán trong {@value #BAN_CHAY_SO_NGAY} ngày gần nhất.
+     * Chỉ lấy sản phẩm đang hiện ở cửa hàng và đã bán ít nhất 1 cái; chưa có thì trả danh sách rỗng (trang chủ ẩn khối này).
+     * Trả { soNgay, ds: [{ idSanPham, daBan, doanhThu }] }.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> sanPhamBanChay() {
+        LocalDateTime den = bayGio();
+        LocalDateTime tu = den.minusDays(BAN_CHAY_SO_NGAY);
+        Set<Integer> dangHien = new HashSet<>();
+        for (SanPham sp : sanPhamRepo.findAll()) {
+            if (sp.getId() != null && hienOCuaHang(sp)) dangHien.add(sp.getId());
+        }
+        List<Map<String, Object>> ds = new ArrayList<>();
+        for (Map<String, Object> m : ThongKeService.sanPhamBanChay(hoaDonChiTietRepo.findByHoaDon_TrangThaiAndHoaDon_NgayTaoBetween(HoaDon.HOAN_THANH, tu, den))) {
+            Integer id = (Integer) m.get("idSanPham");
+            long daBan = (Long) m.get("soLuong");
+            if (id == null || daBan <= 0 || !dangHien.contains(id)) continue;
+            Map<String, Object> x = new LinkedHashMap<>();
+            x.put("idSanPham", id);
+            x.put("daBan", daBan);
+            x.put("doanhThu", m.get("doanhThu"));
+            ds.add(x);
+            if (ds.size() >= BAN_CHAY_TOI_DA) break;
+        }
+        Map<String, Object> kq = new LinkedHashMap<>();
+        kq.put("soNgay", BAN_CHAY_SO_NGAY);
+        kq.put("ds", ds);
+        return kq;
+    }
+
     /** Sản phẩm có hiện ở cửa hàng online không: đang bán, danh mục và thương hiệu (nếu có) đang dùng. */
     private static boolean hienOCuaHang(SanPham sp) {
         if (!Integer.valueOf(1).equals(sp.getTrangThai())) return false;
@@ -534,7 +571,10 @@ public class CuaHangService {
             if (lyDoPhieu != null) throw ApiException.badRequest("Không áp dụng được mã " + p.getMaPhieu() + ": " + lyDoPhieu);
             phieu = p;
             soTienGiam = PhieuApDung.soTienGiam(p, tongTien);
-            phieuRepo.tangLuotDung(p.getId());
+            // Trừ lượt có điều kiện (còn lượt mới trừ): 2 khách cùng dùng lượt cuối thì người sau bị từ chối, không cùng được giảm
+            if (phieuRepo.tangLuotDung(p.getId()) == 0) {
+                throw ApiException.conflict("Mã " + p.getMaPhieu() + " vừa hết lượt sử dụng. Bạn chọn mã khác hoặc đặt hàng không dùng mã.");
+            }
             // Phiếu cá nhân: đánh dấu khách đã dùng để không dùng lại
             if (req.idKhachHang() != null && Integer.valueOf(PhieuGiamGia.DOI_TUONG_KHACH_CU_THE).equals(p.getDoiTuongApDung())) {
                 for (PhieuGiamGiaKhachHang x : phieuKhachRepo.findByIdKhachHang(req.idKhachHang())) {
@@ -547,8 +587,8 @@ public class CuaHangService {
             }
         }
 
-        // Phí vận chuyển: đơn đạt ngưỡng miễn phí (quản lý cài đặt) thì 0; chưa đạt thì theo tỉnh nhận (Hà Nội miễn phí, tỉnh khác tùy tỉnh)
-        long phiVanChuyen = caiDatVanChuyen.phi(tongTien, phiVanChuyenOnline(req.tinhThanh()));
+        // Phí vận chuyển: đơn đạt ngưỡng miễn phí (quản lý cài đặt) thì 0; chưa đạt thì theo tỉnh nhận (Hà Nội: phường 25.000, xã 30.000; tỉnh khác tùy tỉnh)
+        long phiVanChuyen = caiDatVanChuyen.phi(tongTien, phiVanChuyenOnline(req.tinhThanh(), req.phuongXa()));
         long thanhTien = Math.max(0L, tongTien - soTienGiam + phiVanChuyen);
 
         // Tạo hóa đơn
@@ -667,14 +707,17 @@ public class CuaHangService {
         return pt > 0 ? Math.round(giaGoc * (100.0 - pt) / 100.0) : giaGoc;
     }
 
-    /** Phí giao đơn online theo tỉnh nhận (PhiVanChuyenTinh: Hà Nội miễn phí, tỉnh khác tùy tỉnh). Dùng chung cho đặt hàng và tính tiền xem trước. */
-    static long phiVanChuyenOnline(String tinhThanh) {
-        return PhiVanChuyenTinh.phi(tinhThanh);
+    /** Phí giao đơn online theo nơi nhận (PhiVanChuyenTinh: Hà Nội phường / xã, tỉnh khác tùy tỉnh). Dùng chung cho đặt hàng và tính tiền xem trước. */
+    static long phiVanChuyenOnline(String tinhThanh, String phuongXa) {
+        return PhiVanChuyenTinh.phi(tinhThanh, phuongXa);
     }
 
-    /** tinhThanh: tỉnh nhận khách đang chọn ở trang thanh toán; trống (giỏ hàng chưa biết địa chỉ) thì chưa tính phí giao. */
+    /** tinhThanh / phuongXa: nơi nhận khách đang chọn ở trang thanh toán; chưa chọn tỉnh (giỏ hàng chưa biết địa chỉ) thì chưa tính phí giao. */
     public record TinhTienRequest(List<DatHangOnlineRequest.ItemRequest> chiTiet, String maPhieuGiamGia, Integer idKhachHang,
-                                  String tinhThanh) {
+                                  String tinhThanh, String phuongXa) {
+        public TinhTienRequest(List<DatHangOnlineRequest.ItemRequest> chiTiet, String maPhieuGiamGia, Integer idKhachHang, String tinhThanh) {
+            this(chiTiet, maPhieuGiamGia, idKhachHang, tinhThanh, null);
+        }
     }
 
     /**
@@ -736,7 +779,7 @@ public class CuaHangService {
         // Đơn đạt ngưỡng miễn phí vận chuyển thì phí 0 dù chưa chọn tỉnh. Chưa đạt mà chưa chọn tỉnh thì chưa tính được phí giao (null), tổng tạm chưa gồm phí
         String tinh = req == null || req.tinhThanh() == null ? "" : req.tinhThanh().trim();
         boolean mienPhiVanChuyen = tongTien > 0 && caiDatVanChuyen.mienPhi(tongTien);
-        Long phi = mienPhiVanChuyen ? Long.valueOf(0L) : tinh.isEmpty() ? null : phiVanChuyenOnline(tinh);
+        Long phi = mienPhiVanChuyen ? Long.valueOf(0L) : tinh.isEmpty() ? null : phiVanChuyenOnline(tinh, req.phuongXa());
 
         Map<String, Object> kq = new LinkedHashMap<>();
         kq.put("dong", dong);
@@ -789,6 +832,56 @@ public class CuaHangService {
         if (so.isEmpty() || hd == null || !dungSdtDatHang(hd, so)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma + " với số điện thoại này.", null, null, null);
         }
+        return chiTietDon(hd);
+    }
+
+    /* ===== Chuyển khoản online: hạn 5 phút, quá hạn chưa trả là "đơn treo", khách được đổi sang COD (góp ý 14/11, video 22:22 [04:52–08:06]) ===== */
+
+    /** Số phút khách có để chuyển khoản sau khi đặt (mã QR đếm ngược). */
+    public static final long HAN_CHUYEN_KHOAN_PHUT = 5;
+    /** id phương thức "Thanh toán khi nhận hàng (COD)". */
+    public static final Integer COD = 1;
+
+    /** Đơn online chuyển khoản, còn Chờ xác nhận, chưa nhận đồng nào và đã quá hạn chuyển khoản. */
+    public static boolean laDonTreo(HoaDon hd, long daTra, LocalDateTime luc) {
+        return Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon())
+                && HoaDonSuaService.CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())
+                && Integer.valueOf(HoaDon.CHO_XAC_NHAN).equals(hd.getTrangThai())
+                && daTra <= 0 && hd.getNgayTao() != null
+                && !luc.isBefore(hd.getNgayTao().plusMinutes(HAN_CHUYEN_KHOAN_PHUT));
+    }
+
+    /** Khách đổi đơn chuyển khoản CHƯA trả tiền sang COD (kiểm tra mã đơn + SĐT đặt hàng như tra cứu). */
+    @Transactional
+    public Map<String, Object> doiSangCod(String maHoaDon, String sdt) {
+        String ma = maHoaDon == null ? "" : maHoaDon.trim();
+        String so = sdt == null ? "" : sdt.replaceAll("\\D", "");
+        HoaDon hd = ma.isEmpty() ? null : hoaDonRepo.findFirstByMaHoaDonIgnoreCase(ma).orElse(null);
+        if (hd == null || so.isEmpty() || !dungSdtDatHang(hd, so)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma + " với số điện thoại này.", null, null, null);
+        }
+        if (!Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon()) || !HoaDonSuaService.CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())) {
+            throw ApiException.conflict("Đơn này không thanh toán bằng chuyển khoản.");
+        }
+        if (!Integer.valueOf(HoaDon.CHO_XAC_NHAN).equals(hd.getTrangThai())) throw ApiException.conflict("Đơn đã được cửa hàng xử lý, không đổi được cách thanh toán.");
+        long daTra = 0;
+        for (var tt : thanhToanRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+            if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN && tt.getSoTien() != null) daTra += tt.getSoTien().longValue();
+        }
+        if (daTra > 0) throw ApiException.conflict("Cửa hàng đã nhận tiền chuyển khoản của đơn này, không cần đổi sang COD.");
+        LocalDateTime luc = bayGio();
+        boolean treo = laDonTreo(hd, daTra, luc);
+        hd.setIdPhuongThucThanhToan(COD);
+        hd.setNgayCapNhat(luc);
+        hoaDonRepo.save(hd);
+        LichSuHoaDon ls = new LichSuHoaDon();
+        ls.setHoaDon(hd);
+        ls.setHanhDong("Đổi phương thức thanh toán");
+        ls.setNguoiThaoTac("Khách hàng");
+        ls.setThoiGian(luc);
+        ls.setMoTa("Khách đổi từ chuyển khoản sang thanh toán khi nhận hàng (COD)"
+                + (treo ? " sau khi quá " + HAN_CHUYEN_KHOAN_PHUT + " phút chưa chuyển khoản." : "."));
+        lichSuHoaDonRepo.save(ls);
         return chiTietDon(hd);
     }
 
@@ -934,6 +1027,9 @@ public class CuaHangService {
         res.put("daTra", daTra);
         res.put("daThanhToanDu", hd.getThanhTien() != null && daTra.compareTo(hd.getThanhTien()) >= 0);
         res.put("idPhuongThucThanhToan", hd.getIdPhuongThucThanhToan());
+        // Hạn chuyển khoản (mã QR đếm ngược tới mốc này) và đơn đã thành "đơn treo" chưa
+        res.put("hanChuyenKhoan", hd.getNgayTao() == null ? null : hd.getNgayTao().plusMinutes(HAN_CHUYEN_KHOAN_PHUT));
+        res.put("donTreo", laDonTreo(hd, daTra.longValue(), bayGio()));
         if (hoaDonService != null) {
             res.put("chiTietDon", banChoKhach(hoaDonService.getChiTietHoaDon(hd.getId())));
         }
@@ -952,6 +1048,7 @@ public class CuaHangService {
         for (String k : List.of("chuyenDuoc", "duocChinhSua", "daChinhSua", "tenNhanVien", "maNhanVien")) info.remove(k);
         res.put("hoaDon", info);
         res.remove("duocXacNhanThanhToan");
+        res.remove("duocBaoHetHang");
 
         List<Map<String, Object>> lichSu = new ArrayList<>();
         for (Map<String, Object> ls : (List<Map<String, Object>>) chiTiet.getOrDefault("lichSu", List.of())) {

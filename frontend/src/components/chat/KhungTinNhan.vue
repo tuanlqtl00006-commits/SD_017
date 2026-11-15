@@ -3,7 +3,8 @@
 // Tin của mình nằm bên phải; tin hệ thống ở giữa; chia đoạn theo ngày; tự cuộn xuống khi có tin mới nếu đang ở cuối.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { avatarColors, getInitials } from '../../utils/format'
-import { chuanBiHienThi, gioPhut, NGUOI_GUI } from '../../utils/chat'
+import { chuanBiHienThi, gioPhut, NGUOI_GUI, tachTheSanPham } from '../../utils/chat'
+import TheSanPhamChat from './TheSanPhamChat.vue'
 
 const props = defineProps({
   tinNhan: { type: Array, default: () => [] },
@@ -18,7 +19,8 @@ const khung = ref(null)
 const oCuoi = ref(true)
 const coTinMoi = ref(false)
 
-const dong = computed(() => chuanBiHienThi(props.tinNhan, props.laCuaToi))
+// Tin trợ lý ảo có dòng "[[SP:...]]": bong bóng chỉ hiện phần chữ, bên dưới là thẻ sản phẩm
+const dong = computed(() => chuanBiHienThi(props.tinNhan, props.laCuaToi).map((d) => (d.tin ? { ...d, ...tachTheSanPham(d.tin.noiDung) } : d)))
 
 function canCuoi() {
   const el = khung.value
@@ -75,7 +77,8 @@ function kieuAvatar(t) {
           </div>
           <div class="ktn-than">
             <div v-if="hienTen && !d.cuaToi && !d.noiTiep" class="ktn-ten">{{ d.tin.tenNguoiGui || 'Khách' }}</div>
-            <div class="ktn-bong" :class="{ 'is-bot': d.tin.loaiNguoiGui === NGUOI_GUI.TRO_LY_AO }">{{ d.tin.noiDung }}</div>
+            <div class="ktn-bong" :class="{ 'is-bot': d.tin.loaiNguoiGui === NGUOI_GUI.TRO_LY_AO }">{{ d.chu }}</div>
+            <TheSanPhamChat v-if="d.sanPham.length" :ids="d.sanPham" />
             <time class="ktn-gio" :datetime="d.tin.thoiGian">{{ gioPhut(d.tin.thoiGian) }}</time>
           </div>
         </div>

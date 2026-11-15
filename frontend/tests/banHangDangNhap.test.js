@@ -579,8 +579,8 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     chonDc.vm.$emit('update:phuongXa', 'Phường Hà Đông')
     await w.find('#bh-nn-dc').setValue('Số 1 Trần Phú')
     await flushPromises()
-    expect(w.find('#bh-phi-ship').attributes('placeholder')).toBe('Miễn phí') // Hà Nội miễn phí
-    expect(w.find('#bh-phi-ship').element.value).toBe('')
+    expect(w.find('#bh-phi-ship').attributes('placeholder')).toBe('25.000 ₫') // Hà Nội, phường: 25.000
+    expect(w.find('#bh-phi-ship').element.value).toBe('25.000') // phí tự tính hiện sẵn trong ô, chưa phải số nhân viên gõ tay
     const { cuaSo } = cuaSoInGia()
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
@@ -848,7 +848,11 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('[data-testid="bh-goi-y-ngan"]').exists()).toBe(false)
   })
 
-  it('phiếu bị sửa mức giảm lúc đang chờ: gửi mức giảm đang hiện, máy chủ báo thì tải lại phiếu và hiện số tiền mới', async () => {
+  // Cô test case khó 14/11 [00:42–02:57]: phiếu đổi giữa chừng thì bấm Thanh toán phải HỎI, không tự đổi sau lưng nhân viên
+  const hopPhieu = () => new DOMWrapper(document.body).find('[data-testid="bh-hoi-phieu"]')
+  const nutTrongHopPhieu = (chu) => hopPhieu().findAll('button').find((b) => b.text().includes(chu))
+
+  it('phiếu bị sửa mức giảm lúc đang chờ: bấm Thanh toán thì báo mức giảm mới, đồng ý mới mở xác nhận với số tiền mới', async () => {
     vi.spyOn(window, 'open').mockReturnValue(null)
     let giam = 50000
     const { w, may } = await moBanHang({ phieus: () => [{ ma: 'GIAM50K', loaiGiam: 'SO_TIEN', giaTri: giam, apDungDuoc: true, soTienGiam: giam }] })
@@ -858,13 +862,33 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('.bh-nut-tt').text()).toContain('3.811.000')
 
     giam = 30000
-    may.loiThanhToan = loi('Phiếu GIAM50K vừa được cập nhật: mức giảm đổi từ 50.000 ₫ thành 30.000 ₫.', 'PHIEU_THAY_DOI')
     await w.find('.bh-nut-tt').trigger('click')
+    await flushPromises()
+    expect(hopPhieu().text()).toContain('Phiếu GIAM50K vừa đổi mức giảm')
+    expect(may.thanhToan).toBeFalsy()
+    await nutTrongHopPhieu('Tiếp tục thanh toán').trigger('click')
+    await flushPromises()
+    await nutXacNhan().trigger('click')
+    await flushPromises()
+    expect(may.thanhToan).toEqual(expect.objectContaining({ maPhieu: 'GIAM50K', soTienGiam: 30000 }))
+  })
+
+  it('vừa có phiếu tốt hơn: hỏi áp dụng không; chọn giữ phiếu cũ thì thanh toán bằng phiếu cũ', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    let ds = [{ ma: 'GIAM50K', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 }]
+    const { w, may } = await moBanHang({ phieus: () => ds })
+    await nutThem(w).trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    ds = [{ ma: 'GIAM90K', loaiGiam: 'SO_TIEN', giaTri: 90000, apDungDuoc: true, soTienGiam: 90000 }, ...ds]
+    await w.find('.bh-nut-tt').trigger('click')
+    await flushPromises()
+    expect(hopPhieu().text()).toContain('Vừa có phiếu GIAM90K')
+    await nutTrongHopPhieu('Giữ phiếu GIAM50K').trigger('click')
     await flushPromises()
     await nutXacNhan().trigger('click')
     await flushPromises()
     expect(may.thanhToan).toEqual(expect.objectContaining({ maPhieu: 'GIAM50K', soTienGiam: 50000 }))
-    expect(w.find('.bh-nut-tt').text()).toContain('3.831.000')
   })
 })
 
