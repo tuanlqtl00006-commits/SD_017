@@ -107,12 +107,12 @@ function handleSearch() {
     <!-- Thanh điều hướng một hàng: menu trái, tìm kiếm + giỏ hàng + đăng nhập phải -->
     <div class="vnb-nav-wrapper">
       <nav class="vnb-header-bar">
-        <div class="vnb-container d-flex align-items-center gap-4 flex-nowrap">
+        <div class="vnb-container d-flex align-items-center gap-3 flex-nowrap">
           <RouterLink to="/shop" class="d-flex align-items-center text-decoration-none flex-shrink-0">
-            <img src="/logo.png" alt="FootStyle" class="vnb-logo" />
+            <img src="/logo.png?v=3" alt="FootStyle" class="vnb-logo" />
           </RouterLink>
 
-          <ul class="vnb-nav-list flex-grow-1">
+          <ul class="vnb-nav-list d-flex align-items-center">
             <li class="vnb-nav-item">
               <RouterLink to="/shop" class="vnb-nav-link">Trang chủ</RouterLink>
             </li>
@@ -123,9 +123,6 @@ function handleSearch() {
               <RouterLink to="/shop/uu-dai" class="vnb-nav-link">Ưu đãi</RouterLink>
             </li>
             <li class="vnb-nav-item">
-              <RouterLink :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }" class="vnb-nav-link">Đơn hàng của tôi</RouterLink>
-            </li>
-            <li class="vnb-nav-item">
               <RouterLink to="/shop/tra-cuu" class="vnb-nav-link">Tra cứu đơn</RouterLink>
             </li>
             <li class="vnb-nav-item">
@@ -133,7 +130,7 @@ function handleSearch() {
             </li>
           </ul>
 
-          <div class="vnb-search-wrap flex-shrink-0">
+          <div class="vnb-search-wrap flex-shrink-0 ms-auto">
             <form @submit.prevent="handleSearch">
               <input
                 type="text"
@@ -311,16 +308,6 @@ function handleSearch() {
                     >
                       <i class="bi bi-person-plus fs-5 text-secondary"></i>
                       <span>Đăng ký</span>
-                    </RouterLink>
-                  </li>
-                  <li>
-                    <RouterLink
-                      :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }"
-                      class="vnb-lookup-item d-flex align-items-center gap-2"
-                      @click="showAccountDropdown = false"
-                    >
-                      <i class="bi bi-bag-check fs-5 text-success"></i>
-                      <span>Đơn hàng của tôi</span>
                     </RouterLink>
                   </li>
                 </template>

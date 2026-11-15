@@ -242,7 +242,7 @@ function traCuuLocal(code, so) {
 
 <template>
   <div class="order-lookup-view py-4">
-    <div class="container ol-container">
+    <div class="vnb-container ol-container">
       <!-- Breadcrumb -->
       <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb mb-0 small">
@@ -350,7 +350,7 @@ function traCuuLocal(code, so) {
 
 <style scoped>
 .ol-container {
-  max-width: 1280px;
+  max-width: 1680px;
 }
 .ol-search {
   position: relative;

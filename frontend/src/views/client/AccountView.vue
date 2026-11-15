@@ -526,7 +526,7 @@ async function xacNhanHuyDon() {
         <span>{{ thongBao.noiDung }}</span>
       </div>
     </Transition>
-    <div class="container">
+    <div class="vnb-container py-2">
       <!-- Breadcrumb -->
       <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb mb-0 small">
