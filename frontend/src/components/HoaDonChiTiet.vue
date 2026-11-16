@@ -117,11 +117,6 @@ const GOI_Y_GHI_CHU = {
 const THIEU_LY_DO = { [TT.DA_HUY]: 'Vui lòng nhập lý do hủy đơn.', [TT.GIAO_THAT_BAI]: 'Vui lòng nhập lý do giao hàng thất bại.' }
 
 function moXacNhan(trangThai) {
-  // Đơn online thiếu hàng: bấm Xác nhận thì mở popup hết hàng thay cho hộp xác nhận (góp ý 16/11 [05:20–06:47])
-  if (trangThai === TT.DA_XAC_NHAN && data.value?.duocBaoHetHang) {
-    moHetHang(data.value.dsThieuHang)
-    return
-  }
   const c = (hd.value.chuyenDuoc ?? []).find((x) => x.trangThai === trangThai)
   action.open = true
   action.trangThai = trangThai
@@ -211,13 +206,6 @@ async function xacNhanDoiTrangThai() {
     }
   } catch (e) {
     cuaSoIn?.close?.()
-    if (e.code === 'THIEU_HANG') {
-      // Kho vừa hết (quầy / đơn khác vừa bán) trong lúc đang mở hộp xác nhận: chuyển sang popup hết hàng
-      action.open = false
-      moHetHang(e.chiTiet?.thieu)
-      taiNgam()
-      return
-    }
     action.error = e.message || 'Không cập nhật được trạng thái.'
   } finally {
     action.saving = false
@@ -260,47 +248,18 @@ async function xacNhanHoanTien() {
     dangXacNhanHoan.value = false
   }
 }
-/* ----- Xác nhận đơn online bị thiếu hàng: popup thay cho nút "Báo hết hàng cho khách" (góp ý 16/11 [05:20–06:47]) -----
- * Giữ hàng / chờ nhập thêm: đóng popup, đơn giữ Chờ xác nhận.
- * Gửi mail báo hết hàng: thư chăm sóc khách, đơn KHÔNG hủy (luồng 14/11).
- * Hoàn tiền cho khách (đơn đã thanh toán): hủy đơn với lý do hết hàng, máy chủ gửi thư báo hết hàng + hoàn tiền;
- * chuyển trả tiền xong nhân viên bấm "Xác nhận đã hoàn tiền" như cũ. */
-const hetHang = reactive({ open: false, thieu: [], buoc: 'chon', dang: false })
-function moHetHang(thieu) {
-  hetHang.thieu = thieu?.length ? [...thieu] : [...(data.value?.dsThieuHang ?? [])]
-  hetHang.buoc = 'chon'
-  hetHang.dang = false
-  hetHang.open = true
-}
-function giuHangCho() {
-  hetHang.open = false
-  toast.success('Đơn vẫn giữ ở Chờ xác nhận. Nhập thêm hàng rồi bấm Xác nhận lại.')
-}
-async function guiMailHetHang() {
-  if (hetHang.dang) return
-  hetHang.dang = true
+// Đơn online tạm hết hàng (quầy vừa bán hết): gửi thư chăm sóc khách, đơn KHÔNG hủy (góp ý 14/11, video 22:22 [12:42–14:03])
+const dangBaoHetHang = ref(false)
+async function baoHetHang() {
+  if (dangBaoHetHang.value) return
+  dangBaoHetHang.value = true
   try {
     setData((await api.post(`/hoa-don/${idHoaDon}/bao-het-hang`)).data)
-    hetHang.open = false
     toast.success('Đã gửi thư báo hết hàng cho khách. Đơn vẫn giữ ở Chờ xác nhận.')
   } catch (e) {
     toast.error(e.message || 'Không gửi được thư báo hết hàng.')
   } finally {
-    hetHang.dang = false
-  }
-}
-async function huyVaHoanTien() {
-  if (hetHang.dang) return
-  hetHang.dang = true
-  const ghiChu = `Hết hàng: ${hetHang.thieu.join('; ')}`.slice(0, 500)
-  try {
-    setData((await api.put(`/hoa-don/${idHoaDon}/trang-thai`, { trangThaiMoi: TT.DA_HUY, ghiChu, nguoiThaoTac: nguoiThaoTac() })).data)
-    hetHang.open = false
-    toast.success(`Đã hủy đơn ${hd.value.maHoaDon} và gửi thư báo hết hàng, hoàn tiền cho khách. Chuyển trả tiền xong thì bấm "Xác nhận đã hoàn tiền".`)
-  } catch (e) {
-    toast.error(e.message || 'Không hủy được đơn.')
-  } finally {
-    hetHang.dang = false
+    dangBaoHetHang.value = false
   }
 }
 const showQrModal = ref(false)
@@ -373,7 +332,9 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
           <p v-if="data.donTreo" class="hd-khoa w-100 mb-0" role="note" data-testid="hd-don-treo">
             <i class="bi bi-hourglass-bottom" aria-hidden="true"></i> Đơn treo: quá 5 phút khách chưa chuyển khoản. Chờ tiền về hoặc khách đổi sang thanh toán khi nhận hàng.
           </p>
-
+          <button v-if="data.duocBaoHetHang" type="button" class="ad-btn btn-warning text-dark fw-medium" data-testid="hd-bao-het-hang" :disabled="dangBaoHetHang" @click="baoHetHang">
+            <i class="bi bi-envelope-exclamation" aria-hidden="true"></i> Báo hết hàng cho khách
+          </button>
           <button v-if="data.duocXacNhanHoanTien" type="button" class="ad-btn btn-warning text-dark fw-medium" data-testid="hd-xac-nhan-hoan-tien" :disabled="dangXacNhanHoan" @click="moXacNhanHoan = true">
             <i class="bi bi-cash-stack" aria-hidden="true"></i> Xác nhận đã hoàn tiền
           </button>
@@ -471,41 +432,6 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
           <span v-if="action.saving" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
           {{ action.trangThai === TT.DA_HUY ? 'Hủy đơn' : action.trangThai === TT.GIAO_THAT_BAI ? 'Ghi nhận thất bại' : 'Xác nhận' }}
         </button>
-      </template>
-    </BaseModal>
-
-    <!-- Popup: xác nhận đơn online mà kho không đủ hàng -->
-    <BaseModal v-if="hetHang.open" title="Không đủ hàng để xác nhận đơn" size="md" @close="hetHang.open = false">
-      <div data-testid="hd-het-hang">
-        <p class="mb-2">Đơn <strong>{{ hd.maHoaDon }}</strong> có sản phẩm không đủ hàng trong kho:</p>
-        <ul class="hd-het-hang-ds">
-          <li v-for="t in hetHang.thieu" :key="t">{{ t }}</li>
-        </ul>
-        <p v-if="daThanhToan > 0" class="small mb-0">Khách đã thanh toán <strong>{{ formatMoney(daThanhToan) }}</strong>.</p>
-        <p v-else class="small text-muted mb-0">Khách chưa thanh toán (thanh toán khi nhận hàng).</p>
-        <div v-if="hetHang.buoc === 'huy'" class="alert alert-danger small mt-3 mb-0" role="alert" data-testid="hd-het-hang-hoi-huy">
-          Hủy đơn <strong>{{ hd.maHoaDon }}</strong>, gửi thư báo hết hàng và hoàn <strong>{{ formatMoney(daThanhToan) }}</strong> cho khách?
-          Thao tác này không hoàn tác được.
-        </div>
-      </div>
-      <template #footer>
-        <template v-if="hetHang.buoc === 'chon'">
-          <button type="button" class="ad-btn" data-testid="hd-het-hang-giu" :disabled="hetHang.dang" @click="giuHangCho">
-            <i class="bi bi-hourglass-split" aria-hidden="true"></i> Giữ hàng / chờ nhập thêm
-          </button>
-          <button type="button" class="ad-btn ad-btn-primary" data-testid="hd-het-hang-mail" :disabled="hetHang.dang" @click="guiMailHetHang">
-            <i class="bi bi-envelope-exclamation" aria-hidden="true"></i> Gửi mail báo hết hàng
-          </button>
-          <button v-if="daThanhToan > 0" type="button" class="ad-btn ad-btn-danger" data-testid="hd-het-hang-hoan" :disabled="hetHang.dang" @click="hetHang.buoc = 'huy'">
-            <i class="bi bi-cash-stack" aria-hidden="true"></i> Hoàn tiền cho khách
-          </button>
-        </template>
-        <template v-else>
-          <button type="button" class="ad-btn" :disabled="hetHang.dang" @click="hetHang.buoc = 'chon'">Quay lại</button>
-          <button type="button" class="ad-btn ad-btn-danger" data-testid="hd-het-hang-hoan-ok" :disabled="hetHang.dang" @click="huyVaHoanTien">
-            <span v-if="hetHang.dang" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Hủy đơn và hoàn tiền
-          </button>
-        </template>
       </template>
     </BaseModal>
 
@@ -616,12 +542,6 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
   border: 1px dashed var(--fs-line);
   color: var(--fs-text-2);
   font-size: 0.88rem;
-}
-.hd-het-hang-ds {
-  margin: 0 0 0.75rem;
-  padding-left: 1.2rem;
-  color: #b42318;
-  font-weight: 500;
 }
 .hd-in-tu-dong {
   margin: -0.5rem 0 1rem;

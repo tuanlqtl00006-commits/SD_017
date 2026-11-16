@@ -53,4 +53,9 @@ public class HoTroController {
     public Map<String, Object> dong(@PathVariable Integer id) {
         return service.dong(id);
     }
+
+    @PostMapping("/{id:\\d+}/danh-gia")
+    public Map<String, Object> danhGia(@PathVariable Integer id, @RequestBody(required = false) HoTroService.DanhGiaNhanVienRequest req) {
+        return service.danhGiaNhanVien(id, req);
+    }
 }

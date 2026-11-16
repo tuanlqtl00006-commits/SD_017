@@ -17,8 +17,6 @@ export const hoTroApi = {
   nhan: (id) => api.post(`/ho-tro/${id}/nhan`).then((r) => r.data),
   gui: (id, noiDung) => api.post(`/ho-tro/${id}/tin-nhan`, { noiDung }).then((r) => r.data),
   dong: (id) => api.post(`/ho-tro/${id}/dong`).then((r) => r.data),
-  // Tổng hợp đánh giá của khách sau chat: { tuNgay, denNgay, mucDo, idNhanVien }
-  danhGia: (params = {}) => api.get('/ho-tro/danh-gia', { params }).then((r) => r.data),
 }
 
 // Chat nội bộ giữa nhân viên.

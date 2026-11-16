@@ -14,9 +14,11 @@ import { dongTienDon } from '../../utils/tienDon'
 import { useBaoGiaGioHang } from '../../composables/useBaoGiaGioHang'
 import api from '../../services/api'
 import { phieuChoGio, phieuTotNhat, taiPhieuChoKhach } from '../../services/phieuKhachService'
+import { useToast } from '../../composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
+const toast = useToast()
 const cartStore = useCartStore()
 // Giá trong giỏ cập nhật theo cửa hàng, số tiền lấy theo máy chủ (cùng cách tính với lúc đặt hàng) - review 05/11
 useBaoGiaGioHang(cartStore)
@@ -219,6 +221,14 @@ async function chonTrongHoi(n) {
   await n.lam()
 }
 
+const moXacNhanDatHang = ref(false)
+const tongSoLuongSanPham = computed(() => cartStore.items.reduce((s, i) => s + (Number(i.soLuong) || 0), 0))
+const fullDiaChiHienThi = computed(() =>
+  [form.value.diaChiCuThe, form.value.phuongXa, form.value.quanHuyen, form.value.tinhThanh]
+    .filter((x) => x && String(x).trim())
+    .join(', ')
+)
+
 async function handleOrderSubmit() {
   if (cartStore.items.length === 0) {
     router.push('/shop/san-pham')
@@ -233,11 +243,16 @@ async function handleOrderSubmit() {
   submitting.value = true
   submitError.value = ''
   const kq = await kiemTraTruocKhiDat()
+  submitting.value = false
   if (kq !== 'ok') {
-    submitting.value = false
     if (kq) hoiTruocKhiDat.value = kq
     return
   }
+  moXacNhanDatHang.value = true
+}
+
+async function xacNhanDatHangVaGui() {
+  moXacNhanDatHang.value = false
   await guiDon()
 }
 
@@ -325,6 +340,8 @@ async function guiDon() {
 
   // Xóa giỏ hàng
   cartStore.clearCart()
+
+  toast.success(`Đặt hàng thành công! Mã đơn hàng: ${maDonHang}`, 'Đặt hàng thành công')
 
   setTimeout(() => {
     submitting.value = false
@@ -648,6 +665,69 @@ async function guiDon() {
               </div>
             </BaseModal>
 
+            <!-- Hộp thoại xác nhận đặt hàng -->
+            <BaseModal v-if="moXacNhanDatHang" title="Xác nhận đặt hàng" size="md" @close="moXacNhanDatHang = false">
+              <div data-testid="xac-nhan-dat-hang" class="co-xn-modal">
+                <div class="d-flex align-items-center gap-3 p-3 mb-3 bg-light rounded-3 border">
+                  <div class="rounded-circle bg-primary-subtle text-primary p-2 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 48px; height: 48px;">
+                    <i class="bi bi-cart-check-fill fs-4"></i>
+                  </div>
+                  <div>
+                    <h6 class="fw-bold mb-1">Xác nhận thông tin đặt hàng</h6>
+                    <p class="text-muted small mb-0">Quý khách vui lòng kiểm tra lại thông tin đơn hàng trước khi hoàn tất đặt hàng.</p>
+                  </div>
+                </div>
+
+                <div class="co-xn-info small mb-3">
+                  <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span class="text-muted">Người nhận:</span>
+                    <strong class="text-end">{{ form.hoTen }} · {{ form.sdt }}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span class="text-muted">Địa chỉ nhận hàng:</span>
+                    <span class="text-end fw-semibold text-break ms-3" style="max-width: 65%;">
+                      {{ fullDiaChiHienThi }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span class="text-muted">Hình thức thanh toán:</span>
+                    <span class="badge bg-secondary-subtle text-dark fw-semibold">
+                      {{ form.phuongThucThanhToan === 'QR' ? 'Chuyển khoản VietQR' : 'Thanh toán khi nhận hàng (COD)' }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span class="text-muted">Số lượng sản phẩm:</span>
+                    <strong>{{ tongSoLuongSanPham }} sản phẩm</strong>
+                  </div>
+                  <div class="d-flex justify-content-between py-2 align-items-center pt-3">
+                    <span class="fw-bold fs-6">Tổng thanh toán:</span>
+                    <strong class="fs-5 text-danger">{{ formatMoney(cartStore.finalTotal) }}</strong>
+                  </div>
+                </div>
+
+                <p class="text-muted small text-center mb-0">
+                  <i class="bi bi-question-circle me-1"></i>
+                  Bạn có chắc chắn muốn tiến hành đặt đơn hàng này?
+                </p>
+              </div>
+
+              <template #footer>
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" :disabled="submitting" @click="moXacNhanDatHang = false">
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-primary rounded-pill px-4 fw-bold"
+                  data-testid="xn-dat-hang-dong-y"
+                  :disabled="submitting"
+                  @click="xacNhanDatHangVaGui"
+                >
+                  <span v-if="submitting" class="spinner-border spinner-border-sm me-1"></span>
+                  Xác nhận đặt hàng
+                </button>
+              </template>
+            </BaseModal>
+
             <button type="button" class="co-submit" :disabled="submitting || coSanPhamKhongDuHang" @click="handleOrderSubmit">
               <span v-if="submitting" class="spinner-border spinner-border-sm me-2"></span>
               <span>Đặt hàng</span>
@@ -667,6 +747,15 @@ async function guiDon() {
 </template>
 
 <style scoped>
+.co-xn-modal {
+  padding: 0.25rem 0;
+}
+.co-xn-info {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+}
 .co-doi-gia {
   margin: 0 0 0.6rem;
   padding: 0.45rem 0.7rem;

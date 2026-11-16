@@ -323,11 +323,20 @@ public class HoaDonService {
         // Đơn đã hủy mà khách đã thanh toán tiền (chưa hoàn trả): nhân viên có nút "Xác nhận đã hoàn tiền"
         boolean canHoanTien = (trangThai == HoaDon.DA_HUY) && daThanhToan.compareTo(BigDecimal.ZERO) > 0;
         response.put("duocXacNhanHoanTien", canHoanTien);
-        // Đơn online Chờ xác nhận (chưa trừ kho) mà kho không còn đủ: bấm "Xác nhận" thì hiện popup hết hàng
-        // (giữ hàng chờ nhập / gửi thư báo hết hàng / hủy đơn và hoàn tiền), góp ý 16/11 [05:20–06:47]
-        List<String> dsThieuHang = !laTaiQuay(hd) && trangThai == HoaDon.CHO_XAC_NHAN ? danhSachThieuHang(hd) : List.of();
-        response.put("duocBaoHetHang", !dsThieuHang.isEmpty());
-        response.put("dsThieuHang", dsThieuHang);
+        // Đơn online Chờ xác nhận (chưa trừ kho) mà kho không còn đủ: nhân viên có nút "Báo hết hàng cho khách" (gửi thư, đơn không hủy)
+        boolean thieuHang = false;
+        if (!laTaiQuay(hd) && trangThai == HoaDon.CHO_XAC_NHAN) {
+            Map<Integer, Integer> can = new HashMap<>();
+            Map<Integer, Integer> ton = new HashMap<>();
+            for (HoaDonChiTiet ct : hoaDonChiTietRepository.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
+                SanPhamChiTiet c = ct.getSanPhamChiTiet();
+                if (c == null || c.getId() == null) continue;
+                can.merge(c.getId(), ct.getSoLuong() == null ? 0 : ct.getSoLuong(), Integer::sum);
+                ton.put(c.getId(), c.getSoLuongTon() == null ? 0 : c.getSoLuongTon());
+            }
+            thieuHang = can.entrySet().stream().anyMatch(e -> ton.get(e.getKey()) < e.getValue());
+        }
+        response.put("duocBaoHetHang", thieuHang);
         // Đơn chuyển khoản quá 5 phút chưa nhận tiền: "đơn treo" (chờ khách chuyển hoặc đổi sang COD)
         response.put("donTreo", CuaHangService.laDonTreo(hd, daThanhToan.longValue(), LocalDateTime.now()));
         response.put("canHoanTien", canHoanTien);
@@ -625,11 +634,15 @@ public class HoaDonService {
             bienThe.putIfAbsent(spct.getId(), spct);
             canTru.merge(spct.getId(), sl, Integer::sum);
         }
-        List<String> thieu = danhSachThieuHang(hd);
+        List<String> thieu = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
+            SanPhamChiTiet fresh = sanPhamChiTietRepository.findById(e.getKey()).orElse(bienThe.get(e.getKey()));
+            int ton = fresh == null || fresh.getSoLuongTon() == null ? 0 : fresh.getSoLuongTon();
+            if (ton < e.getValue()) thieu.add((fresh != null ? fresh.getMaSpct() : "") + " (còn " + ton + ", đơn cần " + e.getValue() + ")");
+        }
         if (!thieu.isEmpty()) {
-            // Màn chi tiết hóa đơn bắt mã THIEU_HANG để mở popup hết hàng
-            throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "Không đủ hàng để xác nhận đơn: " + String.join("; ", thieu)
-                    + ". Đơn vẫn ở Chờ xác nhận.", "THIEU_HANG", Map.of("thieu", thieu));
+            throw ApiException.conflict("Không đủ hàng để xác nhận đơn: " + String.join("; ", thieu)
+                    + ". Đơn vẫn ở Chờ xác nhận: hãy nhập thêm hàng rồi xác nhận lại, hoặc hủy đơn và báo khách.");
         }
         for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
             if (sanPhamChiTietRepository.truTonKho(e.getKey(), e.getValue()) == 0) {
@@ -637,29 +650,6 @@ public class HoaDonService {
                 throw ApiException.conflict("Sản phẩm " + (fresh != null ? fresh.getMaSpct() : "") + " vừa hết hàng (đơn khác vừa được xác nhận). Hãy tải lại rồi thử lại.");
             }
         }
-    }
-
-    /** Các sản phẩm trong đơn không đủ hàng trong kho (rỗng nếu đủ): "Tên (MÃ, kho còn X, đơn cần Y)". */
-    public List<String> danhSachThieuHang(HoaDon hd) {
-        Map<Integer, Integer> canTru = new LinkedHashMap<>();
-        Map<Integer, SanPhamChiTiet> bienThe = new LinkedHashMap<>();
-        for (HoaDonChiTiet ct : hoaDonChiTietRepository.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
-            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
-            int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
-            if (spct == null || spct.getId() == null || sl <= 0) continue;
-            bienThe.putIfAbsent(spct.getId(), spct);
-            canTru.merge(spct.getId(), sl, Integer::sum);
-        }
-        List<String> thieu = new ArrayList<>();
-        for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
-            SanPhamChiTiet fresh = sanPhamChiTietRepository.findById(e.getKey()).orElse(bienThe.get(e.getKey()));
-            int ton = fresh == null || fresh.getSoLuongTon() == null ? 0 : fresh.getSoLuongTon();
-            if (ton < e.getValue()) {
-                String ten = fresh != null && fresh.getSanPham() != null ? fresh.getSanPham().getTenSanPham() : (fresh != null ? fresh.getMaSpct() : "SP");
-                thieu.add(ten + " (" + (fresh != null ? fresh.getMaSpct() : "") + ", kho còn " + ton + ", đơn cần " + e.getValue() + ")");
-            }
-        }
-        return thieu;
     }
 
     /** Hủy đơn: trả số lượng của từng dòng hóa đơn về tồn kho biến thể (gộp các dòng cùng biến thể). */

@@ -280,12 +280,12 @@ public class HoaDonSuaService {
     public record SuaGiaoHangRequest(String hoTenNguoiNhan, String sdtNguoiNhan, String diaChiCuThe, String phuongXa, String tinhThanh, String lyDo) {
     }
 
-    /** Đơn này còn đổi được thông tin giao hàng không: đơn giao hàng, chưa giao cho đơn vị vận chuyển, chưa đổi lần nào. */
+    /** Đơn này còn đổi được thông tin giao hàng không: đơn giao hàng, chưa giao cho đơn vị vận chuyển, chưa đổi lần nào (cả khách lẫn nhân viên). */
     public static boolean duocSuaGiaoHang(HoaDon hd, List<LichSuHoaDon> lichSu) {
         if (!Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon())) return false;
         int tt = hd.getTrangThai() == null ? HoaDon.CHO_XAC_NHAN : hd.getTrangThai();
         if (tt != HoaDon.CHO_XAC_NHAN && tt != HoaDon.DA_XAC_NHAN) return false;
-        return lichSu.stream().noneMatch(l -> HANH_DONG_SUA_GIAO.equals(l.getHanhDong()));
+        return lichSu.stream().noneMatch(l -> HANH_DONG_SUA_GIAO.equals(l.getHanhDong()) || HANH_DONG_SUA.equals(l.getHanhDong()));
     }
 
     /** Nhân viên đổi thông tin giao hàng (nút ở màn chi tiết hóa đơn). */

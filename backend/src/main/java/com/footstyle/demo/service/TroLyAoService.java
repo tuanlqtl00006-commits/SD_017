@@ -3,6 +3,7 @@ package com.footstyle.demo.service;
 import com.footstyle.demo.entity.DotGiamGia;
 import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.entity.KhachHang;
+import com.footstyle.demo.entity.MauSac;
 import com.footstyle.demo.entity.PhieuGiamGia;
 import com.footstyle.demo.entity.SanPham;
 import com.footstyle.demo.entity.SanPhamChiTiet;
@@ -139,7 +140,7 @@ public class TroLyAoService {
         }
         TraLoi hoi = cauHoiThuongGap(t);
         if (hoi != null) return hoi;
-        TraLoi sp = timSanPham(t);
+        TraLoi sp = timSanPham(cauHoi, t);
         if (sp != null) return cat(sp);
         if (coMot(t, " xin chao ", " chao ", " hello ", " hi ", " alo ", " shop oi ")) return loiChao(nc == null ? null : nc.tenKhach());
         if (coMot(t, " cam on ", " thanks ", " thank ", " ok ", " oke ")) {
@@ -276,10 +277,10 @@ public class TroLyAoService {
     /* ===================== Tìm sản phẩm ===================== */
 
     /** Bộ lọc đọc được từ câu hỏi. nhomDanhMuc là mã NhomDanhMuc (VOT, QUA_CAU...) hoặc "GIAY" (cửa hàng chưa bán giày). */
-    record BoLoc(String thuongHieu, String nhomDanhMuc, String trongLuong, Long giaTu, Long giaDen, String diemCanBang,
+    record BoLoc(String thuongHieu, String nhomDanhMuc, String mauSac, String trongLuong, Long giaTu, Long giaDen, String diemCanBang,
                  Set<String> doCung, boolean dangGiam) {
         boolean coLoc() {
-            return thuongHieu != null || nhomDanhMuc != null || trongLuong != null || giaTu != null || giaDen != null
+            return thuongHieu != null || nhomDanhMuc != null || mauSac != null || trongLuong != null || giaTu != null || giaDen != null
                     || diemCanBang != null || !doCung.isEmpty() || dangGiam;
         }
     }
@@ -292,14 +293,22 @@ public class TroLyAoService {
             "toi", "minh", "shop", "nao", "gi", "bao", "nhieu", "tien", "chiec", "cai", "doi", "thanh", "danh", "tap", "de", "game");
 
     TraLoi timSanPham(String t) {
+        return timSanPham(t, t);
+    }
+
+    TraLoi timSanPham(String cauHoiGoc, String t) {
         List<SanPhamChiTiet> ds = spctRepo.findAll().stream().filter(BanHangService::dangBan).toList();
         Set<String> thuongHieus = new LinkedHashSet<>();
+        Set<String> mauSacs = new LinkedHashSet<>();
         Map<Integer, List<SanPhamChiTiet>> theoSp = new LinkedHashMap<>();
         for (SanPhamChiTiet c : ds) {
             if (c.getSanPham().getThuongHieu() != null) thuongHieus.add(c.getSanPham().getThuongHieu().getTen());
+            if (c.getMauSac() != null && c.getMauSac().getTen() != null && !c.getMauSac().getTen().isBlank()) {
+                mauSacs.add(c.getMauSac().getTen().trim());
+            }
             theoSp.computeIfAbsent(c.getSanPham().getId(), k -> new ArrayList<>()).add(c);
         }
-        BoLoc loc = docBoLoc(t, thuongHieus);
+        BoLoc loc = docBoLoc(cauHoiGoc, t, thuongHieus, mauSacs);
         boolean hoiSanPham = coMot(t, " vot", "san pham", " mua ", " gia ", "con hang", "goi y", " tu van", "nen mua", "loai nao",
                 "bao nhieu tien", "phu kien", " giay", " balo", " tui ", "qua cau", "ong cau", " ao ", " quan ");
 
@@ -315,7 +324,7 @@ public class TroLyAoService {
         Map<Long, Double> giam = giamGiaService.phanTramTheoBienThe(LocalDateTime.now(dongHo));
         final int max = caoNhat;
         List<Integer> trungNhat = diemTen.entrySet().stream().filter(e -> e.getValue() == max).map(Map.Entry::getKey).toList();
-        if (max >= 2 && trungNhat.size() == 1) return chiTietSanPham(theoSp.get(trungNhat.get(0)), giam);
+        if (max >= 2 && trungNhat.size() == 1) return chiTietSanPham(theoSp.get(trungNhat.get(0)), giam, loc);
         if (!loc.coLoc() && !hoiSanPham && diemTen.isEmpty()) return null;
 
         List<GoiYSp> ketQua = new ArrayList<>();
@@ -333,6 +342,7 @@ public class TroLyAoService {
             int ton = 0;
             Set<String> phanLoai = new LinkedHashSet<>();
             for (SanPhamChiTiet c : nhom) {
+                if (loc.mauSac() != null && !khopMau(loc.mauSac(), c.getMauSac())) continue;
                 if (loc.trongLuong() != null && (c.getTrongLuong() == null
                         || !BanHangService.boDau(c.getTrongLuong().getTen()).startsWith(loc.trongLuong()))) continue;
                 double pt = giam.getOrDefault(c.getId().longValue(), 0.0);
@@ -371,6 +381,10 @@ public class TroLyAoService {
     }
 
     private TraLoi chiTietSanPham(List<SanPhamChiTiet> nhom, Map<Long, Double> giam) {
+        return chiTietSanPham(nhom, giam, null);
+    }
+
+    private TraLoi chiTietSanPham(List<SanPhamChiTiet> nhom, Map<Long, Double> giam, BoLoc loc) {
         SanPham sp = nhom.get(0).getSanPham();
         StringBuilder sb = new StringBuilder(sp.getTenSanPham());
         List<String> tt = new ArrayList<>();
@@ -378,6 +392,12 @@ public class TroLyAoService {
         if (sp.getDiemCanBang() != null && !NhomDanhMuc.laKhongApDung(sp.getDiemCanBang().getTen())) tt.add(sp.getDiemCanBang().getTen().toLowerCase(java.util.Locale.ROOT));
         if (sp.getDoCung() != null && !NhomDanhMuc.laKhongApDung(sp.getDoCung().getTen())) tt.add("thân " + sp.getDoCung().getTen().toLowerCase(java.util.Locale.ROOT));
         if (!tt.isEmpty()) sb.append(" (").append(String.join(", ", tt)).append(')');
+        if (loc != null && loc.mauSac() != null) {
+            boolean coMau = nhom.stream().anyMatch(c -> khopMau(loc.mauSac(), c.getMauSac()));
+            if (!coMau) {
+                sb.append(" - lưu ý mẫu này hiện chưa có ").append(moTaMau(loc.mauSac()));
+            }
+        }
         sb.append(":\n");
         boolean conHang = false;
         int dem = 0;
@@ -421,6 +441,10 @@ public class TroLyAoService {
     }
 
     static BoLoc docBoLoc(String t, Set<String> thuongHieus) {
+        return docBoLoc(t, t, thuongHieus, Set.of());
+    }
+
+    static BoLoc docBoLoc(String cauHoiGoc, String t, Set<String> thuongHieus, Set<String> mauSacs) {
         String hang = null;
         for (String th : thuongHieus) {
             String k = BanHangService.boDau(th);
@@ -436,6 +460,7 @@ public class TroLyAoService {
         else if (coMot(t, " balo", " tui ", "bao vot")) nhom = NhomDanhMuc.TUI_BALO;
         else if (coMot(t, " ao ", " quan ", "quan ao")) nhom = NhomDanhMuc.QUAN_AO;
         else if (coMot(t, "phu kien", "quan can", " cuoc ", "bang chan", "bang co tay")) nhom = NhomDanhMuc.PHU_KIEN;
+        String mau = docMauSac(cauHoiGoc, t, mauSacs);
         Matcher mu = Pattern.compile("(?<![a-z0-9])([2-6])\\s?u(?![a-z0-9])").matcher(t);
         String tl = mu.find() ? mu.group(1) + "u" : null;
         String dcb = null;
@@ -452,8 +477,112 @@ public class TroLyAoService {
         }
         long[] gia = khoangGia(t);
         boolean dangGiam = coMot(t, "dang giam", "giam gia", " sale ", "khuyen mai");
-        return new BoLoc(hang, nhom, tl, gia == null ? null : gia[0], gia == null || gia[1] == Long.MAX_VALUE ? null : gia[1],
+        return new BoLoc(hang, nhom, mau, tl, gia == null ? null : gia[0], gia == null || gia[1] == Long.MAX_VALUE ? null : gia[1],
                 dcb, doCung, dangGiam);
+    }
+
+    static String docMauSac(String cauHoiGoc, String t, Set<String> mauSacsCoSan) {
+        String goc = cauHoiGoc == null ? "" : cauHoiGoc.toLowerCase(java.util.Locale.ROOT);
+        // 1. Màu ghép 2 từ xanh trước để không bị "xanh" nuốt
+        if (coMot(t, "xanh duong", "xanh lam", "xanh bien", "xanh nuoc bien", "xanh da troi", "navy")) return "xanh duong";
+        if (coMot(t, "xanh la", "xanh luc", "xanh la cay", "xanh cay", "xanh chuoi")) return "xanh la";
+        if (coMot(t, "xanh ngoc")) return "xanh ngoc";
+        if (coMot(t, "xanh reu")) return "xanh reu";
+
+        // 2. Màu đơn có từ khóa rõ ràng hoặc gõ có dấu
+        if (goc.contains("đen") && !goc.contains("đến")) return "den";
+        if (goc.contains("trắng")) return "trang";
+        if (goc.contains("đỏ")) return "do";
+        if (goc.contains("vàng")) return "vang";
+        if (goc.contains("hồng")) return "hong";
+        if (goc.contains("tím")) return "tim";
+        if (goc.contains("xám")) return "xam";
+        if (goc.contains("nâu")) return "nau";
+
+        // 3. Cụm "màu ..." hoặc "vợt ..."
+        if (coMot(t, "mau den", "vot den", "sac den", "tong den", "den nham", "den bong")) return "den";
+        if (coMot(t, "mau trang", "vot trang", "sac trang", "tong trang")) return "trang";
+        if (coMot(t, "mau do", "vot do", "sac do", "tong do")) return "do";
+        if (coMot(t, "mau vang", "vot vang", "sac vang", "tong vang")) return "vang";
+        if (coMot(t, "mau cam", "vot cam", "sac cam", "tong cam")) return "cam";
+        if (coMot(t, "mau hong", "vot hong", "sac hong", "tong hong")) return "hong";
+        if (coMot(t, "mau tim", "vot tim", "sac tim", "tong tim", "tim than")) return "tim";
+        if (coMot(t, "mau xam", "mau ghi", "vot xam", "vot ghi", " xam ", " ghi ")) return "xam";
+        if (coMot(t, "mau nau", "vot nau")) return "nau";
+        if (coMot(t, "mau xanh", "vot xanh", "sac xanh", "tong xanh")) return "xanh";
+
+        // 4. Từ đơn không dấu nhưng đúng ngữ cảnh màu
+        if (t.contains(" xanh ") && !coMot(t, "xanh xao")) return "xanh";
+        if (t.contains(" vang ") && !coMot(t, "vang mat", "vang bong")) return "vang";
+        if (t.contains(" cam ") && !coMot(t, "cam on", "cam ket", "tinh cam", "cam giac", "cam xuc", "cam tay", "can cam")) return "cam";
+        if (t.contains(" hong ") && !coMot(t, "bi hong", "hong hoc", "hu hong")) return "hong";
+        if (t.contains(" tim ") && !coMot(t, "tim vot", "tim kiem", "tim giup", "tim ho", "tim cho", "tim hang", "tim cay", "tim mau", "tra cuu")) return "tim";
+        if (t.contains(" trang ") && !coMot(t, "trang chu", "trang web", "trang thai", "tinh trang", "trang ca nhan", "trang bi", "thoi trang")) return "trang";
+        if (t.contains(" do ") && !coMot(t, "do loi", "ly do", "do nha", "do vo", "toc do", "trinh do", "che do", "muc do", "do dac", "do choi", "do dung")) return "do";
+
+        if (t.contains(" den ")) {
+            boolean laGioiTu = Pattern.compile("\\b(?:tu|khoang|tam|gia)\\s+\\S+\\s+den\\b").matcher(t).find()
+                    || Pattern.compile("\\bden\\s+\\d").matcher(t).find()
+                    || coMot(t, "den xem", "den cua hang", "giao den", "ship den", "gui den", "toi den", "den noi", "den ngay", "den gio");
+            if (!laGioiTu) return "den";
+        }
+
+        // 5. Quét danh sách màu có sẵn ở cửa hàng (vd màu tùy chỉnh)
+        if (mauSacsCoSan != null) {
+            for (String ms : mauSacsCoSan) {
+                String slug = BanHangService.boDau(ms).toLowerCase(java.util.Locale.ROOT).trim();
+                if (!slug.isEmpty() && !TU_CHUNG.contains(slug) && t.contains(" " + slug + " ")) {
+                    return slug;
+                }
+            }
+        }
+        return null;
+    }
+
+    static boolean khopMau(String mauLoc, MauSac mauSac) {
+        if (mauLoc == null) return true;
+        if (mauSac == null || mauSac.getTen() == null || mauSac.getTen().isBlank()) return false;
+        String ten = BanHangService.boDau(mauSac.getTen()).toLowerCase(java.util.Locale.ROOT).trim();
+        return switch (mauLoc) {
+            case "xanh duong" -> (ten.contains("xanh duong") || ten.contains("xanh lam") || ten.contains("xanh bien")
+                    || ten.contains("navy") || ten.equals("xanh")) && !ten.contains("xanh la") && !ten.contains("xanh luc")
+                    && !ten.contains("xanh chuoi") && !ten.contains("xanh ngoc");
+            case "xanh la" -> ten.contains("xanh la") || ten.contains("xanh luc") || ten.contains("xanh chuoi") || ten.contains("xanh cay");
+            case "xanh ngoc" -> ten.contains("xanh ngoc");
+            case "xanh reu" -> ten.contains("xanh reu");
+            case "xanh" -> ten.contains("xanh");
+            case "den" -> ten.contains("den");
+            case "trang" -> ten.contains("trang");
+            case "do" -> ten.contains("do");
+            case "vang" -> ten.contains("vang");
+            case "cam" -> ten.contains("cam");
+            case "hong" -> ten.contains("hong");
+            case "tim" -> ten.contains("tim");
+            case "xam" -> ten.contains("xam") || ten.contains("ghi");
+            case "nau" -> ten.contains("nau");
+            default -> ten.contains(mauLoc);
+        };
+    }
+
+    static String moTaMau(String mau) {
+        if (mau == null) return "";
+        return switch (mau) {
+            case "xanh duong" -> "màu xanh dương";
+            case "xanh la" -> "màu xanh lá";
+            case "xanh ngoc" -> "màu xanh ngọc";
+            case "xanh reu" -> "màu xanh rêu";
+            case "xanh" -> "màu xanh";
+            case "den" -> "màu đen";
+            case "trang" -> "màu trắng";
+            case "do" -> "màu đỏ";
+            case "vang" -> "màu vàng";
+            case "cam" -> "màu cam";
+            case "hong" -> "màu hồng";
+            case "tim" -> "màu tím";
+            case "xam" -> "màu xám";
+            case "nau" -> "màu nâu";
+            default -> "màu " + mau;
+        };
     }
 
     /** Một số tiền: số (1.5 / 1,5 / 2.000.000) + đơn vị (triệu, tr, k, nghìn, đồng) + phần lẻ kiểu "1tr5". */
@@ -548,6 +677,7 @@ public class TroLyAoService {
             });
         }
         if (l.thuongHieu() != null) p.add("hãng " + l.thuongHieu());
+        if (l.mauSac() != null) p.add(moTaMau(l.mauSac()));
         if (l.trongLuong() != null) p.add(l.trongLuong().toUpperCase(java.util.Locale.ROOT));
         if (l.diemCanBang() != null) {
             p.add(switch (l.diemCanBang()) {

@@ -62,6 +62,13 @@ public class CuaHangService {
         this.hoaDonService = hoaDonService;
     }
 
+    private HoaDonSuaService hoaDonSuaService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setHoaDonSuaService(HoaDonSuaService hoaDonSuaService) {
+        this.hoaDonSuaService = hoaDonSuaService;
+    }
+
     public record DatHangOnlineRequest(
             String hoTenNguoiNhan,
             String sdtNguoiNhan,
@@ -1030,8 +1037,43 @@ public class CuaHangService {
         // Hạn chuyển khoản (mã QR đếm ngược tới mốc này) và đơn đã thành "đơn treo" chưa
         res.put("hanChuyenKhoan", hd.getNgayTao() == null ? null : hd.getNgayTao().plusMinutes(HAN_CHUYEN_KHOAN_PHUT));
         res.put("donTreo", laDonTreo(hd, daTra.longValue(), bayGio()));
+
+        boolean hetHang = false;
+        String lyDoHetHang = null;
+        if (hoaDonSuaService != null && hd.getTrangThai() != null && hd.getTrangThai() == HoaDon.CHO_XAC_NHAN) {
+            List<String> thieu = hoaDonSuaService.danhSachThieuHang(hd);
+            if (!thieu.isEmpty()) {
+                hetHang = true;
+                lyDoHetHang = "Sản phẩm trong đơn hàng đã hết hàng: " + String.join("; ", thieu);
+            }
+        }
+        boolean daBaoHetHang = false;
+        for (LichSuHoaDon ls : lichSuHoaDonRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+            if (HoaDonSuaService.HANH_DONG_BAO_HET_HANG.equals(ls.getHanhDong())) {
+                daBaoHetHang = true;
+                hetHang = true;
+                if (lyDoHetHang == null && ls.getMoTa() != null) {
+                    lyDoHetHang = ls.getMoTa();
+                }
+            }
+        }
+        res.put("hetHang", hetHang);
+        res.put("lyDoHetHang", lyDoHetHang);
+        res.put("daBaoHetHang", daBaoHetHang);
+
         if (hoaDonService != null) {
-            res.put("chiTietDon", banChoKhach(hoaDonService.getChiTietHoaDon(hd.getId())));
+            Map<String, Object> ctDon = banChoKhach(hoaDonService.getChiTietHoaDon(hd.getId()));
+            ctDon.put("hetHang", hetHang);
+            ctDon.put("lyDoHetHang", lyDoHetHang);
+            ctDon.put("daBaoHetHang", daBaoHetHang);
+            if (ctDon.get("hoaDon") instanceof Map<?, ?> hInfo) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> hMap = (Map<String, Object>) hInfo;
+                hMap.put("hetHang", hetHang);
+                hMap.put("lyDoHetHang", lyDoHetHang);
+                hMap.put("daBaoHetHang", daBaoHetHang);
+            }
+            res.put("chiTietDon", ctDon);
         }
 
         return res;

@@ -6,7 +6,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 // Việc còn lại 15/11 (VIEC_CON_LAI_1511.md):
 //  - ô mã giảm giá ở trang thanh toán hiện mã đang áp (cô review 14/11 [26:19]);
 //  - tab Đơn tại quầy ghi rõ hình thức mua (R1 [11:32]);
-//  - màn quầy KHÔNG hiện số "chờ đơn online" (thêm 15/11 theo case khó R1, góp ý 16/11 bảo bỏ).
+//  - màn quầy thấy số sản phẩm đang nằm trong đơn online chờ xác nhận (case khó R1 [29:22–34:07]).
 let mockApi
 vi.mock('../src/services/api', () => ({ default: new Proxy({}, { get: (_, k) => (...a) => mockApi[k](...a) }) }))
 vi.mock('../src/services/phien', () => ({ layPhien: () => null }))
@@ -65,29 +65,25 @@ describe('Tab Đơn tại quầy: cột Hình thức mua', () => {
   })
 })
 
-describe('Màn quầy: không hiện số "chờ đơn online" (góp ý 16/11 [04:20]: bỏ hết)', () => {
+describe('Màn quầy: sản phẩm đang nằm trong đơn online chờ xác nhận', () => {
   const SP = { id: 52, tenSanPham: 'Vợt Yonex Astrox 99', maSpct: 'SP15-XD-3U', tonKho: 20, giaBan: 4_000_000, giaGoc: 4_000_000, anh: '' }
 
-  it('dưới tồn kho chỉ có số tồn, không gọi API chờ đơn online; nhập quá tồn kho vẫn báo "Chỉ còn N sản phẩm trong kho"', async () => {
+  it('hiện "N chờ đơn online" dưới tồn kho; thêm quá phần còn trống thì nhắc nhân viên (vẫn cho thêm)', async () => {
     mockApi.get = vi.fn(async (url) => {
       if (url === '/ban-hang/san-pham/loc') return { data: { items: [SP], tongSo: 1, trang: 0, soTrang: 1 } }
+      if (url === '/ban-hang/san-pham/dang-cho-online') return { data: { 52: 18 } }
       return { data: {} }
     })
     const w = mount(TimSanPham, { props: { trongHop: true }, attachTo: document.body })
     await flushPromises()
-    expect(mockApi.get.mock.calls.map((c) => c[0])).not.toContain('/ban-hang/san-pham/dang-cho-online')
-    expect(w.text()).not.toContain('chờ đơn online')
+    expect(mockApi.get).toHaveBeenCalledWith('/ban-hang/san-pham/dang-cho-online', { params: { ids: '52' } })
+    expect(w.find('[data-testid="bh-cho-online"]').text()).toBe('18 chờ đơn online')
     const o = w.find('input[aria-label="Số lượng Vợt Yonex Astrox 99"]')
-    await o.setValue('21')
-    await o.trigger('change')
-    await w.find('.bh-nut-them').trigger('click')
-    expect(w.emitted('chon')).toBeUndefined()
-    expect(w.text()).toContain('Chỉ còn 20 sản phẩm trong kho.')
     await o.setValue('5')
     await o.trigger('change')
     await w.find('.bh-nut-them').trigger('click')
     expect(w.emitted('chon')?.[0]?.[2]).toBe(5)
-    expect(useToast().toasts.length).toBe(0)
+    expect(useToast().toasts.at(-1).message).toContain('18 sản phẩm đang nằm trong đơn online chờ xác nhận')
     w.unmount()
   })
 })
