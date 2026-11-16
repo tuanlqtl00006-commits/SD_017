@@ -78,7 +78,6 @@ function thayHoaDon(moi) {
   const i = dsCho.value.findIndex((h) => h.id === moi.id)
   if (i >= 0) dsCho.value.splice(i, 1, moi)
   else dsCho.value.push(moi)
-  if (moi.thongBao) toast.success(moi.thongBao, 'Giá đã thay đổi')
 }
 
 async function taiHoaDonCho() {
@@ -93,7 +92,7 @@ async function taiHoaDonCho() {
   }
 }
 
-// Hóa đơn chờ đổi ở cửa sổ / máy khác, hoặc giá / đợt giảm giá vừa đổi (tuCapNhatGia tự đưa về giá mới): cập nhật, không cần F5.
+// Hóa đơn chờ đổi ở cửa sổ / máy khác, hoặc giá / đợt giảm giá vừa đổi (dòng cũ giữ giá, chỉ hiện "Giá mới"): cập nhật, không cần F5.
 // Hỏi lại định kỳ để bắt đợt giảm giá tự bắt đầu / kết thúc theo giờ (không có tin báo).
 // Phiếu giảm giá KHÔNG tải lại ở đây: mức giảm chỉ đổi khi nhân viên đã được báo lúc thanh toán (PHIEU_THAY_DOI)
 async function taiChoNgam() {
@@ -190,7 +189,23 @@ function onMaCamera(giaTri) {
   moCamera.value = false
   quetMa(giaTri)
 }
-async function themSanPham(sp, loiQuet, soLuong = 1) {
+/* ----- Giá đổi khi sản phẩm đã có trong hóa đơn (góp ý 16/11 [00:00–00:44]) -----
+ * Dòng đã thêm giữ giá lúc thêm. Thêm lại / tăng số lượng sản phẩm đã đổi giá (sửa giá, đợt giảm giá bắt đầu / kết thúc)
+ * thì máy chủ trả GIA_THAY_DOI: hiện popup giá cũ -> giá mới, bấm OK mới thêm DÒNG MỚI theo giá mới, Hủy thì không thêm. */
+const hoiGia = ref(null) // { ten, ma, donGiaCu, donGiaMoi, soLuong, idBienThe }
+function moHoiGia(e) {
+  if (e?.code !== 'GIA_THAY_DOI' || !e.chiTiet?.idBienThe) return false
+  hoiGia.value = { ...e.chiTiet }
+  return true
+}
+async function dongYGiaMoi() {
+  const g = hoiGia.value
+  if (!g) return
+  hoiGia.value = null
+  await themSanPham({ id: g.idBienThe, tenSanPham: g.ten, maSpct: g.ma }, null, g.soLuong, true)
+}
+
+async function themSanPham(sp, loiQuet, soLuong = 1, xacNhanGiaMoi = false) {
   if (!sp) {
     toast.error(loiQuet)
     return
@@ -202,11 +217,13 @@ async function themSanPham(sp, loiQuet, soLuong = 1) {
     let id = hdServer.value.id
     if (!id) id = (await themHoaDon())?.id
     if (!id) return
-    thayHoaDon((await api.post(`/ban-hang/hoa-don-cho/${id}/san-pham`, { idBienThe: sp.id, soLuong })).data)
+    const body = { idBienThe: sp.id, soLuong }
+    if (xacNhanGiaMoi) body.xacNhanGiaMoi = true
+    thayHoaDon((await api.post(`/ban-hang/hoa-don-cho/${id}/san-pham`, body)).data)
     timSp.value?.taiLai()
     toast.success(`Đã thêm ${soLuong} × ${sp.tenSanPham || sp.ten || sp.maSpct || 'sản phẩm'} vào ${hdServer.value.maHoaDon || 'hóa đơn'}.`)
   } catch (e) {
-    baoLoiCho(e, 'Không thêm được sản phẩm.')
+    if (!moHoiGia(e)) baoLoiCho(e, 'Không thêm được sản phẩm.')
   } finally {
     dangLam.value = false
   }
@@ -229,7 +246,8 @@ async function doiSl(d, giaTri) {
     timSp.value?.taiLai()
     toast.success(`Đã đổi số lượng ${d.ten} thành ${sl}.`)
   } catch (e) {
-    baoLoiCho(e, 'Không đổi được số lượng.')
+    // Tăng số lượng ở dòng giá cũ mà giá đã đổi: phần thêm thành dòng mới theo giá mới (hỏi trước)
+    if (!moHoiGia(e)) baoLoiCho(e, 'Không đổi được số lượng.')
   } finally {
     dangLam.value = false
   }
@@ -248,14 +266,7 @@ async function xoaDong(d) {
     dangLam.value = false
   }
 }
-async function capNhatGiaMoi() {
-  try {
-    thayHoaDon((await api.post(`/ban-hang/hoa-don-cho/${hdServer.value.id}/cap-nhat-gia`)).data)
-    toast.success('Đã cập nhật giá mới cho hóa đơn.')
-  } catch (e) {
-    baoLoiCho(e, 'Không cập nhật được giá.')
-  }
-}
+
 const tienHang = computed(() => tongTienHang(hd.value.gio))
 const giamDot = computed(() => tienGiamDot(hd.value.gio))
 
@@ -616,7 +627,6 @@ const LOI_THIEU_NGUOI_NHAN = 'Vui lòng nhập đủ thông tin người nhận 
 const lyDoKhongThanhToan = computed(() => {
   if (canVaoCa.value) return 'Bạn chưa vào ca.'
   if (!hd.value.gio.length) return 'Hóa đơn chưa có sản phẩm.'
-  if (hd.value.coGiaDoi) return 'Có sản phẩm đã đổi giá. Báo khách rồi bấm "Cập nhật giá".'
   if (loiPhieu.value) return loiPhieu.value
   if (Object.keys(loiGiao.value).length) return LOI_THIEU_NGUOI_NHAN
   if (tt.value.loi === 'Vui lòng nhập tiền khách đưa.') return ''
@@ -627,35 +637,6 @@ const goiYThanhToan = computed(() => (lyDoKhongThanhToan.value === LOI_THIEU_NGU
 const xacNhan = ref(false)
 const dangGui = ref(false)
 
-/* ----- Giá đổi: hóa đơn tự theo giá mới, không cần bấm "Cập nhật giá" -----
- * Máy chủ vẫn chặn thanh toán theo giá cũ (GIA_THAY_DOI); tự cập nhật xong thì báo rõ giá cũ -> mới để nhân viên báo lại khách.
- * Đang gửi thanh toán / đang mở hộp xác nhận thì chờ xong mới cập nhật (không đổi số tiền trước mắt nhân viên).
- * Lỗi thì không thử lại liên tục: nút "Cập nhật giá" vẫn còn để bấm tay. */
-let dangTuCapNhatGia = false
-const daLoiCapNhatGia = new Set()
-async function tuCapNhatGia() {
-  const h = hdServer.value
-  if (!h.id || !h.coGiaDoi || dangTuCapNhatGia || dangGui.value || xacNhan.value) return
-  const doi = h.items.filter((d) => d.giaDoi)
-  const khoa = `${h.id}:${doi.map((d) => `${d.id}@${d.giaHienTai}`).join(',')}`
-  if (daLoiCapNhatGia.has(khoa)) return
-  dangTuCapNhatGia = true
-  try {
-    thayHoaDon((await api.post(`/ban-hang/hoa-don-cho/${h.id}/cap-nhat-gia`)).data)
-    toast.success(
-      doi.length === 1
-        ? `Giá ${doi[0].ma} đổi từ ${formatMoney(doi[0].donGia)} thành ${formatMoney(doi[0].giaHienTai)}. Hóa đơn đã theo giá mới, báo lại khách số tiền.`
-        : `Giá của ${doi.length} sản phẩm đã đổi. Hóa đơn đã theo giá mới, báo lại khách số tiền.`,
-      'Giá đã thay đổi',
-    )
-  } catch (e) {
-    daLoiCapNhatGia.add(khoa)
-    baoLoiCho(e, 'Không tự cập nhật được giá. Vui lòng bấm "Cập nhật giá".')
-  } finally {
-    dangTuCapNhatGia = false
-  }
-}
-watch(() => [hdServer.value.id, hdServer.value.coGiaDoi, dangGui.value, xacNhan.value], tuCapNhatGia, { immediate: true })
 
 /* ----- Bấm Thanh toán: kiểm tra lại phiếu giảm giá (cô test case khó 14/11 [00:42–02:57], nhóm góp ý) -----
  * Phiếu có thể đổi giữa lúc đang bán (quản lý sửa / hết hạn / có phiếu mới). KHÔNG tự đổi phiếu sau lưng nhân viên:
@@ -827,10 +808,7 @@ async function thanhToan({ tuDong = false } = {}) {
   } catch (e) {
     if (cuaSoIn) dongCuaSoIn(cuaSoIn)
     xacNhan.value = false
-    if (e.code === 'GIA_THAY_DOI') {
-      toast.error('Giá vừa thay đổi nên chưa thanh toán. Hóa đơn sẽ tự theo giá mới, báo khách rồi bấm Thanh toán lại.')
-      await taiHoaDonCho()
-    } else if (e.code === 'CHUA_NHAN_CA' || e.code === 'CA_CU_CHUA_GIAO') {
+    if (e.code === 'CHUA_NHAN_CA' || e.code === 'CA_CU_CHUA_GIAO') {
       toast.error(e.message)
       await giaoCa.taiLai()
       moCa.value = true
@@ -923,11 +901,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               </button>
             </div>
           </header>
-          <div v-if="hd.coGiaDoi" class="bh-canh-gia" role="alert">
-            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-            <span>Giá của sản phẩm trong hóa đơn đã thay đổi so với lúc thêm. Báo khách giá mới rồi cập nhật trước khi thanh toán.</span>
-            <button type="button" class="ad-btn ad-btn-sm ad-btn-primary" data-testid="bh-cap-nhat-gia" @click="capNhatGiaMoi">Cập nhật giá</button>
-          </div>
+
           <div class="ad-table-wrap">
             <div class="ad-table-scroll">
               <table class="ad-table bh-gio">
@@ -969,7 +943,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                     <td class="ad-nowrap">
                       <div class="fw-medium">{{ formatMoney(d.donGia) }}</div>
                       <small v-if="dangGiamTheoDot(d)" class="text-muted"><s>{{ formatMoney(d.giaGoc) }}</s></small>
-                      <small v-if="d.giaDoi" class="bh-gia-doi d-block"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Giá mới {{ formatMoney(d.giaHienTai) }}</small>
+                      <small v-if="d.giaDoi" class="bh-gia-doi d-block" title="Dòng này giữ giá lúc thêm. Thêm nữa sẽ thành dòng mới theo giá mới."><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Giá mới {{ formatMoney(d.giaHienTai) }}</small>
                     </td>
                     <td class="text-center">
                       <div class="bh-cot-sl">
@@ -1340,6 +1314,22 @@ const soLuongTab = (h) => tongSoLuong(h.items)
         <button type="button" class="ad-btn" data-testid="bh-dong-chon-sp" @click="moChonSp = false">Đóng</button>
       </template>
     </BaseModal>
+    <!-- Popup sản phẩm đã đổi giá: OK thì thêm dòng mới theo giá mới, dòng cũ giữ giá cũ -->
+    <BaseModal v-if="hoiGia" title="Sản phẩm đã đổi giá" size="md" @close="hoiGia = null">
+      <div data-testid="bh-hoi-gia">
+        <p class="mb-2"><b>{{ hoiGia.ten }}</b> <span class="ad-code">{{ hoiGia.ma }}</span></p>
+        <p class="mb-2">
+          Giá đã đổi từ <b>{{ formatMoney(hoiGia.donGiaCu) }}</b> thành <b class="text-danger">{{ formatMoney(hoiGia.donGiaMoi) }}</b>.
+        </p>
+        <p class="mb-0 text-muted small">
+          Dòng đang có trong hóa đơn giữ giá cũ. Bấm OK để thêm {{ hoiGia.soLuong }} sản phẩm thành dòng mới theo giá mới.
+        </p>
+      </div>
+      <template #footer>
+        <button type="button" class="ad-btn" data-testid="bh-hoi-gia-huy" @click="hoiGia = null">Hủy</button>
+        <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-hoi-gia-ok" :disabled="dangLam" @click="dongYGiaMoi">OK</button>
+      </template>
+    </BaseModal>
     <QuetMaModal v-if="moCamera" @close="moCamera = false" @ma="onMaCamera" />
     <KhachHangAddressModal
       v-if="modalDiaChiKhach.open && hd.khach"
@@ -1354,20 +1344,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 
 
 <style scoped>
-.bh-canh-gia {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0 1rem 0.75rem;
-  padding: 0.6rem 0.8rem;
-  border-radius: 10px;
-  background: #fff7ed;
-  color: #9a3412;
-  font-size: 0.9rem;
-}
-.bh-canh-gia span {
-  flex: 1;
-}
 .bh-gia-doi {
   color: #c2410c;
   font-weight: 600;

@@ -65,8 +65,15 @@ public class HoaDonChoService {
     public record DoiKhachRequest(Integer idKhachHang) {
     }
 
-    public record ThemSanPhamRequest(Integer idBienThe, Integer soLuong) {
+    /** xacNhanGiaMoi: nhân viên đã bấm OK ở popup "sản phẩm đã đổi giá" -> thêm dòng mới theo giá mới. */
+    public record ThemSanPhamRequest(Integer idBienThe, Integer soLuong, Boolean xacNhanGiaMoi) {
+        public ThemSanPhamRequest(Integer idBienThe, Integer soLuong) {
+            this(idBienThe, soLuong, null);
+        }
     }
+
+    /** Mã lỗi khi thêm / tăng số lượng sản phẩm mà giá đã đổi so với dòng đang có: màn quầy hiện popup hỏi OK. */
+    public static final String GIA_THAY_DOI = "GIA_THAY_DOI";
 
     public record SoLuongRequest(Integer soLuong) {
     }
@@ -156,11 +163,16 @@ public class HoaDonChoService {
 
         List<HoaDonChiTiet> dong = chiTietRepo.findByHoaDon_IdOrderByIdAsc(h.getId());
         HoaDonChiTiet cungGia = null;
-        boolean coDongKhac = false;
+        HoaDonChiTiet dongGiaKhac = null;
         for (HoaDonChiTiet ct : dong) {
             if (!ct.getSanPhamChiTiet().getId().equals(c.getId())) continue;
             if (long0(ct.getDonGia()) == donGia) cungGia = ct;
-            else coDongKhac = true;
+            else dongGiaKhac = ct;
+        }
+        // Góp ý 16/11 [00:00–00:44]: dòng đã thêm giữ giá cũ. Thêm lại sản phẩm đã đổi giá (sửa giá / đợt giảm giá) thì
+        // hỏi nhân viên trước (popup), bấm OK mới thêm dòng mới theo giá mới. Đã có dòng đúng giá mới thì gộp vào, không hỏi.
+        if (cungGia == null && dongGiaKhac != null && !Boolean.TRUE.equals(req.xacNhanGiaMoi())) {
+            throw giaDaDoi(c, long0(dongGiaKhac.getDonGia()), donGia, sl);
         }
         if (cungGia == null && dong.size() >= BanHangService.SO_DONG_TOI_DA) {
             throw ApiException.badRequest("Một hóa đơn tối đa " + BanHangService.SO_DONG_TOI_DA + " dòng sản phẩm.");
@@ -182,12 +194,20 @@ public class HoaDonChoService {
             ct.setTrangThai(1);
             chiTietRepo.save(ct);
         }
-        Map<String, Object> kq = capNhatTong(h, gia);
-        if (coDongKhac) {
-            kq.put("thongBao", "Giá " + c.getMaSpct() + " đã đổi thành " + GiaoCaService.dinhDangTien(BigDecimal.valueOf(donGia))
-                    + " nên được tách thành dòng mới (dòng cũ giữ giá lúc thêm).");
-        }
-        return kq;
+        return capNhatTong(h, gia);
+    }
+
+    private ApiException giaDaDoi(SanPhamChiTiet c, long donGiaCu, long donGiaMoi, int soLuong) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("idBienThe", c.getId());
+        data.put("ma", c.getMaSpct());
+        data.put("ten", c.getSanPham() == null ? c.getMaSpct() : c.getSanPham().getTenSanPham());
+        data.put("donGiaCu", donGiaCu);
+        data.put("donGiaMoi", donGiaMoi);
+        data.put("soLuong", soLuong);
+        return new ApiException(HttpStatus.CONFLICT, "Sản phẩm " + c.getMaSpct() + " đã đổi giá từ "
+                + GiaoCaService.dinhDangTien(BigDecimal.valueOf(donGiaCu)) + " thành " + GiaoCaService.dinhDangTien(BigDecimal.valueOf(donGiaMoi))
+                + ". Dòng đang có giữ giá cũ; thêm nữa sẽ là dòng mới theo giá mới.", GIA_THAY_DOI, data);
     }
 
     @Transactional
@@ -198,6 +218,11 @@ public class HoaDonChoService {
         if (moi < 1 || moi > BanHangService.SO_LUONG_TOI_DA) throw ApiException.badRequest("Số lượng từ 1 đến " + BanHangService.SO_LUONG_TOI_DA + ".");
         int cu = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
         SanPhamChiTiet c = ct.getSanPhamChiTiet();
+        // Tăng số lượng ở dòng giá cũ khi giá đã đổi: phần thêm phải theo giá mới (dòng mới), hỏi nhân viên trước
+        if (moi > cu) {
+            long giaMoi = giaHienTai().cua(c);
+            if (giaMoi != long0(ct.getDonGia())) throw giaDaDoi(c, long0(ct.getDonGia()), giaMoi, moi - cu);
+        }
         if (moi > cu) truKho(c, moi - cu);
         else if (moi < cu) spctRepo.congTonKho(c.getId(), cu - moi);
         ct.setSoLuong(moi);
@@ -214,31 +239,6 @@ public class HoaDonChoService {
         if (sl > 0) spctRepo.congTonKho(ct.getSanPhamChiTiet().getId(), sl);
         chiTietRepo.delete(ct);
         return capNhatTong(h, giaHienTai());
-    }
-
-    /** Đưa các dòng có giá đã đổi về giá hiện tại (nhân viên đã báo khách); dòng trùng biến thể + trùng giá thì gộp lại. */
-    @Transactional
-    public Map<String, Object> capNhatGia(Integer id) {
-        HoaDon h = cuaToi(id);
-        GiaKhiXem gia = giaHienTai();
-        Map<String, HoaDonChiTiet> theoBienTheGia = new LinkedHashMap<>();
-        for (HoaDonChiTiet ct : chiTietRepo.findByHoaDon_IdOrderByIdAsc(h.getId())) {
-            long moi = gia.cua(ct.getSanPhamChiTiet());
-            String khoa = ct.getSanPhamChiTiet().getId() + "@" + moi;
-            HoaDonChiTiet gop = theoBienTheGia.get(khoa);
-            if (gop != null) {
-                gop.setSoLuong(gop.getSoLuong() + ct.getSoLuong());
-                gop.setThanhTien(BigDecimal.valueOf(moi * gop.getSoLuong()));
-                chiTietRepo.save(gop);
-                chiTietRepo.delete(ct);
-                continue;
-            }
-            ct.setDonGia(BigDecimal.valueOf(moi));
-            ct.setThanhTien(BigDecimal.valueOf(moi * ct.getSoLuong()));
-            chiTietRepo.save(ct);
-            theoBienTheGia.put(khoa, ct);
-        }
-        return capNhatTong(h, gia);
     }
 
     /** Hủy hóa đơn chờ: trả hàng về kho. Chưa có sản phẩm thì xóa hẳn (không để lại hóa đơn rỗng trong danh sách). */

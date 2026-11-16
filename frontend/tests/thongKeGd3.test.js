@@ -78,7 +78,8 @@ describe('Trang thống kê: phần giai đoạn 3', () => {
   it('gọi /thong-ke theo khoảng 30 ngày và hiện đủ các mục', async () => {
     const w = moTrang()
     await flushPromises()
-    expect(api.get).toHaveBeenCalledWith('/thong-ke', { params: { tuNgay: `${todayIso().slice(0, 7)}-01`, denNgay: todayIso() } })
+    // Mở trang mặc định "Hôm nay" (góp ý 16/11 [13:34])
+    expect(api.get).toHaveBeenCalledWith('/thong-ke', { params: { tuNgay: todayIso(), denNgay: todayIso() } })
     const banChay = w.find('[data-test="tk-ban-chay"]').text()
     expect(banChay).toContain('Yonex Astrox 99 Pro')
     expect(banChay).toContain('Đen · 4U · G5')

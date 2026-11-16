@@ -1,5 +1,6 @@
 <script setup>
-// Ô soạn tin: Enter để gửi, Shift + Enter xuống dòng, tự cao lên theo nội dung, đếm ký tự khi gần giới hạn.
+// Ô soạn tin: Enter để gửi, Shift + Enter xuống dòng (không ghi chữ hướng dẫn, góp ý 16/11), tự cao lên theo nội dung,
+// đếm ký tự khi gần giới hạn.
 import { computed, nextTick, ref, watch } from 'vue'
 import { DO_DAI_TOI_DA } from '../../utils/chat'
 
@@ -64,10 +65,9 @@ defineExpose({ focus })
         <i v-else class="bi bi-send-fill" aria-hidden="true"></i>
       </button>
     </div>
-    <div v-if="!lyDoKhoa" class="ost-duoi">
+    <div v-if="!lyDoKhoa && (loi || dai > DO_DAI_TOI_DA - 200)" class="ost-duoi">
       <span v-if="loi" class="ad-error">{{ loi }}</span>
       <span v-else-if="quaDai" class="ad-error">Tin nhắn tối đa {{ DO_DAI_TOI_DA }} ký tự (đang có {{ dai }}).</span>
-      <span v-else class="ost-goi-y">Enter để gửi · Shift + Enter xuống dòng</span>
       <span v-if="dai > DO_DAI_TOI_DA - 200" class="ost-dem" :class="{ 'is-qua': quaDai }">{{ dai }}/{{ DO_DAI_TOI_DA }}</span>
     </div>
   </div>
@@ -77,7 +77,7 @@ defineExpose({ focus })
 .ost {
   border-top: 1px solid var(--fs-line);
   background: #fff;
-  padding: 10px 12px 6px;
+  padding: 10px 12px;
 }
 .ost-hang {
   display: flex;
@@ -107,9 +107,6 @@ textarea.ost-o {
   min-height: 18px;
   margin-top: 4px;
   font-size: 0.75rem;
-}
-.ost-goi-y {
-  color: var(--fs-muted);
 }
 .ost-dem {
   color: var(--fs-muted);

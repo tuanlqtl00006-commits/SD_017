@@ -335,25 +335,38 @@ class HoaDonChoServiceTest {
         assertTrue(chiTiets.isEmpty());
     }
 
+    /** Góp ý 16/11 [00:00–00:44]: dòng cũ giữ giá cũ; thêm lại khi giá đổi thì hỏi (GIA_THAY_DOI), OK mới tách dòng giá mới. */
     @Test
-    void doiGiaRoiThemCungSanPham_tachThanhHaiDong_capNhatGiaThiGopLai() {
+    void doiGiaRoiThemCungSanPham_hoiTruoc_okThiTachDong_dongCuGiuGiaCu_thanhToanTheoGiaTungDong() {
         Integer id = taoHoaDon();
-        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1));
-        phanTramDot.put(1L, 10.0); // đợt giảm giá 10% vừa bắt đầu
         Map<String, Object> hd = service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1));
-        assertEquals(2, items(hd).size(), "giá khác thì 2 bản ghi hóa đơn chi tiết");
-        assertEquals(4_290_000L, items(hd).get(0).get("donGia"));
+        Integer idDongCu = (Integer) items(hd).get(0).get("id");
+        phanTramDot.put(1L, 10.0); // đợt giảm giá 10% vừa bắt đầu
+
+        ApiException hoi = loi(() -> service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1)));
+        assertEquals("GIA_THAY_DOI", hoi.getCode(), "chưa bấm OK thì chưa thêm");
+        assertEquals(4_290_000L, hoi.getChiTiet().get("donGiaCu"));
+        assertEquals(3_861_000L, hoi.getChiTiet().get("donGiaMoi"));
+        assertEquals(1, hoi.getChiTiet().get("soLuong"));
+        assertEquals(1, items(service.danhSach().get(0)).size(), "bị hỏi thì hóa đơn chưa đổi");
+        assertEquals(4, vot.getSoLuongTon(), "bị hỏi thì chưa trừ kho");
+
+        hd = service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1, true));
+        assertEquals(2, items(hd).size(), "OK thì thêm dòng mới theo giá mới");
+        assertEquals(4_290_000L, items(hd).get(0).get("donGia"), "dòng cũ giữ giá cũ");
         assertEquals(true, items(hd).get(0).get("giaDoi"));
         assertEquals(3_861_000L, items(hd).get(1).get("donGia"));
-        assertTrue(String.valueOf(hd.get("thongBao")).contains("dòng mới"));
 
-        ApiException e = loi(() -> banHang.thanhToanHoaDonCho(id, tra(10_000_000L, null, null)));
-        assertEquals("GIA_THAY_DOI", e.getCode(), "chưa xác nhận giá mới thì chưa cho thanh toán");
+        hd = service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1));
+        assertEquals(2, items(hd).size(), "đã có dòng giá mới thì gộp vào, không hỏi lại");
+        assertEquals(2, items(hd).get(1).get("soLuong"));
 
-        hd = service.capNhatGia(id);
-        assertEquals(1, items(hd).size(), "cùng biến thể cùng giá thì gộp lại");
-        assertEquals(2, items(hd).get(0).get("soLuong"));
-        assertEquals(7_722_000L, hd.get("tongTienHang"));
+        ApiException tang = loi(() -> service.doiSoLuong(id, idDongCu, new HoaDonChoService.SoLuongRequest(2)));
+        assertEquals("GIA_THAY_DOI", tang.getCode(), "tăng số lượng ở dòng giá cũ cũng phải hỏi");
+        assertEquals(1, tang.getChiTiet().get("soLuong"));
+
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(20_000_000L, null, null));
+        assertEquals(4_290_000L + 3_861_000L * 2, ((Number) kq.get("thanhTien")).longValue(), "thanh toán theo giá từng dòng, không cần cập nhật giá");
     }
 
     @Test

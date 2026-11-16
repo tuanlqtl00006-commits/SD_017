@@ -49,6 +49,16 @@ const sanPhamThang10 = [
 ]
 
 describe('Thống kê so sánh', () => {
+  it('góp ý 16/11 [15:05–19:09]: so 2 tháng thì kỳ đầu có điểm "Kỳ gốc" ở mốc 0%, đường % nối từ kỳ đầu sang kỳ sau', async () => {
+    const w = mount(ThongKeSoSanh, { attachTo: document.body })
+    await flushPromises()
+    expect(w.find('[data-test="ss-ky-goc"]').text()).toBe('Kỳ gốc')
+    const duong = w.find('[data-test="ss-xu-huong"] polyline')
+    expect(duong.exists()).toBe(true)
+    expect(duong.attributes('points').trim().split(' ')).toHaveLength(2)
+    w.unmount()
+  })
+
   it('góp ý 14/11: 3 bảng (chỉ số, thương hiệu, sản phẩm) gập sẵn, bấm tiêu đề mới mở, bấm lại thì gập', async () => {
     const w = mount(ThongKeSoSanh, { attachTo: document.body })
     await flushPromises()

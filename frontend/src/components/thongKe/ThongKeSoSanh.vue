@@ -820,14 +820,16 @@ const bieuDoQuaCacKy = computed(() => {
     const yThucTe = yZeroBar - hThucTe
     const yTong = yZeroBar - (hThucTe + hChoThu)
 
-    // Kỳ đầu tiên không có kỳ trước để so; kỳ trước bằng 0 mà kỳ này có doanh thu thì ghi "Mới"
-    const coDiem = !k.laKyDau
-    const laMoi = coDiem && (k.pctDoanhThu === null || k.pctDoanhThu === undefined)
-    const rawPct = laMoi ? maxPctScale : Number(k.pctDoanhThu) || 0
+    // Kỳ đầu tiên không có kỳ trước để so: đặt điểm ở mốc 0% ("Kỳ gốc") để đường nối từ kỳ đầu sang các kỳ sau
+    // (góp ý 16/11 [15:05–19:09]); kỳ trước bằng 0 mà kỳ này có doanh thu thì ghi "Mới"
+    const laGoc = !!k.laKyDau
+    const coDiem = true
+    const laMoi = !laGoc && (k.pctDoanhThu === null || k.pctDoanhThu === undefined)
+    const rawPct = laGoc ? 0 : laMoi ? maxPctScale : Number(k.pctDoanhThu) || 0
     const pctClamped = Math.max(-maxPctScale, Math.min(maxPctScale, rawPct))
     const yLine = yMidLine - (pctClamped / maxPctScale) * ((yBotLine - yTopLine) / 2)
     const strPct = soThapPhan(Math.abs(rawPct))
-    const nhanPct = laMoi ? 'Mới' : rawPct > 0 ? `↑ +${strPct}%` : rawPct < 0 ? `↓ -${strPct}%` : '0%'
+    const nhanPct = laGoc ? 'Kỳ gốc' : laMoi ? 'Mới' : rawPct > 0 ? `↑ +${strPct}%` : rawPct < 0 ? `↓ -${strPct}%` : '0%'
     const rongBadge = Math.max(46, nhanPct.length * 6.5 + 16)
 
     return {
@@ -849,6 +851,7 @@ const bieuDoQuaCacKy = computed(() => {
       yZeroBar,
       caoBarMax,
       coDiem,
+      laGoc,
       yLine,
       rongBadge,
       nhanCot: dk > 0 ? nhanTienGon(dt > 0 ? dt : dk) : '0 đ',
@@ -1265,9 +1268,24 @@ async function guiEmail() {
             <i class="bi bi-arrow-left" aria-hidden="true"></i>
           </RouterLink>
           <div>
-            <h2 class="ss-main-title m-0">So sánh &amp; Tăng trưởng doanh thu</h2>
-            <p class="ss-main-sub m-0">
-              Đối chiếu doanh thu, đo lường tốc độ tăng trưởng và theo dõi biến động sức mua sản phẩm
+            <h2 class="ad-card-title m-0">So sánh &amp; Tăng trưởng doanh thu</h2>
+            <!-- Giống dòng "Khoảng thời gian" của trang Thống kê: ghi luôn đang so sánh kỳ nào -->
+            <p class="ss-status-line mb-0 mt-1">
+              <template v-if="d && kyChinh">
+                <span data-test="ss-dang-so-sanh">
+                  <template v-if="kySoSanh">
+                    Đang so sánh <strong>{{ kyChinh.nhan }}</strong> với <strong>{{ kySoSanh.nhan }}</strong>
+                  </template>
+                  <template v-else>
+                    Đang xem <strong>{{ kyChinh.nhan }}</strong>. Thêm một kỳ nữa để so sánh.
+                  </template>
+                </span>
+                <span v-if="coLocSanPham"> · Thương hiệu: <strong>{{ thuongHieuLoc.trim() }}</strong></span>
+              </template>
+              <template v-else>Đối chiếu doanh thu và tốc độ tăng trưởng giữa các kỳ</template>
+            </p>
+            <p v-if="d && kyChinh && luuYKy" class="ss-status-warn mb-0" data-test="ss-luu-y-ky">
+              <i class="bi bi-info-circle" aria-hidden="true"></i> {{ luuYKy }}
             </p>
           </div>
         </div>
@@ -1337,6 +1355,7 @@ async function guiEmail() {
       </form>
 
       <div class="ss-mode-row">
+        <span class="ss-pill-label">So sánh theo</span>
         <div class="ss-mode-pills" role="group" aria-label="Chọn kiểu kỳ">
           <button
             v-for="o in KIEU"
@@ -1358,22 +1377,20 @@ async function guiEmail() {
           <option value="">Tất cả thương hiệu</option>
           <option v-for="th in dsThuongHieu" :key="th" :value="th">{{ th }}</option>
         </select>
+
+        <span class="ss-count-badge ms-auto">{{ dsKyChon.length }} kỳ so sánh</span>
+        <button
+          type="button"
+          class="ss-add-period-btn"
+          :disabled="dsKyChon.length >= 6"
+          @click="themKy"
+        >
+          + Thêm kỳ so sánh
+        </button>
       </div>
 
-      <!-- Khung chọn các kỳ so sánh -->
+      <!-- Các kỳ so sánh -->
       <div class="ss-period-box">
-        <div class="ss-period-box-head">
-          <span class="ss-count-badge">{{ dsKyChon.length }} kỳ so sánh</span>
-          <button
-            type="button"
-            class="ss-add-period-btn"
-            :disabled="dsKyChon.length >= 6"
-            @click="themKy"
-          >
-            + Thêm kỳ so sánh
-          </button>
-        </div>
-
         <div class="ss-period-grid">
           <div v-for="(item, idx) in dsKyChon" :key="idx" class="ss-period-card">
             <span class="ss-ky-tag">Kỳ {{ idx + 1 }}</span>
@@ -1482,22 +1499,6 @@ async function guiEmail() {
     <div v-if="dangTai && !d" class="ad-empty">Đang tải số liệu so sánh…</div>
 
     <template v-if="d && kyChinh">
-      <!-- 2. Đang so sánh kỳ nào với kỳ nào -->
-      <div class="ss-context" data-test="ss-dang-so-sanh">
-        <div class="ss-context-main">
-          <template v-if="kySoSanh">
-            Đang so sánh <strong>{{ kyChinh.nhan }}</strong> với <strong>{{ kySoSanh.nhan }}</strong>
-          </template>
-          <template v-else>
-            Đang xem <strong>{{ kyChinh.nhan }}</strong>. Thêm một kỳ nữa để so sánh.
-          </template>
-          <span v-if="coLocSanPham" class="ss-context-loc">Thương hiệu: {{ thuongHieuLoc.trim() }}</span>
-        </div>
-        <div v-if="luuYKy" class="ss-context-warn" data-test="ss-luu-y-ky">
-          <i class="bi bi-info-circle" aria-hidden="true"></i> {{ luuYKy }}
-        </div>
-      </div>
-
       <!-- 3. Thẻ tóm tắt: kỳ đang xét so với kỳ liền trước -->
       <div class="ss-kpi-strip">
         <div
@@ -1516,6 +1517,7 @@ async function guiEmail() {
           <div class="ss-kpi-val">{{ t.giaTriText }}</div>
           <div v-if="t.ss" class="ss-kpi-cmp">
             <span class="ss-trend-pill" :class="t.ss.lop">{{ t.ss.bienDong }}</span>
+            <span class="ss-kpi-cmp-lbl">so với kỳ trước</span>
           </div>
         </div>
       </div>
@@ -1696,8 +1698,8 @@ async function guiEmail() {
                 :width="c.rongBadge"
                 height="19"
                 rx="9.5"
-                :fill="c.laTang ? '#ecfdf5' : '#fff1f2'"
-                :stroke="c.laTang ? '#86efac' : '#fda4af'"
+                :fill="c.laGoc ? '#f1f5f9' : c.laTang ? '#ecfdf5' : '#fff1f2'"
+                :stroke="c.laGoc ? '#cbd5e1' : c.laTang ? '#86efac' : '#fda4af'"
                 stroke-width="1"
               />
               <text
@@ -1706,7 +1708,8 @@ async function guiEmail() {
                 text-anchor="middle"
                 font-size="10"
                 font-weight="700"
-                :fill="c.laTang ? '#15803d' : '#be123c'"
+                :fill="c.laGoc ? '#475569' : c.laTang ? '#15803d' : '#be123c'"
+                :data-test="c.laGoc ? 'ss-ky-goc' : null"
               >
                 {{ c.nhanPct }}
               </text>
@@ -1745,7 +1748,11 @@ async function guiEmail() {
               <span>Đơn đang xử lý:</span>
               <strong class="text-info">{{ formatMoney(kyDangHover.choThu) }}</strong>
             </div>
-            <div v-if="!kyDangHover.laKyDau" class="ss-tt-row">
+            <div v-if="kyDangHover.laKyDau" class="ss-tt-row">
+              <span>Tăng / giảm:</span>
+              <strong class="text-muted">Kỳ gốc (mốc 0% để so các kỳ sau)</strong>
+            </div>
+            <div v-else class="ss-tt-row">
               <span>So với {{ kyDangHover.soVoiNhan }}:</span>
               <strong :class="kyDangHover.laTang ? 'text-success' : 'text-danger'">
                 {{ dinhDangPhanTram(kyDangHover.pctDoanhThu) }}
@@ -1951,9 +1958,13 @@ async function guiEmail() {
   align-items: center;
   justify-content: space-between;
   gap: 0.85rem;
-  padding-bottom: 0.9rem;
-  margin-bottom: 0.9rem;
+  padding-bottom: 0.85rem;
   border-bottom: 1px solid #edf2f7;
+}
+
+.ss-topbar + .ss-email {
+  margin-top: 0.85rem;
+  margin-bottom: 0;
 }
 
 .ss-back-circle {
@@ -1979,16 +1990,22 @@ async function guiEmail() {
   color: #075fc0;
 }
 
-.ss-main-title {
-  font-size: 1.08rem;
-  font-weight: 700;
-  color: var(--fs-text, #18242f);
-}
-
-.ss-main-sub {
+/* Dòng mô tả dưới tiêu đề: cùng cỡ chữ / màu với .tk-status-line của trang Thống kê */
+.ss-status-line {
   font-size: 0.81rem;
   color: #64748b;
-  margin-top: 2px;
+  line-height: 1.35;
+}
+
+.ss-status-line strong {
+  color: var(--fs-text, #18242f);
+  font-weight: 600;
+}
+
+.ss-status-warn {
+  font-size: 0.78rem;
+  color: #b45309;
+  margin-top: 0.15rem;
 }
 
 .ss-action-btn {
@@ -2107,11 +2124,15 @@ async function guiEmail() {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding-bottom: 0.9rem;
-  margin-bottom: 0.9rem;
-  border-bottom: 1px solid #edf2f7;
+  gap: 0.65rem;
+  padding-top: 0.85rem;
+}
+
+.ss-pill-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
 }
 
 .ss-mode-pills {
@@ -2164,23 +2185,7 @@ async function guiEmail() {
 
 /* ----- Khung chọn các kỳ ----- */
 .ss-period-box {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  width: 100%;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 0.9rem 1.05rem;
-}
-
-.ss-period-box-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  width: 100%;
+  padding-top: 0.75rem;
 }
 
 .ss-count-badge {
@@ -2205,7 +2210,6 @@ async function guiEmail() {
   color: #0977ec;
   font-size: 0.8rem;
   font-weight: 600;
-  margin-left: auto;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -2222,8 +2226,8 @@ async function guiEmail() {
 
 .ss-period-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(500px, 100%), 1fr));
+  gap: 0.6rem;
   width: 100%;
 }
 
@@ -2231,12 +2235,11 @@ async function guiEmail() {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.55rem;
-  background: #ffffff;
+  gap: 0.5rem;
+  background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 11px;
-  padding: 0.6rem 0.85rem;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  border-radius: 10px;
+  padding: 0.45rem 0.65rem;
 }
 
 .ss-ky-tag {
@@ -2307,41 +2310,6 @@ async function guiEmail() {
   cursor: not-allowed;
 }
 
-/* ----- 2. Dòng "Đang so sánh ..." ----- */
-.ss-context {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.72rem 1.1rem;
-  border-radius: 12px;
-  background: #f0f7ff;
-  border: 1px solid #c9def9;
-  color: var(--fs-text, #18242f);
-}
-
-.ss-context-main {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.65rem;
-  font-size: 0.9rem;
-}
-
-.ss-context-loc {
-  padding: 0.14rem 0.6rem;
-  border-radius: 999px;
-  background: #ffffff;
-  border: 1px solid #bfdbfe;
-  color: #075fc0;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.ss-context-warn {
-  font-size: 0.81rem;
-  color: #b45309;
-}
-
 /* ----- 3. Thẻ tóm tắt (2 hàng x 3 thẻ cân đối) ----- */
 .ss-kpi-strip {
   display: grid;
@@ -2350,13 +2318,14 @@ async function guiEmail() {
 }
 
 .ss-kpi-box {
-  padding: 0.95rem 1.15rem;
+  padding: 1rem 1.15rem;
   border-radius: 16px;
   border: 1px solid #e6eaf0;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 0.42rem;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .ss-kpi-box.is-blue { border-top: 3px solid #0977ec; }
@@ -2370,7 +2339,7 @@ async function guiEmail() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.65rem;
 }
 
 .ss-kpi-lbl {
@@ -2380,12 +2349,12 @@ async function guiEmail() {
 }
 
 .ss-kpi-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   display: inline-grid;
   place-items: center;
-  font-size: 0.95rem;
+  font-size: 1rem;
   flex: none;
 }
 
@@ -2397,7 +2366,7 @@ async function guiEmail() {
 .ss-kpi-icon.is-rose { background: #ffe4e6; color: #e11d48; }
 
 .ss-kpi-val {
-  font-size: 1.38rem;
+  font-size: 1.42rem;
   font-weight: 700;
   color: var(--fs-text, #18242f);
   line-height: 1.2;
@@ -2409,8 +2378,18 @@ async function guiEmail() {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.5rem;
-  margin-top: 0.1rem;
+  gap: 0.2rem 0.4rem;
+  margin-top: -0.25rem;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+/* % tăng giảm trong thẻ: chữ nhỏ có màu, không đóng khung (giống trang Thống kê) */
+.ss-kpi-box .ss-kpi-cmp .ss-trend-pill {
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: 0.78rem;
 }
 
 /* ----- 4. Section Cards & Chart ----- */

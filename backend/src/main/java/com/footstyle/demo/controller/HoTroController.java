@@ -24,6 +24,16 @@ public class HoTroController {
         return service.danhSach(loc);
     }
 
+    /** Tổng hợp đánh giá của khách sau chat (Tốt / Bình thường / Chưa tốt), lọc theo ngày, mức độ, nhân viên. */
+    @GetMapping("/danh-gia")
+    public Map<String, Object> tongHopDanhGia(
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate tuNgay,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate denNgay,
+            @RequestParam(required = false) String mucDo,
+            @RequestParam(required = false) Integer idNhanVien) {
+        return service.tongHopDanhGia(tuNgay, denNgay, mucDo, idNhanVien);
+    }
+
     @GetMapping("/{id:\\d+}")
     public Map<String, Object> xem(@PathVariable Integer id, @RequestParam(required = false) Integer sauId) {
         return service.xem(id, sauId);

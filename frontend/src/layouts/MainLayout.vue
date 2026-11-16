@@ -53,6 +53,7 @@ const menuAll = [
   { key: 'nhan-vien', label: 'Quản lý nhân viên', icon: 'bi-person', to: '/nhan-vien', roles: QL },
   // badge: khóa trong useChatChuaDoc().dem (hoTro = cuộc chat khách cần xử lý)
   { key: 'ho-tro', label: 'Hỗ trợ trực tuyến', icon: 'bi-chat-dots', to: '/ho-tro-truc-tuyen', roles: NV, badge: 'hoTro' },
+  { key: 'danh-gia-ho-tro', label: 'Đánh giá hỗ trợ', icon: 'bi-star-half', to: '/danh-gia-ho-tro', roles: QL },
   {
     // Nhận ca / giao ca bấm nút "Ca làm việc" trên header; ở đây là lịch và lịch sử
     key: 'lich-lam', label: 'Quản lý lịch làm', icon: 'bi-calendar-week', roles: NV,

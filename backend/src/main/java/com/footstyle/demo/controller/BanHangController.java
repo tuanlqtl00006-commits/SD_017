@@ -38,11 +38,6 @@ public class BanHangController {
         return service.locSanPham(loc);
     }
 
-    /** Số lượng từng biến thể đang nằm trong đơn online "Chờ xác nhận" (ids=1,2,3). */
-    @GetMapping("/san-pham/dang-cho-online")
-    public Map<Integer, Long> dangChoOnline(@RequestParam(required = false) List<Integer> ids) {
-        return service.dangChoOnline(ids);
-    }
 
     /** Quét mã QR / mã vạch của biến thể. */
     @GetMapping("/san-pham/ma/{ma}")
@@ -104,10 +99,6 @@ public class BanHangController {
         return hoaDonCho.xoaDong(id, idChiTiet);
     }
 
-    @PostMapping("/hoa-don-cho/{id}/cap-nhat-gia")
-    public Map<String, Object> capNhatGia(@PathVariable Integer id) {
-        return hoaDonCho.capNhatGia(id);
-    }
 
     @PostMapping("/hoa-don-cho/{id}/thanh-toan")
     public Map<String, Object> thanhToanHoaDonCho(@PathVariable Integer id, @RequestBody(required = false) BanHangService.ThanhToanChoRequest req) {

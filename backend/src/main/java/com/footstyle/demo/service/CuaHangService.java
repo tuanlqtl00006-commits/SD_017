@@ -1049,6 +1049,7 @@ public class CuaHangService {
         res.put("hoaDon", info);
         res.remove("duocXacNhanThanhToan");
         res.remove("duocBaoHetHang");
+        res.remove("dsThieuHang");
 
         List<Map<String, Object>> lichSu = new ArrayList<>();
         for (Map<String, Object> ls : (List<Map<String, Object>>) chiTiet.getOrDefault("lichSu", List.of())) {

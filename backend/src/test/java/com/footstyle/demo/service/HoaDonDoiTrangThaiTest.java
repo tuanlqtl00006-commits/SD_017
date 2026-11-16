@@ -159,8 +159,10 @@ class HoaDonDoiTrangThaiTest {
         int soLichSu = lichSu.size();
         ApiException e = loi(() -> service.doiTrangThai(1, sang(HoaDon.DA_XAC_NHAN, null)));
         assertTrue(e.getMessage().startsWith("Không đủ hàng để xác nhận đơn"), e.getMessage());
-        assertTrue(e.getMessage().contains("SP01-DEN-10 (còn 4, đơn cần 5)"), e.getMessage());
-        assertTrue(e.getMessage().contains("SP01-DEN-11 (còn 0, đơn cần 1)"), e.getMessage());
+        assertEquals("THIEU_HANG", e.getCode(), "màn chi tiết bắt mã này để mở popup hết hàng");
+        assertTrue(e.getMessage().contains("SP01-DEN-10, kho còn 4, đơn cần 5"), e.getMessage());
+        assertTrue(e.getMessage().contains("SP01-DEN-11, kho còn 0, đơn cần 1"), e.getMessage());
+        assertEquals(2, ((java.util.List<?>) e.getChiTiet().get("thieu")).size());
         assertTrue(e.getMessage().contains("Đơn vẫn ở Chờ xác nhận"), e.getMessage());
         assertEquals(HoaDon.CHO_XAC_NHAN, hd.getTrangThai(), "đơn không bị tự hủy");
         assertEquals(soLichSu, lichSu.size(), "không ghi lịch sử hủy");

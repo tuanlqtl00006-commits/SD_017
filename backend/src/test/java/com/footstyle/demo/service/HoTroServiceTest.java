@@ -376,4 +376,63 @@ class HoTroServiceTest {
         // sai mã truy cập thì không đánh giá hộ người khác được
         assertThrows(ApiException.class, () -> service.danhGia(id, new HoTroService.DanhGiaRequest("sai", "TOT", true, null)));
     }
+
+    /** Một cuộc chat khách có nhân viên `nv` hỗ trợ, đã kết thúc và được khách đánh giá. */
+    private Integer chatDaDanhGia(String ten, String sdt, com.footstyle.demo.entity.NhanVien nv, String muc, boolean daGiaiQuyet, String gopY) {
+        Map<String, Object> kq = batDau(ten, sdt);
+        Integer id = (Integer) kq.get("id");
+        String ma = (String) kq.get("ma");
+        service.gapNhanVien(id, new HoTroService.MaRequest(ma));
+        ChatMau.dangNhap(nv);
+        service.gui(id, new HoTroService.NoiDungRequest("Em chào anh/chị"));
+        service.dong(id);
+        XacThuc.xoa();
+        service.danhGia(id, new HoTroService.DanhGiaRequest(ma, muc, daGiaiQuyet, gopY));
+        return id;
+    }
+
+    /** Góp ý 16/11 [12:30–12:59]: trang tổng hợp đánh giá tốt / xấu sau chat, đọc lại từ tin "Khách đánh giá: ...". */
+    @Test
+    void tongHopDanhGia_demTheoMuc_theoNhanVien_locMucVaNhanVien() {
+        Integer id1 = chatDaDanhGia("Trần An", "0901000011", c.m.bao, "TOT", true, "Nhiệt tình · nhanh");
+        chatDaDanhGia("Lê Bình", "0901000012", c.m.bao, "CHUA_TOT", false, null);
+        chatDaDanhGia("Phạm Chi", "0901000013", c.m.anh, "BINH_THUONG", true, null);
+        assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(ApiException.class, () -> service.tongHopDanhGia(null, null, null, null)).getStatus(),
+                "khách / chưa đăng nhập không xem được");
+
+        ChatMau.dangNhap(c.m.bao);
+        Map<String, Object> kq = service.tongHopDanhGia(null, null, null, null);
+        assertEquals(3, kq.get("tong"));
+        assertEquals(Map.of("TOT", 1, "BINH_THUONG", 1, "CHUA_TOT", 1), kq.get("dem"));
+        assertEquals(2, kq.get("daGiaiQuyet"));
+        assertEquals(1, kq.get("chuaGiaiQuyet"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> ds = (List<Map<String, Object>>) kq.get("danhGia");
+        Map<String, Object> tot = ds.stream().filter(d -> id1.equals(d.get("idHoiThoai"))).findFirst().orElseThrow();
+        assertEquals("Tốt", tot.get("nhanMucDo"));
+        assertEquals("Nhiệt tình · nhanh", tot.get("gopY"), "góp ý có dấu · vẫn đọc đủ");
+        assertEquals(c.m.bao.getHoTen(), tot.get("tenNhanVien"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> theoNv = (List<Map<String, Object>>) kq.get("theoNhanVien");
+        Map<String, Object> bao = theoNv.stream().filter(n -> c.m.bao.getId().equals(n.get("idNhanVien"))).findFirst().orElseThrow();
+        assertEquals(2, bao.get("tong"));
+        assertEquals(1, bao.get("CHUA_TOT"));
+
+        assertEquals(1, service.tongHopDanhGia(null, null, "chua_tot", null).get("tong"));
+        Map<String, Object> cuaAnh = service.tongHopDanhGia(null, null, null, c.m.anh.getId());
+        assertEquals(1, cuaAnh.get("tong"));
+        assertEquals(2, ((List<?>) cuaAnh.get("nhanVien")).size(), "ô lọc nhân viên vẫn đủ người dù đang lọc");
+        assertEquals(0, service.tongHopDanhGia(CaLamMau.HOM_NAY.plusDays(1), null, null, null).get("tong"), "lọc theo ngày đánh giá");
+        assertEquals(3, service.tongHopDanhGia(CaLamMau.HOM_NAY, CaLamMau.HOM_NAY, null, null).get("tong"));
+        assertThrows(ApiException.class, () -> service.tongHopDanhGia(null, null, "SAI", null));
+        assertThrows(ApiException.class, () -> service.tongHopDanhGia(CaLamMau.HOM_NAY, CaLamMau.HOM_NAY.minusDays(1), null, null));
+    }
+
+    @Test
+    void docDanhGia_saiDangThiBoQua() {
+        assertEquals(new HoTroService.DanhGiaDoc("CHUA_TOT", false, null),
+                HoTroService.docDanhGia("Khách đánh giá: Chưa tốt · Chưa giải quyết yêu cầu"));
+        assertNull(HoTroService.docDanhGia("Khách đánh giá: Tuyệt vời · Đã giải quyết yêu cầu"));
+        assertNull(HoTroService.docDanhGia("Nhân viên đã kết thúc"));
+    }
 }

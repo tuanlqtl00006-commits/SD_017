@@ -393,7 +393,6 @@ function quickAddToCart(item, event) {
         <div class="hm-cam-ket">
           <div class="hm-cam-ket-o"><i class="bi bi-patch-check"></i><div><strong>Chính hãng 100%</strong><span>Vợt từ {{ thuongHieu.length }} thương hiệu</span></div></div>
           <div class="hm-cam-ket-o"><i class="bi bi-truck"></i><div><strong>Giao Hàng Nhanh</strong><span>Toàn quốc, kiểm tra hàng khi nhận</span></div></div>
-          <div class="hm-cam-ket-o"><i class="bi bi-arrow-repeat"></i><div><strong>Đổi trả 7 ngày</strong><span>Lỗi do nhà sản xuất</span></div></div>
           <div class="hm-cam-ket-o"><i class="bi bi-shield-lock"></i><div><strong>Thanh toán an toàn</strong><span>COD hoặc chuyển khoản VietQR</span></div></div>
         </div>
       </div>
@@ -740,7 +739,7 @@ function quickAddToCart(item, event) {
 /* Cam kết */
 .hm-cam-ket {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 16px;
 }
@@ -1056,9 +1055,6 @@ function quickAddToCart(item, event) {
 @media (max-width: 1199px) {
   .hm-luoi-4 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .hm-cam-ket {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 991px) {

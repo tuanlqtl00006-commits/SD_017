@@ -75,7 +75,8 @@ const trangThai = computed(() => {
     case CHE_DO.DA_DONG:
       return { icon: 'bi-check2-circle', nhan: 'Đã kết thúc', phu: 'Cảm ơn bạn đã liên hệ' }
     default:
-      return { icon: 'bi-robot', nhan: `Trợ lý ảo ${props.tenCuaHang}`, phu: 'Trả lời tự động từ dữ liệu cửa hàng' }
+      // Góp ý 16/11 [10:36]: phần đầu khung trợ lý chỉ để tên trợ lý + nút Gặp nhân viên, không dòng phụ
+      return { icon: 'bi-robot', nhan: `Trợ lý ảo ${props.tenCuaHang}`, phu: '' }
   }
 })
 const dangGo = computed(() => (dangGui.value && cheDo.value === CHE_DO.TRO_LY_AO ? 'Trợ lý đang trả lời…' : ''))
@@ -303,7 +304,7 @@ const laCuaToi = (t) => t.loaiNguoiGui === NGUOI_GUI.KHACH
       <span class="kck-bieu-tuong" :class="{ 'is-bot': cheDo === CHE_DO.TRO_LY_AO }" aria-hidden="true"><i class="bi" :class="phien ? trangThai.icon : 'bi-chat-heart'"></i></span>
       <div class="kck-tieu-de">
         <strong>{{ phien ? trangThai.nhan : `Hỗ trợ ${tenCuaHang}` }}</strong>
-        <small>{{ phien ? trangThai.phu : 'Trợ lý ảo trả lời ngay, nhân viên hỗ trợ khi bạn cần' }}</small>
+        <small v-if="!phien || trangThai.phu">{{ phien ? trangThai.phu : 'Trợ lý ảo trả lời ngay, nhân viên hỗ trợ khi bạn cần' }}</small>
       </div>
       <div v-if="phien && !daDong" class="kck-nut">
         <button type="button" class="ad-icon-btn" title="Tư vấn về đơn hàng đã đặt" aria-label="Tư vấn về đơn hàng đã đặt" data-testid="kck-nut-don" @click="moHopDon">

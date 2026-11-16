@@ -3,7 +3,7 @@ import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 
 const { khach, hoTro, noiBo, api } = vi.hoisted(() => ({
   khach: { batDau: vi.fn(), xem: vi.fn(), gui: vi.fn(), gapNhanVien: vi.fn(), ketThuc: vi.fn() },
-  hoTro: { danhSach: vi.fn(), xem: vi.fn(), nhan: vi.fn(), gui: vi.fn(), dong: vi.fn() },
+  hoTro: { danhSach: vi.fn(), xem: vi.fn(), nhan: vi.fn(), gui: vi.fn(), dong: vi.fn(), danhGia: vi.fn() },
   noiBo: { danhSach: vi.fn(), nhanVien: vi.fn(), moRieng: vi.fn(), taoNhom: vi.fn(), xem: vi.fn(), gui: vi.fn() },
   api: { get: vi.fn(), post: vi.fn() },
 }))
@@ -145,6 +145,14 @@ describe('OSoanTin', () => {
     expect(w.find('button').attributes('disabled')).toBeUndefined()
   })
 
+  it('góp ý 16/11 [10:36]: không ghi chữ "Enter để gửi"; gần giới hạn vẫn đếm ký tự', async () => {
+    const w = ganVao(OSoanTin, { modelValue: 'chào' })
+    expect(w.text()).not.toContain('Enter để gửi')
+    expect(w.find('.ost-duoi').exists()).toBe(false)
+    await w.setProps({ modelValue: 'a'.repeat(850) })
+    expect(w.find('.ost-dem').text()).toBe('850/1000')
+  })
+
   it('bị khóa thì hiện lý do thay cho ô nhập', () => {
     const w = ganVao(OSoanTin, { lyDoKhoa: 'Cuộc trò chuyện đã kết thúc.' })
     expect(w.find('textarea').exists()).toBe(false)
@@ -180,6 +188,10 @@ describe('KhungChatKhach', () => {
     expect(khach.batDau).toHaveBeenCalledWith('nguyễn lan', '0901000001')
     expect(docPhienKhach()).toEqual({ id: 7, ma: 'MA-BI-MAT', hoTen: 'nguyễn lan', sdt: '0901000001' })
     expect(w.text()).toContain('Xin chào Lan!')
+    // Góp ý 16/11 [10:36]: phần đầu khung trợ lý chỉ còn tên trợ lý, không dòng "Trả lời tự động từ dữ liệu cửa hàng"
+    expect(w.find('.kck-tieu-de strong').text()).toContain('Trợ lý ảo')
+    expect(w.find('.kck-tieu-de small').exists()).toBe(false)
+    expect(w.text()).not.toContain('Trả lời tự động')
     expect(w.findAll('.kck-chip').map((b) => b.text())).toEqual(GOI_Y)
 
     khach.gui.mockResolvedValue({ id: 7, cheDo: 1, tinNhan: [tn(2, 1, 'vợt yonex', { tenNguoiGui: 'Lan' }), tn(3, 3, 'Sản phẩm còn hàng…')], goiY: ['Gặp nhân viên'] })
@@ -328,6 +340,41 @@ describe('HoTroTrucTuyenPage', () => {
     await flushPromises()
     expect(hoTro.nhan).toHaveBeenCalledWith(1)
     expect(w.find('textarea').exists()).toBe(true)
+  })
+
+  // Góp ý 16/11 [12:30–12:59]: tổng hợp đánh giá tốt / xấu của khách sau chat
+  it('tab "Đánh giá của khách": đếm theo mức, lọc mức, bấm "Xem chat" mở đúng cuộc trò chuyện', async () => {
+    dangNhap()
+    hoTro.danhSach.mockResolvedValue({ hoiThoai: [], dem: {} })
+    hoTro.danhGia.mockResolvedValue({
+      tong: 2, dem: { TOT: 1, BINH_THUONG: 0, CHUA_TOT: 1 }, daGiaiQuyet: 1, chuaGiaiQuyet: 1,
+      theoNhanVien: [{ idNhanVien: 3, tenNhanVien: 'Lê Quốc Bảo', tong: 2, TOT: 1, BINH_THUONG: 0, CHUA_TOT: 1 }],
+      nhanVien: [{ id: 3, hoTen: 'Lê Quốc Bảo' }],
+      danhGia: [
+        { idTinNhan: 9, idHoiThoai: 5, thoiGian: '2026-11-16T09:00:00', tenKhach: 'Trần An', sdtKhach: '0901000011', idNhanVien: 3, tenNhanVien: 'Lê Quốc Bảo', mucDo: 'CHUA_TOT', nhanMucDo: 'Chưa tốt', daGiaiQuyet: false, gopY: 'Trả lời chậm' },
+        { idTinNhan: 8, idHoiThoai: 4, thoiGian: '2026-11-16T08:00:00', tenKhach: 'Lê Bình', sdtKhach: '0901000012', idNhanVien: 3, tenNhanVien: 'Lê Quốc Bảo', mucDo: 'TOT', nhanMucDo: 'Tốt', daGiaiQuyet: true, gopY: null },
+      ],
+    })
+    hoTro.xem.mockResolvedValue({ ...HT(5, 4), tinNhan: [tn(1, 1, 'shop trả lời chậm quá', { tenNguoiGui: 'Trần An' })] })
+    const w = ganVao(HoTroTrucTuyenPage)
+    await flushPromises()
+    expect(hoTro.danhGia).not.toHaveBeenCalled()
+    await w.find('[data-testid="htt-tab-danh-gia"]').trigger('click')
+    await flushPromises()
+    expect(hoTro.danhGia).toHaveBeenCalledWith({})
+    expect(w.find('[data-testid="dgh-dem"]').text()).toMatch(/Tốt\s*1/)
+    expect(w.find('[data-testid="dgh-dem"]').text()).toMatch(/Chưa tốt\s*1/)
+    expect(w.find('[data-testid="dgh-ds"]').text()).toContain('Trả lời chậm')
+
+    await w.find('[data-testid="dgh-loc-muc"]').setValue('CHUA_TOT')
+    await flushPromises()
+    expect(hoTro.danhGia).toHaveBeenLastCalledWith({ mucDo: 'CHUA_TOT' })
+
+    await w.find('[data-testid="dgh-xem-chat"]').trigger('click')
+    await flushPromises()
+    expect(hoTro.xem).toHaveBeenCalledWith(5)
+    expect(w.find('[data-testid="dgh"]').exists()).toBe(false)
+    expect(w.text()).toContain('shop trả lời chậm quá')
   })
 })
 

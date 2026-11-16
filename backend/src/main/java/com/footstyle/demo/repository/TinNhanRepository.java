@@ -22,6 +22,9 @@ public interface TinNhanRepository extends JpaRepository<TinNhan, Integer> {
             + "and (t.idNhanVien is null or t.idNhanVien <> :idNhanVien)")
     long demChuaDoc(@Param("idHoiThoai") Integer idHoiThoai, @Param("sauId") Integer sauId, @Param("idNhanVien") Integer idNhanVien);
 
+    /** Tin hệ thống bắt đầu bằng `moDau` (vd "Khách đánh giá: "), mới nhất trước: trang tổng hợp đánh giá chat. */
+    List<TinNhan> findByLoaiNguoiGuiAndNoiDungStartingWithOrderByThoiGianDescIdDesc(Integer loaiNguoiGui, String moDau);
+
     /** Chống gửi dồn dập: số tin của khách trong hội thoại kể từ một mốc. */
     long countByIdHoiThoaiAndLoaiNguoiGuiAndThoiGianAfter(Integer idHoiThoai, Integer loaiNguoiGui, LocalDateTime moc);
 }

@@ -19,11 +19,10 @@ const hoaDon = ref([])
 const loading = ref(true)
 const homNay = ref(todayIso())
 
-// Bộ lọc thống kê đồng bộ giữa thanh công cụ trên và nội dung hiển thị bên dưới (mặc định: Tháng này từ ngày 01 tới hôm nay)
-const dauThangNay = (iso) => `${String(iso).slice(0, 7)}-01`
-const khoang = ref(-1) // 1 | 7 | 30 | 90 | 0 (tất cả) | -1 (tự chọn / lịch tháng-năm)
-const mocChon = ref('thangNay') // 'tatCa' | 'homNay' | '7ngay' | 'thangNay' | 'thangTruoc' | 'namNay' | 'tuChon'
-const tuChon = ref(dauThangNay(todayIso()))
+// Bộ lọc thống kê đồng bộ giữa thanh công cụ trên và nội dung hiển thị bên dưới (mặc định: Hôm nay, góp ý 16/11 [13:34])
+const khoang = ref(1) // 1 | 7 | 30 | 90 | 0 (tất cả) | -1 (tự chọn / lịch tháng-năm)
+const mocChon = ref('homNay') // 'tatCa' | 'homNay' | '7ngay' | 'thangNay' | 'thangTruoc' | 'namNay' | 'tuChon'
+const tuChon = ref(todayIso())
 const denChon = ref(todayIso())
 const donViChon = ref('') // '' (tự động) | 'ngày' | 'tuần' | 'tháng'
 const thuongHieuChon = ref('')
@@ -141,9 +140,9 @@ function capNhatDenNgay(val) {
 }
 
 function datLaiBoLoc() {
-  khoang.value = -1
-  mocChon.value = 'thangNay'
-  tuChon.value = dauThangNay(homNay.value)
+  khoang.value = 1
+  mocChon.value = 'homNay'
+  tuChon.value = homNay.value
   denChon.value = homNay.value
   donViChon.value = ''
   thuongHieuChon.value = ''

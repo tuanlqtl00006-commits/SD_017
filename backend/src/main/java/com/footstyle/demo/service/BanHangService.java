@@ -178,22 +178,6 @@ public class BanHangService {
         return kq;
     }
 
-    /**
-     * Số lượng từng biến thể đang nằm trong đơn giao hàng "Chờ xác nhận" (đơn online chưa trừ kho).
-     * Cô test case khó 14/11 [29:22–34:07]: quầy bán nốt hàng của đơn online chưa thanh toán. Quầy vẫn được bán
-     * (đơn online chưa trừ kho), nhưng nhân viên thấy để báo khách tại quầy / biết đơn online sẽ thiếu hàng.
-     */
-    @Transactional(readOnly = true)
-    public Map<Integer, Long> dangChoOnline(List<Integer> ids) {
-        Map<Integer, Long> kq = new LinkedHashMap<>();
-        if (ids == null || ids.isEmpty()) return kq;
-        List<Integer> gon = ids.stream().filter(java.util.Objects::nonNull).distinct().limit(200).toList();
-        for (Object[] r : chiTietRepo.tongSoLuongTheoBienThe(HoaDon.GIAO_HANG, HoaDon.CHO_XAC_NHAN, gon)) {
-            long sl = r[1] == null ? 0 : ((Number) r[1]).longValue();
-            if (sl > 0) kq.put(((Number) r[0]).intValue(), sl);
-        }
-        return kq;
-    }
 
     /** Quét mã QR / mã vạch: đúng mã biến thể (không phân biệt hoa thường). */
     @Transactional(readOnly = true)
@@ -531,40 +515,13 @@ public class BanHangService {
         if (ghiChu != null && ghiChu.isEmpty()) ghiChu = null;
         LocalDateTime luc = bayGio();
 
-        // 1. Giá từng dòng
+        // 1. Từng dòng giữ đúng giá lúc thêm (góp ý 16/11 [00:00–00:44]): giá / đợt giảm giá đổi sau đó không đổi dòng đã có.
+        // Thêm tiếp sản phẩm đã đổi giá thì thành dòng mới theo giá mới (HoaDonChoService.themSanPham hỏi nhân viên trước).
         List<HoaDonChiTiet> dong = chiTietRepo.findByHoaDon_IdOrderByIdAsc(hd.getId());
         if (dong.isEmpty()) throw ApiException.badRequest("Hóa đơn chưa có sản phẩm nào.");
-        Map<Long, Double> phanTram = giamGiaService.phanTramTheoBienThe(luc);
-        List<Map<String, Object>> giaDoi = new ArrayList<>();
         for (HoaDonChiTiet ct : dong) {
             SanPhamChiTiet c = ct.getSanPhamChiTiet();
             if (!dangBan(c)) throw ApiException.conflict("Sản phẩm " + c.getMaSpct() + " đã ngừng bán. Vui lòng xóa khỏi hóa đơn.");
-            long gia = PhieuApDung.giaSauDot(c.getGiaBan() == null ? 0 : c.getGiaBan(), phanTram.getOrDefault(c.getId().longValue(), 0.0));
-            long cu = ct.getDonGia() == null ? 0 : ct.getDonGia().longValue();
-            if (gia != cu) {
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("idChiTiet", ct.getId());
-                m.put("idBienThe", c.getId());
-                m.put("ma", c.getMaSpct());
-                m.put("donGiaCu", cu);
-                m.put("donGiaMoi", gia);
-                giaDoi.add(m);
-            }
-        }
-        if (!giaDoi.isEmpty()) {
-            if (!Boolean.TRUE.equals(req.xacNhanGiaMoi())) {
-                throw new ApiException(HttpStatus.CONFLICT, "Giá của " + giaDoi.size() + " sản phẩm trong hóa đơn đã thay đổi. "
-                        + "Vui lòng báo khách giá mới và bấm \"Cập nhật giá\" trước khi thanh toán.", "GIA_THAY_DOI", Map.of("items", giaDoi));
-            }
-            for (HoaDonChiTiet ct : dong) {
-                for (Map<String, Object> m : giaDoi) {
-                    if (!ct.getId().equals(m.get("idChiTiet"))) continue;
-                    long moi = (Long) m.get("donGiaMoi");
-                    ct.setDonGia(BigDecimal.valueOf(moi));
-                    ct.setThanhTien(BigDecimal.valueOf(moi * ct.getSoLuong()));
-                    chiTietRepo.save(ct);
-                }
-            }
         }
         long tongTienHang = 0;
         for (HoaDonChiTiet ct : dong) tongTienHang += ct.getThanhTien() == null ? 0 : ct.getThanhTien().longValue();

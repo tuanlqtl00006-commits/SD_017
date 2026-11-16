@@ -383,11 +383,6 @@ function handleSearch() {
                 </RouterLink>
               </li>
               <li>
-                <RouterLink :to="{ path: '/shop/chinh-sach', hash: '#doi-tra' }" class="vnb-footer-link text-decoration-none">
-                  Đổi trả trong 7 ngày
-                </RouterLink>
-              </li>
-              <li>
                 <RouterLink :to="{ path: '/shop/chinh-sach', hash: '#giao-hang' }" class="vnb-footer-link text-decoration-none">
                   Chính sách giao hàng
                 </RouterLink>

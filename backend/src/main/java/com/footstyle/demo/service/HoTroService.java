@@ -66,6 +66,7 @@ public class HoTroService {
     /** Tin hệ thống ghi kết quả đánh giá bắt đầu bằng chữ này (dùng để biết khách đã đánh giá chưa, không cần thêm cột). */
     public static final String MO_DAU_DANH_GIA = "Khách đánh giá: ";
     static final Map<String, String> MUC_DO = Map.of("TOT", "Tốt", "BINH_THUONG", "Bình thường", "CHUA_TOT", "Chưa tốt");
+    private static final List<String> THU_TU_MUC = List.of("TOT", "BINH_THUONG", "CHUA_TOT");
 
     private final HoiThoaiRepository hoiThoaiRepo;
     private final TinNhanRepository tinNhanRepo;
@@ -486,6 +487,101 @@ public class HoTroService {
             m.put("email", k.getEmail());
             return m;
         }).orElse(null);
+    }
+
+    /**
+     * Tổng hợp đánh giá của khách sau khi chat với nhân viên (góp ý 16/11 [12:30–12:59]): đếm Tốt / Bình thường / Chưa tốt,
+     * đã / chưa giải quyết, theo từng nhân viên; lọc theo khoảng ngày đánh giá, mức độ, nhân viên.
+     * Đọc từ tin hệ thống "Khách đánh giá: ..." đang lưu trong từng cuộc chat (không thêm bảng, không đổi SQL).
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> tongHopDanhGia(java.time.LocalDate tuNgay, java.time.LocalDate denNgay, String mucDo, Integer idNhanVien) {
+        XacThuc.nhanVien();
+        if (tuNgay != null && denNgay != null && tuNgay.isAfter(denNgay)) throw ApiException.badRequest("\"Từ ngày\" phải trước hoặc bằng \"Đến ngày\".");
+        String locMuc = mucDo == null || mucDo.isBlank() ? null : mucDo.trim().toUpperCase(java.util.Locale.ROOT);
+        if (locMuc != null && !MUC_DO.containsKey(locMuc)) throw ApiException.badRequest("Mức độ đánh giá không hợp lệ.");
+
+        List<TinNhan> tinDanhGia = tinNhanRepo.findByLoaiNguoiGuiAndNoiDungStartingWithOrderByThoiGianDescIdDesc(TinNhan.HE_THONG, MO_DAU_DANH_GIA);
+        Map<Integer, HoiThoai> hoiThoai = new HashMap<>();
+        List<Integer> ids = tinDanhGia.stream().map(TinNhan::getIdHoiThoai).distinct().toList();
+        if (!ids.isEmpty()) for (HoiThoai h : hoiThoaiRepo.findByIdIn(ids)) hoiThoai.put(h.getId(), h);
+        Map<Integer, String> tenNv = new HashMap<>();
+
+        List<Map<String, Object>> ds = new ArrayList<>();
+        Map<Integer, Map<String, Object>> theoNv = new LinkedHashMap<>();
+        Map<Integer, String> dsNhanVien = new LinkedHashMap<>(); // mọi nhân viên từng được đánh giá (cho ô lọc)
+        Map<String, Integer> dem = new LinkedHashMap<>();
+        for (String k : THU_TU_MUC) dem.put(k, 0);
+        int daGiaiQuyet = 0;
+        for (TinNhan t : tinDanhGia) {
+            HoiThoai h = hoiThoai.get(t.getIdHoiThoai());
+            if (h == null || !Integer.valueOf(HoiThoai.HO_TRO_KHACH).equals(h.getLoai())) continue;
+            DanhGiaDoc dg = docDanhGia(t.getNoiDung());
+            if (dg == null) continue;
+            Integer idNv = h.getIdNhanVienPhuTrach();
+            String ten = idNv == null ? null : tenNv.computeIfAbsent(idNv, this::tenNhanVien);
+            if (idNv != null) dsNhanVien.putIfAbsent(idNv, ten);
+            java.time.LocalDate ngay = t.getThoiGian() == null ? null : t.getThoiGian().toLocalDate();
+            if (tuNgay != null && (ngay == null || ngay.isBefore(tuNgay))) continue;
+            if (denNgay != null && (ngay == null || ngay.isAfter(denNgay))) continue;
+            if (locMuc != null && !locMuc.equals(dg.muc())) continue;
+            if (idNhanVien != null && !idNhanVien.equals(idNv)) continue;
+
+            dem.merge(dg.muc(), 1, Integer::sum);
+            if (dg.daGiaiQuyet()) daGiaiQuyet++;
+            Map<String, Object> nv = theoNv.computeIfAbsent(idNv == null ? -1 : idNv, k -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("idNhanVien", idNv);
+                m.put("tenNhanVien", ten == null ? "Không rõ" : ten);
+                m.put("tong", 0);
+                for (String muc : THU_TU_MUC) m.put(muc, 0);
+                return m;
+            });
+            nv.merge("tong", 1, (a, b) -> (Integer) a + (Integer) b);
+            nv.merge(dg.muc(), 1, (a, b) -> (Integer) a + (Integer) b);
+
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("idTinNhan", t.getId());
+            d.put("idHoiThoai", h.getId());
+            d.put("thoiGian", t.getThoiGian());
+            d.put("tenKhach", h.getTenKhach());
+            d.put("sdtKhach", h.getSdtKhach());
+            d.put("idNhanVien", idNv);
+            d.put("tenNhanVien", ten);
+            d.put("mucDo", dg.muc());
+            d.put("nhanMucDo", MUC_DO.get(dg.muc()));
+            d.put("daGiaiQuyet", dg.daGiaiQuyet());
+            d.put("gopY", dg.gopY());
+            ds.add(d);
+        }
+        List<Map<String, Object>> nhanVien = new ArrayList<>();
+        dsNhanVien.forEach((id, ten) -> nhanVien.add(Map.of("id", id, "hoTen", ten == null ? "Không rõ" : ten)));
+
+        Map<String, Object> kq = new LinkedHashMap<>();
+        kq.put("tong", ds.size());
+        kq.put("dem", dem);
+        kq.put("daGiaiQuyet", daGiaiQuyet);
+        kq.put("chuaGiaiQuyet", ds.size() - daGiaiQuyet);
+        kq.put("theoNhanVien", new ArrayList<>(theoNv.values()));
+        kq.put("nhanVien", nhanVien);
+        kq.put("danhGia", ds);
+        return kq;
+    }
+
+    /** Một đánh giá đọc lại từ tin hệ thống: muc là khóa TOT / BINH_THUONG / CHUA_TOT. */
+    record DanhGiaDoc(String muc, boolean daGiaiQuyet, String gopY) {
+    }
+
+    /** "Khách đánh giá: Tốt · Đã giải quyết yêu cầu · Góp ý: ..." -> DanhGiaDoc; sai dạng thì null. */
+    static DanhGiaDoc docDanhGia(String noiDung) {
+        if (noiDung == null || !noiDung.startsWith(MO_DAU_DANH_GIA)) return null;
+        String[] phan = noiDung.substring(MO_DAU_DANH_GIA.length()).split(" · ", 3);
+        String muc = null;
+        for (Map.Entry<String, String> e : MUC_DO.entrySet()) if (e.getValue().equals(phan[0].trim())) muc = e.getKey();
+        if (muc == null || phan.length < 2) return null;
+        boolean daGiaiQuyet = phan[1].trim().startsWith("Đã giải quyết");
+        String gopY = phan.length > 2 && phan[2].startsWith("Góp ý: ") ? phan[2].substring("Góp ý: ".length()) : null;
+        return new DanhGiaDoc(muc, daGiaiQuyet, gopY);
     }
 
     private String tenNhanVien(Integer id) {

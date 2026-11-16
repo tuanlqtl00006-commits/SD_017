@@ -3,8 +3,9 @@
 // trả lời, đã kết thúc). Bên phải: nội dung chat. Trả lời một cuộc đang chờ = tự nhận hỗ trợ; quản lý được tiếp quản cuộc
 // của nhân viên khác. Hỏi lại máy chủ định kỳ (danh sách 5 giây, cuộc đang mở 3 giây) nên không cần tải lại trang.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
+import DanhGiaHoTro from './DanhGiaHoTro.vue'
 import KhungTinNhan from './KhungTinNhan.vue'
 import OSoanTin from './OSoanTin.vue'
 import { hoTroApi } from '../../services/chatService'
@@ -18,6 +19,15 @@ import { CHE_DO, gioNgan, gopTin, idCuoi, locHoiThoai, moTaCheDo, NGUOI_GUI, TRA
 const auth = useAuth()
 const toast = useToast()
 const chuaDoc = useChatChuaDoc()
+const route = useRoute()
+
+// Tab "Đánh giá" (góp ý 16/11): tổng hợp đánh giá của khách ngay trong màn này, nhân viên nào cũng xem được
+const tab = ref('chat') // 'chat' | 'danh-gia'
+function moTuDanhGia(id) {
+  tab.value = 'chat'
+  if (loc.value !== '') doiLoc('')
+  mo({ id })
+}
 
 const BO_LOC = [
   { khoa: 'cho', nhan: 'Chờ nhân viên', dem: 'cho' },
@@ -210,6 +220,12 @@ let henDs = null
 let henTin = null
 const an = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
 onMounted(() => {
+  // Trang Đánh giá hỗ trợ bấm "Xem chat": /ho-tro-truc-tuyen?mo=ID mở đúng cuộc trò chuyện
+  const idMo = Number(route?.query?.mo)
+  if (Number.isInteger(idMo) && idMo > 0) {
+    loc.value = ''
+    mo({ id: idMo })
+  }
   taiDs()
   henDs = setInterval(() => !an() && taiDs(), 5000)
   henTin = setInterval(() => !an() && taiTinMoi(), 3000)
@@ -222,7 +238,16 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="ad-page">
-    <section class="ad-card htt" :class="{ 'is-dang-mo': dangMo }">
+    <div class="htt-tab" role="tablist" aria-label="Hỗ trợ trực tuyến">
+      <button type="button" role="tab" class="htt-tab-nut" :class="{ active: tab === 'chat' }" :aria-selected="tab === 'chat'" data-testid="htt-tab-chat" @click="tab = 'chat'">
+        <i class="bi bi-chat-dots" aria-hidden="true"></i> Cuộc trò chuyện
+      </button>
+      <button type="button" role="tab" class="htt-tab-nut" :class="{ active: tab === 'danh-gia' }" :aria-selected="tab === 'danh-gia'" data-testid="htt-tab-danh-gia" @click="tab = 'danh-gia'">
+        <i class="bi bi-star-half" aria-hidden="true"></i> Đánh giá của khách
+      </button>
+    </div>
+    <DanhGiaHoTro v-if="tab === 'danh-gia'" @mo="moTuDanhGia" />
+    <section v-show="tab === 'chat'" class="ad-card htt" :class="{ 'is-dang-mo': dangMo }">
       <!-- Danh sách cuộc chat -->
       <aside class="htt-ds" aria-label="Danh sách cuộc trò chuyện">
         <header class="htt-ds-dau">
@@ -330,6 +355,31 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Tab Cuộc trò chuyện / Đánh giá của khách */
+.htt-tab {
+  display: inline-flex;
+  gap: 0.22rem;
+  align-self: flex-start;
+  margin-bottom: 0.85rem;
+  padding: 0.2rem;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+.htt-tab-nut {
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.85rem;
+  border-radius: 7px;
+}
+.htt-tab-nut.active {
+  background: #fff;
+  color: #0977ec;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
 .htt {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);

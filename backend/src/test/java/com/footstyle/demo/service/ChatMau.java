@@ -94,6 +94,9 @@ class ChatMau {
                     && (t.getIdNhanVien() == null || !t.getIdNhanVien().equals(a[2]))).count();
             case "countByIdHoiThoaiAndLoaiNguoiGuiAndThoiGianAfter" -> tinNhans.stream().filter(t -> t.getIdHoiThoai().equals(a[0])
                     && t.getLoaiNguoiGui().equals(a[1]) && t.getThoiGian().isAfter((LocalDateTime) a[2])).count();
+            case "findByLoaiNguoiGuiAndNoiDungStartingWithOrderByThoiGianDescIdDesc" -> tinNhans.stream()
+                    .filter(t -> t.getLoaiNguoiGui().equals(a[0]) && t.getNoiDung() != null && t.getNoiDung().startsWith((String) a[1]))
+                    .sorted(Comparator.comparing(TinNhan::getThoiGian).thenComparing(TinNhan::getId).reversed()).toList();
             default -> KhoGia.KHONG_CO;
         });
     }

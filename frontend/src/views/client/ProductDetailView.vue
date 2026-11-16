@@ -453,9 +453,6 @@ function buyNow() {
                   <div v-else class="fs-4 fw-bold text-muted">
                     Liên hệ cửa hàng
                   </div>
-                  <div class="pd-gia-ghi-chu">
-                    <i class="bi bi-shield-check me-1"></i> Giá đã bao gồm thuế VAT & Bảo hành chính hãng
-                  </div>
                 </div>
 
                 <!-- Cảnh báo nếu chưa có biến thể thật nào -->
@@ -592,7 +589,6 @@ function buyNow() {
                 <!-- Cam kết: đúng chính sách ở trang Chính sách -->
                 <ul class="pd-cam-ket">
                   <li><i class="bi bi-patch-check"></i><span><strong>Chính hãng 100%</strong>Hàng nhập từ thương hiệu</span></li>
-                  <li><i class="bi bi-arrow-repeat"></i><span><strong>Đổi trả 7 ngày</strong><RouterLink to="/shop/chinh-sach#doi-tra">Lỗi do nhà sản xuất</RouterLink></span></li>
                   <li><i class="bi bi-truck"></i><span><strong>Giao Hàng Nhanh</strong><RouterLink to="/shop/chinh-sach#giao-hang">Toàn quốc, xem bảng phí</RouterLink></span></li>
                 </ul>
               </div>
@@ -901,11 +897,6 @@ function buyNow() {
   background: #ffe4e6;
   border-radius: 999px;
 }
-.pd-gia-ghi-chu {
-  margin-top: 8px;
-  font-size: 0.85rem;
-  color: #15803d;
-}
 .pd-nhom-chon {
   margin-bottom: 20px;
 }
@@ -1041,7 +1032,7 @@ function buyNow() {
 }
 .pd-cam-ket {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 24px 0 0;
   padding: 0;

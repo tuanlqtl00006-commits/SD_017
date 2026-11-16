@@ -391,25 +391,7 @@ public class HoaDonSuaService {
 
     /** Kiểm tra các sản phẩm trong đơn có đủ hàng trong kho không (rỗng nếu đủ hàng). */
     public List<String> danhSachThieuHang(HoaDon hd) {
-        Map<Integer, Integer> canTru = new LinkedHashMap<>();
-        Map<Integer, SanPhamChiTiet> bienThe = new LinkedHashMap<>();
-        for (HoaDonChiTiet ct : chiTietRepo.findByHoaDon_IdOrderByIdAsc(hd.getId())) {
-            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
-            int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
-            if (spct == null || spct.getId() == null || sl <= 0) continue;
-            bienThe.putIfAbsent(spct.getId(), spct);
-            canTru.merge(spct.getId(), sl, Integer::sum);
-        }
-        List<String> thieu = new ArrayList<>();
-        for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
-            SanPhamChiTiet fresh = spctRepo.findById(e.getKey()).orElse(bienThe.get(e.getKey()));
-            int ton = fresh == null || fresh.getSoLuongTon() == null ? 0 : fresh.getSoLuongTon();
-            if (ton < e.getValue()) {
-                String ten = fresh != null && fresh.getSanPham() != null ? fresh.getSanPham().getTenSanPham() : (fresh != null ? fresh.getMaSpct() : "SP");
-                thieu.add(ten + " (" + (fresh != null ? fresh.getMaSpct() : "") + ", kho còn " + ton + ", đơn cần " + e.getValue() + ")");
-            }
-        }
-        return thieu;
+        return hoaDonService.danhSachThieuHang(hd);
     }
 
     /** Trừ tồn kho có điều kiện cho các sản phẩm trong đơn. */

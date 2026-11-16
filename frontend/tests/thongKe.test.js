@@ -237,9 +237,11 @@ describe('Trang Thống kê', () => {
     expect(k[0]).toContain('1.000.000')
     expect(k[1]).toContain('1.470.000')
     expect(k[1]).not.toContain('Còn 470.000') // cô review 04/11: bỏ dòng chữ nhỏ dưới thẻ
-    expect(k[2]).toMatch(/Đơn hoàn thành\s*1\/3/)
-    await w.findAll('button').find((b) => b.text() === 'Hôm nay').trigger('click')
-    expect(kpiText(w)[2]).toMatch(/Đơn hoàn thành\s*1\/2/)
+    // Mở trang mặc định "Hôm nay" (góp ý 16/11 [13:34]): chỉ tính 2 đơn hôm nay
+    expect(w.findAll('button').find((b) => b.text() === 'Hôm nay').classes()).toContain('is-active')
+    expect(k[2]).toMatch(/Đơn hoàn thành\s*1\/2/)
+    await w.findAll('button').find((b) => b.text() === '7 ngày qua').trigger('click')
+    expect(kpiText(w)[2]).toMatch(/Đơn hoàn thành\s*1\/3/)
     expect(w.find('[data-test="tk-gan-day"]').exists()).toBe(false)
     expect(w.find('[data-test="tk-xuat-excel"]').exists()).toBe(true)
     expect(w.find('[data-test="tk-so-sanh"]').attributes('href')).toBe('/thong-ke/so-sanh')
@@ -251,6 +253,7 @@ describe('Trang Thống kê', () => {
       hd(1, ngay(1), 1000000, 6, { tenNhanVien: 'An', tenKhachHang: 'Khách A' }),
       hd(2, ngay(1), 4000000, 6, { tenNhanVien: 'Bình', tenKhachHang: 'Khách B' }),
     ])
+    await w.findAll('button').find((b) => b.text() === '7 ngày qua').trigger('click') // đơn hôm qua: mặc định Hôm nay không có
     expect(w.get('[data-test="tk-top-nv"] li').text()).toContain('Bình')
     expect(w.get('[data-test="tk-top-kh"] li').text()).toContain('Khách B')
     w.unmount()

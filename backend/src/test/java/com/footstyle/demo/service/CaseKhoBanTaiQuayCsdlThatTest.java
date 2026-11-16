@@ -152,31 +152,27 @@ class CaseKhoBanTaiQuayCsdlThatTest {
     /* ----- Case 1: Đổi giá ----- */
 
     @Test
-    void case1_doiGia_hienGiaMoi_chanThanhToan_tachDong_capNhatGiaRoiMoiThanhToanDuoc() {
+    void case1_doiGia_dongCuGiuGiaCu_themLaiPhaiHoi_okThiTachDong_thanhToanTheoGiaTungDong() {
         Integer id = taoHoaDonCoHang();
         long giaMoi = giaGoc + 50_000;
         doiGiaBan(giaMoi);
 
         Map<String, Object> h = hoaDon(id);
-        assertEquals(true, h.get("coGiaDoi"));
         assertEquals(true, dong(h).get(0).get("giaDoi"));
         assertEquals(giaGoc, dong(h).get(0).get("donGia"), "dòng cũ giữ giá lúc thêm");
         assertEquals(giaMoi, dong(h).get(0).get("giaHienTai"));
 
-        assertEquals("GIA_THAY_DOI", maLoi(id, tra(null, null, giaGoc)));
+        ApiException hoi = assertThrows(ApiException.class, () -> cho.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(idBienThe, 1)));
+        assertEquals("GIA_THAY_DOI", hoi.getCode(), "thêm lại khi giá đổi thì hỏi trước (popup)");
+        assertEquals(1, dong(hoaDon(id)).size());
 
-        Map<String, Object> sauThem = cho.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(idBienThe, 1));
-        assertEquals(2, dong(sauThem).size(), "cùng sản phẩm, giá khác thì tách dòng");
-        assertTrue(String.valueOf(sauThem.get("thongBao")).contains("tách"));
+        Map<String, Object> sauThem = cho.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(idBienThe, 1, true));
+        assertEquals(2, dong(sauThem).size(), "bấm OK thì tách dòng mới giá mới");
+        assertEquals(giaGoc, dong(sauThem).get(0).get("donGia"));
+        assertEquals(giaMoi, dong(sauThem).get(1).get("donGia"));
 
-        Map<String, Object> sauCapNhat = cho.capNhatGia(id);
-        assertEquals(false, sauCapNhat.get("coGiaDoi"));
-        assertEquals(1, dong(sauCapNhat).size(), "cùng giá thì gộp lại");
-        assertEquals(2, dong(sauCapNhat).get(0).get("soLuong"));
-        assertEquals(giaMoi * 2, sauCapNhat.get("tongTienHang"));
-
-        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(null, null, giaMoi * 2));
-        assertEquals(giaMoi * 2, kq.get("thanhTien"));
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(null, null, giaGoc + giaMoi));
+        assertEquals(giaGoc + giaMoi, kq.get("thanhTien"));
         assertEquals(HoaDon.HOAN_THANH, hoaDonRepo.findById(id).orElseThrow().getTrangThai());
     }
 
@@ -262,7 +258,7 @@ class CaseKhoBanTaiQuayCsdlThatTest {
     /* ----- Case 4: Đợt giảm giá thay đổi ----- */
 
     @Test
-    void case4_dotDoiPhanTram_chanThanhToan_capNhatGiaThiDungGiaMoi() {
+    void case4_dotDoiPhanTram_dongCuGiuGiaCu_thanhToanDuoc() {
         DotGiamGia d = taoDot(20);
         Integer id = taoHoaDonCoHang();
         long gia20 = PhieuApDung.giaSauDot(giaGoc, 20);
@@ -276,14 +272,11 @@ class CaseKhoBanTaiQuayCsdlThatTest {
         Map<String, Object> h = hoaDon(id);
         assertEquals(true, h.get("coGiaDoi"));
         assertEquals(gia30, dong(h).get(0).get("giaHienTai"));
-        assertEquals("GIA_THAY_DOI", maLoi(id, tra(null, null, gia20)));
-
-        assertEquals(gia30, cho.capNhatGia(id).get("tongTienHang"));
-        assertEquals(gia30, banHang.thanhToanHoaDonCho(id, tra(null, null, gia30)).get("thanhTien"));
+        assertEquals(gia20, banHang.thanhToanHoaDonCho(id, tra(null, null, gia20)).get("thanhTien"), "dòng giữ giá lúc thêm");
     }
 
     @Test
-    void case4_dotKetThucHoacBiTat_veGiaGoc_chanThanhToan() {
+    void case4_dotKetThucHoacBiTat_veGiaGoc_dongCuGiuGiaDot() {
         DotGiamGia d = taoDot(20);
         Integer id = taoHoaDonCoHang();
         long gia20 = PhieuApDung.giaSauDot(giaGoc, 20);
@@ -295,12 +288,11 @@ class CaseKhoBanTaiQuayCsdlThatTest {
         assertEquals(true, h.get("coGiaDoi"));
         assertEquals(gia20, dong(h).get(0).get("donGia"));
         assertEquals(giaGoc, dong(h).get(0).get("giaHienTai"));
-        assertEquals("GIA_THAY_DOI", maLoi(id, tra(null, null, gia20)));
-        assertEquals(giaGoc, cho.capNhatGia(id).get("tongTienHang"));
+        assertEquals(gia20, banHang.thanhToanHoaDonCho(id, tra(null, null, gia20)).get("thanhTien"));
     }
 
     @Test
-    void case4_dotBatDauKhiHoaDonDangCho_giaMoiThapHon_chanThanhToan() {
+    void case4_dotBatDauKhiHoaDonDangCho_dongCuGiuGiaCu_themLaiThiHoi() {
         Integer id = taoHoaDonCoHang();
         taoDot(25);
         long gia25 = PhieuApDung.giaSauDot(giaGoc, 25);
@@ -309,8 +301,9 @@ class CaseKhoBanTaiQuayCsdlThatTest {
         assertEquals(true, h.get("coGiaDoi"));
         assertEquals(giaGoc, dong(h).get(0).get("donGia"));
         assertEquals(gia25, dong(h).get(0).get("giaHienTai"));
-        assertEquals("GIA_THAY_DOI", maLoi(id, tra(null, null, giaGoc)));
-        assertEquals(gia25, cho.capNhatGia(id).get("tongTienHang"));
-        assertEquals(gia25, banHang.thanhToanHoaDonCho(id, tra(null, null, gia25)).get("thanhTien"));
+        assertEquals("GIA_THAY_DOI", assertThrows(ApiException.class,
+                () -> cho.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(idBienThe, 1))).getCode());
+        cho.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(idBienThe, 1, true));
+        assertEquals(giaGoc + gia25, banHang.thanhToanHoaDonCho(id, tra(null, null, giaGoc + gia25)).get("thanhTien"));
     }
 }

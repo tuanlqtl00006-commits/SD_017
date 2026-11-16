@@ -10,11 +10,9 @@ import QuetMaModal from './QuetMaModal.vue'
 import { formatMoney } from '../../utils/format'
 import { formatPhanTram } from '../../utils/giamGia'
 import { useSuKien } from '../../composables/useSuKien'
-import { useToast } from '../../composables/useToast'
 
 // trongHop: hiện trong hộp thoại 'Chọn sản phẩm' của màn bán hàng (không có khung thẻ / tiêu đề / ô quét mã riêng)
 const props = defineProps({ trongHop: { type: Boolean, default: false } })
-const toast = useToast()
 const emit = defineEmits(['chon'])
 const KICH_THUOC = 10
 
@@ -40,22 +38,6 @@ const luaChon = (ds, tatCa) => [{ value: '', label: tatCa }, ...(ds || []).map((
 const coLoc = computed(() => Object.values(loc).some((v) => v !== ''))
 
 let lanTai = 0 // chỉ nhận kết quả của lần tải mới nhất (gõ tìm và tải ngầm cùng lúc không đè nhau)
-// Số lượng từng biến thể đang nằm trong đơn online "Chờ xác nhận" (chưa trừ kho). Cô test case khó 14/11: quầy bán nốt
-// hàng của đơn online chưa thanh toán -> nhân viên phải thấy để biết bán thì đơn online sẽ thiếu hàng.
-const choOnline = ref({})
-async function taiChoOnline(items) {
-  const ids = items.map((x) => x.id).filter(Boolean)
-  if (!ids.length) {
-    choOnline.value = {}
-    return
-  }
-  try {
-    choOnline.value = (await api.get('/ban-hang/san-pham/dang-cho-online', { params: { ids: ids.join(',') } })).data || {}
-  } catch {
-    choOnline.value = {} // không tải được thì thôi, không chặn bán
-  }
-}
-const slChoOnline = (sp) => Number(choOnline.value?.[sp.id] ?? choOnline.value?.[String(sp.id)] ?? 0)
 
 async function tai(ngam = false) {
   if (loiGia.value) return
@@ -70,7 +52,6 @@ async function tai(ngam = false) {
     const res = (await api.get('/ban-hang/san-pham/loc', { params })).data
     if (lan !== lanTai) return
     ds.value = res.items || []
-    taiChoOnline(ds.value)
     tongSo.value = res.tongSo || 0
     if (res.boLoc) boLoc.value = res.boLoc
     if (res.trang !== undefined && res.trang + 1 !== trang.value) trang.value = res.trang + 1
@@ -118,10 +99,6 @@ function them(sp) {
   else if (sl > sp.tonKho) loiDong[sp.id] = `Chỉ còn ${sp.tonKho} sản phẩm trong kho.`
   else {
     delete loiDong[sp.id]
-    const cho = slChoOnline(sp)
-    if (cho > 0 && sl > sp.tonKho - cho) {
-      toast.error(`${sp.tenSanPham}: ${cho} sản phẩm đang nằm trong đơn online chờ xác nhận. Bán số này thì đơn online đó sẽ thiếu hàng, cần báo khách online.`, 'Lưu ý tồn kho', 8000)
-    }
     emit('chon', sp, null, sl)
     soLuong[sp.id] = 1
     return
@@ -232,7 +209,6 @@ defineExpose({ taiLai: () => tai(), focusTim: () => oTim.value?.focus() })
               </td>
               <td class="text-center">
                 <span class="ad-pill" :class="sp.tonKho <= 5 ? 'ad-pill-orange' : 'ad-pill-green'">{{ sp.tonKho }}</span>
-                <small v-if="slChoOnline(sp)" class="bh-cho-online" data-testid="bh-cho-online" :title="'Đơn online chờ xác nhận chưa trừ kho'">{{ slChoOnline(sp) }} chờ đơn online</small>
               </td>
               <td class="text-center">
                 <input
@@ -379,13 +355,5 @@ defineExpose({ taiLai: () => tai(), focusTim: () => oTim.value?.focus() })
   .bh-loc-gia {
     grid-column: auto;
   }
-}
-.bh-cho-online {
-  display: block;
-  margin-top: 2px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #b45309;
-  white-space: nowrap;
 }
 </style>

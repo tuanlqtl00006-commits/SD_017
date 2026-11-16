@@ -638,23 +638,76 @@ describe('Xử lý hoàn tiền khi đơn hết hàng hoặc hủy đơn có ti�
   })
 })
 
-// Góp ý 14/11 (video 22:22 [12:42–14:03]): đơn online quầy vừa bán hết thì không hủy, nhân viên gửi thư chăm sóc khách
-describe('Đơn online tạm hết hàng', () => {
-  it('có nút "Báo hết hàng cho khách" khi máy chủ báo thiếu hàng; bấm thì gọi /bao-het-hang, đơn vẫn Chờ xác nhận', async () => {
+// Góp ý 16/11 [05:20–06:47]: bỏ nút "Báo hết hàng cho khách"; bấm Xác nhận mà thiếu hàng thì hiện popup
+// (giữ hàng chờ nhập / gửi mail báo hết hàng / hoàn tiền cho khách)
+describe('Xác nhận đơn online bị thiếu hàng: popup', () => {
+  const THIEU = ['Astrox 99 (SP02-XDG-3U-G5, kho còn 0, đơn cần 1)']
+  const donThieu = (daThanhToan = 0) => {
     const don = donGiaoHang(1)
     don.duocBaoHetHang = true
-    const sau = donGiaoHang(1, [TAO, { id: 9, trangThai: null, hanhDong: 'Báo hết hàng cho khách', thoiGian: '2026-10-08T09:20:00', nguoiThaoTac: 'Quản lý', moTa: 'Đã gửi thư' }])
-    const post = vi.fn(async () => ({ data: sau }))
-    const w = await montar(don, vi.fn(), post)
-    await w.get('[data-testid="hd-bao-het-hang"]').trigger('click')
+    don.dsThieuHang = THIEU
+    don.daThanhToan = daThanhToan
+    return don
+  }
+  const bamXacNhanDon = async (w) => {
+    await w.get('[data-chuyen="2"]').trigger('click')
     await flushPromises()
-    expect(post).toHaveBeenCalledWith('/hoa-don/1/bao-het-hang')
-    expect(w.find('[data-testid="hd-bao-het-hang"]').exists()).toBe(false)
+  }
+  const nut = (id) => document.body.querySelector(`[data-testid="${id}"]`)
+
+  it('không còn nút "Báo hết hàng cho khách"; bấm Xác nhận thì mở popup ghi rõ món thiếu, không mở hộp xác nhận', async () => {
+    const put = vi.fn()
+    const w = await montar(donThieu(), put)
+    expect(w.text()).not.toContain('Báo hết hàng cho khách')
+    await bamXacNhanDon(w)
+    expect(nut('hd-het-hang').textContent).toContain('kho còn 0, đơn cần 1')
+    expect(document.getElementById('hd-ghi-chu')).toBeNull()
+    expect(nut('hd-het-hang-hoan'), 'COD chưa trả tiền thì không có nút hoàn tiền').toBeNull()
+    nut('hd-het-hang-giu').click()
+    await flushPromises()
+    expect(nut('hd-het-hang')).toBeNull()
+    expect(put).not.toHaveBeenCalled()
   })
 
-  it('đơn đủ hàng thì không có nút', async () => {
+  it('Gửi mail báo hết hàng: gọi /bao-het-hang, đơn vẫn Chờ xác nhận', async () => {
+    const post = vi.fn(async () => ({ data: donThieu() }))
+    const w = await montar(donThieu(), vi.fn(), post)
+    await bamXacNhanDon(w)
+    nut('hd-het-hang-mail').click()
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/hoa-don/1/bao-het-hang')
+    expect(nut('hd-het-hang')).toBeNull()
+  })
+
+  it('đơn đã chuyển khoản: Hoàn tiền cho khách hỏi lại rồi mới hủy đơn với lý do hết hàng', async () => {
+    const put = vi.fn(async () => ({ data: donGiaoHang(0) }))
+    const w = await montar(donThieu(980000), put)
+    await bamXacNhanDon(w)
+    nut('hd-het-hang-hoan').click()
+    await flushPromises()
+    expect(put).not.toHaveBeenCalled()
+    expect(nut('hd-het-hang-hoi-huy').textContent).toContain('980.000')
+    nut('hd-het-hang-hoan-ok').click()
+    await flushPromises()
+    expect(put).toHaveBeenCalledWith('/hoa-don/1/trang-thai', expect.objectContaining({ trangThaiMoi: 0, ghiChu: `Hết hàng: ${THIEU[0]}` }))
+  })
+
+  it('kho vừa hết lúc đang mở hộp xác nhận: máy chủ báo THIEU_HANG thì chuyển sang popup', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    const put = vi.fn(async () => {
+      throw Object.assign(new Error('Không đủ hàng để xác nhận đơn'), { code: 'THIEU_HANG', chiTiet: { thieu: THIEU } })
+    })
+    const w = await montar(donGiaoHang(1), put)
+    await bamXacNhanDon(w)
+    await bamXacNhan('Xác nhận')
+    expect(nut('hd-het-hang').textContent).toContain('kho còn 0, đơn cần 1')
+  })
+
+  it('đơn đủ hàng: bấm Xác nhận mở hộp xác nhận như cũ', async () => {
     const w = await montar(donGiaoHang(1))
-    expect(w.find('[data-testid="hd-bao-het-hang"]').exists()).toBe(false)
+    await bamXacNhanDon(w)
+    expect(document.getElementById('hd-ghi-chu')).not.toBeNull()
+    expect(nut('hd-het-hang')).toBeNull()
   })
 })
 
