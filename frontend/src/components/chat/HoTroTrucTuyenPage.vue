@@ -60,6 +60,12 @@ const oSoan = ref(null)
 const idToi = computed(() => auth.trangThai.nguoiDung?.id ?? null)
 const dsHien = computed(() => locHoiThoai(ds.value, tuKhoa.value, boDau))
 
+const tinNhanChat = computed(() => {
+  return tin.value.find((t) => t.loaiNguoiGui === NGUOI_GUI.HE_THONG && (t.noiDung?.includes('tham gia hỗ trợ') || t.noiDung?.includes('tiếp quản')))
+    || tin.value.find((t) => t.loaiNguoiGui === NGUOI_GUI.NHAN_VIEN)
+})
+const tgNhanChat = computed(() => tinNhanChat.value?.thoiGian ?? null)
+
 const cuaNguoiKhac = computed(() => dangMo.value?.cheDo === CHE_DO.NHAN_VIEN_HO_TRO && dangMo.value.idNhanVienPhuTrach !== idToi.value)
 const nhanDuoc = computed(() => {
   const h = dangMo.value
@@ -326,6 +332,10 @@ onBeforeUnmount(() => {
               </small>
             </div>
             <span class="ad-pill" :class="moTaCheDo(dangMo.cheDo).pill"><i class="bi" :class="moTaCheDo(dangMo.cheDo).icon" aria-hidden="true"></i> {{ moTaCheDo(dangMo.cheDo).nhan }}<template v-if="dangMo.cheDo === CHE_DO.NHAN_VIEN_HO_TRO">: {{ dangMo.idNhanVienPhuTrach === idToi ? 'bạn' : dangMo.tenNhanVienPhuTrach }}</template></span>
+            <span v-if="tgNhanChat" class="htt-tg-nhan text-muted d-inline-flex align-items-center gap-1" title="Thời gian nhận hỗ trợ">
+              <i class="bi bi-clock" aria-hidden="true"></i>
+              <span>TG nhận chat: <strong>{{ formatNgayGio(tgNhanChat) }}</strong></span>
+            </span>
             <span v-if="dangMo.cheDo === CHE_DO.DA_DONG" class="htt-tg-ket-thuc text-muted d-inline-flex align-items-center gap-1" title="Thời gian kết thúc">
               <i class="bi bi-clock-history" aria-hidden="true"></i>
               <span>TG kết thúc: <strong>{{ formatNgayGio(dangMo.ngayCapNhat || dangMo.tinCuoi?.thoiGian) }}</strong></span>
@@ -590,7 +600,8 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--fs-line);
   flex-wrap: wrap;
 }
-.htt-tg-ket-thuc {
+.htt-tg-ket-thuc,
+.htt-tg-nhan {
   font-size: 0.82rem;
   background: var(--fs-bg-app, #f1f5f9);
   padding: 3px 8px;

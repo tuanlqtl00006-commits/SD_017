@@ -11,7 +11,7 @@ import { hoTroKhachApi } from '../../services/chatService'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { formatMoney } from '../../utils/format'
 import { chuanHoaHoTen, HO_TEN, LOI_HO_TEN_KY_TU, LOI_SDT, SDT } from '../../utils/kiemTra'
-import { CHE_DO, docNguoiKhachCu, docPhienKhach, gopTin, idCuoi, luuPhienKhach, NGUOI_GUI, xoaPhienKhach } from '../../utils/chat'
+import { CHE_DO, docNguoiKhachCu, docPhienKhach, gioPhut, gopTin, idCuoi, luuPhienKhach, NGUOI_GUI, xoaPhienKhach } from '../../utils/chat'
 
 const props = defineProps({
   tenCuaHang: { type: String, default: 'FootStyle' },
@@ -66,14 +66,34 @@ const { loi, cham, sua, batDauGui, datLoiMayChu } = useLoiForm(() => {
 
 const tatCaTin = computed(() => [...tin.value, ...tamThoi.value])
 const daDong = computed(() => cheDo.value === CHE_DO.DA_DONG)
+
+const tinNhanChat = computed(() => {
+  return tatCaTin.value.find((t) => t.loaiNguoiGui === NGUOI_GUI.HE_THONG && (t.noiDung?.includes('tham gia hỗ trợ') || t.noiDung?.includes('tiếp quản')))
+    || tatCaTin.value.find((t) => t.loaiNguoiGui === NGUOI_GUI.NHAN_VIEN)
+})
+const tgNhan = computed(() => tinNhanChat.value?.thoiGian ? gioPhut(tinNhanChat.value.thoiGian) : '')
+
+const tinKetThuc = computed(() => {
+  return [...tatCaTin.value].reverse().find((t) => t.loaiNguoiGui === NGUOI_GUI.HE_THONG && (t.noiDung?.includes('kết thúc') || t.noiDung?.includes('tự kết thúc')))
+})
+const tgKetThuc = computed(() => tinKetThuc.value?.thoiGian ? gioPhut(tinKetThuc.value.thoiGian) : '')
+
 const trangThai = computed(() => {
   switch (cheDo.value) {
     case CHE_DO.CHO_NHAN_VIEN:
       return { icon: 'bi-hourglass-split', nhan: 'Đang chờ nhân viên…', phu: 'Bạn cứ nhắn, nhân viên sẽ trả lời ngay tại đây' }
     case CHE_DO.NHAN_VIEN_HO_TRO:
-      return { icon: 'bi-headset', nhan: tenNhanVien.value ? `Nhân viên ${tenNhanVien.value}` : 'Nhân viên hỗ trợ', phu: 'Đang hỗ trợ bạn' }
+      return {
+        icon: 'bi-headset',
+        nhan: tenNhanVien.value ? `Nhân viên ${tenNhanVien.value}` : 'Nhân viên hỗ trợ',
+        phu: tgNhan.value ? `Đang hỗ trợ bạn · TG nhận chat: ${tgNhan.value}` : 'Đang hỗ trợ bạn',
+      }
     case CHE_DO.DA_DONG:
-      return { icon: 'bi-check2-circle', nhan: 'Đã kết thúc', phu: 'Cảm ơn bạn đã liên hệ' }
+      return {
+        icon: 'bi-check2-circle',
+        nhan: 'Đã kết thúc',
+        phu: tgKetThuc.value ? `Đã kết thúc · TG kết thúc: ${tgKetThuc.value}` : 'Cảm ơn bạn đã liên hệ',
+      }
     default:
       // Góp ý 16/11 [10:36]: phần đầu khung trợ lý chỉ để tên trợ lý + nút Gặp nhân viên, không dòng phụ
       return { icon: 'bi-robot', nhan: `Trợ lý ảo ${props.tenCuaHang}`, phu: '' }
@@ -388,7 +408,7 @@ const laCuaToi = (t) => t.loaiNguoiGui === NGUOI_GUI.KHACH
       </div>
       <p v-else-if="daDong && daDanhGia" class="kck-cam-on" data-testid="kck-da-danh-gia"><i class="bi bi-heart-fill" aria-hidden="true"></i> Cảm ơn bạn đã đánh giá!</p>
       <div v-if="daDong" class="kck-ket-thuc">
-        <span>Cuộc trò chuyện đã kết thúc.</span>
+        <span>Cuộc trò chuyện đã kết thúc.<template v-if="tgKetThuc"> (TG kết thúc: {{ tgKetThuc }})</template></span>
         <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" @click="hetPhien"><i class="bi bi-plus-lg" aria-hidden="true"></i> Trò chuyện mới</button>
       </div>
       <OSoanTin v-else ref="oSoan" v-model="noiDung" :dang-gui="dangGui" :loi="loiGui" :placeholder="cheDo === CHE_DO.TRO_LY_AO ? 'Hỏi trợ lý ảo, vd: vợt Yonex dưới 3 triệu…' : 'Nhập tin nhắn cho nhân viên…'"

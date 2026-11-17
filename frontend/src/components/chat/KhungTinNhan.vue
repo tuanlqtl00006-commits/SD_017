@@ -67,7 +67,13 @@ function kieuAvatar(t) {
       <template v-for="d in dong" :key="d.khoa">
         <div v-if="d.loai === 'ngay'" class="ktn-ngay"><span>{{ d.nhan }}</span></div>
         <div v-else-if="d.loai === 'he-thong'" class="ktn-he-thong">
-          <span>{{ d.tin.noiDung }}</span>
+          <span v-if="d.tin.noiDung && (d.tin.noiDung.includes('tham gia hỗ trợ') || d.tin.noiDung.includes('tiếp quản'))">
+            {{ d.tin.noiDung }} <strong class="ktn-tg-ghi-ro">(TG nhận chat: {{ gioPhut(d.tin.thoiGian) }})</strong>
+          </span>
+          <span v-else-if="d.tin.noiDung && (d.tin.noiDung.includes('kết thúc cuộc trò chuyện') || d.tin.noiDung.includes('tự kết thúc'))">
+            {{ d.tin.noiDung }} <strong class="ktn-tg-ghi-ro">(TG kết thúc: {{ gioPhut(d.tin.thoiGian) }})</strong>
+          </span>
+          <span v-else>{{ d.tin.noiDung }}</span>
           <time :datetime="d.tin.thoiGian">{{ gioPhut(d.tin.thoiGian) }}</time>
         </div>
         <div v-else class="ktn-dong" :class="{ 'is-toi': d.cuaToi, 'is-noi-tiep': d.noiTiep }">
@@ -153,6 +159,10 @@ function kieuAvatar(t) {
   margin-left: 6px;
   color: var(--fs-muted);
   font-size: 0.75rem;
+}
+.ktn-tg-ghi-ro {
+  font-weight: 600;
+  color: #1e40af;
 }
 .ktn-dong {
   display: flex;
