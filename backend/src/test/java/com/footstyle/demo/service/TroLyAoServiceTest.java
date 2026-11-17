@@ -275,6 +275,21 @@ class TroLyAoServiceTest {
     }
 
     @Test
+    void timSanPham_theoMauSac() {
+        TroLyAoService.TraLoi xanhDuong = troLy.traLoi("vợt 3 triệu xanh dương", null);
+        assertEquals(java.util.List.of(2), xanhDuong.sanPham(), "chỉ Nanoflare màu xanh (2.601.000 ₫), không lấy Astrox (đen/đỏ)");
+        assertTrue(xanhDuong.noiDung().contains("màu xanh dương"), xanhDuong.noiDung());
+        assertTrue(xanhDuong.noiDung().contains("giá 2.400.000 ₫ - 3.600.000 ₫"), xanhDuong.noiDung());
+
+        TroLyAoService.TraLoi mauDo = troLy.traLoi("vợt 3 triệu màu đỏ", null);
+        assertTrue(mauDo.sanPham().isEmpty(), "không có vợt màu đỏ nào tầm 3 triệu");
+        assertTrue(mauDo.noiDung().contains("Hiện chưa có sản phẩm còn hàng phù hợp (vợt, màu đỏ, giá 2.400.000 ₫ - 3.600.000 ₫)"), mauDo.noiDung());
+
+        TroLyAoService.TraLoi mauTrang = troLy.traLoi("vợt màu trắng", null);
+        assertEquals(java.util.List.of(3), mauTrang.sanPham(), "chỉ Axforce màu trắng");
+    }
+
+    @Test
     void goTenMau_traChiTiet() {
         String ct = hoi("astrox 99 còn hàng không");
         assertTrue(ct.startsWith("Vợt cầu lông Yonex Astrox 99 Pro (hãng Yonex, nặng đầu, thân cứng)"), ct);

@@ -83,20 +83,6 @@ onMounted(tai)
         </div>
       </div>
 
-      <div v-else-if="thongTin.hetHang" class="gl-card text-center">
-        <i class="bi bi-exclamation-triangle-fill gl-icon-err" style="color: #ea580c;"></i>
-        <h5 class="fw-bold mt-3 text-danger">Sản phẩm đã hết hàng</h5>
-        <p class="mb-1 text-muted">Sản phẩm trong đơn <strong>{{ thongTin.maHoaDon }}</strong> đã hết hàng do đơn hàng khác vừa thanh toán trước.</p>
-        <p v-if="thongTin.lyDoHetHang" class="small text-danger mb-3">{{ thongTin.lyDoHetHang }}</p>
-        <div class="alert alert-warning small text-start mb-3">
-          Nếu khách đã chuyển khoản tại app ngân hàng, hệ thống sẽ tự động hủy đơn và gửi email thông báo hoàn trả tiền cho khách.
-        </div>
-        <button type="button" class="gl-btn" style="background:#ea580c;" :disabled="dangGui" @click="xacNhan">
-          <span v-if="dangGui" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-          Thử chuyển khoản (Kiểm tra gửi mail hoàn tiền)
-        </button>
-      </div>
-
       <div v-else class="gl-card">
         <div class="text-center text-muted small">Bạn sắp chuyển</div>
         <div class="gl-amount text-center">{{ formatMoney(thongTin.conLai) }}</div>

@@ -58,6 +58,11 @@ async function moTrang(phieuDangDung = null) {
 const bamDatHang = async (w) => {
   await w.findAll('button').find((b) => b.text().includes('Đặt hàng')).trigger('click')
   await flushPromises()
+  const nutXn = body().find('[data-testid="xn-dat-hang-dong-y"]')
+  if (nutXn.exists()) {
+    await nutXn.trigger('click')
+    await flushPromises()
+  }
 }
 const lenhDat = () => api.post.mock.calls.filter((c) => c[0] === '/cua-hang/dat-hang')
 const hop = () => body().find('[data-testid="hoi-truoc-khi-dat"]')

@@ -6,6 +6,7 @@ import { useAuth } from '../composables/useAuth'
 import { formatMoney } from '../utils/format'
 import { cuaHangService } from '../services/cuaHangService'
 import NutChatKhach from '../components/chat/NutChatKhach.vue'
+import ToastHost from '../components/common/ToastHost.vue'
 import '../assets/client.css'
 import '../assets/client-theme.css'
 import { dungCaiDatVanChuyen } from '../services/caiDatVanChuyen'
@@ -438,6 +439,7 @@ function handleSearch() {
 
     <!-- Nút chat nổi (trợ lý ảo) ở góc dưới bên phải -->
     <NutChatKhach />
+    <ToastHost />
   </div>
 </template>
 

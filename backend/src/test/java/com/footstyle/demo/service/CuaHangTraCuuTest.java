@@ -62,7 +62,7 @@ class CuaHangTraCuuTest {
                     default -> KhoGia.KHONG_CO;
                 }),
                 KhoGia.tao(HoaDonChiTietRepository.class, (t, a) -> "findByHoaDon_IdOrderByIdAsc".equals(t) ? List.of() : KhoGia.KHONG_CO),
-                KhoGia.khongDung(LichSuHoaDonRepository.class),
+                KhoGia.tao(LichSuHoaDonRepository.class, (t, a) -> "findByHoaDon_IdOrderByThoiGianAscIdAsc".equals(t) ? List.of() : KhoGia.KHONG_CO),
                 KhoGia.tao(LichSuThanhToanRepository.class, (t, a) -> "findByHoaDon_IdOrderByThoiGianAscIdAsc".equals(t) ? List.of() : KhoGia.KHONG_CO),
                 KhoGia.khongDung(PhieuGiamGiaRepository.class), KhoGia.khongDung(PhieuGiamGiaKhachHangRepository.class),
                 KhoGia.khongDung(KhachHangRepository.class), null);

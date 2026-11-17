@@ -17,7 +17,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
 
-const activeTab = ref('orders') // 'profile' | 'addresses' | 'orders'
+const activeTab = ref('profile') // 'profile' | 'addresses' | 'orders'
 
 // Chi tiết một đơn ngay trong "Đơn hàng của tôi" (cô review 14/11: "tra cứu là tra cứu, đơn hàng của tôi là đơn hàng của tôi,
 // sao chung một màn"). Dùng chung khung chi tiết HoaDonNoiDung với màn admin / tra cứu; đường dẫn ?tab=orders&don=HD12.
@@ -57,7 +57,7 @@ function veDanhSachDon() {
 watch(
   () => [route.query.tab, route.query.don],
   ([tab, don]) => {
-    if (tab) activeTab.value = String(tab)
+    activeTab.value = tab ? String(tab) : 'profile'
     if (don && auth.daDangNhap.value) taiChiTietDon(String(don))
     else {
       donDangXem.value = null
@@ -552,18 +552,18 @@ async function xacNhanHuyDon() {
             <div class="nav flex-column gap-1">
               <button
                 class="btn text-start d-flex align-items-center gap-2 py-2 px-3 rounded-3"
-                :class="activeTab === 'orders' ? 'btn-primary text-white fw-bold' : 'btn-light text-dark'"
-                @click="activeTab = 'orders'"
-              >
-                <i class="bi bi-bag-check-fill"></i> Theo dõi đơn hàng
-              </button>
-
-              <button
-                class="btn text-start d-flex align-items-center gap-2 py-2 px-3 rounded-3"
                 :class="activeTab === 'profile' ? 'btn-primary text-white fw-bold' : 'btn-light text-dark'"
                 @click="activeTab = 'profile'"
               >
                 <i class="bi bi-person-fill"></i> Hồ sơ cá nhân
+              </button>
+
+              <button
+                class="btn text-start d-flex align-items-center gap-2 py-2 px-3 rounded-3"
+                :class="activeTab === 'orders' ? 'btn-primary text-white fw-bold' : 'btn-light text-dark'"
+                @click="activeTab = 'orders'"
+              >
+                <i class="bi bi-bag-check-fill"></i> Theo dõi đơn hàng
               </button>
 
               <button
@@ -579,125 +579,8 @@ async function xacNhanHuyDon() {
 
         <!-- Cột Nội dung Tab -->
         <div class="col-lg-9">
-          <!-- TAB 1: THEO DÕI ĐƠN HÀNG (USE CASE 4) -->
-          <!-- Chi tiết một đơn ngay trong trang tài khoản -->
-          <div v-if="activeTab === 'orders' && maDonDangXem" class="card border-0 shadow-sm rounded-4 p-4" data-testid="ac-chi-tiet-don">
-            <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
-              <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
-                <i class="bi bi-receipt text-primary"></i> Đơn hàng {{ maDonDangXem }}
-              </h5>
-              <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" data-testid="ac-ve-danh-sach" @click="veDanhSachDon">
-                <i class="bi bi-arrow-left me-1"></i>Danh sách đơn
-              </button>
-            </div>
-            <div v-if="dangTaiDon" class="text-center text-muted py-5">Đang tải chi tiết đơn hàng…</div>
-            <div v-else-if="loiDon" class="alert alert-warning mb-0">{{ loiDon }}</div>
-            <template v-else-if="donDangXem">
-              <div v-if="donDangXem.hoaDon?.duocSuaGiaoHang" class="ac-sua-giao" data-testid="ac-sua-giao-hang">
-                <span><i class="bi bi-geo-alt"></i> Cần đổi người nhận hoặc địa chỉ? Bạn được đổi <strong>một lần</strong> trước khi đơn được giao đi.</span>
-                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" @click="moSuaGiao = true">Sửa thông tin giao hàng</button>
-              </div>
-              <p v-if="daDoiGiao" class="alert alert-success py-2 small" data-testid="ac-da-doi-giao">{{ daDoiGiao }}</p>
-              <HoaDonNoiDung :data="donDangXem" che-do-khach />
-              <SuaGiaoHangModal
-                v-if="moSuaGiao"
-                :data="donDangXem"
-                :url="`/khach/don-hang/${encodeURIComponent(maDonDangXem)}/sua-giao-hang`"
-                la-khach
-                @close="moSuaGiao = false"
-                @saved="daSuaGiaoHang"
-              />
-            </template>
-          </div>
-
-          <div v-else-if="activeTab === 'orders'" class="card border-0 shadow-sm rounded-4 p-4">
-            <h5 class="fw-bold mb-3 text-dark d-flex align-items-center gap-2">
-              <i class="bi bi-bag-check-fill text-primary"></i> Đơn hàng của tôi
-            </h5>
-
-            <!-- Các bộ lọc trạng thái -->
-            <div class="ac-tabs mb-4">
-              <button
-                v-for="t in orderTabs"
-                :key="t.key"
-                type="button"
-                class="ac-tab"
-                :class="{ active: orderFilterStatus === t.key }"
-                @click="orderFilterStatus = t.key"
-              >
-                {{ t.label }}
-                <span class="ac-tab-count">{{ demTheoTab(t.key) }}</span>
-              </button>
-            </div>
-
-            <!-- Danh sách đơn hàng -->
-            <div v-if="filteredOrders.length === 0" class="text-center py-5 text-muted">
-              <i class="bi bi-clipboard-x display-4 text-muted mb-2"></i>
-              <p>Chưa có đơn hàng nào trong mục này.</p>
-            </div>
-
-            <div v-else class="d-flex flex-column gap-3">
-              <div v-for="order in filteredOrders" :key="order.maHoaDon" class="ac-order">
-                <div class="ac-order-head">
-                  <div class="d-flex align-items-center flex-wrap gap-2">
-                    <i class="bi bi-receipt text-primary"></i>
-                    <strong class="ac-order-code">{{ order.maHoaDon }}</strong>
-                    <span class="ac-order-date"><i class="bi bi-clock me-1"></i>{{ formatNgayGio(order.ngayTao) }}</span>
-                  </div>
-                  <span class="ac-status" :class="statusClass(order.trangThai)">
-                    <i class="bi me-1" :class="statusIcon(order.trangThai)"></i>{{ order.trangThaiText }}
-                  </span>
-                </div>
-
-                <div class="ac-order-items">
-                  <div v-for="(it, idx) in order.items" :key="idx" class="ac-item">
-                    <div class="ac-item-name">
-                      <strong>{{ it.sanPhamTen || it.tenSanPham || 'Sản phẩm' }}</strong>
-                      <span v-if="it.maSpct || it.bienTheMa" class="ac-item-ma" data-testid="ac-ma-sp">{{ it.maSpct || it.bienTheMa }}</span>
-                      <span v-if="it.mauSac" class="ac-item-meta">{{ it.mauSac }}<template v-if="it.trongLuong"> · {{ it.trongLuong }}</template></span>
-                      <span class="ac-item-qty">x{{ it.soLuong }}</span>
-                    </div>
-                    <div class="fw-semibold">{{ formatMoney(it.giaBan || it.donGia || 0) }}</div>
-                  </div>
-                </div>
-
-                <div class="ac-order-foot">
-                  <div class="ac-total">
-                    Tổng thanh toán
-                    <strong>{{ formatMoney(order.tongThanhToan) }}</strong>
-                  </div>
-                  <div class="d-flex gap-2">
-                    <RouterLink
-                      v-if="(order.phuongThucThanhToan === 'QR' || order.idPhuongThucThanhToan === 2) && order.trangThai === 0"
-                      :to="{ path: '/shop/tra-cuu', query: { ma: order.maHoaDon } }"
-                      class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark"
-                    >
-                      <i class="bi bi-qr-code-scan me-1"></i>Thanh toán QR
-                    </RouterLink>
-                    <button
-                      v-if="order.trangThai === 0"
-                      type="button"
-                      class="btn btn-outline-danger btn-sm rounded-pill px-3"
-                      @click="cancelOrder(order.maHoaDon)"
-                    >
-                      <i class="bi bi-x-circle me-1"></i>Hủy đơn
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-primary btn-sm rounded-pill px-3"
-                      data-testid="ac-xem-don"
-                      @click="xemChiTietDon(order.maHoaDon)"
-                    >
-                      <i class="bi bi-truck me-1"></i>Chi tiết đơn hàng
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB 2: HỒ SƠ CÁ NHÂN (USE CASE 5) -->
-          <div v-else-if="activeTab === 'profile'" class="card border-0 shadow-sm rounded-4 p-4">
+          <!-- TAB 1: HỒ SƠ CÁ NHÂN (USE CASE 5) -->
+          <div v-if="activeTab === 'profile'" class="card border-0 shadow-sm rounded-4 p-4">
             <h5 class="fw-bold mb-3 text-dark d-flex align-items-center gap-2">
               <i class="bi bi-person-fill text-primary"></i> Thông tin tài khoản
             </h5>
@@ -827,6 +710,126 @@ async function xacNhanHuyDon() {
                 </div>
               </div>
             </form>
+          </div>
+
+          <!-- TAB 2: THEO DÕI ĐƠN HÀNG (USE CASE 4) -->
+          <!-- Chi tiết một đơn ngay trong trang tài khoản -->
+          <div v-else-if="activeTab === 'orders' && maDonDangXem" class="card border-0 shadow-sm rounded-4 p-4" data-testid="ac-chi-tiet-don">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+              <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
+                <i class="bi bi-receipt text-primary"></i> Đơn hàng {{ maDonDangXem }}
+              </h5>
+              <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" data-testid="ac-ve-danh-sach" @click="veDanhSachDon">
+                <i class="bi bi-arrow-left me-1"></i>Danh sách đơn
+              </button>
+            </div>
+            <div v-if="dangTaiDon" class="text-center text-muted py-5">Đang tải chi tiết đơn hàng…</div>
+            <div v-else-if="loiDon" class="alert alert-warning mb-0">{{ loiDon }}</div>
+            <template v-else-if="donDangXem">
+              <div v-if="donDangXem.hoaDon?.duocSuaGiaoHang" class="ac-sua-giao" data-testid="ac-sua-giao-hang">
+                <span><i class="bi bi-geo-alt"></i> Cần đổi người nhận hoặc địa chỉ? Bạn được đổi <strong>một lần</strong> trước khi đơn được giao đi.</span>
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" @click="moSuaGiao = true">Sửa thông tin giao hàng</button>
+              </div>
+              <p v-if="daDoiGiao || donDangXem.hoaDon?.daSuaGiaoHang || donDangXem.hoaDon?.daChinhSua" class="alert alert-success py-2 small" data-testid="ac-da-doi-giao">
+                <i class="bi bi-check-circle-fill me-1"></i>
+                {{ daDoiGiao || 'Đơn hàng đã được cập nhật thông tin giao hàng một lần, không thể đổi thêm.' }}
+              </p>
+              <HoaDonNoiDung :data="donDangXem" che-do-khach />
+              <SuaGiaoHangModal
+                v-if="moSuaGiao && donDangXem.hoaDon?.duocSuaGiaoHang"
+                :data="donDangXem"
+                :url="`/khach/don-hang/${encodeURIComponent(maDonDangXem)}/sua-giao-hang`"
+                la-khach
+                @close="moSuaGiao = false"
+                @saved="daSuaGiaoHang"
+              />
+            </template>
+          </div>
+
+          <div v-else-if="activeTab === 'orders'" class="card border-0 shadow-sm rounded-4 p-4">
+            <h5 class="fw-bold mb-3 text-dark d-flex align-items-center gap-2">
+              <i class="bi bi-bag-check-fill text-primary"></i> Đơn hàng của tôi
+            </h5>
+
+            <!-- Các bộ lọc trạng thái -->
+            <div class="ac-tabs mb-4">
+              <button
+                v-for="t in orderTabs"
+                :key="t.key"
+                type="button"
+                class="ac-tab"
+                :class="{ active: orderFilterStatus === t.key }"
+                @click="orderFilterStatus = t.key"
+              >
+                {{ t.label }}
+                <span class="ac-tab-count">{{ demTheoTab(t.key) }}</span>
+              </button>
+            </div>
+
+            <!-- Danh sách đơn hàng -->
+            <div v-if="filteredOrders.length === 0" class="text-center py-5 text-muted">
+              <i class="bi bi-clipboard-x display-4 text-muted mb-2"></i>
+              <p>Chưa có đơn hàng nào trong mục này.</p>
+            </div>
+
+            <div v-else class="d-flex flex-column gap-3">
+              <div v-for="order in filteredOrders" :key="order.maHoaDon" class="ac-order">
+                <div class="ac-order-head">
+                  <div class="d-flex align-items-center flex-wrap gap-2">
+                    <i class="bi bi-receipt text-primary"></i>
+                    <strong class="ac-order-code">{{ order.maHoaDon }}</strong>
+                    <span class="ac-order-date"><i class="bi bi-clock me-1"></i>{{ formatNgayGio(order.ngayTao) }}</span>
+                  </div>
+                  <span class="ac-status" :class="statusClass(order.trangThai)">
+                    <i class="bi me-1" :class="statusIcon(order.trangThai)"></i>{{ order.trangThaiText }}
+                  </span>
+                </div>
+
+                <div class="ac-order-items">
+                  <div v-for="(it, idx) in order.items" :key="idx" class="ac-item">
+                    <div class="ac-item-name">
+                      <strong>{{ it.sanPhamTen || it.tenSanPham || 'Sản phẩm' }}</strong>
+                      <span v-if="it.maSpct || it.bienTheMa" class="ac-item-ma" data-testid="ac-ma-sp">{{ it.maSpct || it.bienTheMa }}</span>
+                      <span v-if="it.mauSac" class="ac-item-meta">{{ it.mauSac }}<template v-if="it.trongLuong"> · {{ it.trongLuong }}</template></span>
+                      <span class="ac-item-qty">x{{ it.soLuong }}</span>
+                    </div>
+                    <div class="fw-semibold">{{ formatMoney(it.giaBan || it.donGia || 0) }}</div>
+                  </div>
+                </div>
+
+                <div class="ac-order-foot">
+                  <div class="ac-total">
+                    Tổng thanh toán
+                    <strong>{{ formatMoney(order.tongThanhToan) }}</strong>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <RouterLink
+                      v-if="(order.phuongThucThanhToan === 'QR' || order.idPhuongThucThanhToan === 2) && order.trangThai === 0"
+                      :to="{ path: '/shop/tra-cuu', query: { ma: order.maHoaDon } }"
+                      class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark"
+                    >
+                      <i class="bi bi-qr-code-scan me-1"></i>Thanh toán QR
+                    </RouterLink>
+                    <button
+                      v-if="order.trangThai === 0"
+                      type="button"
+                      class="btn btn-outline-danger btn-sm rounded-pill px-3"
+                      @click="cancelOrder(order.maHoaDon)"
+                    >
+                      <i class="bi bi-x-circle me-1"></i>Hủy đơn
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-sm rounded-pill px-3"
+                      data-testid="ac-xem-don"
+                      @click="xemChiTietDon(order.maHoaDon)"
+                    >
+                      <i class="bi bi-truck me-1"></i>Chi tiết đơn hàng
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- TAB 3: SỔ ĐỊA CHỈ (USE CASE 5) -->

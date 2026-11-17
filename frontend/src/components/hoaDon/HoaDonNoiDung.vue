@@ -78,6 +78,9 @@ watch(() => hd.value.donViVanChuyen, () => { logoSummaryError.value = false })
 
 const trangThaiHienTai = computed(() => trangThaiOf(hd.value.trangThai))
 
+const lsHetHang = computed(() => lichSu.value.find((l) => l.hanhDong === 'Báo hết hàng cho khách') ?? null)
+const coBaoHetHang = computed(() => Boolean(props.data?.daBaoHetHang || hd.value?.daBaoHetHang || lsHetHang.value))
+
 const timeline = computed(() => {
   const flow = laGiaoHang.value ? LUONG_GIAO_HANG : LUONG_TAI_QUAY
   const status = hd.value.trangThai
@@ -112,11 +115,33 @@ const timeline = computed(() => {
     return { ...s, state, time, user: state === 'todo' ? null : ls?.nguoiThaoTac }
   })
 
+  // Nhánh "Đã gửi email báo hết hàng" nằm ngay sau "Chờ xác nhận" khi đơn được báo hết hàng
+  const daGuiMail = coBaoHetHang.value && laGiaoHang.value
+  if (daGuiMail) {
+    const timeBao = lsHetHang.value?.thoiGian ?? hd.value.ngayCapNhat ?? null
+    const userBao = lsHetHang.value?.nguoiThaoTac ?? null
+    const stateBao = status === TT.CHO_XAC_NHAN ? 'current' : 'done'
+    if (steps.length > 0 && steps[0].code === TT.CHO_XAC_NHAN) {
+      steps[0].state = 'done'
+    }
+    steps.splice(1, 0, {
+      code: 'BAO_HET_HANG',
+      label: 'Đã gửi email báo hết hàng',
+      icon: 'bi-envelope-check-fill',
+      state: stateBao,
+      moi: status === TT.CHO_XAC_NHAN,
+      time: timeBao,
+      user: userBao,
+      ghiChu: lsHetHang.value?.moTa,
+    })
+  }
+
   // Nhánh "Giao hàng thất bại" nằm ngay sau "Đang giao hàng"
-  const chenThatBai = coThatBai && viTriGiao >= 0
+  const viTriGiaoMoi = steps.findIndex((s) => s.code === TT.DANG_GIAO)
+  const chenThatBai = coThatBai && viTriGiaoMoi >= 0
   if (chenThatBai) {
     const ls = lanCuoi[TT.GIAO_THAT_BAI]
-    steps.splice(viTriGiao + 1, 0, {
+    steps.splice(viTriGiaoMoi + 1, 0, {
       ...BUOC_GIAO_THAT_BAI, state: 'fail', moi: status === TT.GIAO_THAT_BAI, time: ls?.thoiGian ?? null, user: ls?.nguoiThaoTac, ghiChu: ls?.moTa,
     })
   }
@@ -124,7 +149,7 @@ const timeline = computed(() => {
   if (status === TT.DA_HUY) {
     // Bỏ các bước chưa đi, thêm bước "Đã hủy"
     const ls = lanCuoi[TT.DA_HUY]
-    const cat = viTri + 1 + (chenThatBai && viTriGiao <= viTri ? 1 : 0)
+    const cat = viTri + 1 + (chenThatBai && viTriGiaoMoi <= viTri ? 1 : 0) + (daGuiMail ? 1 : 0)
     return [...steps.slice(0, cat), { ...BUOC_DA_HUY, state: 'cancel', time: ls?.thoiGian, user: ls?.nguoiThaoTac, ghiChu: ls?.moTa }]
   }
   // Chỉ hiển thị các bước đã đạt được hoặc đang đứng; bước tương lai chưa chuyển đến thì không hiện.
@@ -143,12 +168,14 @@ const buocTiepTheo = computed(() => timeline.value.find((s) => s.state === 'next
 
 const daThanhToan = computed(() => Number(props.data?.daThanhToan ?? 0))
 const conPhaiTra = computed(() => Math.max(0, Number(hd.value.thanhTien ?? 0) - daThanhToan.value))
+const laHetHang = computed(() => Boolean(props.data?.hetHang || hd.value?.hetHang || props.data?.daBaoHetHang || hd.value?.daBaoHetHang))
+const lyDoHetHangHienThi = computed(() => props.data?.lyDoHetHang || hd.value?.lyDoHetHang || '')
 const coNutThanhToanQr = computed(() => {
   if (!props.cheDoKhach) return false
   const pttt = Number(hd.value?.idPhuongThucThanhToan) === 2 ||
     String(hd.value?.phuongThucThanhToan || '').toUpperCase().includes('QR') ||
     String(hd.value?.phuongThucThanhToan || '').includes('Chuyển khoản')
-  return pttt && daThanhToan.value === 0 && (hd.value?.trangThai === 0 || hd.value?.trangThai === 1)
+  return pttt && daThanhToan.value === 0 && (hd.value?.trangThai === 0 || hd.value?.trangThai === 1) && !laHetHang.value
 })
 
 /* ===================== Danh sách sản phẩm: lọc / sắp xếp ===================== */
@@ -219,19 +246,48 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
               <p class="ad-card-sub mb-0">{{ hd.maHoaDon }} · {{ hd.tenLoaiDon }}</p>
             </div>
           </div>
-          <span class="ad-pill" :class="trangThaiHienTai.pill" data-testid="hd-trang-thai">{{ trangThaiHienTai.label }}</span>
+          <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+            <span v-if="coBaoHetHang" class="ad-pill ad-pill-info" data-testid="hd-da-bao-het-hang">
+              <i class="bi bi-envelope-check-fill me-1" aria-hidden="true"></i>Đã gửi email báo hết hàng
+            </span>
+            <span class="ad-pill" :class="trangThaiHienTai.pill" data-testid="hd-trang-thai">{{ trangThaiHienTai.label }}</span>
+          </div>
         </div>
 
-        <div v-if="data?.canHoanTien" class="alert alert-warning d-flex align-items-center gap-2 mb-3 mt-3">
+        <div v-if="data?.canHoanTien || (laHetHang && daThanhToan > 0)" class="alert alert-warning d-flex align-items-center gap-2 mb-3 mt-3">
           <i class="bi bi-exclamation-triangle-fill fs-5 text-warning flex-shrink-0"></i>
-          <div>
-            <strong>Khách đã thanh toán {{ money(data.soTienCanHoan) }} nhưng đơn đã bị hủy / hết hàng tồn kho.</strong>
-            <span class="d-block small text-muted">Vui lòng liên hệ khách hàng để chuyển khoản hoàn tiền hoặc tư vấn đổi sang sản phẩm khác.</span>
+          <div v-if="cheDoKhach">
+            <strong>Đã nhận thanh toán {{ money(data?.soTienCanHoan || daThanhToan) }} nhưng sản phẩm trong đơn vừa hết hàng tồn kho.</strong>
+            <span v-if="lyDoHetHangHienThi" class="d-block small text-danger fw-semibold my-1">{{ lyDoHetHangHienThi }}</span>
+            <span class="d-block small text-muted">Đơn hàng được giữ ở trạng thái Chờ xác nhận và hệ thống đã gửi email thông báo. Nhân viên tư vấn của FootStyle sẽ chủ động liên hệ với bạn để hỗ trợ đổi sang sản phẩm khác hoặc hoàn tiền 100%.</span>
+          </div>
+          <div v-else>
+            <strong>Khách đã thanh toán {{ money(data?.soTienCanHoan || daThanhToan) }} nhưng đơn đã bị hủy / hết hàng tồn kho.</strong>
+            <span v-if="lyDoHetHangHienThi" class="d-block small text-danger fw-semibold my-1">{{ lyDoHetHangHienThi }}</span>
+            <span class="d-block small text-muted">Vui lòng liên hệ khách hàng để tư vấn đổi sang sản phẩm khác hoặc chuyển khoản hoàn tiền.</span>
+          </div>
+        </div>
+
+        <div v-else-if="laHetHang && daThanhToan === 0" class="alert alert-danger d-flex align-items-center gap-2 mb-3 mt-3">
+          <i class="bi bi-exclamation-triangle-fill fs-5 text-danger flex-shrink-0"></i>
+          <div v-if="cheDoKhach">
+            <strong>Sản phẩm trong đơn hàng đã hết hàng do đơn hàng khác vừa thanh toán trước.</strong>
+            <span v-if="lyDoHetHangHienThi" class="d-block small text-danger fw-semibold my-1">{{ lyDoHetHangHienThi }}</span>
+            <span class="d-block small text-muted">Vui lòng không tiếp tục chuyển khoản cho đơn hàng này. Bạn có thể chọn sản phẩm khác hoặc liên hệ hotline để được hỗ trợ.</span>
+          </div>
+          <div v-else>
+            <strong>{{ lyDoHetHangHienThi || 'Sản phẩm trong đơn hàng đã hết hàng tồn kho.' }}</strong>
           </div>
         </div>
 
         <ol class="hd-timeline" aria-label="Tiến trình đơn hàng">
-          <li v-for="s in timeline" :key="s.code" class="hd-step" :class="[`is-${s.state}`, { 'is-latest': s.moi }]" :data-buoc="s.code">
+          <li
+            v-for="s in timeline"
+            :key="s.code"
+            class="hd-step"
+            :class="[`is-${s.state}`, { 'is-latest': s.moi, 'is-mail': s.code === 'BAO_HET_HANG' }]"
+            :data-buoc="s.code"
+          >
             <span class="hd-step-dot"><i class="bi" :class="s.icon" aria-hidden="true"></i></span>
             <span class="hd-step-label">{{ s.label }}</span>
             <span v-if="s.state === 'next'" class="hd-step-meta">Bước tiếp theo</span>
@@ -259,7 +315,7 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
         </div>
         <p v-else-if="buocTiepTheo" class="hd-goi-y" data-testid="hd-goi-y-buoc-sau">
           <i class="bi bi-arrow-right-circle" aria-hidden="true"></i>
-          <span>Đơn hàng đang <strong>{{ trangThaiHienTai.label.toLowerCase() }}</strong>, bước tiếp theo: <strong>{{ buocTiepTheo.label }}</strong>.</span>
+          <span>Đơn hàng đang <strong>{{ coBaoHetHang && hd.trangThai === TT.CHO_XAC_NHAN ? 'chờ xác nhận (đã gửi email báo hết hàng)' : trangThaiHienTai.label.toLowerCase() }}</strong>, bước tiếp theo: <strong>{{ buocTiepTheo.label }}</strong>.</span>
         </p>
       </section>
 
@@ -712,6 +768,21 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
 .hd-step.is-cancel .hd-step-dot {
   border-color: var(--fs-danger);
   background: var(--fs-danger);
+  color: #fff;
+}
+/* Bước gửi email báo hết hàng */
+.hd-step.is-mail::before {
+  background: #0284c7;
+}
+.hd-step.is-mail.is-current .hd-step-dot {
+  border-color: #0284c7;
+  background: #e0f2fe;
+  color: #0284c7;
+  box-shadow: 0 0 0 6px rgba(2, 132, 199, 0.16);
+}
+.hd-step.is-mail.is-done .hd-step-dot {
+  border-color: #0284c7;
+  background: #0284c7;
   color: #fff;
 }
 /* Bước tiếp theo (chỉ màn khách): mờ, viền đứt, đường nối đứt */

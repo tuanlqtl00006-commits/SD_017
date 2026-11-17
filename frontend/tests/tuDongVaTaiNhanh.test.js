@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
-const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() } }))
+const { api, route } = vi.hoisted(() => ({
+  api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+  route: { fullPath: '/', query: {}, params: {} },
+}))
 
 vi.mock('../src/services/api', () => ({ default: api }))
 vi.mock('vue-router', async (goc) => ({
   ...(await goc()),
-  useRoute: () => ({ fullPath: '/', query: {}, params: {} }),
+  useRoute: () => route,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }))
 
@@ -36,6 +39,7 @@ const soLanGoi = (doan) => api.get.mock.calls.filter((c) => c[0].includes(doan))
 beforeEach(() => {
   document.body.innerHTML = ''
   localStorage.clear()
+  route.query = {}
   _datLaiAuth()
   _datLaiGiaoCa()
   for (const f of Object.values(api)) f.mockReset()
@@ -122,6 +126,7 @@ describe('Tự cập nhật, không phải bấm', () => {
   })
 
   it('đơn của khách: cửa hàng xác nhận thì trạng thái tự đổi; đang ở tab khác thì không hỏi', async () => {
+    route.query = { tab: 'orders' }
     const auth = useAuth()
     auth.trangThai.daKhoiTao = true
     auth.trangThai.nguoiDung = { id: 8, hoTen: 'Khách A', vaiTro: 'KHACH_HANG' }

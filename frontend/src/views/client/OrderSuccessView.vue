@@ -44,9 +44,51 @@ const conLaiText = computed(() => {
 const daDoiCod = ref(false)
 const dangDoiCod = ref(false)
 const loiDoiCod = ref('')
-const choThanhToan = computed(() => thanhToanQR.value && !daThanhToan.value && !daDoiCod.value)
+const daHuyHetHang = ref(false)
+const hetHangChuaTra = ref(false)
+const lyDoHetHang = ref('')
+
+const choThanhToan = computed(() => thanhToanQR.value && !daThanhToan.value && !daDoiCod.value && !daHuyHetHang.value && !hetHangChuaTra.value)
+const sdtKhach = computed(() => donLuu.value?.sdtKhachHang || donBackend.value?.sdtNguoiNhan || '')
 let timer = null
 let dongHo = null
+
+function capNhatTrangThaiDon(d) {
+  if (!d) return
+  if (d.hanChuyenKhoan) batDau.value = new Date(d.hanChuyenKhoan).getTime() - HAN_PHUT * 60000
+
+  if (d.idPhuongThucThanhToan === 1) {
+    daDoiCod.value = true
+    clearInterval(timer)
+    clearInterval(dongHo)
+    return
+  }
+
+  const isHetHang = Boolean(d.hetHang || d.daBaoHetHang || d.chiTietDon?.hoaDon?.hetHang || d.chiTietDon?.hoaDon?.daBaoHetHang || d.chiTietDon?.hetHang)
+  const lyDo = d.lyDoHetHang || d.chiTietDon?.hoaDon?.lyDoHetHang || d.chiTietDon?.lyDoHetHang || ''
+  const daTra = Number(d.daTra) || 0
+  const daTraDu = Boolean(d.daThanhToanDu) || daTra > 0
+
+  if (isHetHang || d.trangThai === 0 || d.trangThai === 7) {
+    if (daTraDu) {
+      daHuyHetHang.value = true
+      hetHangChuaTra.value = false
+    } else {
+      hetHangChuaTra.value = true
+      daHuyHetHang.value = false
+    }
+    if (lyDo) lyDoHetHang.value = lyDo
+    clearInterval(timer)
+    clearInterval(dongHo)
+    return
+  }
+
+  if (d.daThanhToanDu) {
+    daThanhToan.value = true
+    clearInterval(timer)
+    clearInterval(dongHo)
+  }
+}
 
 async function doiSangCod() {
   if (dangDoiCod.value) return
@@ -101,8 +143,6 @@ async function saoChep(giaTri, nhan) {
   }
 }
 
-const daHuyHetHang = ref(false)
-
 // Hỏi backend mỗi 4 giây xem ngân hàng đã báo tiền vào chưa
 async function kiemTraThanhToan() {
   try {
@@ -110,17 +150,7 @@ async function kiemTraThanhToan() {
     const params = { maHoaDon: maHoaDon.value }
     if (donLuu.value?.sdtKhachHang) params.sdt = donLuu.value.sdtKhachHang
     const d = (await api.get('/cua-hang/tra-cuu', { params })).data
-    if (d?.hanChuyenKhoan) batDau.value = new Date(d.hanChuyenKhoan).getTime() - HAN_PHUT * 60000 // mốc theo máy chủ
-    if (d?.idPhuongThucThanhToan === 1) {
-      daDoiCod.value = true // đã đổi sang COD (ở tab khác / lần trước)
-      clearInterval(timer)
-    } else if (d?.daThanhToanDu) {
-      daThanhToan.value = true
-      clearInterval(timer)
-    } else if (d?.trangThai === 0 || d?.trangThai === 7) {
-      // Đơn bị hủy do hết hàng hoặc đang hoàn tiền
-      daHuyHetHang.value = true
-    }
+    capNhatTrangThaiDon(d)
   } catch {
     // mất kết nối tạm thời: lần sau thử lại
   }
@@ -134,6 +164,7 @@ onMounted(async () => {
   if (!donLuu.value && maHoaDon.value) {
     try {
       donBackend.value = (await api.get('/cua-hang/tra-cuu', { params: { maHoaDon: maHoaDon.value } })).data
+      capNhatTrangThaiDon(donBackend.value)
     } catch {
       // bỏ qua
     }
@@ -148,6 +179,9 @@ onMounted(async () => {
     lanIp.value = r.data?.diaChiLan || ''
     giaLap.value = true
     qrGiaLap.value = await QRCode.toDataURL(linkGiaLap.value, { width: 280, margin: 1 })
+    if (r.data?.hetHang || r.data?.daHuy) {
+      capNhatTrangThaiDon(r.data)
+    }
     return
   } catch {
     // không bật giả lập
@@ -169,17 +203,20 @@ onMounted(async () => {
             <div class="mb-4">
               <div
                 class="rounded-circle d-inline-flex align-items-center justify-content-center"
-                :class="daHuyHetHang ? 'bg-danger-subtle text-danger' : choThanhToan ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'"
+                :class="daHuyHetHang ? 'bg-danger-subtle text-danger' : hetHangChuaTra ? 'bg-warning-subtle text-warning' : choThanhToan ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'"
                 style="width: 80px; height: 80px;"
               >
-                <i class="bi display-4" :class="daHuyHetHang ? 'bi-exclamation-triangle' : choThanhToan ? 'bi-hourglass-split' : 'bi-check-lg'"></i>
+                <i class="bi display-4" :class="daHuyHetHang || hetHangChuaTra ? 'bi-exclamation-triangle' : choThanhToan ? 'bi-hourglass-split' : 'bi-check-lg'"></i>
               </div>
             </div>
 
-            <h3 class="fw-bold text-dark mb-2">{{ daHuyHetHang ? 'Sản phẩm đã hết hàng' : choThanhToan ? (hetHan ? 'Đơn hàng đang tạm treo' : 'Đơn hàng đang chờ thanh toán') : daThanhToan ? 'Thanh toán thành công!' : 'Đặt Hàng Thành Công!' }}</h3>
+            <h3 class="fw-bold text-dark mb-2">{{ daHuyHetHang ? 'Sản phẩm đã hết hàng' : hetHangChuaTra ? 'Sản phẩm trong đơn đã hết hàng' : choThanhToan ? (hetHan ? 'Đơn hàng đang tạm treo' : 'Đơn hàng đang chờ thanh toán') : daThanhToan ? 'Thanh toán thành công!' : 'Đặt Hàng Thành Công!' }}</h3>
             <p class="text-muted mb-4">
               <template v-if="daHuyHetHang">
-                Hệ thống đã nhận thanh toán, tuy nhiên sản phẩm trong đơn vừa hết hàng do đơn hàng khác thanh toán trước.
+                Hệ thống đã nhận thanh toán, tuy nhiên sản phẩm trong đơn vừa hết hàng do đơn hàng khác vừa thanh toán trước.
+              </template>
+              <template v-else-if="hetHangChuaTra">
+                Rất tiếc, sản phẩm trong đơn vừa hết hàng tồn kho do đơn hàng khác vừa thanh toán trước.
               </template>
               <template v-else-if="choThanhToan">
                 Đơn hàng của bạn chỉ được xử lý <strong>sau khi cửa hàng nhận được tiền</strong>. Vui lòng quét mã QR bên dưới để thanh toán.
@@ -196,15 +233,26 @@ onMounted(async () => {
               </div>
               <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">Trạng thái:</span>
-                <span class="badge" :class="daHuyHetHang ? 'bg-danger text-white' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyHetHang ? 'Đã hủy do hết hàng' : choThanhToan ? (hetHan ? 'Đơn treo - chưa thanh toán' : 'Chờ thanh toán') : 'Chờ xác nhận' }}</span>
+                <span class="badge" :class="daHuyHetHang ? 'bg-danger text-white' : hetHangChuaTra ? 'bg-warning text-dark' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyHetHang ? 'Hết hàng (Đã chuyển khoản)' : hetHangChuaTra ? 'Hết hàng tồn kho' : choThanhToan ? (hetHan ? 'Đơn treo - chưa thanh toán' : 'Chờ thanh toán') : 'Chờ xác nhận' }}</span>
               </div>
             </div>
 
-            <!-- Thanh toán chuyển khoản VietQR -->
-            <div v-if="daHuyHetHang" class="alert alert-warning text-start mb-4">
+            <!-- Thanh toán chuyển khoản VietQR / Thông báo hết hàng -->
+            <div v-if="daHuyHetHang" class="alert alert-warning text-start mb-4" data-testid="osv-da-huy-het-hang">
               <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Đã ghi nhận thanh toán nhưng sản phẩm vừa hết hàng</div>
+              <p v-if="lyDoHetHang" class="small text-danger mb-2 fw-semibold">{{ lyDoHetHang }}</p>
               <p class="mb-0 small text-muted">
-                Hệ thống đã nhận được số tiền <strong>{{ formatMoney(soTien) }}</strong> của bạn. Tuy nhiên, sản phẩm trong đơn vừa hết hàng tồn kho do đơn hàng khác thanh toán trước. Nhân viên tư vấn của FootStyle sẽ liên hệ qua số điện thoại <strong>{{ donLuu?.sdtKhachHang }}</strong> để hỗ trợ hoàn tiền 100% hoặc đổi sang sản phẩm khác tương đương.
+                Hệ thống đã ghi nhận số tiền <strong>{{ formatMoney(soTien) }}</strong> của bạn. Tuy nhiên, sản phẩm trong đơn vừa hết hàng tồn kho do đơn hàng khác thanh toán trước. Đơn hàng được giữ ở trạng thái Chờ xác nhận và hệ thống đã gửi email thông báo. Nhân viên tư vấn của FootStyle sẽ liên hệ qua số điện thoại <strong v-if="sdtKhach">{{ sdtKhach }}</strong><span v-else>đặt hàng</span> để hỗ trợ hoàn tiền 100% hoặc đổi sang sản phẩm khác tương đương.
+              </p>
+            </div>
+            <div v-else-if="hetHangChuaTra" class="alert alert-danger text-start mb-4" data-testid="osv-het-hang-chua-tra">
+              <div class="fw-bold mb-1 text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Sản phẩm trong đơn đã hết hàng</div>
+              <p v-if="lyDoHetHang" class="small text-danger mb-2 fw-semibold">{{ lyDoHetHang }}</p>
+              <p class="mb-2 small">
+                Sản phẩm trong đơn hàng vừa hết tồn kho do đơn hàng khác đã thanh toán trước. <strong>Vui lòng KHÔNG chuyển khoản cho đơn hàng này</strong>.
+              </p>
+              <p class="mb-0 small text-muted">
+                Mã thanh toán QR đã tạm dừng. Bạn có thể chọn mua sản phẩm khác hoặc liên hệ hotline cửa hàng để được hỗ trợ. Nếu bạn đã lỡ chuyển khoản tại app ngân hàng, hệ thống sẽ tự động ghi nhận và nhân viên sẽ liên hệ hoàn tiền 100% cho bạn.
               </p>
             </div>
             <div v-else-if="daThanhToan" class="alert alert-success text-start mb-4"><i class="bi bi-check-circle-fill me-2"></i>Hệ thống đã nhận được <strong>{{ formatMoney(soTien) }}</strong> cho đơn này. Cửa hàng sẽ sớm xác nhận và chuẩn bị giao hàng.</div>

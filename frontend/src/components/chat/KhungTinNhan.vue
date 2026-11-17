@@ -78,7 +78,7 @@ function kieuAvatar(t) {
           <div class="ktn-than">
             <div v-if="hienTen && !d.cuaToi && !d.noiTiep" class="ktn-ten">{{ d.tin.tenNguoiGui || 'Khách' }}</div>
             <div class="ktn-bong" :class="{ 'is-bot': d.tin.loaiNguoiGui === NGUOI_GUI.TRO_LY_AO }">{{ d.chu }}</div>
-            <TheSanPhamChat v-if="d.sanPham.length" :ids="d.sanPham" />
+            <TheSanPhamChat v-if="d.sanPham.length" :ids="d.sanPham" :chu="d.chu" />
             <time class="ktn-gio" :datetime="d.tin.thoiGian">{{ gioPhut(d.tin.thoiGian) }}</time>
           </div>
         </div>

@@ -55,6 +55,7 @@ describe('Đơn hàng của tôi: xem chi tiết ngay trong trang tài khoản',
 
   it('nút "Chi tiết đơn hàng" ở lại trang tài khoản (?tab=orders&don=), không sang /shop/tra-cuu', async () => {
     dangNhapKhach()
+    route.query = { tab: 'orders' }
     api.get.mockImplementation(async (url) => {
       if (url.startsWith('/khach/don-hang/')) return { data: { trangThai: 1, chiTiet: [], chiTietDon: CHI_TIET } }
       return { data: url === '/khach/tai-khoan' ? {} : [] }
@@ -108,6 +109,44 @@ describe('Đơn hàng của tôi: xem chi tiết ngay trong trang tài khoản',
     expect(api.put).toHaveBeenCalledWith('/khach/don-hang/HD900/sua-giao-hang', expect.objectContaining({ phuongXa: 'Phường Cửa Nam', tinhThanh: 'Thành phố Hà Nội' }))
     expect(w.find('[data-testid="ac-sua-giao-hang"]').exists()).toBe(false)
     expect(w.find('[data-testid="ac-da-doi-giao"]').text()).toContain('một lần')
+    w.unmount()
+  })
+
+  it('đơn đã được nhân viên sửa (daChinhSua hoặc daSuaGiaoHang): khách không được sửa nữa, hiện thông báo đã đổi 1 lần', async () => {
+    dangNhapKhach()
+    route.query = { tab: 'orders', don: 'HD900' }
+    const daSuaVoiNhanVien = {
+      ...CHI_TIET,
+      hoaDon: { ...CHI_TIET.hoaDon, duocSuaGiaoHang: false, daSuaGiaoHang: true, daChinhSua: true },
+    }
+    api.get.mockImplementation(async (url) => {
+      if (url === '/khach/don-hang/HD900') return { data: { trangThai: 1, chiTiet: [], chiTietDon: daSuaVoiNhanVien } }
+      return { data: url === '/khach/tai-khoan' ? {} : [] }
+    })
+    const w = gan(AccountView)
+    await flushPromises()
+    expect(w.find('[data-testid="ac-sua-giao-hang"]').exists()).toBe(false)
+    const thongBao = w.find('[data-testid="ac-da-doi-giao"]')
+    expect(thongBao.exists()).toBe(true)
+    expect(thongBao.text()).toContain('một lần')
+    w.unmount()
+  })
+
+  it('hồ sơ cá nhân lên đầu tiên: menu sidebar theo thứ tự Hồ sơ cá nhân -> Theo dõi đơn hàng -> Sổ địa chỉ; mặc định mở tab Hồ sơ cá nhân', async () => {
+    dangNhapKhach()
+    api.get.mockImplementation(async (url) => {
+      if (url === '/khach/tai-khoan') return { data: { hoTen: 'Khách A', sdt: '0901000001' } }
+      return { data: [] }
+    })
+    const w = gan(AccountView)
+    await flushPromises()
+    const nutNav = w.findAll('.nav button')
+    expect(nutNav).toHaveLength(3)
+    expect(nutNav[0].text()).toContain('Hồ sơ cá nhân')
+    expect(nutNav[1].text()).toContain('Theo dõi đơn hàng')
+    expect(nutNav[2].text()).toContain('Sổ địa chỉ nhận hàng')
+    expect(nutNav[0].classes()).toContain('btn-primary')
+    expect(w.text()).toContain('Thông tin tài khoản')
     w.unmount()
   })
 })

@@ -8,6 +8,7 @@ import { formatMoney } from '../../utils/format'
 
 const props = defineProps({
   ids: { type: Array, default: () => [] },
+  chu: { type: String, default: '' },
 })
 
 const ds = ref([])
@@ -20,8 +21,14 @@ const route = useRoute()
 const router = useRouter()
 const trongCuaHang = computed(() => String(route?.path || '').startsWith('/shop'))
 
+const mauMatch = computed(() => {
+  const m = String(props.chu || '').match(/màu\s+([a-zA-ZÀ-ỹ\s]+?)(?:,\s*giá|\s*\(|\s*\)|\.|\:|$)/i)
+  return m ? m[1].trim() : ''
+})
+
 function mo(p) {
-  const duongDan = `/shop/san-pham/${p.id}`
+  const mauParam = mauMatch.value ? `?mau=${encodeURIComponent(mauMatch.value)}` : ''
+  const duongDan = `/shop/san-pham/${p.id}${mauParam}`
   if (trongCuaHang.value) router.push(duongDan)
   else window.open(duongDan, '_blank', 'noopener')
 }
