@@ -81,18 +81,18 @@ const tgKetThuc = computed(() => tinKetThuc.value?.thoiGian ? gioPhut(tinKetThuc
 const trangThai = computed(() => {
   switch (cheDo.value) {
     case CHE_DO.CHO_NHAN_VIEN:
-      return { icon: 'bi-hourglass-split', nhan: 'Đang chờ nhân viên…', phu: 'Bạn cứ nhắn, nhân viên sẽ trả lời ngay tại đây (tự đóng sau 30p không tương tác)' }
+      return { icon: 'bi-hourglass-split', nhan: 'Đang chờ nhân viên…', phu: 'Bạn cứ nhắn, nhân viên sẽ trả lời ngay tại đây' }
     case CHE_DO.NHAN_VIEN_HO_TRO:
       return {
         icon: 'bi-headset',
         nhan: tenNhanVien.value ? `Nhân viên ${tenNhanVien.value}` : 'Nhân viên hỗ trợ',
-        phu: tgNhan.value ? `Đang hỗ trợ bạn · TG nhận: ${tgNhan.value} (tự đóng sau 30p không tương tác)` : 'Đang hỗ trợ bạn (tự đóng sau 30p không tương tác)',
+        phu: 'Đang hỗ trợ bạn',
       }
     case CHE_DO.DA_DONG:
       return {
         icon: 'bi-check2-circle',
         nhan: 'Đã kết thúc',
-        phu: tgKetThuc.value ? `Đã kết thúc · TG kết thúc: ${tgKetThuc.value}` : 'Cảm ơn bạn đã liên hệ',
+        phu: 'Cảm ơn bạn đã liên hệ',
       }
     default:
       // Góp ý 16/11 [10:36]: phần đầu khung trợ lý chỉ để tên trợ lý + nút Gặp nhân viên, không dòng phụ
