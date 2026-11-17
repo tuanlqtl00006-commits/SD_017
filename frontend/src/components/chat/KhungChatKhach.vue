@@ -66,6 +66,34 @@ const { loi, cham, sua, batDauGui, datLoiMayChu } = useLoiForm(() => {
 
 const tatCaTin = computed(() => [...tin.value, ...tamThoi.value])
 const daDong = computed(() => cheDo.value === CHE_DO.DA_DONG)
+
+// Đếm ngược 30 phút tự động kết thúc nếu 2 bên không tương tác (giống thanh toán chuyển khoản)
+const HAN_TU_DONG_PHUT = 30
+const bayGio = ref(Date.now())
+let henGioDem = null
+
+const dangChoHoacChat = computed(() => !daDong.value && (cheDo.value === CHE_DO.CHO_NHAN_VIEN || cheDo.value === CHE_DO.NHAN_VIEN_HO_TRO))
+
+const mocTinCuoi = computed(() => {
+  const tinCuoi = tatCaTin.value[tatCaTin.value.length - 1]
+  if (tinCuoi?.thoiGian) {
+    const t = new Date(tinCuoi.thoiGian).getTime()
+    if (!Number.isNaN(t)) return t
+  }
+  return phien.value?.ngayTao ? new Date(phien.value.ngayTao).getTime() : Date.now()
+})
+
+const conLaiMs = computed(() => {
+  return Math.max(0, mocTinCuoi.value + HAN_TU_DONG_PHUT * 60000 - bayGio.value)
+})
+
+const conLaiText = computed(() => {
+  const tongGiay = Math.ceil(conLaiMs.value / 1000)
+  const phut = Math.floor(tongGiay / 60)
+  const giay = tongGiay % 60
+  return `${String(phut).padStart(2, '0')}:${String(giay).padStart(2, '0')}`
+})
+
 const trangThai = computed(() => {
   switch (cheDo.value) {
     case CHE_DO.CHO_NHAN_VIEN:
@@ -158,6 +186,9 @@ let demNhip = 0
 onMounted(() => {
   taiDau()
   tuDongBatDau()
+  henGioDem = setInterval(() => {
+    bayGio.value = Date.now()
+  }, 1000)
   hen = setInterval(() => {
     if (!phien.value || daDong.value || dangGui.value) return
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
@@ -167,7 +198,10 @@ onMounted(() => {
     taiMoi()
   }, props.chuKyMs)
 })
-onBeforeUnmount(() => clearInterval(hen))
+onBeforeUnmount(() => {
+  if (hen) clearInterval(hen)
+  if (henGioDem) clearInterval(henGioDem)
+})
 
 async function batDau() {
   loiChung.value = ''
@@ -357,6 +391,9 @@ const laCuaToi = (t) => t.loaiNguoiGui === NGUOI_GUI.KHACH
 
     <!-- Đang chat -->
     <template v-else>
+      <div v-if="dangChoHoacChat" class="kck-dem" data-testid="kck-dem-nguoc">
+        <i class="bi bi-clock me-1"></i>Tự động kết thúc nếu không tương tác: <strong>{{ conLaiText }}</strong>
+      </div>
       <div v-if="loiChung" class="kck-loi" role="alert">{{ loiChung }}</div>
       <KhungTinNhan ref="khungTin" :tin-nhan="tatCaTin" :la-cua-toi="laCuaToi" :dang-go="dangGo" :dang-tai="dangTai" />
       <div v-if="goiY.length && cheDo === CHE_DO.TRO_LY_AO && !dangGui" class="kck-goi-y" aria-label="Câu hỏi gợi ý">
@@ -431,6 +468,22 @@ const laCuaToi = (t) => t.loaiNguoiGui === NGUOI_GUI.KHACH
   padding: 12px 14px;
   background: var(--fs-navy);
   color: #fff;
+}
+.kck-dem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  color: #a56a00;
+  background: #fffbeb;
+  border-bottom: 1px solid #fef3c7;
+  flex: 0 0 auto;
+}
+.kck-dem strong {
+  margin-left: 4px;
+  color: #b45309;
+  font-weight: 700;
 }
 .kck-bieu-tuong {
   width: 38px;

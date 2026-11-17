@@ -66,6 +66,28 @@ const tinNhanChat = computed(() => {
 })
 const tgNhanChat = computed(() => tinNhanChat.value?.thoiGian ?? null)
 
+// Đếm ngược 30 phút tự động kết thúc nếu 2 bên không tương tác (giống thanh toán chuyển khoản)
+const HAN_TU_DONG_PHUT = 30
+const bayGioHtt = ref(Date.now())
+let henDemHtt = null
+const mocTinCuoiHtt = computed(() => {
+  const tinCuoi = tin.value[tin.value.length - 1]
+  if (tinCuoi?.thoiGian) {
+    const t = new Date(tinCuoi.thoiGian).getTime()
+    if (!Number.isNaN(t)) return t
+  }
+  return dangMo.value?.ngayCapNhat ? new Date(dangMo.value.ngayCapNhat).getTime() : Date.now()
+})
+const conLaiMsHtt = computed(() => {
+  return Math.max(0, mocTinCuoiHtt.value + HAN_TU_DONG_PHUT * 60000 - bayGioHtt.value)
+})
+const conLaiTextHtt = computed(() => {
+  const tongGiay = Math.ceil(conLaiMsHtt.value / 1000)
+  const phut = Math.floor(tongGiay / 60)
+  const giay = tongGiay % 60
+  return `${String(phut).padStart(2, '0')}:${String(giay).padStart(2, '0')}`
+})
+
 const cuaNguoiKhac = computed(() => dangMo.value?.cheDo === CHE_DO.NHAN_VIEN_HO_TRO && dangMo.value.idNhanVienPhuTrach !== idToi.value)
 const nhanDuoc = computed(() => {
   const h = dangMo.value
@@ -237,10 +259,12 @@ onMounted(() => {
     mo({ id: idMo })
   }
   taiDs()
+  henDemHtt = setInterval(() => { bayGioHtt.value = Date.now() }, 1000)
   henDs = setInterval(() => !an() && taiDs(), 5000)
   henTin = setInterval(() => !an() && taiTinMoi(), 3000)
 })
 onBeforeUnmount(() => {
+  if (henDemHtt) clearInterval(henDemHtt)
   clearInterval(henDs)
   clearInterval(henTin)
 })
@@ -335,6 +359,9 @@ onBeforeUnmount(() => {
             <span v-if="tgNhanChat" class="htt-tg-nhan text-muted d-inline-flex align-items-center gap-1" title="Thời gian nhận hỗ trợ">
               <i class="bi bi-clock" aria-hidden="true"></i>
               <span>TG nhận chat: <strong>{{ formatNgayGio(tgNhanChat) }}</strong></span>
+            </span>
+            <span v-if="dangMo && dangMo.cheDo !== CHE_DO.DA_DONG" class="htt-tg-dem d-inline-flex align-items-center gap-1" title="Tự động kết thúc nếu cả hai bên không nhắn tin sau 30 phút">
+              <i class="bi bi-clock me-1"></i>Tự đóng sau: <strong>{{ conLaiTextHtt }}</strong>
             </span>
             <span v-if="dangMo.cheDo === CHE_DO.DA_DONG" class="htt-tg-ket-thuc text-muted d-inline-flex align-items-center gap-1" title="Thời gian kết thúc">
               <i class="bi bi-clock-history" aria-hidden="true"></i>
@@ -607,6 +634,17 @@ onBeforeUnmount(() => {
   padding: 3px 8px;
   border-radius: 6px;
   border: 1px solid var(--fs-line, #e2e8f0);
+}
+.htt-tg-dem {
+  font-size: 0.82rem;
+  background: #fffbeb;
+  color: #a56a00;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #fef3c7;
+}
+.htt-tg-dem strong {
+  color: #b45309;
 }
 .htt-quay-lai {
   display: none;
