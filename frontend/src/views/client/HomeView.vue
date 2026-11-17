@@ -388,13 +388,6 @@ function quickAddToCart(item, event) {
           <button type="button" class="hm-mui-ten banner-prev" aria-label="Banner trước" @click="prevBanner"><i class="bi bi-chevron-left"></i></button>
           <button type="button" class="hm-mui-ten banner-next" aria-label="Banner sau" @click="nextBanner"><i class="bi bi-chevron-right"></i></button>
         </div>
-
-        <!-- Cam kết: theo đúng chính sách thật của cửa hàng -->
-        <div class="hm-cam-ket">
-          <div class="hm-cam-ket-o"><i class="bi bi-patch-check"></i><div><strong>Chính hãng 100%</strong><span>Vợt từ {{ thuongHieu.length }} thương hiệu</span></div></div>
-          <div class="hm-cam-ket-o"><i class="bi bi-truck"></i><div><strong>Giao Hàng Nhanh</strong><span>Toàn quốc, kiểm tra hàng khi nhận</span></div></div>
-          <div class="hm-cam-ket-o"><i class="bi bi-shield-lock"></i><div><strong>Thanh toán an toàn</strong><span>COD hoặc chuyển khoản VietQR</span></div></div>
-        </div>
       </div>
     </section>
 
@@ -736,42 +729,6 @@ function quickAddToCart(item, event) {
   right: 18px;
 }
 
-/* Cam kết */
-.hm-cam-ket {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-}
-.hm-cam-ket-o {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 18px;
-  background: #fff;
-  border: 1px solid #eef0f4;
-  border-radius: 16px;
-}
-.hm-cam-ket-o .bi {
-  flex: 0 0 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  font-size: 1.25rem;
-  color: #1d4ed8;
-  background: #eef4ff;
-  border-radius: 12px;
-}
-.hm-cam-ket-o strong {
-  display: block;
-  font-size: 0.92rem;
-  color: #0f172a;
-}
-.hm-cam-ket-o span {
-  font-size: 0.8rem;
-  color: #64748b;
-}
-
 /* ---------- Mục chung ---------- */
 .hm-noi-dung {
   padding-top: 8px;
@@ -1097,9 +1054,6 @@ function quickAddToCart(item, event) {
   }
   .hm-mui-ten {
     display: none;
-  }
-  .hm-cam-ket {
-    grid-template-columns: minmax(0, 1fr);
   }
   .hm-luoi-3 {
     grid-template-columns: minmax(0, 1fr);
