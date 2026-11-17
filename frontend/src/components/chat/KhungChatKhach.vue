@@ -81,12 +81,12 @@ const tgKetThuc = computed(() => tinKetThuc.value?.thoiGian ? gioPhut(tinKetThuc
 const trangThai = computed(() => {
   switch (cheDo.value) {
     case CHE_DO.CHO_NHAN_VIEN:
-      return { icon: 'bi-hourglass-split', nhan: 'Đang chờ nhân viên…', phu: 'Bạn cứ nhắn, nhân viên sẽ trả lời ngay tại đây' }
+      return { icon: 'bi-hourglass-split', nhan: 'Đang chờ nhân viên…', phu: 'Bạn cứ nhắn, nhân viên sẽ trả lời ngay tại đây (tự đóng sau 30p không tương tác)' }
     case CHE_DO.NHAN_VIEN_HO_TRO:
       return {
         icon: 'bi-headset',
         nhan: tenNhanVien.value ? `Nhân viên ${tenNhanVien.value}` : 'Nhân viên hỗ trợ',
-        phu: tgNhan.value ? `Đang hỗ trợ bạn · TG nhận chat: ${tgNhan.value}` : 'Đang hỗ trợ bạn',
+        phu: tgNhan.value ? `Đang hỗ trợ bạn · TG nhận: ${tgNhan.value} (tự đóng sau 30p không tương tác)` : 'Đang hỗ trợ bạn (tự đóng sau 30p không tương tác)',
       }
     case CHE_DO.DA_DONG:
       return {

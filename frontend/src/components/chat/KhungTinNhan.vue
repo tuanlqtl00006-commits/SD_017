@@ -69,6 +69,11 @@ function kieuAvatar(t) {
         <div v-else-if="d.loai === 'he-thong'" class="ktn-he-thong">
           <span v-if="d.tin.noiDung && (d.tin.noiDung.includes('tham gia hỗ trợ') || d.tin.noiDung.includes('tiếp quản'))">
             {{ d.tin.noiDung }} <strong class="ktn-tg-ghi-ro">(TG nhận chat: {{ gioPhut(d.tin.thoiGian) }})</strong>
+            <small class="d-block text-muted mt-1 ktn-luu-y-dong">* Tự động kết thúc nếu 2 bên không tương tác trong 30 phút</small>
+          </span>
+          <span v-else-if="d.tin.noiDung && d.tin.noiDung.includes('Đang kết nối với nhân viên')">
+            {{ d.tin.noiDung }}
+            <small class="d-block text-muted mt-1 ktn-luu-y-dong">* Tự động kết thúc nếu 2 bên không tương tác trong 30 phút</small>
           </span>
           <span v-else-if="d.tin.noiDung && (d.tin.noiDung.includes('kết thúc cuộc trò chuyện') || d.tin.noiDung.includes('tự kết thúc'))">
             {{ d.tin.noiDung }} <strong class="ktn-tg-ghi-ro">(TG kết thúc: {{ gioPhut(d.tin.thoiGian) }})</strong>
@@ -163,6 +168,11 @@ function kieuAvatar(t) {
 .ktn-tg-ghi-ro {
   font-weight: 600;
   color: #1e40af;
+}
+.ktn-luu-y-dong {
+  font-size: 0.73rem;
+  color: #64748b;
+  font-style: italic;
 }
 .ktn-dong {
   display: flex;
