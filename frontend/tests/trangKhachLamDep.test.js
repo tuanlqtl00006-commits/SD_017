@@ -113,18 +113,18 @@ describe('Đơn hàng của tôi: xem chi tiết ngay trong trang tài khoản',
 })
 
 describe('Màn chính sách cửa hàng', () => {
-  it('ghi đúng ngưỡng miễn phí vận chuyển đang cài đặt và bảng phí theo tỉnh thật', async () => {
-    api.get.mockResolvedValue({ data: { mienPhiBat: true, mienPhiTu: 2_000_000 } })
-    nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 2_000_000 })
+  // Góp ý 16/11: bỏ bảng phí theo tỉnh, ghi đúng phí giao hàng quản lý cài
+  it('ghi đúng ngưỡng miễn phí vận chuyển và phí giao hàng đang cài đặt, không còn bảng phí theo tỉnh', async () => {
+    api.get.mockResolvedValue({ data: { mienPhiBat: true, mienPhiTu: 2_000_000, phiGiaoHang: 30_000 } })
+    nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 2_000_000, phiGiaoHang: 30_000 })
     const w = gan(ChinhSachView)
     await flushPromises()
     expect(w.find('[data-testid="cs-mien-phi"]').text()).toContain('2.000.000')
-    const bang = w.find('[data-testid="cs-bang-phi"]').text()
-    expect(bang).toContain('Hà Nội - giao tới phường')
-    expect(bang).toContain('Hà Nội - giao tới xã')
-    expect(bang).not.toContain('Miễn phí')
-    expect(bang).toContain('30.000')
-    expect(bang).toContain('55.000')
+    const phi = w.find('[data-testid="cs-phi-giao"]').text()
+    expect(phi).toContain('30.000')
+    expect(phi).toContain('như nhau ở mọi tỉnh')
+    expect(w.find('[data-testid="cs-bang-phi"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('giao tới phường')
     for (const muc of ['Giao hàng', 'Thanh toán', 'Đổi trả & bảo hành', 'Đặt hàng & hủy đơn', 'Bảo mật thông tin']) expect(w.text()).toContain(muc)
     expect(w.text()).toContain('Giao Hàng Nhanh')
     // không ghi các phương thức hệ thống không có

@@ -1,14 +1,14 @@
 <script setup>
 // Hộp thoại "Sửa thông tin giao hàng" (góp ý 14/11: tách khỏi "Chỉnh sửa đơn"). Dùng chung cho màn chi tiết hóa đơn (nhân viên)
 // và màn đơn hàng của khách: đổi người nhận / SĐT / địa chỉ, mỗi đơn MỘT lần, trước khi giao cho đơn vị vận chuyển.
-// Phí giao tính lại theo nơi mới (Hà Nội phường / xã, tỉnh khác tùy tỉnh); máy chủ tính lại lần cuối khi lưu.
+// Phí giao không theo nơi nhận (một mức quản lý cài) nên đổi địa chỉ giữ phí của đơn; máy chủ tính lại lần cuối khi lưu.
 import { computed, reactive, ref } from 'vue'
 import api from '../../services/api'
 import BaseModal from '../common/BaseModal.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 import { formatMoney } from '../../utils/format'
-import { nhanRaTinh, phiSauKhiSuaDon } from '../../utils/phiVanChuyenTinh'
+import { phiSauKhiSuaDon } from '../../utils/phiVanChuyen'
 
 const props = defineProps({
   data: { type: Object, required: true }, // dữ liệu chi tiết hóa đơn (dạng GET /hoa-don/{id})
@@ -21,9 +21,9 @@ const hd = computed(() => props.data?.hoaDon ?? {})
 const giao = computed(() => props.data?.giaoHang ?? {})
 const caiDat = dungCaiDatVanChuyen()
 
-// Tách địa chỉ đang có "cụ thể, phường/xã, tỉnh" để điền sẵn
+// Tách địa chỉ đang có "cụ thể, phường/xã, tỉnh" (dạng ô chọn địa chỉ ghép ra) để điền sẵn
 const phan = String(giao.value.diaChi || '').split(',').map((x) => x.trim())
-const coTinh = phan.length >= 3 && nhanRaTinh(phan[phan.length - 1])
+const coTinh = phan.length >= 3 && /^(tỉnh|thành phố)\s/i.test(phan[phan.length - 1]) && /^(phường|xã|đặc khu)\s/i.test(phan[phan.length - 2])
 const form = reactive({
   hoTen: giao.value.hoTenNguoiNhan || '',
   sdt: giao.value.sdtNguoiNhan || '',
@@ -36,14 +36,10 @@ const loi = ref({})
 const loiChung = ref('')
 const dangLuu = ref(false)
 
-const diaChiMoi = computed(() => [form.diaChiCuThe.trim(), form.phuongXa, form.tinhThanh].filter(Boolean).join(', '))
 const tienHang = computed(() => Number(hd.value.tongTien) || 0)
 const phiCu = computed(() => Number(hd.value.phiVanChuyen) || 0)
-const phiMoi = computed(() =>
-  form.tinhThanh && form.phuongXa
-    ? phiSauKhiSuaDon({ caiDat, diaChiMoi: diaChiMoi.value, diaChiCu: giao.value.diaChi, tienHang: tienHang.value, tienHangCu: tienHang.value, phiCu: phiCu.value })
-    : null,
-)
+// Phí không theo nơi nhận: đổi địa chỉ giữ phí của đơn
+const phiMoi = computed(() => phiSauKhiSuaDon({ caiDat, tienHang: tienHang.value, tienHangCu: tienHang.value, phiCu: phiCu.value }))
 
 async function luu() {
   if (dangLuu.value) return
@@ -111,8 +107,7 @@ async function luu() {
       </div>
       <div class="sgh-phi" data-testid="sgh-phi">
         <span>Phí giao hàng</span>
-        <span v-if="phiMoi === null" class="text-muted">Chọn Tỉnh/Thành phố và Phường/Xã để tính</span>
-        <span v-else>
+        <span>
           <template v-if="phiMoi !== phiCu"><s class="text-muted me-1">{{ formatMoney(phiCu) }}</s></template>
           <strong>{{ phiMoi === 0 ? 'Miễn phí' : formatMoney(phiMoi) }}</strong>
         </span>

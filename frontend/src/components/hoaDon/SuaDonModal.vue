@@ -9,7 +9,7 @@ import BaseModal from '../common/BaseModal.vue'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
 import { formatMoney } from '../../utils/format'
-import { phiSauKhiSuaDon } from '../../utils/phiVanChuyenTinh'
+import { phiSauKhiSuaDon } from '../../utils/phiVanChuyen'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 
 const props = defineProps({ data: { type: Object, required: true } })
@@ -67,13 +67,11 @@ function bo(d) {
 
 /* ----- Tạm tính (backend tính lại chính xác) ----- */
 const tienHang = computed(() => dong.value.reduce((s, d) => s + d.donGia * (Number(d.soLuong) || 0), 0))
-// Phí giao sau khi sửa, cùng luật với máy chủ (HoaDonSuaService.phiSauKhiSua): không đổi địa chỉ, không đổi tiền hàng thì giữ phí của đơn;
-// tiền hàng mới đạt ngưỡng miễn phí thì 0; đổi địa chỉ thì theo tỉnh ở cuối địa chỉ mới
+// Phí giao sau khi sửa, cùng luật với máy chủ (HoaDonSuaService.phiSauKhiSua): không đổi tiền hàng thì giữ phí của đơn;
+// tiền hàng mới đạt ngưỡng miễn phí thì 0; trước được miễn phí nay tụt dưới ngưỡng thì phí quản lý cài (phí không theo địa chỉ)
 const phiShip = computed(() =>
   phiSauKhiSuaDon({
     caiDat: caiDatShip,
-    diaChiMoi: f.diaChiGiaoHang,
-    diaChiCu: giao.diaChi || '',
     tienHang: tienHang.value,
     tienHangCu: Number(props.data.hoaDon?.tongTien) || 0,
     phiCu: Number(props.data.hoaDon?.phiVanChuyen) || 0,

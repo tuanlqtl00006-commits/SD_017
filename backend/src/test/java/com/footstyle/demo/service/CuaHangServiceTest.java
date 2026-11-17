@@ -150,7 +150,7 @@ class CuaHangServiceTest {
         Map<String, Object> saiMa = cuaHangService.tinhTien(new CuaHangService.TinhTienRequest(gio, "KHONG-CO-MA-NAY", null, null));
         assertEquals("Mã phiếu giảm giá không tồn tại.", saiMa.get("loiPhieu"));
         assertEquals(0L, ((Number) saiMa.get("soTienGiam")).longValue());
-        assertEquals(null, saiMa.get("phiVanChuyen"), "chưa chọn tỉnh thì chưa tính phí giao");
+        assertEquals(xem.get("phiVanChuyen"), saiMa.get("phiVanChuyen"), "phí giao là mức quản lý cài, không theo tỉnh: chưa chọn tỉnh vẫn tính được");
     }
 
     /** Review 05/11 (thầy bấm ra): trang chi tiết không chọn được 3U/4U, chu vi cán vì từng biến thể thiếu mã (id) của chúng. */

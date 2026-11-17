@@ -18,15 +18,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
- * Cài đặt miễn phí vận chuyển (free ship) theo giá trị đơn, quản lý sửa trên màn Cài đặt → Cài đặt free ship.
+ * Cài đặt phí giao hàng, quản lý sửa trên màn Cài đặt → Cài đặt free ship (góp ý 16/11: bỏ bảng phí viết cứng theo tỉnh,
+ * cửa hàng chỉ cài phí ship theo hóa đơn).
  * <ul>
- *   <li>Đang bật và tiền hàng của đơn (đã giảm theo đợt, CHƯA trừ phiếu giảm giá) từ ngưỡng trở lên thì phí giao hàng = 0.
- *       Cùng số tiền mà điều kiện "đơn tối thiểu" của phiếu giảm giá đang so.</li>
- *   <li>Chưa đạt ngưỡng (hoặc đang tắt) thì phí tính như cũ theo tỉnh nhận ({@link PhiVanChuyenTinh}).</li>
+ *   <li>Phí giao hàng: một mức phí cho mỗi đơn giao hàng, không phụ thuộc nơi nhận.</li>
+ *   <li>Miễn phí vận chuyển (free ship): đang bật và tiền hàng của đơn (đã giảm theo đợt, CHƯA trừ phiếu giảm giá) từ ngưỡng
+ *       trở lên thì phí giao hàng = 0. Cùng số tiền mà điều kiện "đơn tối thiểu" của phiếu giảm giá đang so.</li>
  * </ul>
  * Lưu ở tệp {@code <app.cai-dat-dir>/van-chuyen.json} trên máy chủ (CSDL không có bảng cài đặt, không đổi SQL): sửa xong có hiệu lực ngay,
- * khởi động lại vẫn còn. Chưa có tệp thì lấy mặc định ở application.properties (app.van-chuyen.mien-phi-bat / mien-phi-tu).
- * Phí của từng đơn đã lưu trong hóa đơn nên đổi cài đặt không làm đổi các đơn đã có.
+ * khởi động lại vẫn còn. Chưa có tệp thì lấy mặc định ở application.properties (app.van-chuyen.mien-phi-bat / mien-phi-tu /
+ * phi-giao-hang). Phí của từng đơn đã lưu trong hóa đơn nên đổi cài đặt không làm đổi các đơn đã có.
  */
 @Service
 public class CaiDatVanChuyenService {
@@ -36,8 +37,11 @@ public class CaiDatVanChuyenService {
     /** Ngưỡng lớn nhất nhận được (bằng số tiền lớn nhất của một lần thanh toán tại quầy). */
     static final long NGUONG_TOI_DA = BanHangService.TIEN_TOI_DA;
 
-    /** bat: có miễn phí theo giá trị đơn không; nguong: tiền hàng từ bao nhiêu thì miễn phí. */
-    public record CaiDat(boolean bat, long nguong) {
+    /** Phí giao hàng khi chưa có tệp cài đặt và application.properties không ghi (số tạm, quản lý sửa ở màn Cài đặt). */
+    public static final long PHI_GIAO_HANG_MAC_DINH = 25_000L;
+
+    /** bat: có miễn phí theo giá trị đơn không; nguong: tiền hàng từ bao nhiêu thì miễn phí; phiGiaoHang: phí mỗi đơn giao hàng. */
+    public record CaiDat(boolean bat, long nguong, long phiGiaoHang) {
     }
 
     private final ObjectMapper json = new ObjectMapper();
@@ -49,9 +53,10 @@ public class CaiDatVanChuyenService {
     @Autowired
     public CaiDatVanChuyenService(@Value("${app.cai-dat-dir:cai-dat}") String thuMuc,
                                   @Value("${app.van-chuyen.mien-phi-bat:true}") boolean batMacDinh,
-                                  @Value("${app.van-chuyen.mien-phi-tu:2000000}") long nguongMacDinh) {
+                                  @Value("${app.van-chuyen.mien-phi-tu:2000000}") long nguongMacDinh,
+                                  @Value("${app.van-chuyen.phi-giao-hang:25000}") long phiMacDinh) {
         this.tep = Path.of(thuMuc == null || thuMuc.isBlank() ? "cai-dat" : thuMuc.trim()).resolve("van-chuyen.json");
-        this.hienTai = docTep(new CaiDat(batMacDinh, Math.max(1L, nguongMacDinh)));
+        this.hienTai = docTep(new CaiDat(batMacDinh, Math.max(1L, nguongMacDinh), Math.max(0L, phiMacDinh)));
     }
 
     private CaiDatVanChuyenService(CaiDat coDinh) {
@@ -59,9 +64,13 @@ public class CaiDatVanChuyenService {
         this.hienTai = coDinh;
     }
 
-    /** Cài đặt chỉ giữ trong bộ nhớ, không đọc / ghi tệp (dùng cho test). */
+    /** Cài đặt chỉ giữ trong bộ nhớ, không đọc / ghi tệp (dùng cho test); phí giao hàng {@link #PHI_GIAO_HANG_MAC_DINH}. */
     public static CaiDatVanChuyenService trongBoNho(boolean bat, long nguong) {
-        return new CaiDatVanChuyenService(new CaiDat(bat, nguong));
+        return trongBoNho(bat, nguong, PHI_GIAO_HANG_MAC_DINH);
+    }
+
+    public static CaiDatVanChuyenService trongBoNho(boolean bat, long nguong, long phiGiaoHang) {
+        return new CaiDatVanChuyenService(new CaiDat(bat, nguong, phiGiaoHang));
     }
 
     private CaiDat docTep(CaiDat macDinh) {
@@ -70,9 +79,11 @@ public class CaiDatVanChuyenService {
             JsonNode n = json.readTree(tep.toFile());
             long nguong = n.path("mienPhiTu").asLong(macDinh.nguong());
             if (nguong < 1 || nguong > NGUONG_TOI_DA) nguong = macDinh.nguong();
+            long phi = n.path("phiGiaoHang").asLong(macDinh.phiGiaoHang());
+            if (phi < 0 || phi > NGUONG_TOI_DA) phi = macDinh.phiGiaoHang();
             String luc = n.path("capNhatLuc").asText("");
             capNhatLuc = luc.isBlank() ? null : luc;
-            return new CaiDat(n.path("mienPhiBat").asBoolean(macDinh.bat()), nguong);
+            return new CaiDat(n.path("mienPhiBat").asBoolean(macDinh.bat()), nguong, phi);
         } catch (IOException | RuntimeException e) {
             log.warn("Không đọc được cài đặt vận chuyển ở {}, dùng mặc định: {}", tep, e.getMessage());
             return macDinh;
@@ -89,17 +100,28 @@ public class CaiDatVanChuyenService {
         return c.bat() && tienHang >= c.nguong();
     }
 
-    /** Phí giao hàng của đơn: đạt ngưỡng thì 0, chưa đạt thì giữ phí tính theo cách thường (theo tỉnh / nhân viên nhập). */
+    /** Phí giao hàng quản lý đang cài (chưa xét miễn phí). */
+    public long phiGiaoHang() {
+        return hienTai.phiGiaoHang();
+    }
+
+    /** Phí giao hàng của đơn: đạt ngưỡng miễn phí thì 0, chưa đạt thì phí quản lý cài. */
+    public long phi(long tienHang) {
+        return phi(tienHang, phiGiaoHang());
+    }
+
+    /** Phí giao hàng của đơn: đạt ngưỡng thì 0, chưa đạt thì giữ phí đưa vào (phí cài đặt / nhân viên quầy nhập). */
     public long phi(long tienHang, long phiThuong) {
         return mienPhi(tienHang) ? 0L : phiThuong;
     }
 
-    /** Dạng trả về cho giao diện: { mienPhiBat, mienPhiTu }. */
+    /** Dạng trả về cho giao diện: { mienPhiBat, mienPhiTu, phiGiaoHang }. */
     public Map<String, Object> moTa() {
         CaiDat c = hienTai;
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("mienPhiBat", c.bat());
         m.put("mienPhiTu", c.nguong());
+        m.put("phiGiaoHang", c.phiGiaoHang());
         return m;
     }
 
@@ -110,11 +132,17 @@ public class CaiDatVanChuyenService {
         return m;
     }
 
+    /** Lưu miễn phí vận chuyển, giữ nguyên phí giao hàng đang cài. */
+    public synchronized Map<String, Object> luu(Boolean bat, Long nguong) {
+        return luu(bat, nguong, null);
+    }
+
     /**
      * Quản lý lưu cài đặt. Ngưỡng là số tiền nguyên từ 1 ₫ trở lên; đang tắt mà không gửi ngưỡng thì giữ ngưỡng cũ.
+     * Phí giao hàng từ 0 ₫ trở lên; không gửi thì giữ phí cũ.
      * Ghi tệp xong mới đổi giá trị đang dùng (ghi lỗi thì cài đặt cũ vẫn nguyên).
      */
-    public synchronized Map<String, Object> luu(Boolean bat, Long nguong) {
+    public synchronized Map<String, Object> luu(Boolean bat, Long nguong, Long phiGiaoHang) {
         LoiForm loi = new LoiForm();
         boolean batMoi = Boolean.TRUE.equals(bat);
         if (bat == null) loi.them("mienPhiBat", "Vui lòng chọn bật hoặc tắt miễn phí vận chuyển.");
@@ -125,8 +153,11 @@ public class CaiDatVanChuyenService {
         } else if (nguong > NGUONG_TOI_DA) {
             loi.them("mienPhiTu", "Số tiền quá lớn.");
         }
+        if (phiGiaoHang != null && phiGiaoHang < 0) loi.them("phiGiaoHang", "Phí giao hàng không được âm.");
+        else if (phiGiaoHang != null && phiGiaoHang > NGUONG_TOI_DA) loi.them("phiGiaoHang", "Số tiền quá lớn.");
         loi.nemNeuCoLoi();
-        CaiDat moi = new CaiDat(batMoi, nguong != null ? nguong : hienTai.nguong());
+        CaiDat moi = new CaiDat(batMoi, nguong != null ? nguong : hienTai.nguong(),
+                phiGiaoHang != null ? phiGiaoHang : hienTai.phiGiaoHang());
         String luc = java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString();
         if (tep != null) ghiTep(moi, luc);
         hienTai = moi;
@@ -138,6 +169,7 @@ public class CaiDatVanChuyenService {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("mienPhiBat", c.bat());
         m.put("mienPhiTu", c.nguong());
+        m.put("phiGiaoHang", c.phiGiaoHang());
         m.put("capNhatLuc", luc);
         try {
             Path thuMuc = tep.toAbsolutePath().getParent();

@@ -1,6 +1,7 @@
 package com.footstyle.demo.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -185,7 +186,7 @@ class HoaDonSuaServiceTest {
                 new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 1, 1)));
         assertEquals(2, dong.size(), "dòng cũ giữ giá lúc đặt 250.000, dòng mới theo giá 200.000");
         assertEquals(0, BigDecimal.valueOf(200_000).compareTo(dong.get(1).getDonGia()));
-        assertEquals(0, BigDecimal.valueOf(725_000).compareTo(hd.getThanhTien()), "700.000 + 25.000 giao trong Hà Nội");
+        assertEquals(0, BigDecimal.valueOf(730_000).compareTo(hd.getThanhTien()), "700.000 + phí 30.000 của đơn (phí không theo địa chỉ)");
         assertTrue(lichSu.get(0).getMoTa().contains("tách dòng mới"));
         ApiException e = assertThrows(ApiException.class, () -> service.suaDon(1, sua("Số 99 Lê Lợi, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1))));
         assertEquals("DA_SUA_DON", e.getCode());
@@ -195,20 +196,21 @@ class HoaDonSuaServiceTest {
     void khachDaTraTruoc_bonSanPham_ghiHoanPhi() {
         daChuyenKhoan(530_000);
         Map<String, Object> kq = service.suaDon(1, sua("Số 99 Lê Lợi, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1)));
-        assertEquals(0, BigDecimal.valueOf(275_000).compareTo(hd.getThanhTien()), "250.000 + 25.000 giao trong Hà Nội");
+        assertEquals(0, BigDecimal.valueOf(280_000).compareTo(hd.getThanhTien()), "250.000 + phí 30.000 của đơn");
         assertEquals(2, thanhToan.size());
-        assertEquals(0, BigDecimal.valueOf(-255_000).compareTo(thanhToan.get(1).getSoTien()), "hoàn lại 530.000 - 275.000");
+        assertEquals(0, BigDecimal.valueOf(-250_000).compareTo(thanhToan.get(1).getSoTien()), "hoàn lại 530.000 - 280.000");
         assertEquals("Số 99 Lê Lợi, Hà Đông, Hà Nội", hd.getDiaChiGiaoHang());
         @SuppressWarnings("unchecked")
         Map<String, Object> ketQua = (Map<String, Object>) kq.get("ketQuaSua");
-        assertEquals(255_000L, ketQua.get("hoanPhi"));
+        assertEquals(250_000L, ketQua.get("hoanPhi"));
     }
 
     @Test
-    void doiDiaChiSangTinhKhac_tinhLaiPhiShipTheoTinh() {
+    void doiDiaChiSangTinhKhac_giuPhiShip_khongTinhTheoTinh() {
+        // Góp ý 16/11: bỏ bảng phí theo tỉnh, đổi địa chỉ không làm đổi phí giao
         service.suaDon(1, sua("Số 8 Lê Duẩn, Phường Bến Nghé, Thành phố Hồ Chí Minh", new HoaDonSuaService.DongSua(1, 1, 2)));
-        assertEquals(0, BigDecimal.valueOf(50_000).compareTo(hd.getPhiVanChuyen()), "TP Hồ Chí Minh phí 50.000");
-        assertEquals(0, BigDecimal.valueOf(550_000).compareTo(hd.getThanhTien()), "500.000 + ship 50.000");
+        assertEquals(0, BigDecimal.valueOf(30_000).compareTo(hd.getPhiVanChuyen()), "giữ phí 30.000 của đơn");
+        assertEquals(0, BigDecimal.valueOf(530_000).compareTo(hd.getThanhTien()), "500.000 + ship 30.000");
     }
 
     @Test
@@ -228,10 +230,10 @@ class HoaDonSuaServiceTest {
         daChuyenKhoan(530_000);
         service.suaDon(1, sua("Số 16 Trần Phú, Hà Đông, Hà Nội",
                 new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 2, 1)));
-        assertEquals(0, BigDecimal.valueOf(25_000).compareTo(hd.getPhiVanChuyen()), "giao trong Hà Nội: 25.000");
-        assertEquals(0, BigDecimal.valueOf(1_725_000).compareTo(hd.getThanhTien()));
+        assertEquals(0, BigDecimal.valueOf(30_000).compareTo(hd.getPhiVanChuyen()), "giữ phí 30.000 của đơn");
+        assertEquals(0, BigDecimal.valueOf(1_730_000).compareTo(hd.getThanhTien()));
         assertEquals(1, thanhToan.size(), "phụ phí thu khi giao hàng, chưa ghi thanh toán");
-        assertTrue(lichSu.get(0).getMoTa().contains("Phụ phí 1.195.000 ₫"));
+        assertTrue(lichSu.get(0).getMoTa().contains("Phụ phí 1.200.000 ₫"), lichSu.get(0).getMoTa());
     }
 
     @Test
@@ -265,19 +267,15 @@ class HoaDonSuaServiceTest {
 
     @Test
     void phiSauKhiSua_cacTruongHop() {
-        service.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 700_000L));
+        service.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 700_000L, 40_000L));
         String haNoi = "Số 15 Trần Phú, Hà Đông, Hà Nội";
         String hcm = "Số 8 Lê Duẩn, Phường Bến Nghé, Thành phố Hồ Chí Minh";
         assertEquals(30_000L, service.phiSauKhiSua(haNoi, haNoi, 900_000L, 900_000L, 30_000L),
-                "không đổi địa chỉ, không đổi tiền hàng (chỉ đổi tên người nhận): giữ phí của đơn dù đang trên ngưỡng");
-        assertEquals(0L, service.phiSauKhiSua(hcm, haNoi, 900_000L, 500_000L, 30_000L), "đổi địa chỉ nhưng đơn đạt ngưỡng: miễn phí");
-        assertEquals(50_000L, service.phiSauKhiSua(hcm, haNoi, 500_000L, 500_000L, 30_000L), "đổi sang TP Hồ Chí Minh, chưa đạt ngưỡng: 50.000");
-        assertEquals(30_000L, service.phiSauKhiSua("Số 15 Trần Phú, khu phố 3", haNoi, 500_000L, 500_000L, 30_000L), "không nhận ra tỉnh: giữ phí cũ");
-        assertEquals(50_000L, service.phiSauKhiSua(hcm, hcm, 500_000L, 900_000L, 0L),
-                "trước được miễn phí nhờ đạt ngưỡng, bớt hàng tụt dưới ngưỡng: tính lại theo tỉnh");
-        assertEquals(PhiVanChuyenTinh.PHI_MAC_DINH, service.phiSauKhiSua("Số 15 Trần Phú, khu phố 3", "Số 15 Trần Phú, khu phố 3", 500_000L, 900_000L, 0L),
-                "tụt dưới ngưỡng mà không nhận ra tỉnh: phí mặc định");
-        assertEquals(25_000L, service.phiSauKhiSua(haNoi, haNoi, 500_000L, 900_000L, 0L), "tụt dưới ngưỡng, giao trong Hà Nội: 25.000");
+                "không đổi tiền hàng (chỉ đổi tên người nhận): giữ phí của đơn dù đang trên ngưỡng");
+        assertEquals(30_000L, service.phiSauKhiSua(hcm, haNoi, 500_000L, 500_000L, 30_000L), "phí không theo tỉnh: đổi địa chỉ thì giữ phí cũ");
+        assertEquals(0L, service.phiSauKhiSua(hcm, haNoi, 900_000L, 500_000L, 30_000L), "đơn mới đạt ngưỡng: miễn phí");
+        assertEquals(40_000L, service.phiSauKhiSua(hcm, hcm, 500_000L, 900_000L, 0L),
+                "trước được miễn phí nhờ đạt ngưỡng, bớt hàng tụt dưới ngưỡng: phí quản lý đang cài");
         assertEquals(30_000L, service.phiSauKhiSua(hcm, hcm, 400_000L, 500_000L, 30_000L), "trước và sau đều dưới ngưỡng: giữ phí nhân viên đã nhập");
         service.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(false, 700_000L));
         assertEquals(30_000L, service.phiSauKhiSua(haNoi, haNoi, 900_000L, 500_000L, 30_000L), "đang tắt miễn phí theo giá trị đơn: như cũ");
@@ -343,19 +341,19 @@ class HoaDonSuaServiceTest {
     }
 
     @Test
-    void nhanVienSuaGiaoHang_tinhLaiPhiTheoNoiMoi_ghiLichSu_chiMotLan() {
+    void nhanVienSuaGiaoHang_giuPhi_ghiLichSu_chiMotLan() {
         service.suaThongTinGiaoHang(1, giao("Phường Bến Nghé", "Thành phố Hồ Chí Minh", "Khách gọi đổi địa chỉ"));
         assertEquals("Số 8 Lê Duẩn, Phường Bến Nghé, Thành phố Hồ Chí Minh", hd.getDiaChiGiaoHang());
         assertEquals("Trần Văn Hùng", hd.getHoTenNguoiNhan());
         assertEquals("0912345678", hd.getSdtNguoiNhan());
-        assertEquals(0, BigDecimal.valueOf(50_000).compareTo(hd.getPhiVanChuyen()), "TP Hồ Chí Minh 50.000");
-        assertEquals(0, BigDecimal.valueOf(550_000).compareTo(hd.getThanhTien()));
+        assertEquals(0, BigDecimal.valueOf(30_000).compareTo(hd.getPhiVanChuyen()), "phí không theo tỉnh: giữ 30.000");
+        assertEquals(0, BigDecimal.valueOf(530_000).compareTo(hd.getThanhTien()));
         assertEquals(1, dong.size(), "sản phẩm giữ nguyên");
         assertEquals(2, dong.get(0).getSoLuong());
         LichSuHoaDon ls = lichSu.get(lichSu.size() - 1);
         assertEquals(HoaDonSuaService.HANH_DONG_SUA_GIAO, ls.getHanhDong());
         assertTrue(ls.getMoTa().contains("trước: Nguyễn Thị Lan"), ls.getMoTa());
-        assertTrue(ls.getMoTa().contains("Phí giao hàng 30.000 ₫ → 50.000 ₫"), ls.getMoTa());
+        assertFalse(ls.getMoTa().contains("Phí giao hàng 30.000 ₫ →"), ls.getMoTa());
         ApiException e = assertThrows(ApiException.class, () -> service.suaThongTinGiaoHang(1, giao("Xã Sóc Sơn", "Thành phố Hà Nội", "Đổi lần 2")));
         assertEquals("DA_SUA_GIAO_HANG", e.getCode());
         // vẫn còn "Chỉnh sửa đơn" (sản phẩm) riêng
@@ -365,12 +363,12 @@ class HoaDonSuaServiceTest {
     }
 
     @Test
-    void khachSuaGiaoHang_khongCanLyDo_daTraTruoc_thiHoanPhanChenh() {
+    void khachSuaGiaoHang_khongCanLyDo_daTraTruoc_phiGiuNguyen_khongHoan() {
         daChuyenKhoan(530_000);
         service.khachSuaThongTinGiaoHang(1, giao("Phường Hà Đông", "Thành phố Hà Nội", null));
-        assertEquals(0, BigDecimal.valueOf(25_000).compareTo(hd.getPhiVanChuyen()), "Hà Nội, phường 25.000");
-        assertEquals(0, BigDecimal.valueOf(525_000).compareTo(hd.getThanhTien()));
-        assertEquals(0, BigDecimal.valueOf(-5_000).compareTo(thanhToan.get(thanhToan.size() - 1).getSoTien()), "hoàn 5.000 đã trả dư");
+        assertEquals(0, BigDecimal.valueOf(30_000).compareTo(hd.getPhiVanChuyen()), "đổi địa chỉ không đổi phí");
+        assertEquals(0, BigDecimal.valueOf(530_000).compareTo(hd.getThanhTien()));
+        assertEquals(1, thanhToan.size(), "tổng không đổi nên không phát sinh hoàn tiền");
         assertEquals("Khách hàng", lichSu.get(lichSu.size() - 1).getNguoiThaoTac());
     }
 

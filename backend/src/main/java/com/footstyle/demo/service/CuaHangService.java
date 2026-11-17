@@ -587,8 +587,8 @@ public class CuaHangService {
             }
         }
 
-        // Phí vận chuyển: đơn đạt ngưỡng miễn phí (quản lý cài đặt) thì 0; chưa đạt thì theo tỉnh nhận (Hà Nội: phường 25.000, xã 30.000; tỉnh khác tùy tỉnh)
-        long phiVanChuyen = caiDatVanChuyen.phi(tongTien, phiVanChuyenOnline(req.tinhThanh(), req.phuongXa()));
+        // Phí vận chuyển: đơn đạt ngưỡng miễn phí thì 0; chưa đạt thì phí giao hàng quản lý cài đặt (không theo tỉnh)
+        long phiVanChuyen = caiDatVanChuyen.phi(tongTien);
         long thanhTien = Math.max(0L, tongTien - soTienGiam + phiVanChuyen);
 
         // Tạo hóa đơn
@@ -707,10 +707,6 @@ public class CuaHangService {
         return pt > 0 ? Math.round(giaGoc * (100.0 - pt) / 100.0) : giaGoc;
     }
 
-    /** Phí giao đơn online theo nơi nhận (PhiVanChuyenTinh: Hà Nội phường / xã, tỉnh khác tùy tỉnh). Dùng chung cho đặt hàng và tính tiền xem trước. */
-    static long phiVanChuyenOnline(String tinhThanh, String phuongXa) {
-        return PhiVanChuyenTinh.phi(tinhThanh, phuongXa);
-    }
 
     /** tinhThanh / phuongXa: nơi nhận khách đang chọn ở trang thanh toán; chưa chọn tỉnh (giỏ hàng chưa biết địa chỉ) thì chưa tính phí giao. */
     public record TinhTienRequest(List<DatHangOnlineRequest.ItemRequest> chiTiet, String maPhieuGiamGia, Integer idKhachHang,
@@ -776,10 +772,9 @@ public class CuaHangService {
                 }
             }
         }
-        // Đơn đạt ngưỡng miễn phí vận chuyển thì phí 0 dù chưa chọn tỉnh. Chưa đạt mà chưa chọn tỉnh thì chưa tính được phí giao (null), tổng tạm chưa gồm phí
-        String tinh = req == null || req.tinhThanh() == null ? "" : req.tinhThanh().trim();
+        // Phí giao là một mức quản lý cài đặt (không theo tỉnh) nên tính được ngay ở giỏ hàng; đạt ngưỡng miễn phí thì 0
         boolean mienPhiVanChuyen = tongTien > 0 && caiDatVanChuyen.mienPhi(tongTien);
-        Long phi = mienPhiVanChuyen ? Long.valueOf(0L) : tinh.isEmpty() ? null : phiVanChuyenOnline(tinh, req.phuongXa());
+        Long phi = mienPhiVanChuyen ? 0L : caiDatVanChuyen.phiGiaoHang();
 
         Map<String, Object> kq = new LinkedHashMap<>();
         kq.put("dong", dong);

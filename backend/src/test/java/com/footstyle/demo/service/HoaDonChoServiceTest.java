@@ -458,13 +458,16 @@ class HoaDonChoServiceTest {
         assertEquals(70_000L, h.getPhiVanChuyen().longValue());
     }
 
+    /** Góp ý 16/11: bỏ bảng phí cứng theo tỉnh, phí giao là một mức quản lý cài đặt, giống nhau ở mọi tỉnh. */
     @Test
-    void phiGiaoHangTheoTinh() {
-        assertEquals(25_000L, PhiVanChuyenTinh.phi("Thành phố Hà Nội"), "Hà Nội: phường 25.000");
-        assertEquals(30_000L, PhiVanChuyenTinh.phi("Ha Noi", "Xã Sóc Sơn"), "Hà Nội: xã 30.000");
-        assertEquals(25_000L, PhiVanChuyenTinh.phi("Tỉnh Phú Thọ"));
-        assertEquals(50_000L, PhiVanChuyenTinh.phi("Thành phố Hồ Chí Minh"));
-        assertEquals(PhiVanChuyenTinh.PHI_MAC_DINH, PhiVanChuyenTinh.phi(null), "không có tỉnh thì giữ mức mặc định");
+    void giaoHang_nhanVienKhongNhapPhi_layPhiQuanLyCai_khongTheoTinh() {
+        banHang.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(false, 2_000_000L, 40_000L));
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(290_000L,
+                new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 8 Lê Duẩn", "Thành phố Hồ Chí Minh", "Phường Sài Gòn", null), null));
+        assertEquals(40_000L, kq.get("phiVanChuyen"), "TP Hồ Chí Minh cũng lấy đúng mức quản lý cài");
+        assertEquals(290_000L, kq.get("thanhTien"));
     }
 
     @Test
@@ -496,15 +499,15 @@ class HoaDonChoServiceTest {
     }
 
     @Test
-    void giaoHang_donChuaDatNguongMienPhi_vanTinhPhiTheoTinh() {
+    void giaoHang_donChuaDatNguongMienPhi_thuPhiQuanLyCai() {
         banHang.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 500_000L));
-        // 1 ống cầu 250.000: chưa đạt 500.000 nên vẫn tính phí theo tỉnh
+        // 1 ống cầu 250.000: chưa đạt 500.000 nên thu phí giao hàng quản lý cài (25.000, không theo tỉnh)
         Integer duoi = taoHoaDon();
         service.themSanPham(duoi, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
         Map<String, Object> kqDuoi = banHang.thanhToanHoaDonCho(duoi, tra(300_000L,
                 new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 8 Lê Duẩn", "Thành phố Hồ Chí Minh", "Phường Bến Nghé"), null));
-        assertEquals(50_000L, kqDuoi.get("phiVanChuyen"), "chưa đạt ngưỡng: TP Hồ Chí Minh 50.000");
-        assertEquals(300_000L, kqDuoi.get("thanhTien"));
+        assertEquals(25_000L, kqDuoi.get("phiVanChuyen"), "chưa đạt ngưỡng: phí quản lý cài, TP Hồ Chí Minh cũng vậy");
+        assertEquals(275_000L, kqDuoi.get("thanhTien"));
     }
 
     @Test
@@ -522,13 +525,13 @@ class HoaDonChoServiceTest {
     }
 
     @Test
-    void giaoHang_tatMienPhiTheoGiaTriDon_vanTinhTheoTinh() {
+    void giaoHang_tatMienPhiTheoGiaTriDon_vanThuPhiQuanLyCai() {
         banHang.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(false, 500_000L));
         Integer id = taoHoaDon();
         service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 2));
         Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(550_000L,
                 new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 8 Lê Duẩn", "Thành phố Hồ Chí Minh", "Phường Bến Nghé"), null));
-        assertEquals(50_000L, kq.get("phiVanChuyen"));
-        assertEquals(550_000L, kq.get("thanhTien"));
+        assertEquals(25_000L, kq.get("phiVanChuyen"));
+        assertEquals(525_000L, kq.get("thanhTien"));
     }
 }

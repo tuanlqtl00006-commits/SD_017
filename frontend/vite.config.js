@@ -24,6 +24,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Biên dịch sẵn mọi file giao diện ngay khi chạy npm run dev: lần mở đầu / F5 / nhân bản tab không phải chờ Vite
+    // biên dịch gần 200 file lúc trình duyệt xin (trước đây trang trắng ~8,7 giây ở lần mở đầu)
+    warmup: {
+      clientFiles: ['./src/main.js', './src/**/*.vue'],
+    },
     // Cho điện thoại cùng mạng Wi-Fi mở web bằng IP máy tính (quét QR thanh toán giả lập)
     host: true,
     proxy: {

@@ -3,18 +3,20 @@ import api from './api'
 import { CHU_DE, nghe } from './suKien'
 
 /*
- * Cài đặt miễn phí vận chuyển theo giá trị đơn, dùng chung cho màn bán quầy, giỏ hàng / thanh toán online, sửa đơn.
- * Tải một lần khi màn đầu tiên cần, và tải lại khi quản lý vừa đổi cài đặt (kênh su-kien, chủ đề "cai-dat").
- * Chưa tải được thì coi như đang tắt: màn hình hiện phí theo tỉnh, còn số chốt cuối cùng luôn do máy chủ tính.
+ * Cài đặt vận chuyển (phí giao hàng mỗi đơn + miễn phí theo giá trị đơn), dùng chung cho màn bán quầy, giỏ hàng / thanh toán online,
+ * sửa đơn. Tải một lần khi màn đầu tiên cần, và tải lại khi quản lý vừa đổi cài đặt (kênh su-kien, chủ đề "cai-dat").
+ * Chưa tải được thì màn hình hiện "chưa tính phí"; số chốt cuối cùng luôn do máy chủ tính.
  */
-export const caiDatVanChuyen = reactive({ mienPhiBat: false, mienPhiTu: 0, daTai: false })
+export const caiDatVanChuyen = reactive({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 0, daTai: false })
 
 let dangTai = null
 let daNghe = false
 
 export function nhanCaiDatVanChuyen(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return // máy chủ không trả cài đặt: giữ "chưa tải", màn hình hiện chưa tính phí
   caiDatVanChuyen.mienPhiBat = !!d?.mienPhiBat
   caiDatVanChuyen.mienPhiTu = Number(d?.mienPhiTu) || 0
+  caiDatVanChuyen.phiGiaoHang = Number(d?.phiGiaoHang) || 0
   caiDatVanChuyen.daTai = true
 }
 

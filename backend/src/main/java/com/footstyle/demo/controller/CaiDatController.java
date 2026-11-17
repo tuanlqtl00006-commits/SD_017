@@ -20,8 +20,8 @@ public class CaiDatController {
 
     private final CaiDatVanChuyenService vanChuyen;
 
-    /** mienPhiBat: bật miễn phí theo giá trị đơn; mienPhiTu: tiền hàng từ bao nhiêu thì miễn phí. */
-    public record VanChuyenRequest(Boolean mienPhiBat, Long mienPhiTu) {
+    /** mienPhiBat: bật miễn phí theo giá trị đơn; mienPhiTu: tiền hàng từ bao nhiêu thì miễn phí; phiGiaoHang: phí mỗi đơn giao hàng. */
+    public record VanChuyenRequest(Boolean mienPhiBat, Long mienPhiTu, Long phiGiaoHang) {
     }
 
     @GetMapping("/van-chuyen")
@@ -31,7 +31,7 @@ public class CaiDatController {
 
     @PutMapping("/van-chuyen")
     public Map<String, Object> luuVanChuyen(@RequestBody(required = false) VanChuyenRequest req) {
-        vanChuyen.luu(req == null ? null : req.mienPhiBat(), req == null ? null : req.mienPhiTu());
+        vanChuyen.luu(req == null ? null : req.mienPhiBat(), req == null ? null : req.mienPhiTu(), req == null ? null : req.phiGiaoHang());
         return vanChuyen.moTaQuanLy();
     }
 }

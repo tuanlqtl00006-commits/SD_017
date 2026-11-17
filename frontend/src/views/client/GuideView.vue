@@ -2,15 +2,11 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
-import { NHOM_PHI, PHI_HA_NOI } from '../../utils/phiVanChuyenTinh'
 import { formatMoney } from '../../utils/format'
 
 const route = useRoute()
-// Chính sách giao hàng hiện theo cài đặt thật: ngưỡng miễn phí vận chuyển của quản lý + bảng phí theo tỉnh
+// Chính sách giao hàng hiện theo cài đặt thật của quản lý: phí giao hàng mỗi đơn + ngưỡng miễn phí vận chuyển
 const caiDatShip = dungCaiDatVanChuyen()
-const cacMucPhi = NHOM_PHI.map(([phi]) => phi).filter((phi) => phi > 0)
-const phiThapNhat = Math.min(...cacMucPhi)
-const phiCaoNhat = Math.max(...cacMucPhi)
 const currentTab = ref('thanh-toan') // 'thanh-toan' | 'mua-hang' | 'chon-vot' | 'cong-nghe' | 'bao-hanh'
 
 function syncTab() {
@@ -167,12 +163,15 @@ watch(
       </div>
 
       <div class="p-3 bg-primary-subtle rounded-3 text-dark small border-start border-4 border-primary">
-        <!-- Viết theo đúng cách hệ thống tính: ngưỡng miễn phí do quản lý cài đặt, phí theo tỉnh lấy từ bảng phí dùng chung -->
+        <!-- Viết theo đúng cách hệ thống tính: phí giao hàng và ngưỡng miễn phí do quản lý cài đặt, không theo tỉnh -->
         <strong>Chính sách giao hàng:</strong>
         <template v-if="caiDatShip.mienPhiBat && caiDatShip.mienPhiTu > 0">
           Miễn phí vận chuyển toàn quốc cho đơn có tiền hàng từ <strong>{{ formatMoney(caiDatShip.mienPhiTu) }}</strong>.
         </template>
-        Giao trong Hà Nội {{ formatMoney(PHI_HA_NOI.phuong) }} (phường) / {{ formatMoney(PHI_HA_NOI.xa) }} (xã); các tỉnh / thành khác phí từ {{ formatMoney(phiThapNhat) }} đến {{ formatMoney(phiCaoNhat) }} tùy tỉnh nhận.
+        <template v-if="caiDatShip.daTai">
+          <template v-if="caiDatShip.phiGiaoHang > 0">Phí giao hàng {{ formatMoney(caiDatShip.phiGiaoHang) }} mỗi đơn, như nhau ở mọi tỉnh / thành.</template>
+          <template v-else>Giao hàng miễn phí cho mọi đơn.</template>
+        </template>
       </div>
     </div>
 

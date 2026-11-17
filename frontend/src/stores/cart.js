@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 import { layPhien } from '../services/phien'
-import { conThieuDeMienPhi, duocMienPhiVanChuyen, phiVanChuyenTheoTinh } from '../utils/phiVanChuyenTinh'
+import { conThieuDeMienPhi, duocMienPhiVanChuyen, phiVanChuyenDon } from '../utils/phiVanChuyen'
 import { caiDatVanChuyen } from '../services/caiDatVanChuyen'
 import { tienGiamTheoDotCuaDong } from '../utils/tienDon'
 import api from '../services/api'
@@ -178,32 +178,34 @@ export const useCartStore = defineStore('cart', () => {
     return Math.min(giam, subTotal.value)
   })
 
-  // Đơn đạt ngưỡng miễn phí vận chuyển (quản lý cài đặt): phí 0 dù chưa chọn tỉnh. Ưu tiên câu trả lời của máy chủ.
+  // Đơn đạt ngưỡng miễn phí vận chuyển (quản lý cài đặt): phí 0. Ưu tiên câu trả lời của máy chủ.
   const mienPhiShip = computed(() => {
     const mayChu = baoGiaHopLe.value?.mienPhiVanChuyen
     if (mayChu !== null && mayChu !== undefined) return !!mayChu
     return duocMienPhiVanChuyen(caiDatVanChuyen, subTotal.value)
   })
-  const chuaCoTinh = computed(() => !mienPhiShip.value && phiVanChuyenTheoTinh(tinhGiao.value) === null)
+  // Phí giao là một mức quản lý cài (không theo tỉnh): chỉ "chưa có phí" khi chưa tải được cài đặt và máy chủ chưa báo giá
+  const chuaCoPhi = computed(() => {
+    const pvc = baoGiaHopLe.value?.phiVanChuyen
+    return (pvc === null || pvc === undefined) && !mienPhiShip.value && !caiDatVanChuyen.daTai
+  })
 
   const shippingFee = computed(() => {
     if (subTotal.value === 0) return 0
-    // Số máy chủ tính (cùng tỉnh đang chọn) nếu có; không thì cùng luật với máy chủ (CuaHangService.datHangOnline):
-    // đơn đạt ngưỡng miễn phí vận chuyển thì 0; chưa đạt thì Hà Nội miễn phí, tỉnh khác mất phí tùy tỉnh.
-    // Chưa chọn tỉnh thì chưa tính phí (0), giao diện hiện "chọn Tỉnh/Thành để tính".
+    // Số máy chủ tính nếu có; không thì cùng luật với máy chủ (CuaHangService): đạt ngưỡng miễn phí thì 0, chưa đạt thì phí quản lý cài
     const pvc = baoGiaHopLe.value?.phiVanChuyen
     if (pvc !== null && pvc !== undefined) return Number(pvc) || 0
     if (mienPhiShip.value) return 0
-    return phiVanChuyenTheoTinh(tinhGiao.value, phuongGiao.value) ?? 0
+    return phiVanChuyenDon(caiDatVanChuyen, subTotal.value)
   })
 
   /**
    * Còn thiếu bao nhiêu tiền hàng để được miễn phí vận chuyển. 0 (không nhắc khách mua thêm) khi: đã đạt ngưỡng, cửa hàng không bật,
-   * hoặc đã chọn tỉnh mà phí giao vốn bằng 0 (giao Hà Nội).
+   * hoặc phí giao vốn bằng 0 (quản lý cài phí 0).
    */
   const conThieuMienPhiShip = computed(() => {
     if (mienPhiShip.value) return 0
-    if (!chuaCoTinh.value && shippingFee.value === 0) return 0
+    if (!chuaCoPhi.value && shippingFee.value === 0) return 0
     return conThieuDeMienPhi(caiDatVanChuyen, subTotal.value)
   })
 
@@ -304,7 +306,7 @@ export const useCartStore = defineStore('cart', () => {
     discountAmount,
     tinhGiao,
     phuongGiao,
-    chuaCoTinh,
+    chuaCoPhi,
     mienPhiShip,
     conThieuMienPhiShip,
     shippingFee,

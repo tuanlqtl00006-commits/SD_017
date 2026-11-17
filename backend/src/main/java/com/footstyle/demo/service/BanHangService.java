@@ -563,12 +563,11 @@ public class BanHangService {
                 loi.nemNeuCoLoi();
             }
         }
-        // Nhân viên nhập phí thì lấy số đó; không nhập thì theo tỉnh ở cuối địa chỉ (Hà Nội: phường 25.000, xã 30.000; tỉnh khác tùy tỉnh), không nhận ra tỉnh thì tính phí mặc định
+        // Nhân viên nhập phí thì lấy số đó; không nhập thì lấy phí giao hàng quản lý cài đặt
         Long phiNhap = giao ? gh.phiVanChuyen() : null;
         if (phiNhap != null && phiNhap < 0) throw ApiException.badRequest("Phí vận chuyển không được âm.");
         if (phiNhap != null && phiNhap > TIEN_TOI_DA) throw ApiException.badRequest("Số tiền quá lớn.");
-        Long phiTheoTinh = giao ? PhiVanChuyenTinh.phiTheoDiaChi(diaChi) : null;
-        long phiThuong = !giao ? 0 : phiNhap != null ? phiNhap : phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH;
+        long phiThuong = !giao ? 0 : phiNhap != null ? phiNhap : caiDatVanChuyen.phiGiaoHang();
         // Đơn đạt ngưỡng miễn phí vận chuyển (quản lý cài đặt) thì không thu phí giao, dù nhân viên có nhập phí
         long phi = caiDatVanChuyen.phi(tongTienHang, phiThuong);
         long thanhTien = tongTienHang - kp.giam() + phi;

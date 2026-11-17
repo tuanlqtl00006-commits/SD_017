@@ -1,0 +1,24 @@
+Phải sửa:
+- Bán quầy: giá đổi thì dòng cũ giữ giá cũ, thêm lại hiện popup OK rồi tách dòng giá mới
+- Trang khách: bỏ "Đổi trả 7 ngày", bỏ "Giá đã gồm thuế VAT" (dự án không làm)
+- Bán quầy: bỏ chữ "N chờ đơn online" dưới tồn kho
+- Xác nhận đơn hết hàng: bỏ nút "Báo hết hàng", thay bằng popup (giữ hàng / mail báo hết hàng / hoàn tiền)
+- Phí ship: bỏ bảng phí cứng theo tỉnh, lấy phí GHN, cửa hàng chỉ cài free ship (cần chốt cách làm)
+- Chat khách: bỏ dòng "Trả lời tự động từ dữ liệu cửa hàng", bỏ "Enter để gửi"
+- Thêm trang tổng hợp đánh giá chat (tốt / xấu) cho quản trị
+- Thống kê: mở ra mặc định "Hôm nay" (đang là Tháng này)
+- So sánh theo tháng: đường tăng/giảm phải nối từ kỳ đầu
+- Cử 1 người test A -> Z từng module (online + tại quầy)
+Đã oke:
+- Bán quầy: báo quá tồn kho, thanh toán tiền mặt
+- Phiếu giảm giá đổi thì hỏi lại (quầy + online)
+- Đặt online: QR 5 phút, nhận tiền về Chờ xác nhận
+- Xác nhận đơn có ghi chú, in hóa đơn
+- Chat: kết thúc 2 bên, đánh giá, tự đóng sau 30 phút
+- Thống kê: doanh thu thực tế / dự kiến, đơn hoàn thành
+- Gửi mail tổng kết thủ công
+- So sánh theo quý vẽ đường được
+Hỏi lại:
+- [04:45] bỏ ô số lượng ở đâu
+- [10:39] giữ hay bỏ nút gợi ý dưới khung chat
+- Đánh giá bằng sao (không bắt buộc)

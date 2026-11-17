@@ -319,19 +319,17 @@ class TroLyAoServiceTest {
     }
 
     @Test
-    void hoiPhiShip_traLoiDungCachHeThongTinh_theoTinhVaNguongMienPhi() {
-        // Đang tắt miễn phí theo giá trị đơn: chỉ nói phí theo tỉnh, không còn câu "30.000 - 35.000 ₫ tùy đơn vị"
+    void hoiPhiShip_traLoiDungPhiVaNguongMienPhiQuanLyCai() {
+        // Đang tắt miễn phí theo giá trị đơn: chỉ nói phí giao hàng quản lý cài (không còn bảng theo tỉnh)
         String tat = hoi("phí ship bao nhiêu vậy shop");
         assertTrue(tat.contains("Giao Hàng Nhanh"), tat);
-        assertTrue(tat.contains("Hà Nội 25.000 ₫ (phường) / 30.000 ₫ (xã)"), tat);
-        assertTrue(tat.contains("đến 55.000 ₫ tùy tỉnh"), tat);
-        assertFalse(tat.contains("30.000 - 35.000"), tat);
+        assertTrue(tat.contains("Phí giao hàng: 25.000 ₫ mỗi đơn"), tat);
+        assertFalse(tat.contains("tùy tỉnh"), tat);
         assertFalse(tat.contains("được miễn phí vận chuyển"), tat);
-        // Quản lý bật miễn phí cho đơn từ 2.000.000 ₫: trợ lý nói đúng mức đang cài đặt
-        troLy.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 2_000_000L));
+        // Quản lý đổi phí và bật miễn phí cho đơn từ 2.000.000 ₫: trợ lý nói đúng mức đang cài đặt
+        troLy.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 2_000_000L, 40_000L));
         String bat = hoi("giao hàng thế nào");
+        assertTrue(bat.contains("Phí giao hàng: 40.000 ₫ mỗi đơn"), bat);
         assertTrue(bat.contains("Đơn có tiền hàng từ 2.000.000 ₫ được miễn phí vận chuyển"), bat);
-        assertEquals(25_000L, PhiVanChuyenTinh.phiThapNhat());
-        assertEquals(55_000L, PhiVanChuyenTinh.phiCaoNhat());
     }
 }

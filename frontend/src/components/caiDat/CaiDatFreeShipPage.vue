@@ -1,7 +1,8 @@
 <script setup>
 // Cài đặt → Cài đặt free ship (cô review 14/11: đơn giá trị lớn vẫn thu phí ship; ngưỡng miễn phí phải cấu hình được).
 // Đơn có tiền hàng (đã giảm theo đợt, chưa trừ phiếu) từ ngưỡng trở lên thì miễn phí vận chuyển, ở cả bán quầy có giao hàng lẫn đặt online.
-// Chưa đạt ngưỡng thì phí vẫn tính theo tỉnh nhận. Chỉ Quản lý vào được màn này (router + PhanQuyen).
+// Chưa đạt ngưỡng thì thu "Phí giao hàng" quản lý cài ở đây (góp ý 16/11: bỏ bảng phí viết cứng theo tỉnh, cửa hàng chỉ cài phí ship
+// theo hóa đơn). Chỉ Quản lý vào được màn này (router + PhanQuyen).
 // Luồng theo video tham khảo cô gửi: khối trên chỉ để xem mức đang áp dụng, bấm "Chỉnh sửa" mới hiện ô nhập.
 import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../../services/api'
@@ -14,7 +15,6 @@ import { useSuKien } from '../../composables/useSuKien'
 import { nhanCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 import { CHU_DE } from '../../services/suKien'
 import { formatMoney, formatNgayGio } from '../../utils/format'
-import { BANG_PHI_HIEN_THI, PHI_MAC_DINH, phiVanChuyenTheoTinh } from '../../utils/phiVanChuyenTinh'
 
 const NGUONG_TOI_DA = 10_000_000_000 // bằng backend CaiDatVanChuyenService.NGUONG_TOI_DA
 
@@ -24,8 +24,8 @@ const loiTai = ref('')
 const dangLuu = ref(false)
 const hoiLuu = ref(false)
 const dangSua = ref(false)
-const daLuu = reactive({ mienPhiBat: false, mienPhiTu: 0, capNhatLuc: null })
-const form = reactive({ mienPhiBat: false, mienPhiTu: '' })
+const daLuu = reactive({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 0, capNhatLuc: null })
+const form = reactive({ mienPhiBat: false, mienPhiTu: '', phiGiaoHang: '' })
 
 const { loi, sua, cham, batDauGui, datLoiMayChu } = useLoiForm(() => {
   const e = {}
@@ -34,36 +34,45 @@ const { loi, sua, cham, batDauGui, datLoiMayChu } = useLoiForm(() => {
     if (form.mienPhiBat) e.mienPhiTu = 'Vui lòng nhập giá trị đơn tối thiểu để được miễn phí vận chuyển.'
   } else if (!(Number(v) >= 1)) e.mienPhiTu = 'Giá trị đơn tối thiểu phải lớn hơn 0.'
   else if (Number(v) > NGUONG_TOI_DA) e.mienPhiTu = 'Số tiền quá lớn.'
+  const p = form.phiGiaoHang
+  if (p === '' || p === null) e.phiGiaoHang = 'Vui lòng nhập phí giao hàng (nhập 0 nếu giao miễn phí mọi đơn).'
+  else if (!(Number(p) >= 0)) e.phiGiaoHang = 'Phí giao hàng không được âm.'
+  else if (Number(p) > NGUONG_TOI_DA) e.phiGiaoHang = 'Số tiền quá lớn.'
   return e
 })
 
-const coThayDoi = computed(() => form.mienPhiBat !== daLuu.mienPhiBat || Number(form.mienPhiTu || 0) !== Number(daLuu.mienPhiTu || 0))
-const cauHoi = computed(() =>
-  form.mienPhiBat
-    ? `Đơn có tiền hàng từ ${formatMoney(form.mienPhiTu)} trở lên sẽ được miễn phí vận chuyển (bán tại quầy có giao hàng và đặt online). Các đơn đã tạo không đổi.`
-    : 'Tắt miễn phí vận chuyển theo giá trị đơn: mọi đơn tính phí theo tỉnh nhận. Các đơn đã tạo không đổi.',
+const coThayDoi = computed(
+  () =>
+    form.mienPhiBat !== daLuu.mienPhiBat ||
+    Number(form.mienPhiTu || 0) !== Number(daLuu.mienPhiTu || 0) ||
+    String(form.phiGiaoHang) !== String(daLuu.phiGiaoHang),
 )
+const cauHoi = computed(() => {
+  const phi = `Phí giao hàng mỗi đơn: ${formatMoney(form.phiGiaoHang)}.`
+  return form.mienPhiBat
+    ? `${phi} Đơn có tiền hàng từ ${formatMoney(form.mienPhiTu)} trở lên được miễn phí vận chuyển (bán tại quầy có giao hàng và đặt online). Các đơn đã tạo không đổi.`
+    : `${phi} Tắt miễn phí vận chuyển theo giá trị đơn: mọi đơn giao hàng thu phí này. Các đơn đã tạo không đổi.`
+})
 
-// Ví dụ theo mức đang áp dụng (đang sửa thì theo mức đang nhập): một đơn dưới mức và một đơn đúng bằng mức, cùng giao tới một tỉnh có tính phí
-const TINH_VI_DU = 'Đà Nẵng'
+// Ví dụ theo mức đang áp dụng (đang sửa thì theo mức đang nhập): một đơn dưới mức và một đơn đúng bằng mức
 const viDu = computed(() => {
   const bat = dangSua.value ? form.mienPhiBat : daLuu.mienPhiBat
   const n = Number(dangSua.value ? form.mienPhiTu : daLuu.mienPhiTu)
   if (!bat || !(n >= 1)) return null
   const duoi = n >= 4000 ? Math.floor((n * 0.75) / 1000) * 1000 : n - 1
-  return { duoi, dat: n, phiTinh: phiVanChuyenTheoTinh(TINH_VI_DU) }
+  return { duoi, dat: n, phi: Number(dangSua.value ? form.phiGiaoHang : daLuu.phiGiaoHang) || 0 }
 })
-// Bảng phí theo tỉnh đang áp dụng (utils/phiVanChuyenTinh.js, khớp backend PhiVanChuyenTinh), chỉ để quản lý tham khảo
-const bangPhi = [...BANG_PHI_HIEN_THI, { tinh: 'Địa chỉ không nhận ra tên tỉnh', phi: PHI_MAC_DINH }]
 
 function datForm() {
   form.mienPhiBat = daLuu.mienPhiBat
   form.mienPhiTu = daLuu.mienPhiTu || ''
+  form.phiGiaoHang = daLuu.phiGiaoHang
 }
 
 function nhan(d) {
   daLuu.mienPhiBat = !!d?.mienPhiBat
   daLuu.mienPhiTu = Number(d?.mienPhiTu) || 0
+  daLuu.phiGiaoHang = Number(d?.phiGiaoHang) || 0
   daLuu.capNhatLuc = d?.capNhatLuc || null
   datForm()
 }
@@ -99,6 +108,11 @@ function nhapNguong(v) {
   sua('mienPhiTu')
 }
 
+function nhapPhi(v) {
+  form.phiGiaoHang = v
+  sua('phiGiaoHang')
+}
+
 function bamLuu() {
   if (!batDauGui()) return
   hoiLuu.value = true
@@ -107,11 +121,17 @@ function bamLuu() {
 async function luu() {
   dangLuu.value = true
   try {
-    const d = (await api.put('/cai-dat/van-chuyen', { mienPhiBat: form.mienPhiBat, mienPhiTu: form.mienPhiTu === '' ? null : Number(form.mienPhiTu) })).data
+    const d = (
+      await api.put('/cai-dat/van-chuyen', {
+        mienPhiBat: form.mienPhiBat,
+        mienPhiTu: form.mienPhiTu === '' ? null : Number(form.mienPhiTu),
+        phiGiaoHang: Number(form.phiGiaoHang),
+      })
+    ).data
     nhan(d)
     nhanCaiDatVanChuyen(d) // tab này không nhận tin của chính nó nên tự cập nhật cho màn bán quầy
     dangSua.value = false
-    toast.success('Đã lưu cài đặt miễn phí vận chuyển.')
+    toast.success('Đã lưu cài đặt vận chuyển.')
   } catch (e) {
     if (!datLoiMayChu(e)) toast.error(e.message || 'Không lưu được cài đặt. Vui lòng thử lại.')
   } finally {
@@ -130,11 +150,15 @@ async function luu() {
       <section class="ad-card" data-testid="cd-free-ship">
         <div class="ad-card-head">
           <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-truck"></i></span>
-          <h2 class="ad-card-title">Miễn phí vận chuyển theo giá trị đơn</h2>
+          <h2 class="ad-card-title">Phí giao hàng và miễn phí vận chuyển</h2>
         </div>
 
         <!-- Mức đang áp dụng: chỉ để xem -->
         <dl class="cd-thong-tin" data-testid="cd-thong-tin">
+          <div>
+            <dt>Phí giao hàng mỗi đơn</dt>
+            <dd data-testid="cd-phi-hien-tai">{{ daLuu.phiGiaoHang ? formatMoney(daLuu.phiGiaoHang) : 'Miễn phí' }}</dd>
+          </div>
           <div>
             <dt>Trạng thái</dt>
             <dd>
@@ -152,9 +176,10 @@ async function luu() {
         </dl>
         <p class="cd-tom-tat" data-testid="cd-mo-ta">
           <template v-if="daLuu.mienPhiBat">
-            Đơn có tiền hàng từ <strong>{{ formatMoney(daLuu.mienPhiTu) }}</strong> trở lên được miễn phí vận chuyển. Đơn dưới mức này tính phí theo tỉnh nhận.
+            Đơn có tiền hàng từ <strong>{{ formatMoney(daLuu.mienPhiTu) }}</strong> trở lên được miễn phí vận chuyển. Đơn dưới mức này thu phí giao hàng
+            <strong>{{ formatMoney(daLuu.phiGiaoHang) }}</strong>.
           </template>
-          <template v-else>Mọi đơn tính phí vận chuyển theo tỉnh nhận.</template>
+          <template v-else>Mọi đơn giao hàng thu phí <strong>{{ formatMoney(daLuu.phiGiaoHang) }}</strong>.</template>
         </p>
 
         <button v-if="!dangSua" type="button" class="ad-btn ad-btn-primary" data-testid="cd-sua" @click="moSua">
@@ -164,6 +189,20 @@ async function luu() {
 
         <!-- Bấm "Chỉnh sửa" mới hiện phần nhập -->
         <form v-else class="cd-form" novalidate data-testid="cd-form" @submit.prevent="bamLuu">
+          <div class="cd-o" @focusout="cham('phiGiaoHang')">
+            <label class="ad-label" for="cd-phi">Phí giao hàng mỗi đơn <span class="ad-required">*</span></label>
+            <MoneyInput
+              id="cd-phi"
+              :model-value="form.phiGiaoHang"
+              :invalid="!!loi.phiGiaoHang"
+              aria-label="Phí giao hàng mỗi đơn"
+              placeholder="Ví dụ: 25.000"
+              @update:model-value="nhapPhi"
+            />
+            <p v-if="loi.phiGiaoHang" class="ad-error" data-testid="cd-loi-phi">{{ loi.phiGiaoHang }}</p>
+            <p v-else class="ad-hint">Thu cho mỗi đơn giao hàng chưa đạt mức miễn phí, không phân biệt tỉnh. Ở quầy nhân viên vẫn sửa được phí của từng đơn.</p>
+          </div>
+
           <div class="cd-dong">
             <div>
               <div class="cd-nhan">Miễn phí vận chuyển cho đơn đạt mức tối thiểu</div>
@@ -205,11 +244,10 @@ async function luu() {
             <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-calculator"></i></span>
             <h2 class="ad-card-title">{{ dangSua ? 'Ví dụ với mức đang nhập' : 'Ví dụ với mức đang áp dụng' }}</h2>
           </div>
-          <p class="ad-hint cd-vi-du-ghi-chu">Đơn giao tới {{ TINH_VI_DU }} (phí theo tỉnh {{ formatMoney(viDu.phiTinh) }}).</p>
           <dl class="cd-vi-du">
             <div>
               <dt>Tiền hàng {{ formatMoney(viDu.duoi) }}</dt>
-              <dd>Phí vận chuyển {{ formatMoney(viDu.phiTinh) }}</dd>
+              <dd>Phí vận chuyển {{ viDu.phi ? formatMoney(viDu.phi) : 'Miễn phí' }}</dd>
             </div>
             <div>
               <dt>Tiền hàng {{ formatMoney(viDu.dat) }}</dt>
@@ -218,26 +256,12 @@ async function luu() {
           </dl>
         </section>
 
-        <section class="ad-card" data-testid="cd-bang-phi">
-          <div class="ad-card-head">
-            <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
-            <h2 class="ad-card-title">Phí theo tỉnh khi chưa đạt mức miễn phí</h2>
-          </div>
-          <table class="cd-bang">
-            <tbody>
-              <tr v-for="d in bangPhi" :key="d.tinh">
-                <td>{{ d.tinh }}</td>
-                <td class="cd-bang-phi" :class="{ 'cd-mien-phi': d.phi === 0 }">{{ d.phi === 0 ? 'Miễn phí' : formatMoney(d.phi) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
       </div>
     </div>
 
     <ConfirmDialog
       v-if="hoiLuu"
-      title="Lưu cài đặt miễn phí vận chuyển?"
+      title="Lưu cài đặt vận chuyển?"
       :message="cauHoi"
       confirm-text="Lưu"
       :loading="dangLuu"
@@ -333,9 +357,6 @@ async function luu() {
 .cd-ghi-chu {
   margin-top: 1rem;
 }
-.cd-vi-du-ghi-chu {
-  margin: -0.5rem 0 0.75rem;
-}
 .cd-vi-du {
   margin: 0;
   display: grid;
@@ -359,25 +380,6 @@ async function luu() {
 }
 .cd-mien-phi {
   color: var(--fs-success, #198754);
-  font-weight: 600;
-}
-.cd-bang {
-  width: 100%;
-  font-size: 0.86rem;
-  border-collapse: collapse;
-}
-.cd-bang td {
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--fs-line-soft, #eef1f5);
-  vertical-align: top;
-}
-.cd-bang tr:first-child td {
-  border-top: 0;
-}
-.cd-bang-phi {
-  text-align: right;
-  white-space: nowrap;
-  padding-left: 1rem !important;
   font-weight: 600;
 }
 @media (max-width: 992px) {

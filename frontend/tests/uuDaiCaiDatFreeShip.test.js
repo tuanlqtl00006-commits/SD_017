@@ -30,7 +30,7 @@ beforeEach(() => {
 })
 
 describe('Cài đặt free ship', () => {
-  async function moMan(caiDat = { mienPhiBat: true, mienPhiTu: 2_000_000, capNhatLuc: null }) {
+  async function moMan(caiDat = { mienPhiBat: true, mienPhiTu: 2_000_000, phiGiaoHang: 25_000, capNhatLuc: null }) {
     api.get.mockResolvedValue({ data: caiDat })
     const w = mount(CaiDatFreeShipPage, { attachTo: document.body })
     await flushPromises()
@@ -43,6 +43,8 @@ describe('Cài đặt free ship', () => {
     expect(w.find('[data-testid="cd-trang-thai"]').text()).toBe('Đang bật')
     expect(w.find('[data-testid="cd-nguong-hien-tai"]').text()).toContain('2.000.000')
     expect(w.find('[data-testid="cd-cap-nhat"]').text()).toContain('Chưa chỉnh sửa')
+    expect(w.find('[data-testid="cd-phi-hien-tai"]').text()).toContain('25.000')
+    expect(w.find('[data-testid="cd-bang-phi"]').exists()).toBe(false) // góp ý 16/11: không còn bảng phí theo tỉnh
     expect(w.find('#cd-nguong').exists()).toBe(false)
 
     await w.find('[data-testid="cd-sua"]').trigger('click')
@@ -66,22 +68,29 @@ describe('Cài đặt free ship', () => {
     await w.find('#cd-nguong').setValue('0')
     expect(w.find('[data-testid="cd-loi-nguong"]').text()).toBe('Giá trị đơn tối thiểu phải lớn hơn 0.')
     await w.find('[data-testid="cd-form"]').trigger('submit')
-    expect(body().text()).not.toContain('Lưu cài đặt miễn phí vận chuyển?')
+    expect(body().text()).not.toContain('Lưu cài đặt vận chuyển?')
 
     await w.find('#cd-nguong').setValue('1000000')
+    // Phí giao hàng: để trống thì báo lỗi, quản lý đổi được phí
+    await w.find('#cd-phi').setValue('')
+    await w.find('[data-testid="cd-form"]').trigger('submit')
+    expect(w.find('[data-testid="cd-loi-phi"]').text()).toContain('Vui lòng nhập phí giao hàng')
+    await w.find('#cd-phi').setValue('30000')
     await w.find('[data-testid="cd-form"]').trigger('submit')
     await flushPromises()
-    expect(body().text()).toContain('Lưu cài đặt miễn phí vận chuyển?')
+    expect(body().text()).toContain('Lưu cài đặt vận chuyển?')
     expect(body().text()).toContain('1.000.000')
+    expect(body().text()).toContain('30.000')
     expect(api.put).not.toHaveBeenCalled() // chưa bấm xác nhận thì chưa ghi
 
-    api.put.mockResolvedValue({ data: { mienPhiBat: true, mienPhiTu: 1_000_000, capNhatLuc: '2026-11-14T16:30:00' } })
+    api.put.mockResolvedValue({ data: { mienPhiBat: true, mienPhiTu: 1_000_000, phiGiaoHang: 30_000, capNhatLuc: '2026-11-14T16:30:00' } })
     const nutLuu = body().findAll('button').find((b) => b.text() === 'Lưu')
     await nutLuu.trigger('click')
     await flushPromises()
-    expect(api.put).toHaveBeenCalledWith('/cai-dat/van-chuyen', { mienPhiBat: true, mienPhiTu: 1_000_000 })
+    expect(api.put).toHaveBeenCalledWith('/cai-dat/van-chuyen', { mienPhiBat: true, mienPhiTu: 1_000_000, phiGiaoHang: 30_000 })
     expect(w.find('#cd-nguong').exists()).toBe(false) // lưu xong về lại chế độ xem
     expect(w.find('[data-testid="cd-nguong-hien-tai"]').text()).toContain('1.000.000')
+    expect(w.find('[data-testid="cd-phi-hien-tai"]').text()).toContain('30.000')
     expect(w.find('[data-testid="cd-cap-nhat"]').text()).not.toContain('Chưa chỉnh sửa')
     w.unmount()
   })
@@ -169,19 +178,15 @@ describe('Trang Ưu đãi', () => {
 describe('Giỏ hàng: nhắc mua thêm để được miễn phí vận chuyển', () => {
   const dong = { bienTheId: 62, sanPhamId: 30, ten: 'Vợt', giaBan: 1_250_000, giaGoc: 1_250_000, soLuong: 1, soLuongTon: 27 }
 
-  it('chưa đạt ngưỡng thì nhắc số còn thiếu (kể cả giao Hà Nội, nay có phí); đạt rồi thì không nhắc', () => {
-    nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 2_000_000 })
+  it('chưa đạt ngưỡng thì nhắc số còn thiếu (phí giao như nhau ở mọi tỉnh); đạt rồi thì không nhắc', () => {
+    nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 2_000_000, phiGiaoHang: 25_000 })
     const cart = useCartStore()
     cart.addItem({ ...dong })
-    expect(cart.conThieuMienPhiShip).toBe(750_000) // chưa chọn tỉnh
-    cart.tinhGiao = 'Thành phố Đà Nẵng'
-    expect(cart.shippingFee).toBe(40_000)
+    expect(cart.shippingFee).toBe(25_000) // phí quản lý cài, chưa chọn tỉnh vẫn biết
     expect(cart.conThieuMienPhiShip).toBe(750_000)
-    cart.tinhGiao = 'Thành phố Hà Nội'
-    cart.phuongGiao = 'Xã Sóc Sơn'
-    expect(cart.shippingFee).toBe(30_000)
-    expect(cart.conThieuMienPhiShip).toBe(750_000) // Hà Nội nay có phí: vẫn nhắc mua thêm
     cart.tinhGiao = 'Thành phố Đà Nẵng'
+    expect(cart.shippingFee).toBe(25_000)
+    expect(cart.conThieuMienPhiShip).toBe(750_000)
     cart.updateQuantity(62, 2)
     expect(cart.mienPhiShip).toBe(true)
     expect(cart.shippingFee).toBe(0)

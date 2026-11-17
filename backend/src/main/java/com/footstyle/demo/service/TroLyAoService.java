@@ -246,12 +246,11 @@ public class TroLyAoService {
             return new TraLoi("Cửa hàng mở cửa " + gioMoCua + ". Bạn có thể nhắn tin ở đây bất cứ lúc nào nhé.", false, List.of("Địa chỉ cửa hàng"));
         }
         if (coMot(t, "giao hang", " ship", "van chuyen", "bao lau nhan", "phi ship", "giao toi", "giao den")) {
-            // Phí nói theo đúng cách hệ thống tính (PhiVanChuyenTinh + ngưỡng miễn phí quản lý cài đặt), đơn vị giao là đơn vị ghi trên hóa đơn
+            // Phí nói theo đúng cách hệ thống tính (phí giao hàng + ngưỡng miễn phí quản lý cài đặt), đơn vị giao là đơn vị ghi trên hóa đơn
             CaiDatVanChuyenService.CaiDat ship = caiDatVanChuyen.lay();
             return new TraLoi("Cửa hàng giao hàng toàn quốc qua " + BanHangService.DON_VI_VAN_CHUYEN + ":\n"
                     + "• Nội thành Hà Nội 1-2 ngày, tỉnh khác 3-5 ngày\n"
-                    + "• Phí giao hàng: Hà Nội " + tien(PhiVanChuyenTinh.PHI_HA_NOI_PHUONG) + " (phường) / " + tien(PhiVanChuyenTinh.PHI_HA_NOI_XA)
-                    + " (xã); tỉnh / thành khác đến " + tien(PhiVanChuyenTinh.phiCaoNhat()) + " tùy tỉnh\n"
+                    + "• Phí giao hàng: " + tien(ship.phiGiaoHang()) + " mỗi đơn\n"
                     + (ship.bat() ? "• Đơn có tiền hàng từ " + tien(ship.nguong()) + " được miễn phí vận chuyển\n" : "")
                     + "• Được kiểm tra hàng trước khi nhận, thanh toán khi nhận hàng (COD)", false, List.of("Khuyến mãi hôm nay", "Đổi trả"));
         }

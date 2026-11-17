@@ -24,7 +24,7 @@ import { dongTienDon } from '../../utils/tienDon'
 import { formatPhanTram } from '../../utils/giamGia'
 import { loiSdt } from '../../utils/kiemTra'
 import { taoHtmlHoaDon } from '../../utils/hoaDonIn'
-import { duocMienPhiVanChuyen } from '../../utils/phiVanChuyenTinh'
+import { duocMienPhiVanChuyen } from '../../utils/phiVanChuyen'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 import { SO_LUONG_TOI_DA, chuoiVietQR, dangGiamTheoDot, goiYPhieuMoi, phiGiaoHang, tienGiamDot, tinhThanhToan, tongSoLuong, tongTienHang } from '../../utils/banHang'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
@@ -338,28 +338,20 @@ async function chonKhach(k) {
 }
 
 /* ===================== Giao hàng ===================== */
-// Phí giao theo tỉnh nhận: chưa chọn tỉnh thì null (chưa tính), đổi tỉnh là tính lại
-const phiShipTheoTinh = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(hd.value.p.nguoiNhan.tinhThanh, hd.value.p.nguoiNhan.phuongXa) : 0))
-// Ô phí vận chuyển: tự điền theo tỉnh, nhân viên sửa thì lấy số đã nhập; xóa trống ô thì về phí theo tỉnh
-const coPhiNhapTay = computed(() => hd.value.p.giaoHang && hd.value.p.phiShipTay && hd.value.p.phiShip !== '')
 // Đơn đạt ngưỡng miễn phí vận chuyển (Cài đặt → Cài đặt free ship): không thu phí giao, ô phí thay bằng chữ "Miễn phí" (máy chủ cũng tính 0)
 const caiDatShip = dungCaiDatVanChuyen()
+// Phí giao hàng quản lý cài (một mức cho mọi đơn, không theo tỉnh); chưa tải được cài đặt thì null (chưa tính)
+const phiShipCaiDat = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(caiDatShip) : 0))
+// Ô phí vận chuyển: tự điền phí cài đặt, nhân viên sửa thì lấy số đã nhập; xóa trống ô thì về phí cài đặt
+const coPhiNhapTay = computed(() => hd.value.p.giaoHang && hd.value.p.phiShipTay && hd.value.p.phiShip !== '')
 const mienPhiShip = computed(() => hd.value.p.giaoHang && duocMienPhiVanChuyen(caiDatShip, tienHang.value))
-const phiShipDon = computed(() => (mienPhiShip.value ? 0 : coPhiNhapTay.value ? Number(hd.value.p.phiShip) : phiShipTheoTinh.value))
+const phiShipDon = computed(() => (mienPhiShip.value ? 0 : coPhiNhapTay.value ? Number(hd.value.p.phiShip) : phiShipCaiDat.value))
 const phiShip = computed(() => phiShipDon.value ?? 0)
-const goiYOPhiShip = computed(() => (phiShipTheoTinh.value === null ? 'Chưa tính phí' : phiShipTheoTinh.value ? formatMoney(phiShipTheoTinh.value) : 'Miễn phí'))
+const goiYOPhiShip = computed(() => (phiShipCaiDat.value === null ? 'Chưa tính phí' : phiShipCaiDat.value ? formatMoney(phiShipCaiDat.value) : 'Miễn phí'))
 function nhapPhiShip(v) {
   hd.value.p.phiShip = v
   hd.value.p.phiShipTay = true
 }
-watch(
-  () => [hd.value.id, hd.value.p.nguoiNhan.tinhThanh],
-  ([id, tinh], [idCu, tinhCu]) => {
-    if (id !== idCu || tinh === tinhCu) return
-    hd.value.p.phiShip = ''
-    hd.value.p.phiShipTay = false
-  },
-)
 const diaChiGiao = computed(() => {
   const n = hd.value.p.nguoiNhan
   return [n.diaChiCuThe.trim(), n.phuongXa, n.tinhThanh].filter(Boolean).join(', ')

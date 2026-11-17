@@ -19,7 +19,7 @@ const tien = computed(() =>
     giamPhieu: cartStore.discountAmount,
     maPhieu: cartStore.appliedVoucher?.ma,
     coGiaoHang: true,
-    phiVanChuyen: cartStore.chuaCoTinh ? null : cartStore.shippingFee, // giỏ hàng chưa biết tỉnh: phí tính theo địa chỉ
+    phiVanChuyen: cartStore.chuaCoPhi ? null : cartStore.shippingFee, // chưa tải được phí giao hàng: chưa tính
     tongThanhToan: cartStore.finalTotal,
   }),
 )
@@ -166,7 +166,7 @@ function onQuantityInput(item, event) {
               <span :class="{ 'gh-xanh': d.dau === '-' && d.so > 0 }">
                 {{ d.nhan }}<template v-if="d.ma"> ({{ d.ma }})</template>
               </span>
-              <span v-if="d.khoa === 'phi-van-chuyen' && d.so === null" class="gh-mo">Tính theo địa chỉ giao hàng</span>
+              <span v-if="d.khoa === 'phi-van-chuyen' && d.so === null" class="gh-mo">Chưa tính</span>
               <span v-else-if="d.khoa === 'phi-van-chuyen' && d.so === 0" class="gh-xanh fw-bold">Miễn phí</span>
               <span v-else-if="d.khoa === 'phieu' && !d.so" class="gh-mo">Không dùng phiếu</span>
               <span v-else class="fw-semibold" :class="{ 'gh-xanh': d.dau === '-' }">

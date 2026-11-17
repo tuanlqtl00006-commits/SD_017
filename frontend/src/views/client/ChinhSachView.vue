@@ -1,22 +1,16 @@
 <script setup>
 // Quy định / chính sách cửa hàng (cô review 14/11: tất cả các nhóm phải có màn quy định của cửa hàng: đổi trả, thông tin mua hàng,
 // bảo hành...). Nội dung viết theo đúng cách hệ thống đang chạy:
-//  - Phí giao hàng lấy từ bảng phí theo tỉnh dùng chung (utils/phiVanChuyenTinh.js, khớp backend PhiVanChuyenTinh);
-//  - Ngưỡng miễn phí vận chuyển lấy từ cài đặt của quản lý (Cài đặt -> Cài đặt free ship);
+//  - Phí giao hàng và ngưỡng miễn phí vận chuyển lấy từ cài đặt của quản lý (Cài đặt -> Cài đặt free ship), không theo tỉnh;
 //  - Thanh toán: COD và chuyển khoản VietQR khi đặt online; tiền mặt / chuyển khoản / kết hợp khi mua tại cửa hàng;
 //  - Khách tự hủy đơn khi đơn còn "Chờ xác nhận" (KhachTaiKhoanController PUT /khach/don-hang/{ma}/huy).
-import { computed, nextTick, onMounted, watch } from 'vue'
+import { nextTick, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
-import { BANG_PHI_HIEN_THI, PHI_MAC_DINH } from '../../utils/phiVanChuyenTinh'
 import { formatMoney } from '../../utils/format'
 
 const route = useRoute()
 const caiDatShip = dungCaiDatVanChuyen()
-const bangPhi = computed(() => [
-  ...BANG_PHI_HIEN_THI,
-  { tinh: 'Địa chỉ không nhận ra tên tỉnh / thành', phi: PHI_MAC_DINH },
-])
 
 const MUC = [
   { id: 'giao-hang', ten: 'Giao hàng', icon: 'bi-truck' },
@@ -68,18 +62,16 @@ watch(() => route.hash, (h) => nextTick(() => cuonToi(h?.slice(1))))
                 <strong>Miễn phí vận chuyển</strong> cho đơn có tiền hàng từ <strong>{{ formatMoney(caiDatShip.mienPhiTu) }}</strong>
                 (tiền hàng sau giảm theo đợt, chưa trừ phiếu giảm giá).
               </li>
-              <li>Chưa đạt mức miễn phí thì phí giao hàng tính theo tỉnh / thành nhận hàng như bảng dưới. Phí hiện rõ ở giỏ hàng và trang thanh toán trước khi đặt.</li>
+              <li v-if="caiDatShip.daTai" data-testid="cs-phi-giao">
+                <template v-if="caiDatShip.phiGiaoHang > 0">
+                  {{ caiDatShip.mienPhiBat && caiDatShip.mienPhiTu > 0 ? 'Chưa đạt mức miễn phí thì phí' : 'Phí' }} giao hàng là
+                  <strong>{{ formatMoney(caiDatShip.phiGiaoHang) }}</strong> mỗi đơn, như nhau ở mọi tỉnh / thành.
+                </template>
+                <template v-else>Giao hàng miễn phí cho mọi đơn.</template>
+                Phí hiện rõ ở giỏ hàng và trang thanh toán trước khi đặt.
+              </li>
               <li>Bạn được kiểm tra hàng trước khi nhận.</li>
             </ul>
-            <table class="cs-bang" data-testid="cs-bang-phi">
-              <thead><tr><th>Tỉnh / thành nhận hàng</th><th>Phí giao hàng</th></tr></thead>
-              <tbody>
-                <tr v-for="d in bangPhi" :key="d.tinh">
-                  <td>{{ d.tinh }}</td>
-                  <td class="cs-bang-phi" :class="{ 'cs-mien-phi': d.phi === 0 }">{{ d.phi === 0 ? 'Miễn phí' : formatMoney(d.phi) }}</td>
-                </tr>
-              </tbody>
-            </table>
           </section>
 
           <!-- Thanh toán -->
@@ -222,31 +214,6 @@ watch(() => route.hash, (h) => nextTick(() => cuonToi(h?.slice(1))))
   font-size: 1rem;
   font-weight: 800;
   color: var(--vnb-dark);
-}
-.cs-bang {
-  width: 100%;
-  font-size: 0.9rem;
-  border-collapse: collapse;
-}
-.cs-bang th {
-  padding: 0.6rem 0.75rem;
-  text-align: left;
-  font-weight: 700;
-  color: #475569;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--vnb-border);
-}
-.cs-bang td {
-  padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: top;
-}
-.cs-bang-phi {
-  white-space: nowrap;
-  font-weight: 700;
-}
-.cs-mien-phi {
-  color: #16a34a;
 }
 @media (max-width: 991px) {
   .cs-muc-luc {

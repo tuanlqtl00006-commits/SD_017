@@ -1,7 +1,7 @@
 // Hàm dùng chung cho Bán hàng tại quầy: giỏ hàng, tiền khách đưa, mã QR VietQR.
 // Backend vẫn tính lại khi thanh toán, ở đây chỉ để hiển thị và báo lỗi sớm.
 
-import { phiVanChuyenTheoTinh } from './phiVanChuyenTinh'
+import { phiGiaoHangCaiDat } from './phiVanChuyen'
 import { tinhGiamPhieu } from './tinhPhieu'
 
 export const SO_LUONG_TOI_DA = 999
@@ -149,9 +149,9 @@ export function chuoiVietQR({ bin, soTaiKhoan, soTien, noiDung }) {
 }
 
 /**
- * Phí giao hàng theo nơi nhận (giống backend PhiVanChuyenTinh): Hà Nội phường 25.000 / xã 30.000, tỉnh khác tùy tỉnh.
- * Tỉnh còn trống thì trả null (chưa tính được).
+ * Phí giao hàng quản lý cài ở Cài đặt free ship (giống backend CaiDatVanChuyenService.phiGiaoHang, không theo tỉnh).
+ * Chưa tải được cài đặt thì trả null (chưa tính được).
  */
-export function phiGiaoHang(tinhThanh, phuongXa = '') {
-  return phiVanChuyenTheoTinh(tinhThanh, phuongXa)
+export function phiGiaoHang(caiDat) {
+  return caiDat?.daTai ? phiGiaoHangCaiDat(caiDat) : null
 }
