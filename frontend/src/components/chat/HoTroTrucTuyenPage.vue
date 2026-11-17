@@ -2,7 +2,7 @@
 // Hỗ trợ khách hàng trực tuyến (nhân viên). Bên trái: các cuộc chat của khách (đang chờ nhân viên, của tôi, trợ lý ảo đang
 // trả lời, đã kết thúc). Bên phải: nội dung chat. Trả lời một cuộc đang chờ = tự nhận hỗ trợ; quản lý được tiếp quản cuộc
 // của nhân viên khác. Hỏi lại máy chủ định kỳ (danh sách 5 giây, cuộc đang mở 3 giây) nên không cần tải lại trang.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import DanhGiaHoTro from './DanhGiaHoTro.vue'
@@ -12,7 +12,7 @@ import { hoTroApi } from '../../services/chatService'
 import { useAuth } from '../../composables/useAuth'
 import { useChatChuaDoc } from '../../composables/useChatChuaDoc'
 import { useToast } from '../../composables/useToast'
-import { avatarColors, getInitials } from '../../utils/format'
+import { avatarColors, formatNgayGio, getInitials } from '../../utils/format'
 import { normalizeText as boDau } from '../../utils/text'
 import { CHE_DO, gioNgan, gopTin, idCuoi, locHoiThoai, moTaCheDo, NGUOI_GUI, TRA_LOI_NHANH, xemTruocTinCuoi } from '../../utils/chat'
 
@@ -21,8 +21,12 @@ const toast = useToast()
 const chuaDoc = useChatChuaDoc()
 const route = useRoute()
 
-// Tab "Đánh giá" (góp ý 16/11): tổng hợp đánh giá của khách ngay trong màn này, nhân viên nào cũng xem được
-const tab = ref('chat') // 'chat' | 'danh-gia'
+// Tab "Đánh giá hỗ trợ" (góp ý 16/11): admin check đánh giá của khách ngay trong màn này
+const tab = ref(route?.query?.tab === 'danh-gia' ? 'danh-gia' : 'chat') // 'chat' | 'danh-gia'
+watch(() => route.query.tab, (val) => {
+  if (val === 'danh-gia') tab.value = 'danh-gia'
+  else if (val === 'chat') tab.value = 'chat'
+})
 function moTuDanhGia(id) {
   tab.value = 'chat'
   if (loc.value !== '') doiLoc('')
@@ -243,7 +247,7 @@ onBeforeUnmount(() => {
         <i class="bi bi-chat-dots" aria-hidden="true"></i> Cuộc trò chuyện
       </button>
       <button type="button" role="tab" class="htt-tab-nut" :class="{ active: tab === 'danh-gia' }" :aria-selected="tab === 'danh-gia'" data-testid="htt-tab-danh-gia" @click="tab = 'danh-gia'">
-        <i class="bi bi-star-half" aria-hidden="true"></i> Đánh giá của khách
+        <i class="bi bi-star-fill text-primary" aria-hidden="true"></i> Đánh giá hỗ trợ
       </button>
     </div>
     <DanhGiaHoTro v-if="tab === 'danh-gia'" @mo="moTuDanhGia" />
@@ -290,7 +294,10 @@ onBeforeUnmount(() => {
                 </span>
                 <span class="htt-muc-dong3">
                   <span class="ad-pill" :class="moTaCheDo(h.cheDo).pill">{{ moTaCheDo(h.cheDo).nhan }}</span>
-                  <small v-if="h.tenNhanVienPhuTrach" class="text-muted text-truncate">{{ h.idNhanVienPhuTrach === idToi ? 'Bạn' : h.tenNhanVienPhuTrach }}</small>
+                  <small v-if="h.cheDo === CHE_DO.DA_DONG" class="text-muted" title="Thời gian kết thúc">
+                    <i class="bi bi-clock-history" aria-hidden="true"></i> KT: {{ gioNgan(h.ngayCapNhat || h.tinCuoi?.thoiGian) }}
+                  </small>
+                  <small v-else-if="h.tenNhanVienPhuTrach" class="text-muted text-truncate">{{ h.idNhanVienPhuTrach === idToi ? 'Bạn' : h.tenNhanVienPhuTrach }}</small>
                   <small class="text-muted ms-auto">{{ h.sdtKhach }}</small>
                 </span>
               </span>
@@ -319,6 +326,10 @@ onBeforeUnmount(() => {
               </small>
             </div>
             <span class="ad-pill" :class="moTaCheDo(dangMo.cheDo).pill"><i class="bi" :class="moTaCheDo(dangMo.cheDo).icon" aria-hidden="true"></i> {{ moTaCheDo(dangMo.cheDo).nhan }}<template v-if="dangMo.cheDo === CHE_DO.NHAN_VIEN_HO_TRO">: {{ dangMo.idNhanVienPhuTrach === idToi ? 'bạn' : dangMo.tenNhanVienPhuTrach }}</template></span>
+            <span v-if="dangMo.cheDo === CHE_DO.DA_DONG" class="htt-tg-ket-thuc text-muted d-inline-flex align-items-center gap-1" title="Thời gian kết thúc">
+              <i class="bi bi-clock-history" aria-hidden="true"></i>
+              <span>TG kết thúc: <strong>{{ formatNgayGio(dangMo.ngayCapNhat || dangMo.tinCuoi?.thoiGian) }}</strong></span>
+            </span>
             <div class="htt-chat-nut">
               <button v-if="nhanDuoc" type="button" class="ad-btn ad-btn-primary ad-btn-sm" :disabled="dangXuLy" @click="nhan">
                 <i class="bi bi-person-check" aria-hidden="true"></i> Nhận hỗ trợ
@@ -578,6 +589,13 @@ onBeforeUnmount(() => {
   padding: 12px 16px;
   border-bottom: 1px solid var(--fs-line);
   flex-wrap: wrap;
+}
+.htt-tg-ket-thuc {
+  font-size: 0.82rem;
+  background: var(--fs-bg-app, #f1f5f9);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--fs-line, #e2e8f0);
 }
 .htt-quay-lai {
   display: none;

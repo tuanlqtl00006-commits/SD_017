@@ -54,8 +54,9 @@ const phanTram = (n) => (kq.value?.tong ? Math.round((n / kq.value.tong) * 100) 
   <section class="ad-card dgh" data-testid="dgh">
     <header class="dgh-dau">
       <div class="ad-card-head">
-        <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-star-half"></i></span>
-        <h2 class="ad-card-title">Đánh giá của khách sau khi chat</h2>
+        <span class="ad-icon-box" aria-hidden="true"><i class="bi bi-star-fill text-warning"></i></span>
+        <h2 class="ad-card-title">Đánh giá hỗ trợ</h2>
+        <span class="badge bg-primary-subtle text-primary border ms-2">Dành cho Quản lý</span>
       </div>
       <p class="dgh-mo-ta mb-0">Khách chấm sau mỗi cuộc trò chuyện có nhân viên hỗ trợ.</p>
     </header>
@@ -136,7 +137,7 @@ const phanTram = (n) => (kq.value?.tong ? Math.round((n / kq.value.tong) * 100) 
         <table class="ad-table" data-testid="dgh-ds">
           <thead>
             <tr>
-              <th>Thời gian</th>
+              <th>TG kết thúc / Đánh giá</th>
               <th>Khách</th>
               <th>Nhân viên</th>
               <th class="text-center">Mức độ</th>

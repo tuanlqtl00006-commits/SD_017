@@ -204,12 +204,11 @@ const routes = [
         component: () => import('../components/chat/HoTroTrucTuyenPage.vue'),
         meta: { title: 'Hỗ trợ trực tuyến', roles: NV },
       },
-      // Tổng hợp đánh giá của khách sau chat (góp ý 16/11): trang riêng cho quản lý
+      // Tổng hợp đánh giá của khách sau chat (góp ý 16/11): chuyển hướng vào tab Đánh giá hỗ trợ trong Hỗ trợ trực tuyến
       {
         path: 'danh-gia-ho-tro',
         name: 'danh-gia-ho-tro',
-        component: () => import('../components/chat/DanhGiaHoTroPage.vue'),
-        meta: { title: 'Đánh giá hỗ trợ', roles: QL },
+        redirect: '/ho-tro-truc-tuyen?tab=danh-gia',
       },
     ],
   },
