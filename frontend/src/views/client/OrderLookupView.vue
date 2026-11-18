@@ -119,7 +119,12 @@ async function taiLaiNgam() {
     // lỗi tạm thời: giữ kết quả đang hiện
   }
 }
-useAutoRefresh(taiLaiNgam, 3000, { chuKyMs: 15_000, coTheTai: () => !!orderResult.value, chuDe: ['hoa-don'] })
+useAutoRefresh(taiLaiNgam, 1500, {
+  chuKyMs: 4000,
+  chuKyDuPhongMs: 4000,
+  coTheTai: () => !!orderResult.value,
+  chuDe: ['hoa-don'],
+})
 
 async function handleSearch() {
   lanTra++

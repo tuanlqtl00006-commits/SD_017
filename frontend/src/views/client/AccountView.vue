@@ -48,6 +48,15 @@ async function taiChiTietDon(ma) {
     dangTaiDon.value = false
   }
 }
+async function taiChiTietDonNgam() {
+  if (!maDonDangXem.value || !auth.daDangNhap.value || dangTaiDon.value) return
+  try {
+    const d = (await api.get(`/khach/don-hang/${encodeURIComponent(maDonDangXem.value)}`)).data
+    if (d?.chiTietDon) donDangXem.value = d.chiTietDon
+  } catch {
+    // lỗi mạng tạm thời: giữ dữ liệu cũ
+  }
+}
 function xemChiTietDon(ma) {
   router.push({ path: '/shop/tai-khoan', query: { tab: 'orders', don: ma } })
 }
@@ -58,6 +67,7 @@ watch(
   () => [route.query.tab, route.query.don],
   ([tab, don]) => {
     activeTab.value = tab ? String(tab) : 'profile'
+    if (activeTab.value === 'orders') loadOrders()
     if (don && auth.daDangNhap.value) taiChiTietDon(String(don))
     else {
       donDangXem.value = null
@@ -201,9 +211,17 @@ async function loadOrders() {
   await dongBoDon(orders.value)
 }
 
+async function lamMoiDonHang() {
+  if (maDonDangXem.value) {
+    await taiChiTietDonNgam()
+  }
+  await dongBoDon(docDonHang())
+}
+
 // Đang xem tab Đơn hàng: cửa hàng xác nhận / giao đơn thì trạng thái tự đổi, khách không phải F5
-useAutoRefresh(() => dongBoDon(docDonHang()), 3000, {
-  chuKyMs: 30_000,
+useAutoRefresh(lamMoiDonHang, 1500, {
+  chuKyMs: 4000,
+  chuKyDuPhongMs: 5000,
   chuDe: ['hoa-don'],
   coTheTai: () => auth.daDangNhap.value && activeTab.value === 'orders',
 })
@@ -441,7 +459,9 @@ async function xacNhanHuyDon() {
   huyDonLoading.value = true
   try {
     // Hủy thật trên backend để cửa hàng và trang tra cứu cùng thấy "Đã hủy"
-    await api.put(`/khach/don-hang/${encodeURIComponent(h.ma)}/huy`, { lyDo })
+    const res = await api.put(`/khach/don-hang/${encodeURIComponent(h.ma)}/huy`, { lyDo })
+    if (res?.data?.chiTietDon) donDangXem.value = res.data.chiTietDon
+    else if (maDonDangXem.value === h.ma) await taiChiTietDonNgam()
   } catch (e) {
     // 404: đơn chỉ còn là bản lưu trên trình duyệt, cửa hàng không có đơn này -> chỉ cần hủy bản trên máy
     if (e?.status !== 404) {
@@ -531,13 +551,19 @@ async function xacNhanHuyDon() {
       <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb mb-0 small">
           <li class="breadcrumb-item"><RouterLink to="/shop">Trang chủ</RouterLink></li>
-          <li class="breadcrumb-item active" aria-current="page">Tài khoản cá nhân</li>
+          <template v-if="activeTab === 'orders'">
+            <li class="breadcrumb-item"><RouterLink :to="{ path: '/shop/tai-khoan', query: { tab: 'profile' } }">Tài khoản</RouterLink></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ maDonDangXem ? 'Đơn hàng ' + maDonDangXem : 'Theo dõi đơn hàng' }}</li>
+          </template>
+          <template v-else>
+            <li class="breadcrumb-item active" aria-current="page">Tài khoản cá nhân</li>
+          </template>
         </ol>
       </nav>
 
       <div class="row g-4">
-        <!-- Sidebar Menu tài khoản -->
-        <div class="col-lg-3">
+        <!-- Sidebar Menu tài khoản: ẩn khi ở tab Theo dõi đơn hàng để mở rộng toàn màn hình -->
+        <div v-show="activeTab !== 'orders'" class="col-lg-3" :class="{ 'd-none': activeTab === 'orders' }">
           <div class="card border-0 shadow-sm rounded-4 p-3 mb-4">
             <div class="d-flex align-items-center gap-3 p-2 mb-3 border-bottom pb-3">
               <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold fs-4" style="width: 50px; height: 50px;">
@@ -578,7 +604,7 @@ async function xacNhanHuyDon() {
         </div>
 
         <!-- Cột Nội dung Tab -->
-        <div class="col-lg-9">
+        <div :class="activeTab === 'orders' ? 'col-12' : 'col-lg-9'">
           <!-- TAB 1: HỒ SƠ CÁ NHÂN (USE CASE 5) -->
           <div v-if="activeTab === 'profile'" class="card border-0 shadow-sm rounded-4 p-4">
             <h5 class="fw-bold mb-3 text-dark d-flex align-items-center gap-2">

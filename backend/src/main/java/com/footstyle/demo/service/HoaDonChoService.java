@@ -65,17 +65,24 @@ public class HoaDonChoService {
     public record DoiKhachRequest(Integer idKhachHang) {
     }
 
-    /** xacNhanGiaMoi: nhân viên đã bấm OK ở popup "sản phẩm đã đổi giá" -> thêm dòng mới theo giá mới. */
-    public record ThemSanPhamRequest(Integer idBienThe, Integer soLuong, Boolean xacNhanGiaMoi) {
+    /** xacNhanGiaMoi: nhân viên bấm OK -> áp dụng đợt mới; giuGiaCu: nhân viên bấm Hủy -> giữ đợt cũ. */
+    public record ThemSanPhamRequest(Integer idBienThe, Integer soLuong, Boolean xacNhanGiaMoi, Boolean giuGiaCu) {
         public ThemSanPhamRequest(Integer idBienThe, Integer soLuong) {
-            this(idBienThe, soLuong, null);
+            this(idBienThe, soLuong, null, null);
+        }
+
+        public ThemSanPhamRequest(Integer idBienThe, Integer soLuong, Boolean xacNhanGiaMoi) {
+            this(idBienThe, soLuong, xacNhanGiaMoi, null);
         }
     }
 
     /** Mã lỗi khi thêm / tăng số lượng sản phẩm mà giá đã đổi so với dòng đang có: màn quầy hiện popup hỏi OK. */
     public static final String GIA_THAY_DOI = "GIA_THAY_DOI";
 
-    public record SoLuongRequest(Integer soLuong) {
+    public record SoLuongRequest(Integer soLuong, Boolean xacNhanGiaMoi, Boolean giuGiaCu) {
+        public SoLuongRequest(Integer soLuong) {
+            this(soLuong, null, null);
+        }
     }
 
     /** Hóa đơn chờ tại quầy (chưa thanh toán)? */
@@ -205,9 +212,9 @@ public class HoaDonChoService {
         data.put("donGiaCu", donGiaCu);
         data.put("donGiaMoi", donGiaMoi);
         data.put("soLuong", soLuong);
-        return new ApiException(HttpStatus.CONFLICT, "Sản phẩm " + c.getMaSpct() + " đã đổi giá từ "
+        return new ApiException(HttpStatus.CONFLICT, "Đợt giảm giá của sản phẩm " + c.getMaSpct() + " đã thay đổi từ "
                 + GiaoCaService.dinhDangTien(BigDecimal.valueOf(donGiaCu)) + " thành " + GiaoCaService.dinhDangTien(BigDecimal.valueOf(donGiaMoi))
-                + ". Dòng đang có giữ giá cũ; thêm nữa sẽ là dòng mới theo giá mới.", GIA_THAY_DOI, data);
+                + ". Bấm OK để áp dụng đợt mới, bấm Hủy để giữ đợt giảm giá cũ.", GIA_THAY_DOI, data);
     }
 
     @Transactional
@@ -218,10 +225,16 @@ public class HoaDonChoService {
         if (moi < 1 || moi > BanHangService.SO_LUONG_TOI_DA) throw ApiException.badRequest("Số lượng từ 1 đến " + BanHangService.SO_LUONG_TOI_DA + ".");
         int cu = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
         SanPhamChiTiet c = ct.getSanPhamChiTiet();
-        // Tăng số lượng ở dòng giá cũ khi giá đã đổi: phần thêm phải theo giá mới (dòng mới), hỏi nhân viên trước
+        // Tăng số lượng khi đợt giảm giá đã đổi: hỏi nhân viên trước
         if (moi > cu) {
             long giaMoi = giaHienTai().cua(c);
-            if (giaMoi != long0(ct.getDonGia())) throw giaDaDoi(c, long0(ct.getDonGia()), giaMoi, moi - cu);
+            long giaCu = long0(ct.getDonGia());
+            if (giaMoi != giaCu && !Boolean.TRUE.equals(req.xacNhanGiaMoi()) && !Boolean.TRUE.equals(req.giuGiaCu())) {
+                throw giaDaDoi(c, giaCu, giaMoi, moi - cu);
+            }
+            if (Boolean.TRUE.equals(req.xacNhanGiaMoi())) {
+                ct.setDonGia(BigDecimal.valueOf(giaMoi));
+            }
         }
         if (moi > cu) truKho(c, moi - cu);
         else if (moi < cu) spctRepo.congTonKho(c.getId(), cu - moi);
@@ -239,6 +252,39 @@ public class HoaDonChoService {
         if (sl > 0) spctRepo.congTonKho(ct.getSanPhamChiTiet().getId(), sl);
         chiTietRepo.delete(ct);
         return capNhatTong(h, giaHienTai());
+    }
+
+    /** Đưa các dòng có giá đã đổi về giá hiện tại (áp dụng đợt giảm giá mới); dòng trùng biến thể + trùng giá thì gộp lại. */
+    @Transactional
+    public Map<String, Object> capNhatGia(Integer id) {
+        HoaDon h = cuaToi(id);
+        GiaKhiXem gia = giaHienTai();
+        Map<String, HoaDonChiTiet> theoBienTheGia = new LinkedHashMap<>();
+        for (HoaDonChiTiet ct : chiTietRepo.findByHoaDon_IdOrderByIdAsc(h.getId())) {
+            long moi = gia.cua(ct.getSanPhamChiTiet());
+            String khoa = ct.getSanPhamChiTiet().getId() + "@" + moi;
+            HoaDonChiTiet gop = theoBienTheGia.get(khoa);
+            if (gop != null) {
+                gop.setSoLuong(gop.getSoLuong() + ct.getSoLuong());
+                gop.setThanhTien(BigDecimal.valueOf(moi * gop.getSoLuong()));
+                chiTietRepo.save(gop);
+                chiTietRepo.delete(ct);
+                continue;
+            }
+            ct.setDonGia(BigDecimal.valueOf(moi));
+            ct.setThanhTien(BigDecimal.valueOf(moi * ct.getSoLuong()));
+            chiTietRepo.save(ct);
+            theoBienTheGia.put(khoa, ct);
+        }
+        return capNhatTong(h, gia);
+    }
+
+    /** Giữ lại đợt giảm giá cũ của các dòng trong hóa đơn chờ; giữ nguyên từng dòng sản phẩm. */
+    @Transactional
+    public Map<String, Object> giuGiaCu(Integer id) {
+        HoaDon h = cuaToi(id);
+        GiaKhiXem gia = giaHienTai();
+        return capNhatTong(h, gia);
     }
 
     /** Hủy hóa đơn chờ: trả hàng về kho. Chưa có sản phẩm thì xóa hẳn (không để lại hóa đơn rỗng trong danh sách). */
@@ -348,16 +394,29 @@ public class HoaDonChoService {
         long tong = 0;
         int soLuong = 0;
         boolean coGiaDoi = false;
+        List<LocalDateTime> thoiDiems = List.of(h.getNgayTao() != null ? h.getNgayTao() : bayGio(), bayGio());
         for (HoaDonChiTiet ct : chiTietRepo.findByHoaDon_IdOrderByIdAsc(h.getId())) {
             SanPhamChiTiet c = ct.getSanPhamChiTiet();
             Map<String, Object> d = new LinkedHashMap<>(banHangService.bienTheDto(c, gia.phanTram(), gia.anh()));
             long donGia = long0(ct.getDonGia());
             long giaMoi = gia.cua(c);
+            long giaHienTai = c.getGiaBan() == null ? donGia : c.getGiaBan();
+
+            long giaGoc = giaHienTai;
+            double phanTramGiam = gia.phanTram().getOrDefault(c.getId().longValue(), 0.0);
+            if (giamGiaService != null) {
+                List<Double> muc = giamGiaService.mucGiamCoThe(c.getId().longValue(), thoiDiems);
+                giaGoc = giaGocChoDong(donGia, giaHienTai, muc, phanTramGiam);
+                phanTramGiam = phanTramChoDong(donGia, giaGoc, muc, phanTramGiam);
+            }
+
             d.put("idBienThe", c.getId());
             d.put("id", ct.getId());
             d.put("ten", c.getSanPham().getTenSanPham());
             d.put("giaHienTai", giaMoi);
             d.put("donGia", donGia);
+            d.put("giaGoc", giaGoc);
+            d.put("phanTramGiam", phanTramGiam);
             d.put("giaDoi", giaMoi != donGia);
             // Tồn kho đọc lại từ CSDL: lệnh trừ kho có điều kiện chạy bằng câu UPDATE nên bản ghi đang giữ có thể là số cũ
             d.put("tonKho", spctRepo.findById(c.getId()).map(x -> x.getSoLuongTon() == null ? 0 : x.getSoLuongTon()).orElse(0));
@@ -377,5 +436,42 @@ public class HoaDonChoService {
 
     static long long0(BigDecimal v) {
         return v == null ? 0 : v.longValue();
+    }
+
+    static long giaGocChoDong(long donGia, long giaHienTai, List<Double> mucCoThe, double ptHienTai) {
+        // 1. Nếu giá hiện tại khớp với một đợt có thể áp dụng -> giá niêm yết chưa đổi
+        for (double pt : mucCoThe) {
+            if (pt > 0 && Math.abs(PhieuApDung.giaSauDot(giaHienTai, pt) - donGia) <= 1) {
+                return giaHienTai;
+            }
+        }
+        if (giaHienTai == donGia) return donGia;
+
+        // 2. Thử các mức giảm có thể: nếu tính ngược ra giá gốc tròn nghìn thì đó là giá niêm yết lúc thêm
+        for (double pt : mucCoThe) {
+            if (pt > 0 && pt < 100) {
+                long goc = Math.round(donGia * 100.0 / (100.0 - pt));
+                if (Math.abs(PhieuApDung.giaSauDot(goc, pt) - donGia) <= 1 && goc % 1000 == 0) {
+                    return goc;
+                }
+            }
+        }
+
+        // 3. Nếu mức đợt đầu danh sách tính ra được
+        if (!mucCoThe.isEmpty() && mucCoThe.get(0) > 0 && mucCoThe.get(0) < 100) {
+            return Math.round(donGia * 100.0 / (100.0 - mucCoThe.get(0)));
+        }
+
+        return donGia < giaHienTai ? giaHienTai : donGia;
+    }
+
+    static double phanTramChoDong(long donGia, long giaGoc, List<Double> mucCoThe, double ptHienTai) {
+        if (giaGoc <= donGia) return 0.0;
+        for (double pt : mucCoThe) {
+            if (pt > 0 && Math.abs(PhieuApDung.giaSauDot(giaGoc, pt) - donGia) <= 1) {
+                return pt;
+            }
+        }
+        return Math.round((giaGoc - donGia) * 100.0 / giaGoc);
     }
 }

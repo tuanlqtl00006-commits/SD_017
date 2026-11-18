@@ -19,7 +19,7 @@ const tien = computed(() =>
     giamPhieu: cartStore.discountAmount,
     maPhieu: cartStore.appliedVoucher?.ma,
     coGiaoHang: true,
-    phiVanChuyen: cartStore.chuaCoPhi ? null : cartStore.shippingFee, // chưa tải được phí giao hàng: chưa tính
+    phiVanChuyen: cartStore.chuaCoTinh ? null : cartStore.shippingFee, // chưa chọn tỉnh: chưa tính phí giao
     tongThanhToan: cartStore.finalTotal,
   }),
 )

@@ -2,6 +2,7 @@
 // Backend vẫn tính lại khi thanh toán, ở đây chỉ để hiển thị và báo lỗi sớm.
 
 import { phiGiaoHangCaiDat } from './phiVanChuyen'
+import { phiVanChuyenTheoTinh } from './phiVanChuyenTinh'
 import { tinhGiamPhieu } from './tinhPhieu'
 
 export const SO_LUONG_TOI_DA = 999
@@ -19,13 +20,22 @@ function tranGiam(p) {
 
 // Tổng đơn nhỏ nhất (lớn hơn `tong`) mà phiếu p giảm nhiều hơn phiếu đang dùng; null nếu mua thêm bao nhiêu cũng không vượt
 function tongDeVuot(p, dangDung, tong) {
-  const tu = Math.max(tong + 1, Number(p.donToiThieu) || 0)
-  if (giamTai(p, tu) > giamTai(dangDung, tu)) return tu
-  // Chưa vượt ngay: chỉ còn trường hợp phiếu đang dùng đã chạm trần, phiếu % này tăng theo tiền đơn rồi vượt qua
+  const min = Number(p.donToiThieu) || 0
+  if (min <= tong) {
+    if (giamTai(p, tong) >= giamTai(dangDung, tong)) return null
+    const tran = tranGiam(dangDung)
+    const phanTram = Math.min(100, Number(p.giaTri) || 0)
+    if (p.loaiGiam !== 'PHAN_TRAM' || phanTram <= 0 || tran === Infinity) return null
+    const t = Math.ceil(((tran + 1) * 100) / phanTram)
+    if (t <= tong) return null
+    return giamTai(p, t) > giamTai(dangDung, t) ? t : null
+  }
+  if (giamTai(p, min) > giamTai(dangDung, min)) return min
   const tran = tranGiam(dangDung)
   const phanTram = Math.min(100, Number(p.giaTri) || 0)
   if (p.loaiGiam !== 'PHAN_TRAM' || phanTram <= 0 || tran === Infinity) return null
-  const t = Math.max(tu, Math.ceil(((tran + 1) * 100) / phanTram))
+  const t = Math.max(min, Math.ceil(((tran + 1) * 100) / phanTram))
+  if (t <= tong) return null
   return giamTai(p, t) > giamTai(dangDung, t) ? t : null
 }
 
@@ -48,6 +58,7 @@ export function goiYPhieuMoi(phieus, tong, gio, dangDung) {
   if (!tot) return null
 
   const canThem = tot.t - tong
+  if (canThem <= 0) return null
   let sanPham = null
   for (const d of gio) {
     if (!(d.donGia > 0)) continue
@@ -67,9 +78,13 @@ export function goiYPhieuMoi(phieus, tong, gio, dangDung) {
 
 export const tongSoLuong = (gio) => gio.reduce((s, d) => s + d.soLuong, 0)
 export const tongTienHang = (gio) => gio.reduce((s, d) => s + d.donGia * d.soLuong, 0)
-/** Tiền giảm theo đợt (giá gốc - giá bán). Dòng đang đổi giá thì chưa tính, cập nhật giá xong mới tính. */
-export const dangGiamTheoDot = (d) => !d.giaDoi && d.donGia < d.giaGoc
-export const tienGiamDot = (gio) => gio.reduce((s, d) => s + (dangGiamTheoDot(d) ? (d.giaGoc - d.donGia) * d.soLuong : 0), 0)
+/** Dòng có giảm theo đợt (giá bán < giá gốc), kể cả khi giá vừa đổi vẫn hiển thị đầy đủ giá gốc và giảm giá cũ. */
+export const dangGiamTheoDot = (d) => Number(d.donGia) < Number(d.giaGoc)
+export const tienGiamDot = (gio) =>
+  gio.reduce((s, d) => {
+    if (d.giaDoi && d.giaHienTai === d.giaGoc && !d.phanTramGiam) return s
+    return s + (dangGiamTheoDot(d) ? (Number(d.giaGoc) - Number(d.donGia)) * d.soLuong : 0)
+  }, 0)
 
 /* ===================== Tiền khách trả ===================== */
 
@@ -149,9 +164,11 @@ export function chuoiVietQR({ bin, soTaiKhoan, soTien, noiDung }) {
 }
 
 /**
- * Phí giao hàng quản lý cài ở Cài đặt free ship (giống backend CaiDatVanChuyenService.phiGiaoHang, không theo tỉnh).
- * Chưa tải được cài đặt thì trả null (chưa tính được).
+ * Phí giao hàng tính theo địa chỉ nhận hàng (tinhThanh, phuongXa) hoặc theo cài đặt nếu truyền object cài đặt.
  */
-export function phiGiaoHang(caiDat) {
-  return caiDat?.daTai ? phiGiaoHangCaiDat(caiDat) : null
+export function phiGiaoHang(tinhThanhHoacCaiDat, phuongXa) {
+  if (tinhThanhHoacCaiDat && typeof tinhThanhHoacCaiDat === 'object') {
+    return tinhThanhHoacCaiDat?.daTai ? phiGiaoHangCaiDat(tinhThanhHoacCaiDat) : null
+  }
+  return phiVanChuyenTheoTinh(tinhThanhHoacCaiDat, phuongXa)
 }

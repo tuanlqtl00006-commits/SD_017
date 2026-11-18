@@ -17,6 +17,7 @@ const props = defineProps({
   // Màn của khách: không có nút thao tác, hiện bước tiếp theo đang chờ cửa hàng xử lý
   cheDoKhach: { type: Boolean, default: false },
 })
+const emit = defineEmits(['suaGiaoHang', 'taiLai'])
 const slots = useSlots()
 
 const hd = computed(() => props.data?.hoaDon ?? {})
@@ -45,6 +46,20 @@ const money = (v) => formatMoney(v ?? 0)
 const fmtTime = formatGio
 const fmtDay = formatNgay
 const fmtDateTime = formatNgayGio
+
+function nhanTrangThaiThanhToan(p) {
+  const laHoanTra = Number(p?.soTien ?? 0) < 0 || (p?.moTa && /hoàn/i.test(p.moTa))
+  if (laHoanTra) {
+    return {
+      text: p?.trangThai === 1 ? 'Đã hoàn trả' : 'Chờ hoàn trả',
+      pill: p?.trangThai === 1 ? 'ad-pill-green' : 'ad-pill-amber',
+    }
+  }
+  return {
+    text: p?.trangThai === 1 ? 'Đã thanh toán' : 'Chờ xử lý',
+    pill: p?.trangThai === 1 ? 'ad-pill-green' : 'ad-pill-amber',
+  }
+}
 
 // Hiển thị mức giảm giá: phần trăm "-30% (- 30.000 ₫)", số tiền "- 30.000 ₫"
 const hienThiGiamGia = computed(() => {
@@ -458,6 +473,15 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
         <div class="ad-card-head">
           <span class="ad-icon-box"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>
           <h2 id="hd-gh-title" class="ad-card-title">Thông tin giao hàng</h2>
+          <button
+            v-if="hd.duocSuaGiaoHang && !cheDoKhach"
+            type="button"
+            class="ad-btn ad-btn-sm ms-auto text-primary"
+            data-testid="hd-sua-giao-hang"
+            @click="emit('suaGiaoHang')"
+          >
+            <i class="bi bi-geo-alt" aria-hidden="true"></i> Sửa thông tin giao hàng
+          </button>
         </div>
         <dl class="hd-rows">
           <template v-if="laGiaoHang">
@@ -481,8 +505,8 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
           <li v-for="p in thanhToan" :key="p.id" class="hd-pay-item">
             <div class="d-flex justify-content-between align-items-start gap-2">
               <strong>{{ p.phuongThuc || 'Thanh toán' }}</strong>
-              <span class="ad-pill" :class="p.trangThai === 1 ? 'ad-pill-green' : 'ad-pill-amber'">
-                {{ p.trangThai === 1 ? 'Đã thanh toán' : 'Chờ xử lý' }}
+              <span class="ad-pill" :class="nhanTrangThaiThanhToan(p).pill">
+                {{ nhanTrangThaiThanhToan(p).text }}
               </span>
             </div>
             <p class="hd-pay-desc">{{ p.moTa || '—' }}</p>

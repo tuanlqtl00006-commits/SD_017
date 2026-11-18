@@ -54,13 +54,12 @@ const cauHoi = computed(() => {
     : `${phi} Tắt miễn phí vận chuyển theo giá trị đơn: mọi đơn giao hàng thu phí này. Các đơn đã tạo không đổi.`
 })
 
-// Ví dụ theo mức đang áp dụng (đang sửa thì theo mức đang nhập): một đơn dưới mức và một đơn đúng bằng mức
+// Ví dụ theo mức đang áp dụng (đang sửa thì theo mức đang nhập): dưới mức tính phí, đạt mức miễn phí
 const viDu = computed(() => {
   const bat = dangSua.value ? form.mienPhiBat : daLuu.mienPhiBat
   const n = Number(dangSua.value ? form.mienPhiTu : daLuu.mienPhiTu)
   if (!bat || !(n >= 1)) return null
-  const duoi = n >= 4000 ? Math.floor((n * 0.75) / 1000) * 1000 : n - 1
-  return { duoi, dat: n, phi: Number(dangSua.value ? form.phiGiaoHang : daLuu.phiGiaoHang) || 0 }
+  return { dat: n, phi: Number(dangSua.value ? form.phiGiaoHang : daLuu.phiGiaoHang) || 0 }
 })
 
 function datForm() {
@@ -246,12 +245,12 @@ async function luu() {
           </div>
           <dl class="cd-vi-du">
             <div>
-              <dt>Tiền hàng {{ formatMoney(viDu.duoi) }}</dt>
-              <dd>Phí vận chuyển {{ viDu.phi ? formatMoney(viDu.phi) : 'Miễn phí' }}</dd>
+              <dt>Dưới mức tối thiểu</dt>
+              <dd>Tính phí vận chuyển {{ viDu.phi ? formatMoney(viDu.phi) : 'Miễn phí' }}</dd>
             </div>
             <div>
-              <dt>Tiền hàng {{ formatMoney(viDu.dat) }}</dt>
-              <dd class="cd-mien-phi">Miễn phí</dd>
+              <dt>Đạt mức tối thiểu (từ {{ formatMoney(viDu.dat) }})</dt>
+              <dd class="cd-mien-phi">Miễn phí vận chuyển</dd>
             </div>
           </dl>
         </section>

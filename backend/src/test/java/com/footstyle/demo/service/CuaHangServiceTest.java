@@ -141,7 +141,7 @@ class CuaHangServiceTest {
         assertEquals(tongTien + ((Number) xem.get("phiVanChuyen")).longValue(), ((Number) xem.get("thanhTien")).longValue());
 
         Map<String, Object> don = cuaHangService.datHangOnline(new CuaHangService.DatHangOnlineRequest(
-                "Khách Xem Giá", "0900000017", null, "12 Ngõ Thử", "Thành phố Hà Nội", "Phường Hà Đông", null,
+                "Khách Xem Giá", "0900000017", "khach@footstyle.test", "12 Ngõ Thử", "Thành phố Hà Nội", "Phường Hà Đông", null,
                 null, 1, null, gio));
         assertEquals(tongTien, ((Number) don.get("tongTien")).longValue());
         assertEquals(((Number) xem.get("phiVanChuyen")).longValue(), ((Number) don.get("phiVanChuyen")).longValue());

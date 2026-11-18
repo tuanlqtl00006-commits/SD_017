@@ -99,6 +99,16 @@ public class BanHangController {
         return hoaDonCho.xoaDong(id, idChiTiet);
     }
 
+    @PostMapping("/hoa-don-cho/{id}/cap-nhat-gia")
+    public Map<String, Object> capNhatGia(@PathVariable Integer id) {
+        return hoaDonCho.capNhatGia(id);
+    }
+
+    @PostMapping("/hoa-don-cho/{id}/giu-gia-cu")
+    public Map<String, Object> giuGiaCu(@PathVariable Integer id) {
+        return hoaDonCho.giuGiaCu(id);
+    }
+
 
     @PostMapping("/hoa-don-cho/{id}/thanh-toan")
     public Map<String, Object> thanhToanHoaDonCho(@PathVariable Integer id, @RequestBody(required = false) BanHangService.ThanhToanChoRequest req) {

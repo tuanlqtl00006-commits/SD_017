@@ -20,34 +20,48 @@ export function tinhGiamTam(p, tong) {
   return Math.min(gt, tong)
 }
 
-/** Danh sách phiếu cho đơn có tiền hàng `tong`; lỗi mạng thì trả []. */
+/** Danh sách phiếu cho đơn có tiền hàng `tong`; ẩn các phiếu đã hết hạn hoặc ngừng hoạt động; lỗi mạng thì trả []. */
 export async function taiPhieuChoKhach(tong) {
+  let list = []
   if (laKhachDangNhap()) {
     try {
       const ds = (await api.get('/khach/phieu-giam-gia', { params: { tongTien: tong } })).data
-      if (Array.isArray(ds)) return ds
+      if (Array.isArray(ds)) list = ds
     } catch {
       // rơi xuống lấy phiếu công khai bên dưới
     }
   }
-  try {
-    const ds = (await api.get('/cua-hang/phieu-giam-gia', { params: { tongTien: tong } })).data
-    if (!Array.isArray(ds)) return []
-    return ds.map((p) => ({
-      ma: p.maPhieu,
-      ten: p.tenPhieu,
-      caNhan: false,
-      loaiGiam: p.hinhThucGiam,
-      giaTriGiam: p.giaTriGiam,
-      giamToiDa: p.giamToiDa,
-      donToiThieu: p.donToiThieu,
-      dungDuoc: p.duDieuKien,
-      lyDo: p.duDieuKien ? null : `Cần mua thêm ${formatMoney(p.donToiThieu - tong)}`,
-      soTienGiam: p.duDieuKien ? tinhGiamTam(p, tong) : 0,
-    }))
-  } catch {
-    return []
+  if (!list.length) {
+    try {
+      const ds = (await api.get('/cua-hang/phieu-giam-gia', { params: { tongTien: tong } })).data
+      if (Array.isArray(ds)) {
+        list = ds.map((p) => ({
+          ma: p.maPhieu,
+          ten: p.tenPhieu,
+          caNhan: false,
+          loaiGiam: p.hinhThucGiam,
+          giaTriGiam: p.giaTriGiam,
+          giamToiDa: p.giamToiDa,
+          donToiThieu: p.donToiThieu,
+          ngayKetThuc: p.ngayKetThuc,
+          trangThai: p.trangThai ?? 1,
+          dungDuoc: p.duDieuKien,
+          lyDo: p.duDieuKien ? null : `Cần mua thêm ${formatMoney(p.donToiThieu - tong)}`,
+          soTienGiam: p.duDieuKien ? tinhGiamTam(p, tong) : 0,
+        }))
+      }
+    } catch {
+      list = []
+    }
   }
+  // Ẩn các phiếu đã hết hạn và ngừng hoạt động khỏi danh sách chọn
+  const now = new Date()
+  return list.filter((p) => {
+    if (p.trangThai !== undefined && p.trangThai !== null && Number(p.trangThai) === 0) return false
+    if (p.ngayKetThuc && new Date(p.ngayKetThuc) < now) return false
+    if (p.lyDo && (p.lyDo.includes('hết hạn') || p.lyDo.includes('ngừng hoạt động'))) return false
+    return true
+  })
 }
 
 /** Phiếu dùng được và giảm nhiều nhất; không có thì null. */
@@ -61,5 +75,13 @@ export function phieuTotNhat(ds) {
 
 /** Dữ liệu phiếu lưu vào giỏ (cartStore.setVoucher). */
 export function phieuChoGio(v) {
-  return { ma: v.ma, ten: v.ten, loaiGiam: v.loaiGiam, giaTriGiam: v.giaTriGiam, giamToiDa: v.giamToiDa, donToiThieu: v.donToiThieu }
+  return {
+    ma: v.ma,
+    ten: v.ten,
+    loaiGiam: v.loaiGiam,
+    giaTriGiam: v.giaTriGiam,
+    giamToiDa: v.giamToiDa,
+    donToiThieu: v.donToiThieu,
+    soTienGiam: v.soTienGiam,
+  }
 }

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useCartStore } from '../stores/cart'
 import { useAuth } from '../composables/useAuth'
 import { formatMoney } from '../utils/format'
@@ -12,6 +12,18 @@ import '../assets/client-theme.css'
 import { dungCaiDatVanChuyen } from '../services/caiDatVanChuyen'
 
 const router = useRouter()
+const route = useRoute()
+
+const linkDangNhap = computed(() => {
+  const p = route?.path
+  return p && p !== '/shop/dang-nhap' ? { path: '/shop/dang-nhap', query: { quayLai: route.fullPath } } : '/shop/dang-nhap'
+})
+const linkDangKy = computed(() => {
+  const p = route?.path
+  return p && p !== '/shop/dang-nhap'
+    ? { path: '/shop/dang-nhap', query: { tab: 'dang-ky', quayLai: route.fullPath } }
+    : { path: '/shop/dang-nhap', query: { tab: 'dang-ky' } }
+})
 
 const cartStore = useCartStore()
 const auth = useAuth()
@@ -271,7 +283,7 @@ function handleSearch() {
             @mouseleave="showAccountDropdown = false"
           >
             <RouterLink
-              :to="auth.daDangNhap.value ? '/shop/tai-khoan' : '/shop/dang-nhap'"
+              :to="auth.daDangNhap.value ? '/shop/tai-khoan' : linkDangNhap"
               class="vnb-login-pill"
               title="Tài khoản cá nhân"
             >
@@ -293,7 +305,7 @@ function handleSearch() {
                 <template v-if="!auth.daDangNhap.value">
                   <li>
                     <RouterLink
-                      to="/shop/dang-nhap"
+                      :to="linkDangNhap"
                       class="vnb-lookup-item d-flex align-items-center gap-2"
                       @click="showAccountDropdown = false"
                     >
@@ -303,7 +315,7 @@ function handleSearch() {
                   </li>
                   <li>
                     <RouterLink
-                      :to="{ path: '/shop/dang-nhap', query: { tab: 'dang-ky' } }"
+                      :to="linkDangKy"
                       class="vnb-lookup-item d-flex align-items-center gap-2"
                       @click="showAccountDropdown = false"
                     >

@@ -130,4 +130,32 @@ describe('Kiểm tra lại phiếu / giá khi bấm Đặt hàng', () => {
     expect(lenhDat()).toHaveLength(1)
     expect(lenhDat()[0][1].maPhieuGiamGia).toBeNull()
   })
+
+  it('phiếu bị sửa mức giảm: popup thông báo thay đổi, bấm Áp dụng thì áp dụng phiếu mới, bấm Hủy thì bỏ áp dụng phiếu giảm giá', async () => {
+    const phieuSua = { ma: 'VCH200', ten: 'Giảm 100k', loaiGiam: 2, giaTriGiam: 100000, giamToiDa: null, donToiThieu: 0, dungDuoc: true, soTienGiam: 100000 }
+    giaMayChu({ phieu: [phieuSua] })
+    const { w, cart } = await moTrang({ ma: 'VCH200', ten: 'Giảm 200k', loaiGiam: 2, giaTriGiam: 200000, donToiThieu: 0, soTienGiam: 200000 })
+    cart.discountAmount = 200000
+
+    await bamDatHang(w)
+    expect(hop().text()).toContain('Phiếu VCH200 vừa được cập nhật thay đổi giá trị')
+    expect(hop().text()).toContain('200.000')
+    expect(hop().text()).toContain('100.000')
+
+    // Bấm Hủy: bỏ áp dụng phiếu giảm giá
+    await nutTrongHop('Hủy').trigger('click')
+    await flushPromises()
+    expect(cart.appliedVoucher).toBeNull()
+  })
+
+  it('bắt buộc nhập email nhận thông báo đơn hàng cho cả khách đăng nhập và không đăng nhập', async () => {
+    giaMayChu()
+    const { w } = await moTrang()
+    // Xóa email
+    await w.find('input[type="email"]').setValue('')
+    await w.findAll('button').find((b) => b.text().includes('Đặt hàng')).trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Vui lòng nhập email nhận thông báo đơn hàng.')
+    expect(lenhDat()).toHaveLength(0)
+  })
 })

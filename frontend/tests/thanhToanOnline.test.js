@@ -59,21 +59,21 @@ beforeEach(() => {
 })
 
 describe('Thanh toán online', () => {
-  // Góp ý 16/11: bỏ bảng phí theo tỉnh, phí giao là một mức quản lý cài (Cài đặt free ship)
-  it('phí ship là mức quản lý cài, như nhau ở mọi tỉnh; chưa tải được cài đặt thì chưa tính; đạt ngưỡng thì miễn phí', async () => {
+  it('phí ship theo nơi nhận: Hà Nội phường 25.000 / xã 30.000, tỉnh khác tùy tỉnh dù đơn lớn, chưa chọn tỉnh thì chưa tính', async () => {
     const { cart } = await moTrang({ tien: 480000, soLuong: 2 })
-    nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 0 })
-    caiDatVanChuyen.daTai = false
-    expect(cart.chuaCoPhi).toBe(true)
-    nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 2_000_000, phiGiaoHang: 30000 })
-    expect(cart.chuaCoPhi).toBe(false)
-    expect(cart.shippingFee).toBe(30000)
+    expect(cart.chuaCoTinh).toBe(true)
+    expect(cart.shippingFee).toBe(0)
     cart.tinhGiao = 'Thành phố Hà Nội'
+    expect(cart.shippingFee).toBe(25000)
+    cart.phuongGiao = 'Xã Sóc Sơn'
     expect(cart.shippingFee).toBe(30000)
     cart.tinhGiao = 'Thành phố Đà Nẵng'
-    expect(cart.shippingFee).toBe(30000)
-    cart.items[0].soLuong = 30 // 14.400.000 ₫: đạt ngưỡng 2.000.000
-    expect(cart.shippingFee).toBe(0)
+    expect(cart.chuaCoTinh).toBe(false)
+    expect(cart.shippingFee).toBe(40000)
+    cart.items[0].soLuong = 30 // 14.400.000 ₫: đơn lớn vẫn mất phí ship ở tỉnh khác
+    expect(cart.shippingFee).toBe(40000)
+    cart.tinhGiao = 'Tỉnh Phú Thọ'
+    expect(cart.shippingFee).toBe(25000)
   })
 
   it('khách chưa đăng nhập: chưa chọn Tỉnh/Thành, Phường/Xã thì không đặt được (đơn HD970 trong video)', async () => {
@@ -143,8 +143,8 @@ describe('Thanh toán online', () => {
     expect(dong('giam-dot')).toContain('Giảm theo đợt')
     expect(dong('giam-dot')).toContain('-240.000')
     expect(dong('phieu')).toContain('Không dùng phiếu')
-    // máy chủ chưa báo phí và chưa tải được cài đặt: chưa tính
-    expect(dong('phi-van-chuyen')).toContain('Chưa tính')
+    // phí giao tính theo tỉnh (commit của Phương Minh): chưa chọn tỉnh thì chưa tính
+    expect(dong('phi-van-chuyen')).toContain('Chọn Tỉnh/Thành phố để tính')
     expect(dong('tong-thanh-toan')).toContain('Tổng thanh toán')
     expect(dong('tong-thanh-toan')).toContain('960.000')
     expect(w.find('[data-testid="co-don-gia"]').text()).toContain('600.000')

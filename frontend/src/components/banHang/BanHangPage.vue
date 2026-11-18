@@ -44,11 +44,34 @@ const dsCho = ref([]) // [{ id, maHoaDon, khach, items, tongTienHang, soLuong, c
 const dangChon = ref(null)
 const daTaiCho = ref(false)
 const dangLam = ref(false) // đang gọi API thêm / sửa / xóa
-// Phần nhập liệu thanh toán của từng hóa đơn chờ (chỉ ở màn hình, không ảnh hưởng tồn kho)
-const phu = reactive({})
-function phuMoi() {
-  return {
+// Phần nhập liệu thanh toán của từng hóa đơn chờ (lưu phiên làm việc để không mất khi chuyển trang)
+const KHOA_STORAGE_PHU = 'footstyle_ban_hang_phu'
+function docPhuTuStorage() {
+  try {
+    const raw = sessionStorage.getItem(KHOA_STORAGE_PHU)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+function luuPhuVaoStorage() {
+  try {
+    sessionStorage.setItem(KHOA_STORAGE_PHU, JSON.stringify(phu))
+  } catch {
+    // bỏ qua lỗi
+  }
+}
+
+const daLuuPhu = docPhuTuStorage()
+const phu = reactive(daLuuPhu || {})
+watch(phu, luuPhuVaoStorage, { deep: true })
+
+function phuMoi(id = null) {
+  const khoiTao = {
     maPhieu: '', // luôn là phiếu giảm nhiều nhất do hệ thống tự áp (taiPhieu), nhân viên không chọn
+    soTienGiam: null, // số tiền giảm của phiếu đã chốt (không tự cập nhật khi phiếu bị sửa)
+    giuNguyenGiamCu: false, // true nếu nhân viên chọn Hủy (giữ nguyên giảm cũ)
+    daHoiDot: false, // đã xác nhận hoặc từ chối đợt giảm giá mới
     ghiChu: '',
     phuongThuc: 'TIEN_MAT',
     tienMat: '',
@@ -60,6 +83,10 @@ function phuMoi() {
     phiShipTay: false, // true: nhân viên đã sửa ô phí; false: phí tự theo tỉnh
     nguoiNhan: { hoTen: '', sdt: '', tinhThanh: '', phuongXa: '', diaChiCuThe: '' },
   }
+  if (id && daLuuPhu && daLuuPhu[id]) {
+    return Object.assign(khoiTao, daLuuPhu[id])
+  }
+  return khoiTao
 }
 const RONG = Object.freeze({ id: null, maHoaDon: '', khach: null, items: [], tongTienHang: 0, soLuong: 0, coGiaDoi: false })
 const PHU_RONG = reactive(phuMoi()) // khi chưa có hóa đơn chờ nào
@@ -113,6 +140,26 @@ useAutoRefresh(taiChoNgam, 3000, {
   // chỉ ô số lượng (type=number) hiện giá trị từ máy chủ nên đang gõ dở thì mới chờ
   oChanTai: (o) => o.type === 'number',
 })
+
+// Tải ngầm danh sách phiếu để bắt kịp khi phiếu bị sửa / tạo mới ở tab khác mà không cần F5
+useAutoRefresh(
+  async () => {
+    const h = hd.value
+    if (!h.id || !h.gio.length) return
+    try {
+      const moi = (await api.get('/ban-hang/phieu-giam-gia', { params: { idKhachHang: h.khach?.id, tongTien: tienHang.value } })).data
+      if (Array.isArray(moi)) phieus.value = moi
+    } catch {
+      // bỏ qua lỗi tải ngầm
+    }
+  },
+  3000,
+  {
+    chuKyMs: 15_000,
+    chuDe: ['phieu-giam-gia'],
+    coTheTai: () => daTaiCho.value && !dangGui.value,
+  },
+)
 
 /** Lỗi khi thao tác hóa đơn chờ: hóa đơn đã đóng ở cửa sổ khác thì tải lại danh sách. */
 function baoLoiCho(e, macDinh) {
@@ -189,13 +236,12 @@ function onMaCamera(giaTri) {
   moCamera.value = false
   quetMa(giaTri)
 }
-/* ----- Giá đổi khi sản phẩm đã có trong hóa đơn (góp ý 16/11 [00:00–00:44]) -----
- * Dòng đã thêm giữ giá lúc thêm. Thêm lại / tăng số lượng sản phẩm đã đổi giá (sửa giá, đợt giảm giá bắt đầu / kết thúc)
- * thì máy chủ trả GIA_THAY_DOI: hiện popup giá cũ -> giá mới, bấm OK mới thêm DÒNG MỚI theo giá mới, Hủy thì không thêm. */
-const hoiGia = ref(null) // { ten, ma, donGiaCu, donGiaMoi, soLuong, idBienThe }
-function moHoiGia(e) {
+/* ----- Giá đổi khi sản phẩm đã có trong hóa đơn -----
+ * Dòng đã thêm giữ giá lúc thêm. Thêm lại sản phẩm đã đổi giá thì hiện popup hỏi: bấm OK thêm dòng mới theo giá mới, bấm Hủy không thêm. */
+const hoiGia = ref(null) // { ten, ma, donGiaCu, donGiaMoi, soLuong, idBienThe, dong, soLuongMoi }
+function moHoiGia(e, extra = {}) {
   if (e?.code !== 'GIA_THAY_DOI' || !e.chiTiet?.idBienThe) return false
-  hoiGia.value = { ...e.chiTiet }
+  hoiGia.value = { ...e.chiTiet, ...extra }
   return true
 }
 async function dongYGiaMoi() {
@@ -205,7 +251,62 @@ async function dongYGiaMoi() {
   await themSanPham({ id: g.idBienThe, tenSanPham: g.ten, maSpct: g.ma }, null, g.soLuong, true)
 }
 
-async function themSanPham(sp, loiQuet, soLuong = 1, xacNhanGiaMoi = false) {
+/* ----- Đợt giảm giá thay đổi đối với sản phẩm trong giỏ hàng -----
+ * Dòng cũ giữ lại trong giỏ hàng hiển thị đầy đủ giá gốc gạch ngang bên dưới giá sau giảm (không làm mất hiển thị giảm giá cũ);
+ * khi đợt giảm giá thay đổi: bấm OK áp dụng đợt mới, bấm Hủy giữ/quay lại đợt giảm giá cũ */
+const hoiDotGiamGia = ref(null) // { items: [] }
+const dangChoXacNhanSauHoiDot = ref(false)
+function moHoiDotGiamGia(items, tuThanhToan = false) {
+  const ds = items || (hdServer.value.items || []).filter((d) => d.giaDoi)
+  if (!ds.length) return
+  dangChoXacNhanSauHoiDot.value = tuThanhToan
+  hoiDotGiamGia.value = { items: ds }
+}
+async function dongYDotGiamGiaMoi() {
+  const id = hd.value.id
+  const tiepTuc = dangChoXacNhanSauHoiDot.value
+  dangChoXacNhanSauHoiDot.value = false
+  hoiDotGiamGia.value = null
+  if (!id || dangLam.value) return
+  dangLam.value = true
+  try {
+    const moi = (await api.post(`/ban-hang/hoa-don-cho/${id}/cap-nhat-gia`)).data
+    thayHoaDon(moi)
+    if (phu[id]) phu[id].daHoiDot = true
+    timSp.value?.taiLai()
+    toast.success('Đã áp dụng đợt giảm giá mới cho giỏ hàng.')
+    if (tiepTuc) await moXacNhan()
+  } catch (e) {
+    baoLoiCho(e, 'Không cập nhật được giá mới.')
+  } finally {
+    dangLam.value = false
+  }
+}
+async function huyDotGiamGiaMoi() {
+  const id = hd.value.id
+  const tiepTuc = dangChoXacNhanSauHoiDot.value
+  dangChoXacNhanSauHoiDot.value = false
+  hoiDotGiamGia.value = null
+  if (id && phu[id]) phu[id].daHoiDot = true
+  if (!id || dangLam.value) return
+  dangLam.value = true
+  try {
+    const moi = (await api.post(`/ban-hang/hoa-don-cho/${id}/giu-gia-cu`)).data
+    thayHoaDon(moi)
+    if (phu[id]) phu[id].daHoiDot = true
+    timSp.value?.taiLai()
+    if (tiepTuc) await moXacNhan()
+  } catch {
+    // Nếu chưa gọi được API hoặc lỗi tạm thời thì vẫn giữ nguyên đợt cũ trong giỏ
+    if (tiepTuc) await moXacNhan()
+  } finally {
+    dangLam.value = false
+  }
+}
+
+async function themSanPham(sp, loiQuet, soLuong = 1, opt = false) {
+  const xacNhanGiaMoi = typeof opt === 'boolean' ? opt : Boolean(opt?.xacNhanGiaMoi)
+  const giuGiaCu = typeof opt === 'object' ? Boolean(opt?.giuGiaCu) : false
   if (!sp) {
     toast.error(loiQuet)
     return
@@ -219,6 +320,7 @@ async function themSanPham(sp, loiQuet, soLuong = 1, xacNhanGiaMoi = false) {
     if (!id) return
     const body = { idBienThe: sp.id, soLuong }
     if (xacNhanGiaMoi) body.xacNhanGiaMoi = true
+    if (giuGiaCu) body.giuGiaCu = true
     thayHoaDon((await api.post(`/ban-hang/hoa-don-cho/${id}/san-pham`, body)).data)
     timSp.value?.taiLai()
     toast.success(`Đã thêm ${soLuong} × ${sp.tenSanPham || sp.ten || sp.maSpct || 'sản phẩm'} vào ${hdServer.value.maHoaDon || 'hóa đơn'}.`)
@@ -228,7 +330,9 @@ async function themSanPham(sp, loiQuet, soLuong = 1, xacNhanGiaMoi = false) {
     dangLam.value = false
   }
 }
-async function doiSl(d, giaTri) {
+async function doiSl(d, giaTri, opt = false) {
+  const xacNhanGiaMoi = typeof opt === 'boolean' ? opt : Boolean(opt?.xacNhanGiaMoi)
+  const giuGiaCu = typeof opt === 'object' ? Boolean(opt?.giuGiaCu) : false
   const sl = Math.floor(Number(giaTri))
   const toiDa = Math.min(SO_LUONG_TOI_DA, d.soLuong + Number(d.tonKho || 0))
   if (!Number.isFinite(sl) || sl < 1) {
@@ -242,12 +346,14 @@ async function doiSl(d, giaTri) {
   if (sl === d.soLuong || dangLam.value) return
   dangLam.value = true
   try {
-    thayHoaDon((await api.put(`/ban-hang/hoa-don-cho/${hdServer.value.id}/chi-tiet/${d.id}`, { soLuong: sl })).data)
+    const body = { soLuong: sl }
+    if (xacNhanGiaMoi) body.xacNhanGiaMoi = true
+    if (giuGiaCu) body.giuGiaCu = true
+    thayHoaDon((await api.put(`/ban-hang/hoa-don-cho/${hdServer.value.id}/chi-tiet/${d.id}`, body)).data)
     timSp.value?.taiLai()
     toast.success(`Đã đổi số lượng ${d.ten} thành ${sl}.`)
   } catch (e) {
-    // Tăng số lượng ở dòng giá cũ mà giá đã đổi: phần thêm thành dòng mới theo giá mới (hỏi trước)
-    if (!moHoiGia(e)) baoLoiCho(e, 'Không đổi được số lượng.')
+    if (!moHoiGia(e, { dong: d, soLuongMoi: sl })) baoLoiCho(e, 'Không đổi được số lượng.')
   } finally {
     dangLam.value = false
   }
@@ -270,6 +376,14 @@ async function xoaDong(d) {
 const tienHang = computed(() => tongTienHang(hd.value.gio))
 const giamDot = computed(() => tienGiamDot(hd.value.gio))
 
+const phanTramGiamDong = (d) => {
+  if (d.phanTramGiam && Number(d.phanTramGiam) > 0) return Number(d.phanTramGiam)
+  if (d.giaGoc && d.donGia && Number(d.giaGoc) > Number(d.donGia)) {
+    return Math.round(((Number(d.giaGoc) - Number(d.donGia)) / Number(d.giaGoc)) * 100)
+  }
+  return 0
+}
+
 /* ===================== Phiếu giảm giá ===================== */
 const phieus = ref([])
 const dangTaiPhieu = ref(false)
@@ -279,13 +393,27 @@ async function taiPhieu() {
   if (!h.gio.length) {
     phieus.value = []
     h.p.maPhieu = ''
+    h.p.soTienGiam = null
+    h.p.giuNguyenGiamCu = false
     return
   }
   dangTaiPhieu.value = true
   try {
-    phieus.value = (await api.get('/ban-hang/phieu-giam-gia', { params: { idKhachHang: h.khach?.id, tongTien: tienHang.value } })).data
-    // Luôn tự áp phiếu giảm nhiều nhất (kể cả phiếu cá nhân của khách); máy chủ đã xếp phiếu dùng được, giảm nhiều nhất lên đầu
-    h.p.maPhieu = phieus.value.find((p) => p.apDungDuoc)?.ma ?? ''
+    const moi = (await api.get('/ban-hang/phieu-giam-gia', { params: { idKhachHang: h.khach?.id, tongTien: tienHang.value } })).data
+    // User request: "không tự động cập nhật giá trị khi phiếu bị sửa"
+    // Nếu phiếu đang dùng đã có mức giảm lưu trong h.p.soTienGiam, không tự động cập nhật lại khi phiếu bị sửa giá trị
+    const dangDung = h.p.maPhieu ? moi.find((p) => p.ma === h.p.maPhieu) : null
+    const tot = moi.find((p) => p.apDungDuoc)
+    phieus.value = moi
+    const mucGiamDangDung = dangDung ? Number(dangDung.soTienGiam || 0) : 0
+    const mucGiamTot = tot ? Number(tot.soTienGiam || 0) : 0
+    if (!h.p.maPhieu || !dangDung || !dangDung.apDungDuoc || (mucGiamTot > mucGiamDangDung && !h.p.giuNguyenGiamCu)) {
+      h.p.maPhieu = tot?.ma ?? ''
+      h.p.soTienGiam = tot ? Number(tot.soTienGiam) : null
+      h.p.giuNguyenGiamCu = false
+    } else if (h.p.soTienGiam == null) {
+      h.p.soTienGiam = Number(dangDung.soTienGiam) || 0
+    }
   } catch (e) {
     phieus.value = []
     toast.error(e.message || 'Không tải được phiếu giảm giá.')
@@ -302,7 +430,11 @@ watch(
   { immediate: true },
 )
 const phieuChon = computed(() => phieus.value.find((p) => p.ma === hd.value.p.maPhieu) ?? null)
-const giamPhieu = computed(() => (phieuChon.value?.apDungDuoc ? Number(phieuChon.value.soTienGiam) : 0))
+const giamPhieu = computed(() => {
+  if (!hd.value.p.maPhieu) return 0
+  if (hd.value.p.soTienGiam != null) return hd.value.p.soTienGiam
+  return phieuChon.value?.apDungDuoc ? Number(phieuChon.value.soTienGiam) : 0
+})
 const loiPhieu = computed(() => {
   if (!hd.value.p.maPhieu || dangTaiPhieu.value) return ''
   if (!phieuChon.value) return `Phiếu ${hd.value.p.maPhieu} không còn dùng được cho đơn này.`
@@ -340,18 +472,26 @@ async function chonKhach(k) {
 /* ===================== Giao hàng ===================== */
 // Đơn đạt ngưỡng miễn phí vận chuyển (Cài đặt → Cài đặt free ship): không thu phí giao, ô phí thay bằng chữ "Miễn phí" (máy chủ cũng tính 0)
 const caiDatShip = dungCaiDatVanChuyen()
-// Phí giao hàng quản lý cài (một mức cho mọi đơn, không theo tỉnh); chưa tải được cài đặt thì null (chưa tính)
-const phiShipCaiDat = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(caiDatShip) : 0))
-// Ô phí vận chuyển: tự điền phí cài đặt, nhân viên sửa thì lấy số đã nhập; xóa trống ô thì về phí cài đặt
+// Phí giao theo địa chỉ nhận: chưa chọn tỉnh thì null (chưa tính), đổi tỉnh/phường là tính lại theo thời gian thực
+const phiShipTheoDiaChi = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(hd.value.p.nguoiNhan.tinhThanh, hd.value.p.nguoiNhan.phuongXa) : 0))
+// Ô phí vận chuyển: tự điền theo địa chỉ nhận, nhân viên sửa thì lấy số đã nhập; xóa trống ô thì về phí theo địa chỉ
 const coPhiNhapTay = computed(() => hd.value.p.giaoHang && hd.value.p.phiShipTay && hd.value.p.phiShip !== '')
 const mienPhiShip = computed(() => hd.value.p.giaoHang && duocMienPhiVanChuyen(caiDatShip, tienHang.value))
-const phiShipDon = computed(() => (mienPhiShip.value ? 0 : coPhiNhapTay.value ? Number(hd.value.p.phiShip) : phiShipCaiDat.value))
+const phiShipDon = computed(() => (mienPhiShip.value ? 0 : coPhiNhapTay.value ? Number(hd.value.p.phiShip) : phiShipTheoDiaChi.value))
 const phiShip = computed(() => phiShipDon.value ?? 0)
-const goiYOPhiShip = computed(() => (phiShipCaiDat.value === null ? 'Chưa tính phí' : phiShipCaiDat.value ? formatMoney(phiShipCaiDat.value) : 'Miễn phí'))
+const goiYOPhiShip = computed(() => (phiShipTheoDiaChi.value === null ? 'Chưa tính phí' : phiShipTheoDiaChi.value ? formatMoney(phiShipTheoDiaChi.value) : 'Miễn phí'))
 function nhapPhiShip(v) {
   hd.value.p.phiShip = v
   hd.value.p.phiShipTay = true
 }
+watch(
+  () => [hd.value.id, hd.value.p.nguoiNhan.tinhThanh, hd.value.p.nguoiNhan.phuongXa],
+  ([id, tinh, phuong], [idCu, tinhCu, phuongCu]) => {
+    if (id !== idCu || (tinh === tinhCu && phuong === phuongCu)) return
+    hd.value.p.phiShip = ''
+    hd.value.p.phiShipTay = false
+  },
+)
 const diaChiGiao = computed(() => {
   const n = hd.value.p.nguoiNhan
   return [n.diaChiCuThe.trim(), n.phuongXa, n.tinhThanh].filter(Boolean).join(', ')
@@ -645,45 +785,69 @@ async function kiemTraPhieuTruocKhiThanhToan() {
     return null // mất kết nối: máy chủ vẫn kiểm tra lại phiếu khi thanh toán
   }
   if (!Array.isArray(moi)) return null
-  const dangDung = phieuChon.value && giamPhieu.value ? phieuChon.value : null
-  const conDung = dangDung ? moi.find((x) => x.ma === dangDung.ma && x.apDungDuoc) : null
+  const dangDungMa = h.p.maPhieu
+  const dangDung = dangDungMa ? (moi.find((p) => p.ma === dangDungMa) || { ma: dangDungMa, soTienGiam: h.p.soTienGiam }) : null
+  const conDung = dangDungMa ? moi.find((x) => x.ma === dangDungMa && x.apDungDuoc) : null
   const tot = moi.find((x) => x.apDungDuoc) ?? null
-  const giamCu = dangDung ? Number(dangDung.soTienGiam) : 0
+  const giamCu = h.p.soTienGiam != null ? Number(h.p.soTienGiam) : Number(dangDung?.soTienGiam || 0)
   const giamNay = conDung ? Number(conDung.soTienGiam) : 0
   const apDung = (ma) => () => {
     phieus.value = moi
     h.p.maPhieu = ma
+    const chon = moi.find((p) => p.ma === ma)
+    h.p.soTienGiam = chon ? Number(chon.soTienGiam) : 0
+    h.p.giuNguyenGiamCu = false
   }
-  if (dangDung && !conDung) {
-    const lyDo = moi.find((x) => x.ma === dangDung.ma)?.lyDo || 'phiếu đã hết hạn, hết lượt hoặc bị tắt'
+  if (dangDungMa && !conDung) {
+    const lyDo = moi.find((x) => x.ma === dangDungMa)?.lyDo || 'phiếu đã hết hạn, hết lượt hoặc bị ngừng hoạt động'
     if (tot) {
       return {
-        dong: [`Phiếu ${dangDung.ma} không còn dùng được (${lyDo}).`, `Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Có muốn áp dụng không?`],
+        dong: [`Phiếu ${dangDungMa} không còn dùng được (${lyDo}).`, `Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Có muốn áp dụng không?`],
         nut: [{ nhan: `Áp dụng ${tot.ma}`, chinh: true, lam: apDung(tot.ma) }, { nhan: 'Thanh toán không dùng phiếu', lam: apDung('') }],
       }
     }
     return {
-      dong: [`Phiếu ${dangDung.ma} không còn dùng được (${lyDo}). Đơn sẽ thanh toán không dùng phiếu.`],
+      dong: [`Phiếu ${dangDungMa} không còn dùng được (${lyDo}). Đơn sẽ thanh toán không dùng phiếu.`],
       nut: [{ nhan: 'Thanh toán không dùng phiếu', chinh: true, lam: apDung('') }],
     }
   }
-  if (tot && tot.ma !== dangDung?.ma && Number(tot.soTienGiam) > giamNay) {
+  // Phiếu đang dùng bị sửa giá trị: ưu tiên hỏi trước khi so với phiếu khác
+  if (dangDungMa && conDung && giamNay !== giamCu && !h.p.giuNguyenGiamCu) {
+    return {
+      dong: [`Phiếu ${dangDungMa} vừa đổi mức giảm: ${formatMoney(giamCu)} → ${formatMoney(giamNay)}. Có muốn áp dụng phiếu giảm giá mới không?`],
+      nut: [
+        {
+          nhan: 'OK (Tiếp tục thanh toán)',
+          chinh: true,
+          lam: () => {
+            phieus.value = moi
+            h.p.maPhieu = dangDungMa
+            h.p.soTienGiam = giamNay
+            h.p.giuNguyenGiamCu = false
+          },
+        },
+        {
+          nhan: 'Hủy (Giữ nguyên)',
+          chinh: false,
+          lam: () => {
+            h.p.soTienGiam = giamCu
+            h.p.giuNguyenGiamCu = true
+          },
+        },
+      ],
+    }
+  }
+  if (tot && tot.ma !== dangDungMa && Number(tot.soTienGiam) > (conDung ? giamNay : giamCu)) {
     return {
       dong: [
-        dangDung
-          ? `Vừa có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)}, nhiều hơn phiếu ${dangDung.ma} đang áp (${formatMoney(giamNay)}). Có muốn áp dụng không?`
+        dangDungMa
+          ? `Vừa có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)}, nhiều hơn phiếu ${dangDungMa} đang áp (${formatMoney(conDung ? giamNay : giamCu)}). Có muốn áp dụng không?`
           : `Vừa có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Có muốn áp dụng không?`,
       ],
       nut: [
         { nhan: `Áp dụng ${tot.ma}`, chinh: true, lam: apDung(tot.ma) },
-        { nhan: dangDung ? `Giữ phiếu ${dangDung.ma}` : 'Không dùng phiếu', lam: apDung(dangDung?.ma ?? '') },
+        { nhan: dangDungMa ? `Giữ phiếu ${dangDungMa}` : 'Không dùng phiếu', lam: apDung(dangDungMa ?? '') },
       ],
-    }
-  }
-  if (dangDung && giamNay !== giamCu) {
-    return {
-      dong: [`Phiếu ${dangDung.ma} vừa đổi mức giảm: ${formatMoney(giamCu)} → ${formatMoney(giamNay)}. Báo lại khách số tiền mới.`],
-      nut: [{ nhan: 'Tiếp tục thanh toán', chinh: true, lam: apDung(dangDung.ma) }, { nhan: 'Thanh toán không dùng phiếu', lam: apDung('') }],
     }
   }
   phieus.value = moi
@@ -704,9 +868,36 @@ async function chonTrongHoiPhieu(n) {
 async function moXacNhan() {
   if (hd.value.p.giaoHang) daChamGiao.value = true
   if (lyDoKhongThanhToan.value) {
+    if (loiPhieu.value) {
+      hoiPhieu.value = {
+        dong: [loiPhieu.value, 'Bạn có muốn bỏ áp dụng phiếu giảm giá để tiếp tục thanh toán không?'],
+        nut: [
+          {
+            nhan: 'Bỏ phiếu và tiếp tục',
+            chinh: true,
+            lam: () => {
+              hd.value.p.maPhieu = ''
+              hd.value.p.soTienGiam = null
+              hd.value.p.giuNguyenGiamCu = false
+              hoiPhieu.value = null
+              xacNhan.value = true
+            },
+          },
+          { nhan: 'Quay lại', lam: () => { hoiPhieu.value = null } },
+        ],
+      }
+      return
+    }
     toast.error(lyDoKhongThanhToan.value)
     if (canVaoCa.value) moCa.value = true
     return
+  }
+  if (hdServer.value.coGiaDoi && !phu[hd.value.id]?.daHoiDot) {
+    const itemsDoi = (hdServer.value.items || []).filter((d) => d.giaDoi)
+    if (itemsDoi.length) {
+      moHoiDotGiamGia(itemsDoi, true)
+      return
+    }
   }
   if (dangKiemPhieu.value) return
   dangKiemPhieu.value = true
@@ -765,6 +956,7 @@ async function thanhToan({ tuDong = false } = {}) {
     const res = await api.post(`/ban-hang/hoa-don-cho/${h.id}/thanh-toan`, {
       maPhieu: p.maPhieu || null,
       soTienGiam: p.maPhieu ? giamPhieu.value : null,
+      giuNguyenGiamCu: p.giuNguyenGiamCu || false,
       ghiChu: p.ghiChu?.trim() || null,
       tienMat: tienMatGui,
       chuyenKhoan: tt.value.chuyenKhoan,
@@ -808,9 +1000,30 @@ async function thanhToan({ tuDong = false } = {}) {
       toast.error(e.message)
       taiPhieu()
     } else if (e.code === 'PHIEU_THAY_DOI') {
-      // Tải lại để màn hình tự áp lại phiếu tốt nhất với mức giảm mới; nhân viên báo khách số tiền mới rồi bấm thanh toán lại
-      toast.error(e.message)
-      await taiPhieu()
+      const ct = e.chiTiet || {}
+      hoiPhieu.value = {
+        dong: [`Phiếu ${ct.maPhieu || p.maPhieu} vừa đổi mức giảm: ${formatMoney(ct.soTienGiamCu || giamPhieu.value)} → ${formatMoney(ct.soTienGiamMoi)}. Có muốn áp dụng phiếu giảm giá mới không?`],
+        nut: [
+          {
+            nhan: 'OK (Tiếp tục thanh toán)',
+            chinh: true,
+            lam: () => {
+              p.soTienGiam = ct.soTienGiamMoi
+              p.giuNguyenGiamCu = false
+              xacNhan.value = true
+            },
+          },
+          {
+            nhan: 'Hủy (Giữ nguyên)',
+            chinh: false,
+            lam: () => {
+              p.soTienGiam = ct.soTienGiamCu || giamPhieu.value
+              p.giuNguyenGiamCu = true
+              xacNhan.value = true
+            },
+          },
+        ],
+      }
     } else {
       baoLoiCho(e, 'Thanh toán không thành công.')
     }
@@ -924,7 +1137,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                     <td class="text-center">
                       <span class="bh-dong-anh">
                         <img v-if="d.anh" :src="d.anh" :alt="d.ten" /><i v-else class="bi bi-image" aria-hidden="true"></i>
-                        <span v-if="dangGiamTheoDot(d)" class="bh-giam-anh" data-testid="bh-dong-giam">-{{ formatPhanTram(d.phanTramGiam) }}</span>
+                        <span v-if="dangGiamTheoDot(d)" class="bh-giam-anh" data-testid="bh-dong-giam">-{{ formatPhanTram(phanTramGiamDong(d)) }}</span>
                       </span>
                     </td>
                     <td class="bh-cot-ten">
@@ -935,7 +1148,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                     <td class="ad-nowrap">
                       <div class="fw-medium">{{ formatMoney(d.donGia) }}</div>
                       <small v-if="dangGiamTheoDot(d)" class="text-muted"><s>{{ formatMoney(d.giaGoc) }}</s></small>
-                      <small v-if="d.giaDoi" class="bh-gia-doi d-block" title="Dòng này giữ giá lúc thêm. Thêm nữa sẽ thành dòng mới theo giá mới."><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Giá mới {{ formatMoney(d.giaHienTai) }}</small>
                     </td>
                     <td class="text-center">
                       <div class="bh-cot-sl">
@@ -1106,7 +1318,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                     <small class="text-muted d-block">{{ d.ma }}<template v-if="d.phanLoai"> · {{ d.phanLoai }}</template></small>
                   </span>
                   <span class="bh-qr-sp-tien">
-                    {{ d.soLuong }} × {{ formatMoney(d.donGia) }}
+                    {{ d.soLuong }} × {{ formatMoney(d.donGia) }} <s v-if="dangGiamTheoDot(d)" class="text-muted small fw-normal">{{ formatMoney(d.giaGoc) }}</s>
                     <b class="d-block">{{ formatMoney(d.donGia * d.soLuong) }}</b>
                   </span>
                 </li>
@@ -1145,7 +1357,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                       <small class="text-muted d-block">{{ d.ma }}<template v-if="d.phanLoai"> · {{ d.phanLoai }}</template></small>
                     </span>
                     <span class="bh-qr-sp-tien">
-                      {{ d.soLuong }} × {{ formatMoney(d.donGia) }}
+                      {{ d.soLuong }} × {{ formatMoney(d.donGia) }} <s v-if="dangGiamTheoDot(d)" class="text-muted small fw-normal">{{ formatMoney(d.giaGoc) }}</s>
                       <b class="d-block">{{ formatMoney(d.donGia * d.soLuong) }}</b>
                     </span>
                   </li>
@@ -1223,6 +1435,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               </span>
               <span class="bh-qr-sp-tien">
                 {{ d.soLuong }} × {{ formatMoney(d.donGia) }}
+                <s v-if="dangGiamTheoDot(d)" class="text-muted small ms-1">{{ formatMoney(d.giaGoc) }}</s>
                 <b class="d-block">{{ formatMoney(d.donGia * d.soLuong) }}</b>
               </span>
             </li>
@@ -1304,6 +1517,31 @@ const soLuongTab = (h) => tongSoLuong(h.items)
       <template #footer>
         <span class="me-auto small text-muted">Đang thêm vào <b>{{ hd.maHoaDon || 'hóa đơn mới' }}</b> · {{ tongSoLuong(hd.gio) }} sản phẩm trong giỏ</span>
         <button type="button" class="ad-btn" data-testid="bh-dong-chon-sp" @click="moChonSp = false">Đóng</button>
+      </template>
+    </BaseModal>
+    <!-- Popup đợt giảm giá thay đổi: OK thì áp dụng đợt mới, Hủy thì giữ/quay lại đợt giảm giá cũ -->
+    <BaseModal v-if="hoiDotGiamGia" title="Đợt giảm giá đã thay đổi" size="md" @close="huyDotGiamGiaMoi">
+      <div data-testid="bh-hoi-dot">
+        <p class="mb-2">Đợt giảm giá của một số sản phẩm trong giỏ hàng vừa thay đổi:</p>
+        <ul class="list-unstyled mb-3">
+          <li v-for="d in hoiDotGiamGia.items" :key="d.id" class="py-1 border-bottom d-flex justify-content-between align-items-center">
+            <span>
+              <b>{{ d.ten }}</b> <small class="text-muted">{{ d.ma }}</small>
+            </span>
+            <span>
+              <span class="text-muted text-decoration-line-through me-1">{{ formatMoney(d.donGia) }}</span>
+              <i class="bi bi-arrow-right mx-1" aria-hidden="true"></i>
+              <b class="text-danger">{{ formatMoney(d.giaHienTai) }}</b>
+            </span>
+          </li>
+        </ul>
+        <p class="mb-0 text-muted small">
+          Bấm <b>OK</b> để áp dụng đợt giảm giá mới cho giỏ hàng, bấm <b>Hủy</b> để giữ lại đợt giảm giá cũ.
+        </p>
+      </div>
+      <template #footer>
+        <button type="button" class="ad-btn" data-testid="bh-hoi-dot-huy" @click="huyDotGiamGiaMoi">Hủy</button>
+        <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-hoi-dot-ok" :disabled="dangLam" @click="dongYDotGiamGiaMoi">OK</button>
       </template>
     </BaseModal>
     <!-- Popup sản phẩm đã đổi giá: OK thì thêm dòng mới theo giá mới, dòng cũ giữ giá cũ -->

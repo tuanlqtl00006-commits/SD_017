@@ -33,6 +33,11 @@ const MA_HET_PHIEN = ['CHUA_DANG_NHAP', 'HET_PHIEN', 'TOKEN_KHONG_HOP_LE'];
 api.interceptors.response.use(
     (response) => {
         baoVaiTro(response.headers?.['x-vai-tro']);
+        const method = response.config?.method?.toLowerCase();
+        const url = response.config?.url || '';
+        if (typeof window !== 'undefined' && /^(post|put|patch|delete)$/.test(method) && !url.includes('/tinh-tien')) {
+            window.dispatchEvent(new CustomEvent('footstyle:du-lieu-doi', { detail: { method, url } }));
+        }
         return response;
     },
     (error) => {

@@ -69,5 +69,5 @@ exit /b 0
 
 REM ---- Cho backend tra loi API, toi da %1 giay. errorlevel 0 = da chay ----
 :kiemTraBackend
-powershell -NoProfile -Command "$u='%API%'; for($i=0; $i -lt %1; $i++){ try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 -Uri $u | Out-Null; exit 0 } catch { Start-Sleep -Seconds 1 } }; exit 1"
+powershell -NoProfile -Command "$u='%API%'; for($i=0; $i -lt %1; $i++){ try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 -Uri $u; exit 0 } catch { if ($_.Exception.Response) { exit 0 }; Start-Sleep -Seconds 1 } }; exit 1"
 exit /b %errorlevel%

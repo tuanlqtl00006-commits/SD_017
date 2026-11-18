@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 import { layPhien } from '../services/phien'
-import { conThieuDeMienPhi, duocMienPhiVanChuyen, phiVanChuyenDon } from '../utils/phiVanChuyen'
+import { conThieuDeMienPhi, duocMienPhiVanChuyen, phiVanChuyenTheoTinh } from '../utils/phiVanChuyenTinh'
+import { phiVanChuyenDon } from '../utils/phiVanChuyen'
 import { caiDatVanChuyen } from '../services/caiDatVanChuyen'
 import { tienGiamTheoDotCuaDong } from '../utils/tienDon'
 import api from '../services/api'
@@ -184,28 +185,29 @@ export const useCartStore = defineStore('cart', () => {
     if (mayChu !== null && mayChu !== undefined) return !!mayChu
     return duocMienPhiVanChuyen(caiDatVanChuyen, subTotal.value)
   })
-  // Phí giao là một mức quản lý cài (không theo tỉnh): chỉ "chưa có phí" khi chưa tải được cài đặt và máy chủ chưa báo giá
+  const chuaCoTinh = computed(() => !mienPhiShip.value && phiVanChuyenTheoTinh(tinhGiao.value) === null)
+  // Phí giao tính theo địa chỉ nhận: chưa chọn tỉnh thì "chưa có phí"
   const chuaCoPhi = computed(() => {
     const pvc = baoGiaHopLe.value?.phiVanChuyen
-    return (pvc === null || pvc === undefined) && !mienPhiShip.value && !caiDatVanChuyen.daTai
+    return (pvc === null || pvc === undefined) && chuaCoTinh.value
   })
 
   const shippingFee = computed(() => {
     if (subTotal.value === 0) return 0
-    // Số máy chủ tính nếu có; không thì cùng luật với máy chủ (CuaHangService): đạt ngưỡng miễn phí thì 0, chưa đạt thì phí quản lý cài
+    // Số máy chủ tính nếu có; không thì tính theo địa chỉ giao hàng (Tỉnh/Thành, Phường/Xã)
     const pvc = baoGiaHopLe.value?.phiVanChuyen
     if (pvc !== null && pvc !== undefined) return Number(pvc) || 0
     if (mienPhiShip.value) return 0
-    return phiVanChuyenDon(caiDatVanChuyen, subTotal.value)
+    return phiVanChuyenTheoTinh(tinhGiao.value, phuongGiao.value) ?? 0
   })
 
   /**
    * Còn thiếu bao nhiêu tiền hàng để được miễn phí vận chuyển. 0 (không nhắc khách mua thêm) khi: đã đạt ngưỡng, cửa hàng không bật,
-   * hoặc phí giao vốn bằng 0 (quản lý cài phí 0).
+   * hoặc phí giao vốn bằng 0.
    */
   const conThieuMienPhiShip = computed(() => {
     if (mienPhiShip.value) return 0
-    if (!chuaCoPhi.value && shippingFee.value === 0) return 0
+    if (!chuaCoTinh.value && shippingFee.value === 0) return 0
     return conThieuDeMienPhi(caiDatVanChuyen, subTotal.value)
   })
 
@@ -306,6 +308,7 @@ export const useCartStore = defineStore('cart', () => {
     discountAmount,
     tinhGiao,
     phuongGiao,
+    chuaCoTinh,
     chuaCoPhi,
     mienPhiShip,
     conThieuMienPhiShip,

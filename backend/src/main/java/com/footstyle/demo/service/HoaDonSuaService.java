@@ -642,18 +642,23 @@ public class HoaDonSuaService {
     }
 
     /**
-     * Phí giao hàng sau khi sửa đơn (phí không theo nơi nhận nên đổi địa chỉ không làm đổi phí).
+     * Phí giao hàng sau khi sửa đơn.
      * <ul>
-     *   <li>Tiền hàng giữ nguyên: giữ phí của đơn (phí có thể do nhân viên nhập lúc bán tại quầy).</li>
+     *   <li>Địa chỉ và tiền hàng đều giữ nguyên: giữ phí của đơn (phí có thể do nhân viên nhập lúc bán tại quầy).</li>
      *   <li>Tiền hàng mới đạt ngưỡng miễn phí vận chuyển: 0.</li>
-     *   <li>Đơn tụt dưới ngưỡng mà trước đó được miễn phí nhờ đạt ngưỡng: phí giao hàng quản lý đang cài. Còn lại giữ phí cũ.</li>
+     *   <li>Đổi địa chỉ: tính lại theo tỉnh ở cuối địa chỉ mới (không nhận ra tỉnh thì giữ phí cũ).</li>
+     *   <li>Chỉ đổi sản phẩm làm đơn tụt dưới ngưỡng, mà trước đó đơn được miễn phí nhờ đạt ngưỡng: tính lại theo tỉnh
+     *       (không nhận ra tỉnh thì lấy phí mặc định). Còn lại giữ phí cũ.</li>
      * </ul>
      */
     long phiSauKhiSua(String diaChiMoi, String diaChiCu, long tienHang, long tienHangCu, long phiCu) {
-        if (tienHang == tienHangCu) return phiCu;
+        boolean doiDiaChi = diaChiMoi != null && !diaChiMoi.equals(diaChiCu);
+        if (!doiDiaChi && tienHang == tienHangCu) return phiCu;
         if (caiDatVanChuyen.mienPhi(tienHang)) return 0L;
+        Long phiTheoTinh = PhiVanChuyenTinh.phiTheoDiaChi(diaChiMoi);
+        if (doiDiaChi) return phiTheoTinh != null ? phiTheoTinh : phiCu;
         boolean truocDuocMienPhi = phiCu == 0 && caiDatVanChuyen.mienPhi(tienHangCu);
-        return truocDuocMienPhi ? caiDatVanChuyen.phiGiaoHang() : phiCu;
+        return truocDuocMienPhi ? (phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH) : phiCu;
     }
 
     private long daTra(HoaDon hd) {

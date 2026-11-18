@@ -32,7 +32,7 @@ function dangThaoTac(oChanTai) {
  *  - `reload` phải là bản tải NGẦM của màn: không hiện "Đang tải", không đổi trang / bộ lọc, có chống kết quả cũ đè kết quả mới.
  * minGapMs: khoảng cách tối thiểu giữa 2 lần tải (focus và visibilitychange hay nổ cùng lúc); tin thay đổi không bị giới hạn này.
  */
-export function useAutoRefresh(reload, minGapMs = 3000, { chuKyMs = CHU_KY_TU_CAP_NHAT_MS, coTheTai = () => true, chuDe = null, oChanTai = null } = {}) {
+export function useAutoRefresh(reload, minGapMs = 3000, { chuKyMs = CHU_KY_TU_CAP_NHAT_MS, coTheTai = () => true, chuDe = null, oChanTai = null, chuKyDuPhongMs = null } = {}) {
   let lastRun = Date.now()
   let dangChay = false
   let taiThem = false
@@ -41,6 +41,8 @@ export function useAutoRefresh(reload, minGapMs = 3000, { chuKyMs = CHU_KY_TU_CA
   let henCho = null
   let huyNghe = null
   let daRoi = false
+
+  const duPhong = chuKyDuPhongMs ?? (chuKyMs !== CHU_KY_TU_CAP_NHAT_MS ? chuKyMs : CHU_KY_DU_PHONG_MS)
 
   async function chay(theoTin = false) {
     if (dangChay) {
@@ -79,16 +81,24 @@ export function useAutoRefresh(reload, minGapMs = 3000, { chuKyMs = CHU_KY_TU_CA
     chay()
   }
 
+  function onLocalEvent() {
+    clearTimeout(henGop)
+    henGop = setTimeout(khiCoTin, TRE_GOP_MS)
+  }
+
   function dinhKy() {
     if (dangThaoTac(oChanTai) || !coTheTai()) return
     if (Date.now() - lastRun < minGapMs) return
-    if (chuDe && dangKetNoi.value && Date.now() - lastRun < CHU_KY_DU_PHONG_MS) return
+    if (chuDe && dangKetNoi.value && Date.now() - lastRun < duPhong) return
     chay()
   }
 
   onMounted(() => {
     document.addEventListener('visibilitychange', onBack)
     window.addEventListener('focus', onBack)
+    if (typeof window !== 'undefined') {
+      window.addEventListener('footstyle:du-lieu-doi', onLocalEvent)
+    }
     if (chuKyMs > 0) hen = setInterval(dinhKy, chuKyMs)
     if (chuDe) {
       huyNghe = nghe(chuDe, () => {
@@ -101,6 +111,9 @@ export function useAutoRefresh(reload, minGapMs = 3000, { chuKyMs = CHU_KY_TU_CA
     daRoi = true
     document.removeEventListener('visibilitychange', onBack)
     window.removeEventListener('focus', onBack)
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('footstyle:du-lieu-doi', onLocalEvent)
+    }
     clearInterval(hen)
     clearTimeout(henGop)
     clearTimeout(henCho)

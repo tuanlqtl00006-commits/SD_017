@@ -94,7 +94,7 @@ async function dangNhap() {
   dangGui.value = true
   try {
     await auth.dangNhapKhachHang({ taiKhoan: f.taiKhoan.trim(), matKhau: f.matKhau, nho: f.nho })
-    const quayLai = duongDanQuayLaiAnToan(route.query.quayLai)
+    const quayLai = duongDanQuayLaiAnToan(route.query.quayLai || route.query.redirect)
     await router.replace(quayLai && quayLai.startsWith('/shop') ? quayLai : '/shop')
   } catch (e) {
     f.matKhau = ''

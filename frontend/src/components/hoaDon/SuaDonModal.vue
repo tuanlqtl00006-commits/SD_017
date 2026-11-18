@@ -9,7 +9,7 @@ import BaseModal from '../common/BaseModal.vue'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
 import { formatMoney } from '../../utils/format'
-import { phiSauKhiSuaDon } from '../../utils/phiVanChuyen'
+import { phiSauKhiSuaDon } from '../../utils/phiVanChuyenTinh'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 
 const props = defineProps({ data: { type: Object, required: true } })
@@ -72,6 +72,8 @@ const tienHang = computed(() => dong.value.reduce((s, d) => s + d.donGia * (Numb
 const phiShip = computed(() =>
   phiSauKhiSuaDon({
     caiDat: caiDatShip,
+    diaChiMoi: f.diaChiGiaoHang,
+    diaChiCu: giao.diaChi || '',
     tienHang: tienHang.value,
     tienHangCu: Number(props.data.hoaDon?.tongTien) || 0,
     phiCu: Number(props.data.hoaDon?.phiVanChuyen) || 0,

@@ -12,7 +12,7 @@ import { useAuth } from '../composables/useAuth'
 import { useChatChuaDoc } from '../composables/useChatChuaDoc'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { TT, laTrangThaiCuoi, nutChuyen, trangThaiOf } from '../constants/hoaDon'
-import { formatMoney, formatNgayGio } from '../utils/format'
+import { formatMoney, formatNgayGio, formatGio, formatNgay } from '../utils/format'
 import { taoHtmlHoaDon } from '../utils/hoaDonIn'
 
 const route = useRoute()
@@ -59,7 +59,9 @@ async function taiNgam() {
     // lỗi tạm thời: giữ dữ liệu đang hiện
   }
 }
-useAutoRefresh(taiNgam, 3000, {
+useAutoRefresh(taiNgam, 1500, {
+  chuKyMs: 4000,
+  chuKyDuPhongMs: 5000,
   chuDe: ['hoa-don'],
   coTheTai: () => !action.open && !action.saving && !moSuaDon.value && !moSuaGiao.value && !showLichSu.value && !showQrModal.value,
 })
@@ -347,7 +349,7 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
       </div>
 
       <!-- Thân màn dùng chung với màn đơn hàng của khách (/shop/tra-cuu) để hai màn luôn y hệt nhau -->
-      <HoaDonNoiDung :data="data">
+      <HoaDonNoiDung :data="data" @sua-giao-hang="moSuaGiao = true">
         <template #hanh-dong>
           <!-- Đã hoàn thành / Đã hủy là trạng thái cuối: khóa, không còn nút đổi trạng thái -->
           <p v-if="daKhoa" class="hd-khoa" role="note">
@@ -363,9 +365,6 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
             @click="moXacNhan(n.trangThai)"
           >
             <i class="bi" :class="n.icon" aria-hidden="true"></i> {{ n.text }}
-          </button>
-          <button v-if="hd.duocSuaGiaoHang" type="button" class="ad-btn" data-testid="hd-sua-giao-hang" @click="moSuaGiao = true">
-            <i class="bi bi-geo-alt" aria-hidden="true"></i> Sửa thông tin giao hàng
           </button>
           <button v-if="hd.duocChinhSua" type="button" class="ad-btn" data-testid="hd-sua-don" @click="moSuaDon = true">
             <i class="bi bi-pencil-square" aria-hidden="true"></i> Chỉnh sửa đơn
@@ -397,16 +396,16 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
     <SuaGiaoHangModal v-if="moSuaGiao && data" :data="data" :url="`/hoa-don/${idHoaDon}/sua-giao-hang`" @close="moSuaGiao = false" @saved="daSuaGiao" />
 
     <!-- Hộp thoại: lịch sử thao tác -->
-    <BaseModal v-if="showLichSu" title="Lịch sử thao tác" size="lg" @close="showLichSu = false">
+    <BaseModal v-if="showLichSu" title="Lịch sử thao tác" size="xl" @close="showLichSu = false">
       <div class="ad-table-wrap">
         <div class="ad-table-scroll">
-          <table class="ad-table">
+          <table class="ad-table hd-table-lich-su">
             <thead>
               <tr>
                 <th class="ad-col-stt">STT</th>
-                <th>Hành động</th>
-                <th>Người thao tác</th>
-                <th>Thời gian</th>
+                <th style="min-width: 140px;">Hành động</th>
+                <th style="min-width: 130px;">Người thao tác</th>
+                <th style="min-width: 110px;">Thời gian</th>
                 <th>Ghi chú</th>
               </tr>
             </thead>
@@ -418,8 +417,11 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
                 <td class="ad-col-stt">{{ i + 1 }}</td>
                 <td><span class="ad-pill" :class="trangThaiOf(ls.trangThai).pill">{{ ls.hanhDong }}</span></td>
                 <td class="ad-nowrap">{{ ls.nguoiThaoTac || '—' }}</td>
-                <td class="ad-nowrap">{{ fmtDateTime(ls.thoiGian) }}</td>
-                <td class="ad-cell-wrap">{{ ls.moTa || '—' }}</td>
+                <td class="ad-nowrap">
+                  <div class="fw-semibold text-dark">{{ formatGio(ls.thoiGian) || '—' }}</div>
+                  <div v-if="formatNgay(ls.thoiGian)" class="small text-muted">{{ formatNgay(ls.thoiGian) }}</div>
+                </td>
+                <td class="hd-ls-ghi-chu">{{ ls.moTa || '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -630,5 +632,11 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
   background: var(--fs-primary-soft);
   color: var(--fs-primary-dark);
   font-size: 0.85rem;
+}
+.hd-table-lich-su .hd-ls-ghi-chu {
+  min-width: 280px;
+  max-width: none;
+  word-break: break-word;
+  line-height: 1.5;
 }
 </style>

@@ -38,8 +38,8 @@ public final class PhieuApDung {
         }
         long toiThieu = p.getGiaTriDonHangToiThieu() == null ? 0 : p.getGiaTriDonHangToiThieu();
         if (tongTien < toiThieu) {
-            return "Đơn tối thiểu " + GiaoCaService.dinhDangTien(java.math.BigDecimal.valueOf(toiThieu))
-                    + " (còn thiếu " + GiaoCaService.dinhDangTien(java.math.BigDecimal.valueOf(toiThieu - tongTien)) + ").";
+            return "Phiếu giảm giá yêu cầu đơn tối thiểu " + GiaoCaService.dinhDangTien(java.math.BigDecimal.valueOf(toiThieu))
+                    + " (còn thiếu " + GiaoCaService.dinhDangTien(java.math.BigDecimal.valueOf(toiThieu - tongTien)) + " để áp dụng phiếu).";
         }
         return null;
     }

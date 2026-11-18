@@ -8,7 +8,7 @@ import BaseModal from '../common/BaseModal.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 import { formatMoney } from '../../utils/format'
-import { phiSauKhiSuaDon } from '../../utils/phiVanChuyen'
+import { phiSauKhiSuaDon } from '../../utils/phiVanChuyenTinh'
 
 const props = defineProps({
   data: { type: Object, required: true }, // dữ liệu chi tiết hóa đơn (dạng GET /hoa-don/{id})
@@ -36,10 +36,14 @@ const loi = ref({})
 const loiChung = ref('')
 const dangLuu = ref(false)
 
+const diaChiMoi = computed(() => [form.diaChiCuThe.trim(), form.phuongXa, form.tinhThanh].filter(Boolean).join(', '))
 const tienHang = computed(() => Number(hd.value.tongTien) || 0)
 const phiCu = computed(() => Number(hd.value.phiVanChuyen) || 0)
-// Phí không theo nơi nhận: đổi địa chỉ giữ phí của đơn
-const phiMoi = computed(() => phiSauKhiSuaDon({ caiDat, tienHang: tienHang.value, tienHangCu: tienHang.value, phiCu: phiCu.value }))
+const phiMoi = computed(() =>
+  form.tinhThanh && form.phuongXa
+    ? phiSauKhiSuaDon({ caiDat, diaChiMoi: diaChiMoi.value, diaChiCu: giao.value.diaChi, tienHang: tienHang.value, tienHangCu: tienHang.value, phiCu: phiCu.value })
+    : null,
+)
 
 async function luu() {
   if (dangLuu.value) return

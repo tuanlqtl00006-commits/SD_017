@@ -471,10 +471,12 @@ public class CuaHangService {
             }
         }
         List<Map<String, Object>> kq = new ArrayList<>();
+        LocalDateTime now = bayGio();
         for (PhieuGiamGia p : phieuRepo.findAll()) {
+            if (p.getTrangThai() == null || p.getTrangThai() != 1) continue; // Ngừng hoạt động: ẩn
+            if (p.getNgayKetThuc() != null && now.isAfter(p.getNgayKetThuc())) continue; // Hết hạn: ẩn
             boolean caNhan = Integer.valueOf(PhieuGiamGia.DOI_TUONG_KHACH_CU_THE).equals(p.getDoiTuongApDung());
             if (caNhan && !cuaKhach.contains(p.getId())) continue; // phiếu tặng riêng cho người khác: không hiện
-            // Hiện TẤT CẢ các phiếu còn lại (kể cả hết hạn / hết lượt / ngừng hoạt động): phiếu không dùng được kèm lý do, giao diện làm xám
             String lyDo = lyDoPhieuKhongDung(p, tongTien, idKhach);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("ma", p.getMaPhieu());
@@ -503,6 +505,13 @@ public class CuaHangService {
         String sdt = req.sdtNguoiNhan() == null ? "" : req.sdtNguoiNhan().trim();
         if (!sdt.matches("^0\\d{9}$")) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Số điện thoại không hợp lệ (cần 10 chữ số, bắt đầu bằng 0).", null, null, Map.of("sdtNguoiNhan", "Số điện thoại 10 chữ số"));
+        }
+        String emailNguoiNhan = req.emailNguoiNhan() == null ? "" : req.emailNguoiNhan().trim();
+        if (emailNguoiNhan.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập email nhận thông báo đơn hàng.", null, null, Map.of("emailNguoiNhan", "Email không được để trống"));
+        }
+        if (!emailNguoiNhan.matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Email không đúng định dạng.", null, null, Map.of("emailNguoiNhan", "Email không đúng định dạng"));
         }
         if (req.diaChiGiaoHang() == null || req.diaChiGiaoHang().trim().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập địa chỉ giao hàng.", null, null, Map.of("diaChiGiaoHang", "Địa chỉ giao hàng không được để trống"));
@@ -594,8 +603,8 @@ public class CuaHangService {
             }
         }
 
-        // Phí vận chuyển: đơn đạt ngưỡng miễn phí thì 0; chưa đạt thì phí giao hàng quản lý cài đặt (không theo tỉnh)
-        long phiVanChuyen = caiDatVanChuyen.phi(tongTien);
+        // Phí vận chuyển: đơn đạt ngưỡng miễn phí (quản lý cài đặt) thì 0; chưa đạt thì theo địa chỉ nhận hàng (Hà Nội: phường 25.000, xã 30.000; tỉnh khác tùy tỉnh)
+        long phiVanChuyen = caiDatVanChuyen.phi(tongTien, PhiVanChuyenTinh.phi(req.tinhThanh(), req.phuongXa()));
         long thanhTien = Math.max(0L, tongTien - soTienGiam + phiVanChuyen);
 
         // Tạo hóa đơn
@@ -779,9 +788,10 @@ public class CuaHangService {
                 }
             }
         }
-        // Phí giao là một mức quản lý cài đặt (không theo tỉnh) nên tính được ngay ở giỏ hàng; đạt ngưỡng miễn phí thì 0
+        // Đơn đạt ngưỡng miễn phí vận chuyển thì phí 0 dù chưa chọn tỉnh. Chưa đạt mà chưa chọn tỉnh thì chưa tính được phí giao (null), tổng tạm chưa gồm phí
+        String tinh = req == null || req.tinhThanh() == null ? "" : req.tinhThanh().trim();
         boolean mienPhiVanChuyen = tongTien > 0 && caiDatVanChuyen.mienPhi(tongTien);
-        Long phi = mienPhiVanChuyen ? 0L : caiDatVanChuyen.phiGiaoHang();
+        Long phi = mienPhiVanChuyen ? Long.valueOf(0L) : tinh.isEmpty() ? null : PhiVanChuyenTinh.phi(tinh, req.phuongXa());
 
         Map<String, Object> kq = new LinkedHashMap<>();
         kq.put("dong", dong);

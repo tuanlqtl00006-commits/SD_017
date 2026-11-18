@@ -432,10 +432,10 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     nhanTin({ chuDe: ['giam-gia', 'san-pham'], nguon: 'may-khac' })
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
-    expect(w.text()).toContain('Giá mới 4.290.000')
+    expect(w.text()).not.toContain('Giá mới')
     expect(w.find('.bh-nut-tt').text()).toContain('3.861.000') // dòng cũ giữ giá cũ
     expect(w.text()).not.toContain('Cập nhật giá')
-    expect(w.find('[data-testid="bh-dong-giam"]').exists()).toBe(false) // % đợt hiện tại không còn đúng với giá dòng cũ
+    expect(w.find('[data-testid="bh-dong-giam"]').exists()).toBe(true) // dòng cũ giữ hiển thị giảm giá cũ
 
     // Thêm lại: popup, Hủy thì không thêm
     await w.find('[data-testid="bh-chon-sp"]').trigger('click')
@@ -523,7 +523,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     oGhiChu.element.focus()
     await new Promise((r) => setTimeout(r, 1100)) // đợi lượt kiểm tra lại của useAutoRefresh
     await flushPromises()
-    expect(w.text()).toContain('Giá mới 4.290.000')
+    expect(w.text()).not.toContain('Giá mới')
     expect(oGhiChu.element.value).toBe('Giao buổi chiều')
     expect(document.activeElement).toBe(oGhiChu.element)
   })
@@ -559,7 +559,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('input[type="number"]').exists()).toBe(true)
   })
 
-  it('giao hàng: thẻ riêng ở cột trái, chọn Tỉnh/Phường, phí từ cài đặt (không theo tỉnh), gửi kèm người nhận', async () => {
+  it('giao hàng: thẻ riêng ở cột trái, chọn Tỉnh/Phường, phí tính theo tỉnh, gửi kèm người nhận', async () => {
     const { w, may } = await moBanHang()
     await nutThem(w).trigger('click')
     await flushPromises()
@@ -569,16 +569,9 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     const khoi = w.find('[data-testid="bh-khoi-giao"]')
     expect(khoi.exists()).toBe(true)
     expect(w.find('.bh-trai [data-testid="bh-khoi-giao"]').exists()).toBe(true)
-    expect(w.find('#bh-phi-ship').attributes('placeholder')).toBe('Chưa tính phí') // chưa tải cài đặt thì chưa có phí
+    expect(w.find('#bh-phi-ship').attributes('placeholder')).toBe('Chưa tính phí') // chưa chọn tỉnh thì chưa có phí
     expect(khoi.text()).not.toContain('Phí giao hàng') // phí chỉ hiện ở khối thanh toán bên phải
     expect(w.text()).not.toContain('Vui lòng nhập đủ thông tin người nhận') // không nhắc sẵn dưới nút Thanh toán
-
-    // Tải cài đặt: phí giao hàng 25.000 (một mức quản lý cài, như nhau ở mọi tỉnh)
-    nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 25_000 })
-    await flushPromises()
-    expect(w.find('#bh-phi-ship').attributes('placeholder')).toBe('25.000 ₫')
-    expect(w.find('#bh-phi-ship').element.value).toBe('25.000')
-
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
     expect(w.text()).toContain('Vui lòng nhập tên người nhận.')
@@ -590,8 +583,8 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     chonDc.vm.$emit('update:phuongXa', 'Phường Hà Đông')
     await w.find('#bh-nn-dc').setValue('Số 1 Trần Phú')
     await flushPromises()
-    expect(w.find('#bh-phi-ship').attributes('placeholder')).toBe('25.000 ₫')
-    expect(w.find('#bh-phi-ship').element.value).toBe('25.000') // phí quản lý cài hiện sẵn trong ô, chưa phải số nhân viên gõ tay
+    expect(w.find('#bh-phi-ship').attributes('placeholder')).toBe('25.000 ₫') // Hà Nội, phường: 25.000
+    expect(w.find('#bh-phi-ship').element.value).toBe('25.000') // phí tự tính hiện sẵn trong ô, chưa phải số nhân viên gõ tay
     const { cuaSo } = cuaSoInGia()
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
@@ -604,7 +597,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await vi.waitFor(() => expect(cuaSo.document.write).toHaveBeenCalledTimes(1))
   })
 
-  it('đơn đạt ngưỡng miễn phí vận chuyển (Cài đặt free ship): ô phí thành chữ "Miễn phí", không cộng phí; hạ ngưỡng xuống dưới thì lại tính phí cài đặt', async () => {
+  it('đơn đạt ngưỡng miễn phí vận chuyển (Cài đặt free ship): ô phí thành chữ "Miễn phí", không cộng phí; hạ ngưỡng xuống dưới thì lại tính theo tỉnh', async () => {
     const { w } = await moBanHang()
     await nutThem(w).trigger('click')
     await flushPromises()
@@ -616,30 +609,29 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
     const tong = () => w.find('.bh-nut-tt').text()
     try {
-      // Đơn 3.861.000, ngưỡng 5.000.000, phí cài đặt 30.000: chưa đạt nên vẫn là ô nhập, phí 30.000
-      nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 5_000_000, phiGiaoHang: 30_000 })
+      // Đơn 3.861.000, ngưỡng 5.000.000: chưa đạt nên vẫn là ô nhập, phí theo tỉnh Hồ Chí Minh là 50.000
+      nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 5_000_000 })
       await flushPromises()
       expect(w.find('[data-testid="bh-mien-phi-ship"]').exists()).toBe(false)
-      expect(w.find('#bh-phi-ship').element.value).toBe('30.000')
-      expect(tong()).toContain('3.891.000')
+      expect(w.find('#bh-phi-ship').element.value).toBe('50.000')
+      expect(tong()).toContain('3.911.000')
       // Quản lý hạ ngưỡng còn 3.000.000: đơn đạt ngưỡng, không còn ô nhập, không cộng phí
-      nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 3_000_000, phiGiaoHang: 30_000 })
+      nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 3_000_000 })
       await flushPromises()
       expect(w.find('#bh-phi-ship').exists()).toBe(false)
       expect(w.find('[data-testid="bh-mien-phi-ship"]').text()).toBe('Miễn phí')
       expect(tong()).toContain('3.861.000')
-      // Tắt miễn phí theo giá trị đơn: về lại phí cài đặt
-      nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 3_000_000, phiGiaoHang: 30_000 })
+      // Tắt miễn phí theo giá trị đơn: về lại phí theo tỉnh
+      nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 3_000_000 })
       await flushPromises()
-      expect(w.find('#bh-phi-ship').element.value).toBe('30.000')
-      expect(tong()).toContain('3.891.000')
+      expect(w.find('#bh-phi-ship').element.value).toBe('50.000')
+      expect(tong()).toContain('3.911.000')
     } finally {
-      nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 0 })
+      nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 0 })
     }
   })
 
-  it('phí vận chuyển là một ô nhập: tự điền phí cài đặt, nhân viên sửa được, xóa trống ô thì về phí cài đặt; hộp xác nhận ghi đủ thông tin', async () => {
-    nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 30_000 })
+  it('phí vận chuyển là một ô nhập: tự điền theo tỉnh, sửa được, đổi tỉnh thì tính lại; hộp xác nhận ghi đủ thông tin', async () => {
     const { w, may } = await moBanHang()
     await nutThem(w).trigger('click')
     await flushPromises()
@@ -655,19 +647,26 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     chonDc.vm.$emit('update:tinhThanh', 'Thành phố Hồ Chí Minh')
     chonDc.vm.$emit('update:phuongXa', 'Phường Bến Nghé')
     await flushPromises()
-    expect(oPhi().element.value).toBe('30.000')
-    expect(tong()).toContain('3.891.000')
+    expect(oPhi().element.value).toBe('50.000')
+    expect(tong()).toContain('3.911.000')
 
     await oPhi().setValue('70000')
     await flushPromises()
     expect(oPhi().element.value).toBe('70.000')
     expect(tong()).toContain('3.931.000')
-    // Xóa trống ô: về phí cài đặt, ô vẫn trống để gõ số mới
+    // Xóa trống ô: về phí theo tỉnh, ô vẫn trống để gõ số mới
     await oPhi().setValue('')
     await flushPromises()
     expect(oPhi().element.value).toBe('')
-    expect(oPhi().attributes('placeholder')).toBe('30.000 ₫')
-    expect(tong()).toContain('3.891.000')
+    expect(oPhi().attributes('placeholder')).toBe('50.000 ₫')
+    expect(tong()).toContain('3.911.000')
+    await oPhi().setValue('70000')
+    await flushPromises()
+    // Đổi tỉnh: bỏ số đã nhập, tính lại theo tỉnh mới
+    chonDc.vm.$emit('update:tinhThanh', 'Tỉnh Phú Thọ')
+    chonDc.vm.$emit('update:phuongXa', 'Phường Việt Trì')
+    await flushPromises()
+    expect(oPhi().element.value).toBe('25.000')
     await oPhi().setValue('40000')
     await flushPromises()
     expect(oPhi().element.value).toBe('40.000')
@@ -678,7 +677,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
     const noiDung = body().find('.bh-xn-modal').text().replace(/\s+/g, ' ')
-    for (const chu of ['HD100', 'Khách lẻ', 'Trần Văn Hùng · 0901000002', 'Số 1 Trần Phú, Phường Bến Nghé, Thành phố Hồ Chí Minh', 'Giao giờ hành chính',
+    for (const chu of ['HD100', 'Khách lẻ', 'Trần Văn Hùng · 0901000002', 'Số 1 Trần Phú, Phường Việt Trì, Tỉnh Phú Thọ', 'Giao giờ hành chính',
       'Yonex Astrox 99 Pro', 'SP01-DEN-4U-G5 · Đen · 4U · G5', '1 × 3.861.000', 'Phí vận chuyển', '40.000', 'Tiền mặt', '3.901.000']) expect(noiDung).toContain(chu)
     await nutXacNhan().trigger('click')
     await flushPromises()

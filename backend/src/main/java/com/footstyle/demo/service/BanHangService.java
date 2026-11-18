@@ -489,7 +489,11 @@ public class BanHangService {
     public static final String DON_VI_VAN_CHUYEN = "Giao Hàng Nhanh";
 
     public record ThanhToanChoRequest(String maPhieu, String ghiChu, Long tienMat, Long chuyenKhoan, String maGiaoDich,
-                                      Boolean xacNhanGiaMoi, Long soTienGiam, GiaoHangRequest giaoHang) {
+                                      Boolean xacNhanGiaMoi, Long soTienGiam, GiaoHangRequest giaoHang, Boolean giuNguyenGiamCu) {
+        public ThanhToanChoRequest(String maPhieu, String ghiChu, Long tienMat, Long chuyenKhoan, String maGiaoDich,
+                                  Boolean xacNhanGiaMoi, Long soTienGiam, GiaoHangRequest giaoHang) {
+            this(maPhieu, ghiChu, tienMat, chuyenKhoan, maGiaoDich, xacNhanGiaMoi, soTienGiam, giaoHang, null);
+        }
     }
 
     /**
@@ -529,7 +533,7 @@ public class BanHangService {
         // 2. Khách + phiếu
         KhachHang kh = hd.getKhachHang();
         if (kh != null && !Integer.valueOf(1).equals(kh.getTrangThai())) throw ApiException.conflict("Khách hàng đang ngừng hoạt động.");
-        KetQuaPhieu kp = kiemTraPhieu(req.maPhieu(), kh, tongTienHang, luc, req.soTienGiam());
+        KetQuaPhieu kp = kiemTraPhieu(req.maPhieu(), kh, tongTienHang, luc, req.soTienGiam(), req.giuNguyenGiamCu());
 
         // 3. Giao hàng
         GiaoHangRequest gh = req.giaoHang();
@@ -563,11 +567,12 @@ public class BanHangService {
                 loi.nemNeuCoLoi();
             }
         }
-        // Nhân viên nhập phí thì lấy số đó; không nhập thì lấy phí giao hàng quản lý cài đặt
+        // Nhân viên nhập phí thì lấy số đó; không nhập thì theo tỉnh ở cuối địa chỉ (Hà Nội: phường 25.000, xã 30.000; tỉnh khác tùy tỉnh), không nhận ra tỉnh thì tính phí mặc định
         Long phiNhap = giao ? gh.phiVanChuyen() : null;
         if (phiNhap != null && phiNhap < 0) throw ApiException.badRequest("Phí vận chuyển không được âm.");
         if (phiNhap != null && phiNhap > TIEN_TOI_DA) throw ApiException.badRequest("Số tiền quá lớn.");
-        long phiThuong = !giao ? 0 : phiNhap != null ? phiNhap : caiDatVanChuyen.phiGiaoHang();
+        Long phiTheoTinh = giao ? PhiVanChuyenTinh.phiTheoDiaChi(diaChi) : null;
+        long phiThuong = !giao ? 0 : phiNhap != null ? phiNhap : phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH;
         // Đơn đạt ngưỡng miễn phí vận chuyển (quản lý cài đặt) thì không thu phí giao, dù nhân viên có nhập phí
         long phi = caiDatVanChuyen.phi(tongTienHang, phiThuong);
         long thanhTien = tongTienHang - kp.giam() + phi;
@@ -617,8 +622,12 @@ public class BanHangService {
     private record KetQuaTien(long tienMat, long chuyenKhoan, long tienMatThu, long tienThua, String maGiaoDich) {
     }
 
-    /** Phiếu còn dùng được cho khách + tổng tiền hàng không; soTienGiamGiaoDien khác mức giảm hiện tại thì báo PHIEU_THAY_DOI. */
+    /** Phiếu còn dùng được cho khách + tổng tiền hàng không; soTienGiamGiaoDien khác mức giảm hiện tại thì báo PHIEU_THAY_DOI (trừ khi giuNguyenGiamCu = true). */
     private KetQuaPhieu kiemTraPhieu(String maPhieuGui, KhachHang kh, long tongTienHang, LocalDateTime luc, Long soTienGiamGiaoDien) {
+        return kiemTraPhieu(maPhieuGui, kh, tongTienHang, luc, soTienGiamGiaoDien, false);
+    }
+
+    private KetQuaPhieu kiemTraPhieu(String maPhieuGui, KhachHang kh, long tongTienHang, LocalDateTime luc, Long soTienGiamGiaoDien, Boolean giuNguyenGiamCu) {
         String maPhieu = maPhieuGui == null ? "" : maPhieuGui.trim();
         if (maPhieu.isEmpty()) return new KetQuaPhieu(null, null, 0);
         PhieuGiamGia phieu = phieuRepo.findFirstByMaPhieuIgnoreCase(maPhieu).orElse(null);
@@ -633,8 +642,11 @@ public class BanHangService {
         String lyDo = PhieuApDung.lyDoKhongDung(phieu, tongTienHang, luc, kh != null, phieuCuaKhach != null, daDung);
         if (lyDo != null) throw new ApiException(HttpStatus.CONFLICT, "Không dùng được phiếu " + maPhieu + ": " + lyDo, "PHIEU_KHONG_HOP_LE", null);
         long giam = PhieuApDung.soTienGiam(phieu, tongTienHang);
-        // Phiếu bị sửa mức giảm khi hóa đơn đang chờ: báo lại cho nhân viên, không tự đổi số tiền
+        // Phiếu bị sửa mức giảm khi hóa đơn đang chờ: báo lại cho nhân viên, không tự đổi số tiền (nếu nhân viên chọn giữ nguyên thì áp mức cũ)
         if (soTienGiamGiaoDien != null && soTienGiamGiaoDien != giam) {
+            if (Boolean.TRUE.equals(giuNguyenGiamCu)) {
+                return new KetQuaPhieu(phieu, phieuCuaKhach, Math.min(soTienGiamGiaoDien, tongTienHang));
+            }
             Map<String, Object> ct = new LinkedHashMap<>();
             ct.put("maPhieu", phieu.getMaPhieu());
             ct.put("soTienGiamCu", soTienGiamGiaoDien);

@@ -26,6 +26,7 @@ import {
   nhanNgay, NGUOI_GUI, xemTruocTinCuoi, xoaPhienKhach,
 } from '../src/utils/chat'
 import { normalizeText } from '../src/utils/text'
+import { todayIso } from '../src/utils/format'
 
 const tn = (id, loai, noiDung, extra = {}) => ({ id, loaiNguoiGui: loai, noiDung, tenNguoiGui: null, idNhanVien: null, thoiGian: '2026-10-16T09:00:00', ...extra })
 const body = () => new DOMWrapper(document.body)
@@ -361,14 +362,14 @@ describe('HoTroTrucTuyenPage', () => {
     expect(hoTro.danhGia).not.toHaveBeenCalled()
     await w.find('[data-testid="htt-tab-danh-gia"]').trigger('click')
     await flushPromises()
-    expect(hoTro.danhGia).toHaveBeenCalledWith({})
+    expect(hoTro.danhGia).toHaveBeenCalledWith({ tuNgay: todayIso(), denNgay: todayIso() })
     expect(w.find('[data-testid="dgh-dem"]').text()).toMatch(/Tốt\s*1/)
     expect(w.find('[data-testid="dgh-dem"]').text()).toMatch(/Chưa tốt\s*1/)
     expect(w.find('[data-testid="dgh-ds"]').text()).toContain('Trả lời chậm')
 
     await w.find('[data-testid="dgh-loc-muc"]').setValue('CHUA_TOT')
     await flushPromises()
-    expect(hoTro.danhGia).toHaveBeenLastCalledWith({ mucDo: 'CHUA_TOT' })
+    expect(hoTro.danhGia).toHaveBeenLastCalledWith({ tuNgay: todayIso(), denNgay: todayIso(), mucDo: 'CHUA_TOT' })
 
     await w.find('[data-testid="dgh-xem-chat"]').trigger('click')
     await flushPromises()

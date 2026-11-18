@@ -588,7 +588,6 @@ function buyNow() {
 
                 <!-- Cam kết: đúng chính sách ở trang Chính sách -->
                 <ul class="pd-cam-ket">
-                  <li><i class="bi bi-patch-check"></i><span><strong>Chính hãng 100%</strong>Hàng nhập từ thương hiệu</span></li>
                   <li><i class="bi bi-truck"></i><span><strong>Giao Hàng Nhanh</strong><RouterLink to="/shop/chinh-sach#giao-hang">Toàn quốc, xem bảng phí</RouterLink></span></li>
                 </ul>
               </div>
@@ -1032,7 +1031,7 @@ function buyNow() {
 }
 .pd-cam-ket {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
   margin: 24px 0 0;
   padding: 0;

@@ -169,7 +169,11 @@ onMounted(() => {
 })
 // Quay lại tab: kiểm tra ngày trước (đổi ngày thì watch tải lại), không đổi thì tải lại lặng lẽ như cũ
 // Có tin thay đổi hóa đơn thì tải ngầm ngay (đơn online mới, đơn vừa đổi trạng thái hiện ra không cần F5), kèm hỏi lại định kỳ để phòng sót (xem useAutoRefresh); giữ trang / bộ lọc / tab đang xem
-useAutoRefresh(() => (capNhatNgayHienTai() ? undefined : load(true)), 3000, { chuDe: ['hoa-don'] })
+useAutoRefresh(() => (capNhatNgayHienTai() ? undefined : load(true)), 1500, {
+  chuKyMs: 4000,
+  chuKyDuPhongMs: 5000,
+  chuDe: ['hoa-don'],
+})
 
 const resetFilters = () => {
   Object.assign(filters, defaultFilters())

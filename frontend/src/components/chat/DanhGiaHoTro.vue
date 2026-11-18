@@ -5,7 +5,7 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import DateInput from '../common/DateInput.vue'
 import { hoTroApi } from '../../services/chatService'
-import { formatNgayGio } from '../../utils/format'
+import { formatNgayGio, todayIso } from '../../utils/format'
 
 const emit = defineEmits(['mo'])
 
@@ -16,7 +16,26 @@ const MUC = [
 ]
 const lopMuc = (ma) => MUC.find((m) => m.ma === ma)?.lop ?? ''
 
-const loc = reactive({ tuNgay: '', denNgay: '', mucDo: '', idNhanVien: '' })
+// Từ ngày / Đến ngày mặc định là NGÀY HIỆN TẠI (giống Hóa đơn): mở trang thấy ngay đánh giá hôm nay;
+// "Đặt lại" cũng đưa về hôm nay. Muốn xem mọi ngày thì xóa trống hai ô ngày.
+const defaultFilters = () => {
+  const homNay = todayIso()
+  return { tuNgay: homNay, denNgay: homNay, mucDo: '', idNhanVien: '' }
+}
+const loc = reactive(defaultFilters())
+let homNayDangDung = loc.tuNgay
+
+function capNhatNgayHienTai() {
+  const moi = todayIso()
+  if (moi === homNayDangDung) return false
+  const cu = homNayDangDung
+  homNayDangDung = moi
+  let doi = false
+  if (loc.tuNgay === cu) { loc.tuNgay = moi; doi = true }
+  if (loc.denNgay === cu) { loc.denNgay = moi; doi = true }
+  return doi
+}
+
 const kq = ref(null)
 const dangTai = ref(true)
 const loi = ref('')
@@ -45,7 +64,8 @@ onMounted(tai)
 watch(() => ({ ...loc }), tai)
 
 function datLai() {
-  Object.assign(loc, { tuNgay: '', denNgay: '', mucDo: '', idNhanVien: '' })
+  Object.assign(loc, defaultFilters())
+  homNayDangDung = loc.tuNgay
 }
 const phanTram = (n) => (kq.value?.tong ? Math.round((n / kq.value.tong) * 100) : 0)
 </script>

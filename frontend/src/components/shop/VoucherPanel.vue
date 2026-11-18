@@ -34,8 +34,18 @@ function dieuKienMa(v) {
   return p.join(' · ')
 }
 
+const maHopLe = computed(() => {
+  const now = new Date()
+  return (danhSachMa.value || []).filter((v) => {
+    if (v.trangThai !== undefined && v.trangThai !== null && Number(v.trangThai) === 0) return false
+    if (v.ngayKetThuc && new Date(v.ngayKetThuc) < now) return false
+    if (v.lyDo && (v.lyDo.includes('hết hạn') || v.lyDo.includes('ngừng hoạt động'))) return false
+    return true
+  })
+})
+
 const maSapXep = computed(() =>
-  [...danhSachMa.value].sort(
+  [...maHopLe.value].sort(
     (a, b) => Number(b.dungDuoc) - Number(a.dungDuoc) || Number(b.soTienGiam || 0) - Number(a.soTienGiam || 0),
   ),
 )

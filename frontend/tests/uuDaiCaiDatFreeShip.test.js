@@ -178,15 +178,19 @@ describe('Trang Ưu đãi', () => {
 describe('Giỏ hàng: nhắc mua thêm để được miễn phí vận chuyển', () => {
   const dong = { bienTheId: 62, sanPhamId: 30, ten: 'Vợt', giaBan: 1_250_000, giaGoc: 1_250_000, soLuong: 1, soLuongTon: 27 }
 
-  it('chưa đạt ngưỡng thì nhắc số còn thiếu (phí giao như nhau ở mọi tỉnh); đạt rồi thì không nhắc', () => {
-    nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 2_000_000, phiGiaoHang: 25_000 })
+  it('chưa đạt ngưỡng thì nhắc số còn thiếu (kể cả giao Hà Nội, nay có phí); đạt rồi thì không nhắc', () => {
+    nhanCaiDatVanChuyen({ mienPhiBat: true, mienPhiTu: 2_000_000 })
     const cart = useCartStore()
     cart.addItem({ ...dong })
-    expect(cart.shippingFee).toBe(25_000) // phí quản lý cài, chưa chọn tỉnh vẫn biết
-    expect(cart.conThieuMienPhiShip).toBe(750_000)
+    expect(cart.conThieuMienPhiShip).toBe(750_000) // chưa chọn tỉnh
     cart.tinhGiao = 'Thành phố Đà Nẵng'
-    expect(cart.shippingFee).toBe(25_000)
+    expect(cart.shippingFee).toBe(40_000)
     expect(cart.conThieuMienPhiShip).toBe(750_000)
+    cart.tinhGiao = 'Thành phố Hà Nội'
+    cart.phuongGiao = 'Xã Sóc Sơn'
+    expect(cart.shippingFee).toBe(30_000)
+    expect(cart.conThieuMienPhiShip).toBe(750_000) // Hà Nội nay có phí: vẫn nhắc mua thêm
+    cart.tinhGiao = 'Thành phố Đà Nẵng'
     cart.updateQuantity(62, 2)
     expect(cart.mienPhiShip).toBe(true)
     expect(cart.shippingFee).toBe(0)

@@ -30,7 +30,7 @@ const tien = computed(() =>
     giamPhieu: cartStore.discountAmount,
     maPhieu: cartStore.appliedVoucher?.ma,
     coGiaoHang: true,
-    phiVanChuyen: cartStore.chuaCoPhi ? null : cartStore.shippingFee, // chưa tải được phí giao hàng: chưa tính
+    phiVanChuyen: cartStore.chuaCoTinh ? null : cartStore.shippingFee, // chưa chọn tỉnh: chưa tính phí giao
     tongThanhToan: cartStore.finalTotal,
   }),
 )
@@ -60,9 +60,16 @@ const form = ref({
   phuongThucThanhToan: 'COD', // COD hoặc QR
 })
 
-// Phí ship theo nơi khách chọn (Hà Nội: phường 25.000 / xã 30.000; tỉnh khác tùy tỉnh)
-watch(() => form.value.tinhThanh, (tinh) => { cartStore.tinhGiao = tinh || '' }, { immediate: true })
-watch(() => form.value.phuongXa, (p) => { cartStore.phuongGiao = p || '' }, { immediate: true })
+// Phí ship theo nơi khách chọn (Hà Nội: phường 25.000 / xã 30.000; tỉnh khác tùy tỉnh), cập nhật theo thời gian thực
+watch(
+  () => [form.value.tinhThanh, form.value.phuongXa],
+  ([tinh, phuong]) => {
+    cartStore.tinhGiao = tinh || ''
+    cartStore.phuongGiao = phuong || ''
+    cartStore.taiBaoGia()
+  },
+  { immediate: true },
+)
 
 // Sổ địa chỉ đã lưu của khách đang đăng nhập (tự điền địa chỉ mặc định)
 const savedAddresses = ref([])
@@ -140,7 +147,9 @@ function validate() {
   } else if (!/^0\d{9}$/.test(form.value.sdt.trim())) {
     errs.sdt = 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.'
   }
-  if (form.value.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email.trim())) {
+  if (!form.value.email.trim()) {
+    errs.email = 'Vui lòng nhập email nhận thông báo đơn hàng.'
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email.trim())) {
     errs.email = 'Email không đúng định dạng.'
   }
   if (!form.value.diaChiCuThe.trim()) {
@@ -181,30 +190,126 @@ async function kiemTraTruocKhiDat() {
     dong.push(`Giá một số sản phẩm vừa thay đổi theo đợt giảm giá hiện tại. Tổng thanh toán mới: ${formatMoney(cartStore.finalTotal)}.`)
   }
   const dangDung = cartStore.appliedVoucher
-  if (dangDung && cartStore.loiPhieu) {
-    dong.push(`Phiếu ${dangDung.ma} không còn dùng được: ${cartStore.loiPhieu}`)
-    return {
-      dong,
-      nut: [
-        { nhan: 'Đặt hàng không dùng phiếu', chinh: true, lam: async () => { cartStore.removeVoucher(); await cartStore.taiBaoGia(); await guiDon() } },
-        { nhan: 'Quay lại chọn phiếu khác', lam: null },
-      ],
+  if (dangDung) {
+    const dsMoi = await taiPhieuChoKhach(Math.round(cartStore.subTotal))
+    const conDung = dsMoi.find((x) => x.ma === dangDung.ma)
+    const tot = phieuTotNhat(dsMoi)
+    // 1. Phiếu ngừng hoạt động hoặc hết hạn
+    if (cartStore.loiPhieu || !conDung || !conDung.dungDuoc) {
+      const lyDo = cartStore.loiPhieu || conDung?.lyDo || 'phiếu đã hết hạn hoặc ngừng hoạt động'
+      dong.push(`Phiếu ${dangDung.ma} không còn dùng được (${lyDo}).`)
+      if (tot && tot.ma !== dangDung.ma) {
+        dong.push(`Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Bạn có muốn áp dụng không?`)
+        return {
+          dong,
+          nut: [
+            {
+              nhan: `Áp dụng ${tot.ma} và đặt hàng`,
+              chinh: true,
+              lam: async () => {
+                cartStore.setVoucher(phieuChoGio(tot))
+                await cartStore.taiBaoGia()
+                await guiDon()
+              },
+            },
+            {
+              nhan: 'Quay lại',
+              lam: null,
+            },
+          ],
+        }
+      }
+      return {
+        dong,
+        nut: [
+          {
+            nhan: 'Đặt hàng không dùng phiếu',
+            chinh: true,
+            lam: async () => {
+              cartStore.removeVoucher()
+              await cartStore.taiBaoGia()
+              await guiDon()
+            },
+          },
+          {
+            nhan: 'Quay lại',
+            lam: null,
+          },
+        ],
+      }
     }
-  }
-  const tot = phieuTotNhat(await taiPhieuChoKhach(Math.round(cartStore.subTotal)))
-  const dangGiam = dangDung ? Number(cartStore.discountAmount) || 0 : 0
-  if (tot && tot.ma !== dangDung?.ma && Number(tot.soTienGiam) > dangGiam) {
-    dong.push(
-      dangDung
-        ? `Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)}, nhiều hơn phiếu ${dangDung.ma} đang dùng (${formatMoney(dangGiam)}). Bạn có muốn áp dụng không?`
-        : `Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Bạn có muốn áp dụng không?`,
-    )
-    return {
-      dong,
-      nut: [
-        { nhan: `Áp dụng ${tot.ma} và đặt hàng`, chinh: true, lam: async () => { cartStore.setVoucher(phieuChoGio(tot)); await cartStore.taiBaoGia(); await guiDon() } },
-        { nhan: dangDung ? 'Không, giữ phiếu đang dùng' : 'Không, đặt hàng không dùng phiếu', lam: () => guiDon() },
-      ],
+    // 2. Phiếu bị sửa giá trị
+    const giamCu = Number(cartStore.discountAmount) || 0
+    const giamMoi = Number(conDung.soTienGiam) || 0
+    if (conDung && giamMoi !== giamCu) {
+      dong.push(`Phiếu ${dangDung.ma} vừa được cập nhật thay đổi giá trị (${formatMoney(giamCu)} → ${formatMoney(giamMoi)}). Bạn có muốn áp dụng mức giảm mới không?`)
+      return {
+        dong,
+        nut: [
+          {
+            nhan: 'Áp dụng',
+            chinh: true,
+            lam: async () => {
+              cartStore.setVoucher(phieuChoGio(conDung))
+              await cartStore.taiBaoGia()
+              await guiDon()
+            },
+          },
+          {
+            nhan: 'Hủy (bỏ áp dụng phiếu)',
+            lam: async () => {
+              cartStore.removeVoucher()
+              await cartStore.taiBaoGia()
+            },
+          },
+        ],
+      }
+    }
+    // 3. Có phiếu tốt hơn
+    if (tot && tot.ma !== dangDung.ma && Number(tot.soTienGiam) > giamCu) {
+      dong.push(`Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)}, nhiều hơn phiếu ${dangDung.ma} đang dùng (${formatMoney(giamCu)}). Bạn có muốn áp dụng không?`)
+      return {
+        dong,
+        nut: [
+          {
+            nhan: `Áp dụng ${tot.ma} và đặt hàng`,
+            chinh: true,
+            lam: async () => {
+              cartStore.setVoucher(phieuChoGio(tot))
+              await cartStore.taiBaoGia()
+              await guiDon()
+            },
+          },
+          {
+            nhan: 'Không, giữ phiếu đang dùng',
+            lam: () => guiDon(),
+          },
+        ],
+      }
+    }
+  } else {
+    const dsMoi = await taiPhieuChoKhach(Math.round(cartStore.subTotal))
+    const tot = phieuTotNhat(dsMoi)
+    if (tot && Number(tot.soTienGiam) > 0) {
+      dong.push(`Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Bạn có muốn áp dụng không?`)
+      return {
+        dong,
+        nut: [
+          {
+            nhan: `Áp dụng ${tot.ma} và đặt hàng`,
+            chinh: true,
+            lam: async () => {
+              cartStore.setVoucher(phieuChoGio(tot))
+              await cartStore.taiBaoGia()
+              await guiDon()
+            },
+          },
+          {
+            nhan: 'Không, đặt hàng không dùng phiếu',
+            lam: () => guiDon(),
+          },
+        ],
+      }
     }
   }
   if (dong.length) {
@@ -416,7 +521,7 @@ async function guiDon() {
               </div>
 
               <div class="col-12">
-                <label class="form-label small fw-semibold">Email nhận thông báo đơn hàng</label>
+                <label class="form-label small fw-semibold">Email nhận thông báo đơn hàng <span class="text-danger">*</span></label>
                 <input
                   type="email"
                   class="form-control"
@@ -621,7 +726,7 @@ async function guiDon() {
                 {{ d.nhan }}<template v-if="d.ma"> ({{ d.ma }})</template>
                 <VanChuyenLogo v-if="d.khoa === 'phi-van-chuyen'" ten="Giao Hàng Nhanh" />
               </span>
-              <span v-if="d.khoa === 'phi-van-chuyen' && d.so === null" class="co-val text-muted small">Chưa tính</span>
+              <span v-if="d.khoa === 'phi-van-chuyen' && d.so === null" class="co-val text-muted small">Chọn Tỉnh/Thành phố để tính</span>
               <span v-else-if="d.khoa === 'phi-van-chuyen' && d.so === 0" class="co-val co-green">Miễn phí</span>
               <span v-else-if="d.khoa === 'phieu' && !d.so" class="co-val text-muted">Không dùng phiếu</span>
               <span v-else class="co-val" :class="{ 'co-green': d.dau === '-' }">{{ d.dau === '-' ? '-' : '' }}{{ formatMoney(d.so) }}</span>

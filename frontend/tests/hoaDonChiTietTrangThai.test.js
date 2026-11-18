@@ -424,6 +424,19 @@ describe('Chuyển sang "Đã xác nhận" thì tự mở bản in hóa đơn (P
     await bamNut(w, 'In hóa đơn')
     expect(toast.toasts.some((t) => t.type === 'error' && t.message.includes('chặn cửa sổ in'))).toBe(true)
   })
+
+  it('lịch sử thanh toán: khoản hoàn phí (số tiền âm) hiển thị trạng thái "Đã hoàn trả"', async () => {
+    const chiTiet = donGiaoHang(0, [TAO, ls(2, 0, '2026-10-08T10:00:00', 'Hủy đơn')])
+    chiTiet.thanhToan = [
+      { id: 1, phuongThuc: 'Chuyển khoản ngân hàng', trangThai: 1, moTa: 'Thanh toán đơn hàng', thoiGian: '2026-10-08T09:10:00', soTien: 5950000 },
+      { id: 2, phuongThuc: 'Chuyển khoản ngân hàng', trangThai: 1, moTa: 'Hoàn phí cho khách khi hủy đơn', thoiGian: '2026-10-08T10:05:00', soTien: -5950000 },
+    ]
+    const w = await montar(chiTiet)
+    const items = w.findAll('.hd-pay-item')
+    expect(items).toHaveLength(2)
+    expect(items[0].text()).toContain('Đã thanh toán')
+    expect(items[1].text()).toContain('Đã hoàn trả')
+  })
 })
 
 /* ===== 4. Dòng thời gian ===== */
