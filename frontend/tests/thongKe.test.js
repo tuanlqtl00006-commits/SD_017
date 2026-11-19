@@ -436,4 +436,29 @@ describe('Trang Thống kê', () => {
     expect(body.find('.modal-footer').text()).toContain('2 đơn · Tổng doanh thu 7.240.000')
     w.unmount()
   })
+
+  it('chỉ tải hóa đơn của khoảng đang xem + kỳ trước; khoảng đã tải rồi thì không gọi lại, "Tất cả" mới tải hết', async () => {
+    api.get.mockImplementation(async (url) => (url === '/thong-ke' ? { data: {} } : { data: { totalPages: 1, content: [] } }))
+    const goiHoaDon = () => api.get.mock.calls.filter(([u]) => u === '/hoa-don').map(([, cfg]) => cfg.params)
+    const w = mount(ThongKe, { attachTo: document.body })
+    await flushPromises()
+    // Mặc định "Hôm nay": tải hôm qua (kỳ trước) tới hôm nay
+    expect(goiHoaDon()).toEqual([{ tuNgay: ngay(1), denNgay: ngay(0), page: 0, size: 2000 }])
+
+    const nut = (nhan) => w.findAll('.tk-pill-btn').find((b) => b.text() === nhan)
+    await nut('7 ngày qua').trigger('click')
+    await flushPromises()
+    expect(goiHoaDon().at(-1)).toEqual({ tuNgay: ngay(13), denNgay: ngay(0), page: 0, size: 2000 })
+
+    // Quay về "Hôm nay": nằm trong 14 ngày đã tải, không gọi thêm
+    const soLan = goiHoaDon().length
+    await nut('Hôm nay').trigger('click')
+    await flushPromises()
+    expect(goiHoaDon()).toHaveLength(soLan)
+
+    await nut('Tất cả').trigger('click')
+    await flushPromises()
+    expect(goiHoaDon().at(-1)).toEqual({ page: 0, size: 2000 })
+    w.unmount()
+  })
 })

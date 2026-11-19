@@ -94,6 +94,8 @@ export const useCartStore = defineStore('cart', () => {
   const phuongGiao = ref('')
 
   const baoGia = ref(null)
+  // Mức giảm của phiếu khách đã thấy { khoa, soTienGiam, chotPhieu } (góp ý 19/11: phiếu bị sửa khi đang thanh toán thì hỏi lại như quầy)
+  const phieuChot = ref(null)
   const khoaBaoGia = computed(() =>
     JSON.stringify({ i: items.value.map((i) => [i.bienTheId, Number(i.soLuong) || 0]), v: appliedVoucher.value?.ma || '', t: tinhGiao.value || '', p: phuongGiao.value || '' }),
   )
@@ -133,7 +135,13 @@ export const useCartStore = defineStore('cart', () => {
         }
       }
       if (doiGia || doiTon) saveToStorage(items.value)
-      baoGia.value = { ...data, khoa, doiGia }
+      // Chốt mức giảm của phiếu lần đầu thấy với giỏ + phiếu + tiền hàng này. Báo giá sau cùng giỏ mà mức khác = phiếu vừa bị sửa:
+      // giữ số đã chốt trên trang, hỏi lại khách lúc đặt hàng (phieuDoiMuc). Giỏ / tiền hàng đổi thì chốt theo số mới.
+      const khoaPhieu = JSON.stringify({ i: items.value.map((x) => [x.bienTheId, Number(x.soLuong) || 0]), v: data.maPhieu || '', t: Number(data.tongTien) || 0 })
+      if (data.maPhieu && !data.loiPhieu && phieuChot.value?.khoa !== khoaPhieu) {
+        phieuChot.value = { khoa: khoaPhieu, soTienGiam: Number(data.soTienGiam) || 0, chotPhieu: data.chotPhieu || null }
+      }
+      baoGia.value = { ...data, khoa, doiGia, khoaPhieu }
       return baoGia.value
     } catch {
       return null // mất kết nối: giữ số tính trên máy, máy chủ vẫn tính lại khi đặt hàng
@@ -159,8 +167,33 @@ export const useCartStore = defineStore('cart', () => {
   // Phiếu không dùng được (máy chủ báo lý do)
   const loiPhieu = computed(() => baoGiaHopLe.value?.loiPhieu || '')
 
+  // Mức đã chốt còn đúng với báo giá hiện tại (cùng giỏ, cùng phiếu, cùng tiền hàng, phiếu còn dùng được)
+  const chotHopLe = computed(() => {
+    const bg = baoGiaHopLe.value
+    return bg && bg.maPhieu && !bg.loiPhieu && phieuChot.value?.khoa === bg.khoaPhieu ? phieuChot.value : null
+  })
+  /** Phiếu vừa bị sửa mức giảm so với lúc khách thấy: { ma, cu, moi }; null nếu không đổi. */
+  const phieuDoiMuc = computed(() => {
+    const c = chotHopLe.value
+    if (!c) return null
+    const moi = Number(baoGiaHopLe.value.soTienGiam) || 0
+    return c.soTienGiam !== moi ? { ma: baoGiaHopLe.value.maPhieu, cu: c.soTienGiam, moi } : null
+  })
+  /** Khách bấm "Áp dụng" mức mới của phiếu. */
+  function nhanMucPhieuMoi() {
+    const bg = baoGiaHopLe.value
+    if (chotHopLe.value && bg) phieuChot.value = { ...phieuChot.value, soTienGiam: Number(bg.soTienGiam) || 0, chotPhieu: bg.chotPhieu || null }
+  }
+  /** Gửi kèm đơn: mức giảm khách đã thấy (+ chữ ký máy chủ); giu = true khi khách bấm "Hủy" để giữ nguyên mức đó. */
+  function phieuDaThay(giu = false) {
+    const c = chotHopLe.value
+    if (!c) return {}
+    return { soTienGiamDaThay: c.soTienGiam, chotPhieu: c.chotPhieu, giuNguyenGiamCu: giu ? true : null }
+  }
+
   const discountAmount = computed(() => {
     if (!appliedVoucher.value) return 0
+    if (chotHopLe.value) return chotHopLe.value.soTienGiam
     if (baoGiaHopLe.value) return Number(baoGiaHopLe.value.soTienGiam) || 0
     const v = appliedVoucher.value
     if (v.donToiThieu && subTotal.value < Number(v.donToiThieu)) {
@@ -212,7 +245,11 @@ export const useCartStore = defineStore('cart', () => {
   })
 
   const finalTotal = computed(() => {
-    if (baoGiaHopLe.value) return Number(baoGiaHopLe.value.thanhTien) || 0
+    if (baoGiaHopLe.value) {
+      // Phiếu vừa bị sửa: trang vẫn tính theo mức giảm khách đã thấy cho tới khi khách chọn
+      const lech = phieuDoiMuc.value ? phieuDoiMuc.value.moi - phieuDoiMuc.value.cu : 0
+      return Math.max(0, (Number(baoGiaHopLe.value.thanhTien) || 0) + lech)
+    }
     return Math.max(0, subTotal.value - discountAmount.value + shippingFee.value)
   })
 
@@ -275,6 +312,7 @@ export const useCartStore = defineStore('cart', () => {
   function clearCart() {
     items.value = []
     appliedVoucher.value = null
+    phieuChot.value = null
     tinhGiao.value = ''
     phuongGiao.value = ''
     saveToStorage(items.value)
@@ -290,10 +328,12 @@ export const useCartStore = defineStore('cart', () => {
 
   function setVoucher(voucher) {
     appliedVoucher.value = voucher
+    phieuChot.value = null // chọn phiếu (lại): chốt theo báo giá kế tiếp
   }
 
   function removeVoucher() {
     appliedVoucher.value = null
+    phieuChot.value = null
   }
 
   return {
@@ -306,6 +346,9 @@ export const useCartStore = defineStore('cart', () => {
     baoGia: baoGiaHopLe,
     taiBaoGia,
     discountAmount,
+    phieuDoiMuc,
+    nhanMucPhieuMoi,
+    phieuDaThay,
     tinhGiao,
     phuongGiao,
     chuaCoTinh,

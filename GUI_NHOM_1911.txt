@@ -1,0 +1,17 @@
+Case khó tại quầy:
+- Giá sản phẩm đổi khi đã có trong giỏ -> popup báo đổi giá, OK thì thêm dòng mới giá mới, dòng cũ giữ giá cũ (ĐÃ CÓ)
+- Đợt giảm giá đổi khi đã có trong giỏ -> dòng cũ giữ nguyên đợt cũ (cả % và giá gốc gạch), sản phẩm thêm sau mới theo đợt mới (CHƯA: % và giá gốc dòng cũ đổi theo đợt mới, bấm OK lúc thanh toán thì gộp hết về giá mới)
+- Phiếu giảm giá đổi -> bấm thanh toán hỏi có áp dụng phiếu mới không, OK / Hủy giữ nguyên (ĐÃ CÓ)
+- Nhiều dòng cùng sản phẩm khác đợt -> bỏ chữ "Kho còn N" dưới ô số lượng (CHƯA: dòng nào cũng hiện cùng một số)
+Case khó online:
+- Phiếu hết lượt / không đủ điều kiện -> báo khách trước khi đặt (ĐÃ CÓ)
+- Phiếu bị sửa mức giảm khi khách đang thanh toán -> hỏi lại như bên quầy, OK / Hủy giữ nguyên (CHƯA: trang tự đổi số luôn, không hỏi)
+- Đợt giảm giá đổi -> báo "đặt hàng với giá mới" (ĐÃ CÓ, hỏi lại có cần giữ đợt cũ như quầy không)
+Case khó tồn kho (quầy + online):
+- Quầy bán hết hàng mà đơn online đã chuyển khoản -> xác nhận đơn thì hiện popup: giữ hàng / gửi mail báo hết hàng / hoàn tiền (ĐÃ CÓ)
+- Hủy đơn online đã chuyển khoản -> hoàn trả luôn (ĐÃ CÓ)
+Khác:
+- Đăng nhập sai 5 lần -> khóa 5 phút (ĐÃ CÓ)
+- Viết test case đăng nhập cho admin + khách, khoảng 40-50 case (CHƯA)
+- Phí ship theo API bản đồ (ĐÃ CÓ, Vĩnh Phúc 26k đúng)
+- Liên hệ: thêm "Quy định cửa hàng" ở dưới, bỏ link "Chính sách đổi trả" (CHƯA)

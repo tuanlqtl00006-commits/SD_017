@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -53,6 +54,24 @@ public class HoaDonChoService {
     private final BanHangService banHangService;
 
     private Clock dongHo = Clock.systemDefaultZone();
+
+    /**
+     * Giá niêm yết + % đợt giảm giá của từng dòng hóa đơn chờ LÚC THÊM (theo id dòng). CSDL chỉ lưu đơn giá sau giảm và không được
+     * thêm cột, nên nhớ ở đây để dòng cũ luôn hiện đúng giá gốc gạch ngang + % của đợt cũ dù đợt bị sửa / kết thúc / xóa.
+     * Backend khởi động lại thì mất, khi đó dò lại bằng giaGocChoDong / phanTramChoDong.
+     */
+    record GiaLucThem(long donGia, long giaGoc, double phanTram) {
+    }
+
+    private final Map<Integer, GiaLucThem> giaLucThem = new ConcurrentHashMap<>();
+
+    private void nhoGiaLucThem(HoaDonChiTiet ct, GiaKhiXem gia) {
+        if (ct == null || ct.getId() == null) return;
+        SanPhamChiTiet c = ct.getSanPhamChiTiet();
+        long donGia = long0(ct.getDonGia());
+        long giaGoc = c.getGiaBan() == null ? donGia : c.getGiaBan();
+        giaLucThem.put(ct.getId(), new GiaLucThem(donGia, giaGoc, gia.phanTram().getOrDefault(c.getId().longValue(), 0.0)));
+    }
 
     void datDongHo(Clock dongHo) {
         this.dongHo = dongHo;
@@ -191,6 +210,7 @@ public class HoaDonChoService {
             cungGia.setSoLuong(tongSauKhiThem);
             cungGia.setThanhTien(BigDecimal.valueOf(donGia * tongSauKhiThem));
             chiTietRepo.save(cungGia);
+            if (!giaLucThem.containsKey(cungGia.getId())) nhoGiaLucThem(cungGia, gia); // dòng đúng giá hiện tại: giá gốc / % hiện tại là đúng
         } else {
             HoaDonChiTiet ct = new HoaDonChiTiet();
             ct.setHoaDon(h);
@@ -199,7 +219,7 @@ public class HoaDonChoService {
             ct.setDonGia(BigDecimal.valueOf(donGia));
             ct.setThanhTien(BigDecimal.valueOf(donGia * sl));
             ct.setTrangThai(1);
-            chiTietRepo.save(ct);
+            nhoGiaLucThem(chiTietRepo.save(ct), gia);
         }
         return capNhatTong(h, gia);
     }
@@ -241,7 +261,9 @@ public class HoaDonChoService {
         ct.setSoLuong(moi);
         ct.setThanhTien(BigDecimal.valueOf(long0(ct.getDonGia()) * moi));
         chiTietRepo.save(ct);
-        return capNhatTong(h, giaHienTai());
+        GiaKhiXem gia = giaHienTai();
+        if (moi > cu && Boolean.TRUE.equals(req.xacNhanGiaMoi())) nhoGiaLucThem(ct, gia); // OK: cả dòng sang đợt mới
+        return capNhatTong(h, gia);
     }
 
     @Transactional
@@ -251,6 +273,7 @@ public class HoaDonChoService {
         int sl = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
         if (sl > 0) spctRepo.congTonKho(ct.getSanPhamChiTiet().getId(), sl);
         chiTietRepo.delete(ct);
+        giaLucThem.remove(ct.getId());
         return capNhatTong(h, giaHienTai());
     }
 
@@ -269,11 +292,13 @@ public class HoaDonChoService {
                 gop.setThanhTien(BigDecimal.valueOf(moi * gop.getSoLuong()));
                 chiTietRepo.save(gop);
                 chiTietRepo.delete(ct);
+                giaLucThem.remove(ct.getId());
                 continue;
             }
             ct.setDonGia(BigDecimal.valueOf(moi));
             ct.setThanhTien(BigDecimal.valueOf(moi * ct.getSoLuong()));
             chiTietRepo.save(ct);
+            nhoGiaLucThem(ct, gia);
             theoBienTheGia.put(khoa, ct);
         }
         return capNhatTong(h, gia);
@@ -396,8 +421,13 @@ public class HoaDonChoService {
 
             long giaGoc = giaHienTai;
             double phanTramGiam = gia.phanTram().getOrDefault(c.getId().longValue(), 0.0);
-            // Dòng đúng giá hiện tại: giá gốc / % là của đợt đang chạy, không cần dò lại các mức giảm (đỡ 1 truy vấn mỗi dòng mỗi lần tải)
-            if (giamGiaService != null && donGia != giaMoi) {
+            GiaLucThem nho = giaLucThem.get(ct.getId());
+            if (nho != null && nho.donGia() == donGia) {
+                // Đã nhớ giá lúc thêm: dòng giữ nguyên giá gốc gạch ngang + % của đợt lúc thêm, không đổi theo đợt mới
+                giaGoc = nho.giaGoc();
+                phanTramGiam = nho.phanTram();
+            } else if (giamGiaService != null && donGia != giaMoi) {
+                // Dòng đúng giá hiện tại: giá gốc / % là của đợt đang chạy, không cần dò lại các mức giảm (đỡ 1 truy vấn mỗi dòng mỗi lần tải)
                 List<Double> muc = giamGiaService.mucGiamCoThe(c.getId().longValue(), thoiDiems);
                 giaGoc = giaGocChoDong(donGia, giaHienTai, muc, phanTramGiam);
                 phanTramGiam = phanTramChoDong(donGia, giaGoc, muc, phanTramGiam);
@@ -450,7 +480,11 @@ public class HoaDonChoService {
             }
         }
 
-        // 3. Nếu mức đợt đầu danh sách tính ra được
+        // 3. Không còn mức nào khớp (vd đợt đang chạy bị sửa 20% -> 30%, đợt cũ bị xóa): coi giá niêm yết không đổi,
+        //    dòng cũ hiện đúng giá gốc + % lúc thêm, không tính ngược theo % của đợt mới ra giá gốc lẻ.
+        if (donGia < giaHienTai) return giaHienTai;
+
+        // 4. Giá niêm yết đã hạ xuống dưới giá dòng: thử tính ngược theo mức đợt đầu danh sách
         if (!mucCoThe.isEmpty() && mucCoThe.get(0) > 0 && mucCoThe.get(0) < 100) {
             return Math.round(donGia * 100.0 / (100.0 - mucCoThe.get(0)));
         }

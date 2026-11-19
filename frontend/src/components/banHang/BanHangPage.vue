@@ -71,7 +71,6 @@ function phuMoi(id = null) {
     maPhieu: '', // luôn là phiếu giảm nhiều nhất do hệ thống tự áp (taiPhieu), nhân viên không chọn
     soTienGiam: null, // số tiền giảm của phiếu đã chốt (không tự cập nhật khi phiếu bị sửa)
     giuNguyenGiamCu: false, // true nếu nhân viên chọn Hủy (giữ nguyên giảm cũ)
-    daHoiDot: false, // đã xác nhận hoặc từ chối đợt giảm giá mới
     ghiChu: '',
     phuongThuc: 'TIEN_MAT',
     tienMat: '',
@@ -251,47 +250,8 @@ async function dongYGiaMoi() {
   await themSanPham({ id: g.idBienThe, tenSanPham: g.ten, maSpct: g.ma }, null, g.soLuong, true)
 }
 
-/* ----- Đợt giảm giá thay đổi đối với sản phẩm trong giỏ hàng -----
- * Dòng cũ giữ lại trong giỏ hàng hiển thị đầy đủ giá gốc gạch ngang bên dưới giá sau giảm (không làm mất hiển thị giảm giá cũ);
- * khi đợt giảm giá thay đổi: bấm OK áp dụng đợt mới, bấm Hủy giữ/quay lại đợt giảm giá cũ */
-const hoiDotGiamGia = ref(null) // { items: [] }
-const dangChoXacNhanSauHoiDot = ref(false)
-function moHoiDotGiamGia(items, tuThanhToan = false) {
-  const ds = items || (hdServer.value.items || []).filter((d) => d.giaDoi)
-  if (!ds.length) return
-  dangChoXacNhanSauHoiDot.value = tuThanhToan
-  hoiDotGiamGia.value = { items: ds }
-}
-async function dongYDotGiamGiaMoi() {
-  const id = hd.value.id
-  const tiepTuc = dangChoXacNhanSauHoiDot.value
-  dangChoXacNhanSauHoiDot.value = false
-  hoiDotGiamGia.value = null
-  if (!id || dangLam.value) return
-  dangLam.value = true
-  try {
-    const moi = (await api.post(`/ban-hang/hoa-don-cho/${id}/cap-nhat-gia`)).data
-    thayHoaDon(moi)
-    if (phu[id]) phu[id].daHoiDot = true
-    timSp.value?.taiLai()
-    toast.success('Đã áp dụng đợt giảm giá mới cho giỏ hàng.')
-    if (tiepTuc) await moXacNhan()
-  } catch (e) {
-    baoLoiCho(e, 'Không cập nhật được giá mới.')
-  } finally {
-    dangLam.value = false
-  }
-}
-async function huyDotGiamGiaMoi() {
-  const id = hd.value.id
-  const tiepTuc = dangChoXacNhanSauHoiDot.value
-  dangChoXacNhanSauHoiDot.value = false
-  hoiDotGiamGia.value = null
-  if (id && phu[id]) phu[id].daHoiDot = true
-  // Giữ đợt cũ: các dòng vẫn giữ giá lúc thêm nên không cần gọi máy chủ, chỉ đi tiếp
-  if (!id || dangLam.value) return
-  if (tiepTuc) await moXacNhan()
-}
+/* Đợt giảm giá thay đổi sau khi sản phẩm đã vào giỏ: dòng đã thêm giữ giá lúc thêm (giá gốc gạch ngang dưới giá sau giảm),
+ * bấm Thanh toán không hỏi lại (góp ý 19/11). */
 
 async function themSanPham(sp, loiQuet, soLuong = 1, opt = false) {
   const xacNhanGiaMoi = typeof opt === 'boolean' ? opt : Boolean(opt?.xacNhanGiaMoi)
@@ -364,6 +324,9 @@ async function xoaDong(d) {
 
 const tienHang = computed(() => tongTienHang(hd.value.gio))
 const giamDot = computed(() => tienGiamDot(hd.value.gio))
+
+/** Dòng có biến thể trùng với dòng khác trong giỏ (cùng sản phẩm, khác giá / khác đợt giảm giá). */
+const trungBienThe = (d) => hd.value.gio.filter((x) => x.idBienThe === d.idBienThe).length > 1
 
 const phanTramGiamDong = (d) => {
   if (d.phanTramGiam && Number(d.phanTramGiam) > 0) return Number(d.phanTramGiam)
@@ -931,13 +894,7 @@ async function moXacNhan() {
     if (canVaoCa.value) moCa.value = true
     return
   }
-  if (hdServer.value.coGiaDoi && !phu[hd.value.id]?.daHoiDot) {
-    const itemsDoi = (hdServer.value.items || []).filter((d) => d.giaDoi)
-    if (itemsDoi.length) {
-      moHoiDotGiamGia(itemsDoi, true)
-      return
-    }
-  }
+  // Đợt giảm giá đổi sau khi đã thêm vào giỏ: KHÔNG hỏi lại lúc bấm Thanh toán (góp ý 19/11), mỗi dòng giữ giá lúc thêm
   if (dangKiemPhieu.value) return
   dangKiemPhieu.value = true
   try {
@@ -1195,7 +1152,8 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                           <input :value="d.soLuong" type="number" min="1" :max="d.soLuong + d.tonKho" :disabled="dangLam" :aria-label="`Số lượng ${d.ten}`" @change="doiSl(d, $event.target.value)" />
                           <button type="button" :aria-label="`Tăng số lượng ${d.ten}`" :disabled="dangLam || d.tonKho <= 0" @click="doiSl(d, d.soLuong + 1)"><i class="bi bi-plus"></i></button>
                         </div>
-                        <small class="text-muted">Kho còn {{ d.tonKho }}</small>
+                        <!-- Nhiều dòng cùng biến thể (khác giá / khác đợt) dùng chung một tồn kho: bỏ chữ để không dòng nào cũng lặp cùng một số -->
+                        <small v-if="!trungBienThe(d)" class="text-muted">Kho còn {{ d.tonKho }}</small>
                       </div>
                     </td>
                     <td class="fw-semibold ad-nowrap bh-thanh-tien">{{ formatMoney(d.donGia * d.soLuong) }}</td>
@@ -1556,31 +1514,6 @@ const soLuongTab = (h) => tongSoLuong(h.items)
       <template #footer>
         <span class="me-auto small text-muted">Đang thêm vào <b>{{ hd.maHoaDon || 'hóa đơn mới' }}</b> · {{ tongSoLuong(hd.gio) }} sản phẩm trong giỏ</span>
         <button type="button" class="ad-btn" data-testid="bh-dong-chon-sp" @click="moChonSp = false">Đóng</button>
-      </template>
-    </BaseModal>
-    <!-- Popup đợt giảm giá thay đổi: OK thì áp dụng đợt mới, Hủy thì giữ/quay lại đợt giảm giá cũ -->
-    <BaseModal v-if="hoiDotGiamGia" title="Đợt giảm giá đã thay đổi" size="md" @close="huyDotGiamGiaMoi">
-      <div data-testid="bh-hoi-dot">
-        <p class="mb-2">Đợt giảm giá của một số sản phẩm trong giỏ hàng vừa thay đổi:</p>
-        <ul class="list-unstyled mb-3">
-          <li v-for="d in hoiDotGiamGia.items" :key="d.id" class="py-1 border-bottom d-flex justify-content-between align-items-center">
-            <span>
-              <b>{{ d.ten }}</b> <small class="text-muted">{{ d.ma }}</small>
-            </span>
-            <span>
-              <span class="text-muted text-decoration-line-through me-1">{{ formatMoney(d.donGia) }}</span>
-              <i class="bi bi-arrow-right mx-1" aria-hidden="true"></i>
-              <b class="text-danger">{{ formatMoney(d.giaHienTai) }}</b>
-            </span>
-          </li>
-        </ul>
-        <p class="mb-0 text-muted small">
-          Bấm <b>OK</b> để áp dụng đợt giảm giá mới cho giỏ hàng, bấm <b>Hủy</b> để giữ lại đợt giảm giá cũ.
-        </p>
-      </div>
-      <template #footer>
-        <button type="button" class="ad-btn" data-testid="bh-hoi-dot-huy" @click="huyDotGiamGiaMoi">Hủy</button>
-        <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-hoi-dot-ok" :disabled="dangLam" @click="dongYDotGiamGiaMoi">OK</button>
       </template>
     </BaseModal>
     <!-- Popup sản phẩm đã đổi giá: OK thì thêm dòng mới theo giá mới, dòng cũ giữ giá cũ -->

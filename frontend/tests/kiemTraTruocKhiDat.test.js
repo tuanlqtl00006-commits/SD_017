@@ -27,16 +27,16 @@ import { useCartStore } from '../src/stores/cart'
 const body = () => new DOMWrapper(document.body)
 const PHIEU_200K = { ma: 'VCH200', ten: 'Giảm 200k', loaiGiam: 2, giaTriGiam: 200000, giamToiDa: null, donToiThieu: 0, dungDuoc: true, soTienGiam: 200000 }
 
-function giaMayChu({ phieu = [], loiPhieu = () => null } = {}) {
+function giaMayChu({ phieu = [], loiPhieu = () => null, mucGiam = () => 200000 } = {}) {
   api.get.mockImplementation(async (url) => (url === '/khach/phieu-giam-gia' ? { data: phieu } : { data: [] }))
   api.post.mockImplementation(async (url, b) => {
     if (url === '/cua-hang/tinh-tien') {
       const loi = b.maPhieuGiamGia ? loiPhieu(b.maPhieuGiamGia) : null
-      const giam = b.maPhieuGiamGia && !loi ? 200000 : 0
+      const giam = b.maPhieuGiamGia && !loi ? mucGiam() : 0
       return { data: {
         dong: [{ idSanPhamChiTiet: 52, conBan: true, giaGoc: 1000000, donGia: 1000000, soLuong: 1, soLuongTon: 9 }],
         tongTienGoc: 1000000, tienGiamTheoDot: 0, tongTien: 1000000, maPhieu: giam ? b.maPhieuGiamGia : null,
-        soTienGiam: giam, loiPhieu: loi, phiVanChuyen: 0, thanhTien: 1000000 - giam,
+        soTienGiam: giam, chotPhieu: giam ? `ky-${giam}` : null, loiPhieu: loi, phiVanChuyen: 0, thanhTien: 1000000 - giam,
       } }
     }
     if (url === '/cua-hang/dat-hang') return { data: { maHoaDon: 'HD999', tongTien: 1000000, soTienGiam: 0, phiVanChuyen: 0, thanhTien: 1000000 } }
@@ -142,23 +142,40 @@ describe('Kiểm tra lại phiếu / giá khi bấm Đặt hàng', () => {
     expect(lenhDat()[0][1].maPhieuGiamGia).toBe('VCH200')
   })
 
-  it('phiếu bị sửa mức giảm: popup thông báo thay đổi, bấm Áp dụng thì áp dụng phiếu mới, bấm Hủy thì bỏ áp dụng phiếu giảm giá', async () => {
+  // Góp ý 19/11 (thay cho 17/11 [19:31] "Hủy = bỏ phiếu"): phiếu bị sửa khi khách đang thanh toán thì hỏi lại như bên quầy, Hủy giữ nguyên
+  async function phieuBiSua() {
+    let giam = 200000
     const phieuSua = { ma: 'VCH200', ten: 'Giảm 100k', loaiGiam: 2, giaTriGiam: 100000, giamToiDa: null, donToiThieu: 0, dungDuoc: true, soTienGiam: 100000 }
-    giaMayChu({ phieu: [phieuSua] })
-    const { w, cart } = await moTrang({ ma: 'VCH200', ten: 'Giảm 200k', loaiGiam: 2, giaTriGiam: 200000, donToiThieu: 0, soTienGiam: 200000 })
-    cart.discountAmount = 200000
-
-    await bamDatHang(w)
+    giaMayChu({ phieu: [phieuSua], mucGiam: () => giam })
+    const kq = await moTrang({ ma: 'VCH200', ten: 'Giảm 200k', loaiGiam: 2, giaTriGiam: 200000, donToiThieu: 0 })
+    expect(kq.cart.discountAmount).toBe(200000)
+    giam = 100000 // quản lý sửa phiếu 200k -> 100k
+    await kq.cart.taiBaoGia()
+    expect(kq.cart.discountAmount).toBe(200000) // trang không tự đổi số
+    expect(kq.cart.finalTotal).toBe(800000)
+    await bamDatHang(kq.w)
+    expect(lenhDat()).toHaveLength(0)
     expect(hop().text()).toContain('Phiếu VCH200 vừa đổi mức giảm')
     expect(hop().text()).toContain('200.000')
     expect(hop().text()).toContain('100.000')
+    expect(hop().findAll('button').map((b) => b.text())).toEqual(['Áp dụng', 'Hủy'])
+    return kq
+  }
 
-    // Bấm Hủy: không áp dụng phiếu, vẫn đặt hàng không dùng phiếu (góp ý 17/11 [19:31])
+  it('phiếu bị sửa mức giảm: trang giữ số đã thấy, hỏi lại; bấm Hủy thì giữ nguyên mức cũ (gửi kèm chữ ký máy chủ)', async () => {
+    await phieuBiSua()
     await nutTrongHop('Hủy').trigger('click')
     await flushPromises()
-    expect(cart.appliedVoucher).toBeNull()
     expect(lenhDat()).toHaveLength(1)
-    expect(lenhDat()[0][1].maPhieuGiamGia).toBeNull()
+    expect(lenhDat()[0][1]).toMatchObject({ maPhieuGiamGia: 'VCH200', soTienGiamDaThay: 200000, giuNguyenGiamCu: true, chotPhieu: 'ky-200000' })
+  })
+
+  it('phiếu bị sửa mức giảm: bấm Áp dụng thì đặt theo mức mới', async () => {
+    await phieuBiSua()
+    await nutTrongHop('Áp dụng').trigger('click')
+    await flushPromises()
+    expect(lenhDat()).toHaveLength(1)
+    expect(lenhDat()[0][1]).toMatchObject({ maPhieuGiamGia: 'VCH200', soTienGiamDaThay: 100000, giuNguyenGiamCu: null, chotPhieu: 'ky-100000' })
   })
 
   it('bắt buộc nhập email nhận thông báo đơn hàng cho cả khách đăng nhập và không đăng nhập', async () => {

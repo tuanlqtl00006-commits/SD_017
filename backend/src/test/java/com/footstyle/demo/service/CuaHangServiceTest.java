@@ -153,6 +153,71 @@ class CuaHangServiceTest {
         assertNull(saiMa.get("phiVanChuyen"), "chưa chọn tỉnh thì chưa tính được phí giao (phí theo nơi nhận)");
     }
 
+    @Autowired
+    private PhieuGiamGiaRepository phieuRepo;
+
+    /** Góp ý 19/11: phiếu bị sửa mức giảm khi khách đang thanh toán -> hỏi lại; "Hủy" giữ nguyên mức đã thấy (chỉ khi có chữ ký máy chủ). */
+    @Test
+    void phieuBiSuaMucGiam_hoiLai_giuNguyenMucCuChiKhiCoChuKyDung() {
+        Integer idBt = (Integer) bienTheConHang(1).get("id");
+        List<CuaHangService.DatHangOnlineRequest.ItemRequest> gio = List.of(new CuaHangService.DatHangOnlineRequest.ItemRequest(idBt, 1));
+        java.time.LocalDateTime bayGio = java.time.LocalDateTime.now();
+        PhieuGiamGia p = new PhieuGiamGia();
+        p.setMaPhieu("TSUAMUC19");
+        p.setTenPhieu("Phiếu thử sửa mức giảm");
+        p.setDoiTuongApDung(PhieuGiamGia.DOI_TUONG_TAT_CA);
+        p.setLoaiGiam(PhieuGiamGia.LOAI_SO_TIEN);
+        p.setGiaTriGiam(50_000L);
+        p.setGiaTriDonHangToiThieu(0L);
+        p.setSoLuong(100);
+        p.setSoLuongDaDung(0);
+        p.setNgayBatDau(bayGio.minusDays(1));
+        p.setNgayKetThuc(bayGio.plusDays(1));
+        p.setNgayTao(bayGio);
+        p.setTrangThai(PhieuGiamGia.HOAT_DONG);
+        p = phieuRepo.saveAndFlush(p);
+
+        Map<String, Object> xem = cuaHangService.tinhTien(new CuaHangService.TinhTienRequest(gio, "TSUAMUC19", null, null));
+        assertEquals(50_000L, ((Number) xem.get("soTienGiam")).longValue());
+        String chot = (String) xem.get("chotPhieu");
+        assertNotNull(chot, "báo giá có phiếu thì kèm chữ ký mức giảm");
+
+        p.setGiaTriGiam(30_000L); // quản lý sửa phiếu khi khách đang ở trang thanh toán
+        phieuRepo.saveAndFlush(p);
+
+        com.footstyle.demo.exception.ApiException hoi = assertThrows(com.footstyle.demo.exception.ApiException.class,
+                () -> cuaHangService.datHangOnline(donThu(gio, 50_000L, null, null)));
+        assertEquals("PHIEU_THAY_DOI", hoi.getCode(), "chưa trả lời thì không tự đổi số, hỏi lại khách");
+        assertEquals(30_000L, hoi.getChiTiet().get("soTienGiamMoi"));
+
+        com.footstyle.demo.exception.ApiException gia = assertThrows(com.footstyle.demo.exception.ApiException.class,
+                () -> cuaHangService.datHangOnline(donThu(gio, 900_000L, true, chot)));
+        assertEquals("PHIEU_THAY_DOI", gia.getCode(), "tự gửi mức giảm khác chữ ký thì không được giữ");
+
+        Map<String, Object> giu = cuaHangService.datHangOnline(donThu(gio, 50_000L, true, chot));
+        assertEquals(50_000L, ((Number) giu.get("soTienGiam")).longValue(), "Hủy = giữ nguyên mức giảm đã thấy");
+
+        Map<String, Object> moi = cuaHangService.datHangOnline(donThu(gio, 30_000L, null, null));
+        assertEquals(30_000L, ((Number) moi.get("soTienGiam")).longValue(), "Áp dụng = mức mới");
+    }
+
+    @Test
+    void chuKyMucPhieu_hetHanHoacSaiThiKhongHopLe() {
+        long luc = 1_000_000L;
+        String ky = cuaHangService.kyMucPhieu("ABC", 50_000L, 500_000L, luc);
+        assertTrue(cuaHangService.chotPhieuHopLe(ky, "abc", 50_000L, 500_000L, luc + 60));
+        assertFalse(cuaHangService.chotPhieuHopLe(ky, "ABC", 50_000L, 600_000L, luc + 60), "giỏ hàng đổi tổng tiền");
+        assertFalse(cuaHangService.chotPhieuHopLe(ky, "ABC", 50_000L, 500_000L, luc + CuaHangService.HAN_GIU_MUC_PHIEU_GIAY + 1), "quá hạn");
+        assertFalse(cuaHangService.chotPhieuHopLe("1000000.gia", "ABC", 50_000L, 500_000L, luc + 60));
+        assertFalse(cuaHangService.chotPhieuHopLe(null, "ABC", 50_000L, 500_000L, luc));
+    }
+
+    private static CuaHangService.DatHangOnlineRequest donThu(List<CuaHangService.DatHangOnlineRequest.ItemRequest> gio, Long daThay,
+                                                              Boolean giu, String chot) {
+        return new CuaHangService.DatHangOnlineRequest("Khách Thử Phiếu", "0900000019", "khach@footstyle.test", "19 Ngõ Thử",
+                "Thành phố Hà Nội", "Phường Hà Đông", null, null, 1, "TSUAMUC19", gio, daThay, giu, chot);
+    }
+
     /** Review 05/11 (thầy bấm ra): trang chi tiết không chọn được 3U/4U, chu vi cán vì từng biến thể thiếu mã (id) của chúng. */
     @Test
     @SuppressWarnings("unchecked")

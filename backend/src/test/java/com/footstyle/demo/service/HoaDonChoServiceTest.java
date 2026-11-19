@@ -376,6 +376,46 @@ class HoaDonChoServiceTest {
     }
 
     @Test
+    void suaPhanTramCuaDot_dongCuGiuPhanTramVaGiaGocDotCu_dongThemSauTheoDotMoi() {
+        phanTramDot.put(1L, 20.0);
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1));
+        phanTramDot.put(1L, 30.0); // quản lý sửa thẳng đợt đang chạy 20% -> 30%: không còn đợt 20% nào để dò lại
+
+        Map<String, Object> hd = service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1, true));
+        Map<String, Object> cu = items(hd).get(0);
+        assertEquals(3_432_000L, cu.get("donGia"), "dòng cũ giữ giá đợt cũ");
+        assertEquals(4_290_000L, cu.get("giaGoc"), "giá gốc gạch ngang của dòng cũ là giá niêm yết lúc thêm");
+        assertEquals(20.0, cu.get("phanTramGiam"), "dòng cũ vẫn hiện -20%, không đổi theo đợt mới");
+        Map<String, Object> moi = items(hd).get(1);
+        assertEquals(3_003_000L, moi.get("donGia"));
+        assertEquals(4_290_000L, moi.get("giaGoc"));
+        assertEquals(30.0, moi.get("phanTramGiam"), "dòng thêm sau theo đợt mới");
+    }
+
+    @Test
+    void tangGiaNiemYet_khongCoDot_dongCuKhongHienGiamGiaGia() {
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1));
+        vot.setGiaBan(4_590_000L);
+
+        Map<String, Object> cu = items(service.danhSach().get(0)).get(0);
+        assertEquals(4_290_000L, cu.get("donGia"));
+        assertEquals(4_290_000L, cu.get("giaGoc"), "không gạch giá 4.590.000 như thể đang giảm");
+        assertEquals(0.0, cu.get("phanTramGiam"));
+        assertEquals(true, cu.get("giaDoi"), "vẫn báo dòng có giá khác giá hiện tại");
+    }
+
+    @Test
+    void doGiaGocDongCu_khiKhongConDotCu_coiGiaNiemYetKhongDoi() {
+        // Backend khởi động lại (mất giá lúc thêm đã nhớ): đợt 20% đã bị sửa thành 30%, chỉ còn mức 30%
+        assertEquals(4_290_000L, HoaDonChoService.giaGocChoDong(3_432_000L, 4_290_000L, List.of(30.0), 30.0));
+        assertEquals(20.0, HoaDonChoService.phanTramChoDong(3_432_000L, 4_290_000L, List.of(30.0), 30.0));
+        // Đổi giá niêm yết (đợt 20% vẫn chạy): tính ngược ra giá niêm yết cũ tròn nghìn
+        assertEquals(4_290_000L, HoaDonChoService.giaGocChoDong(3_432_000L, 3_990_000L, List.of(20.0), 20.0));
+    }
+
+    @Test
     void doiSoLuong_xoaDong_huy_traLaiKho() {
         Integer id = taoHoaDon();
         Map<String, Object> hd = service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1));

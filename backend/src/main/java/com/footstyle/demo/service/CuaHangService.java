@@ -93,9 +93,68 @@ public class CuaHangService {
             Integer idKhachHang,
             Integer idPhuongThucThanhToan,
             String maPhieuGiamGia,
-            List<ItemRequest> chiTiet
+            List<ItemRequest> chiTiet,
+            /** Mức giảm của phiếu khách đang thấy trên trang (theo báo giá /tinh-tien). Khác mức hiện tại thì hỏi lại khách (PHIEU_THAY_DOI). */
+            Long soTienGiamDaThay,
+            /** Khách bấm "Hủy" khi được hỏi phiếu vừa đổi mức giảm: giữ nguyên mức đã thấy (cần chotPhieu hợp lệ). */
+            Boolean giuNguyenGiamCu,
+            /** Chữ ký máy chủ trả kèm báo giá cho mức giảm đã thấy (chotPhieu), để khách không tự gửi mức giảm tùy ý. */
+            String chotPhieu
     ) {
         public record ItemRequest(Integer idSanPhamChiTiet, Integer soLuong) {}
+
+        public DatHangOnlineRequest(String hoTenNguoiNhan, String sdtNguoiNhan, String emailNguoiNhan, String diaChiGiaoHang, String tinhThanh,
+                                    String phuongXa, String ghiChu, Integer idKhachHang, Integer idPhuongThucThanhToan, String maPhieuGiamGia,
+                                    List<ItemRequest> chiTiet) {
+            this(hoTenNguoiNhan, sdtNguoiNhan, emailNguoiNhan, diaChiGiaoHang, tinhThanh, phuongXa, ghiChu, idKhachHang, idPhuongThucThanhToan,
+                    maPhieuGiamGia, chiTiet, null, null, null);
+        }
+    }
+
+    /*
+     * Phiếu bị sửa mức giảm khi khách đang thanh toán (góp ý 19/11, giống bên quầy): hỏi lại khách, "Áp dụng" lấy mức mới,
+     * "Hủy" giữ nguyên mức đã thấy. Trang khách ai cũng gửi được nên KHÔNG tin số tiền giảm khách gửi lên: báo giá /tinh-tien
+     * ký (HMAC, khóa ngẫu nhiên chỉ nằm trong máy chủ) lên mã phiếu + mức giảm + tổng tiền hàng; giữ mức cũ chỉ được khi chữ ký
+     * đúng, tổng tiền hàng không đổi và chưa quá HAN_GIU_MUC_PHIEU_GIAY. Không cần thêm bảng / cột.
+     */
+    static final long HAN_GIU_MUC_PHIEU_GIAY = 2 * 60 * 60;
+    private final byte[] khoaKyPhieu = taoKhoaKy();
+
+    private static byte[] taoKhoaKy() {
+        byte[] k = new byte[32];
+        new java.security.SecureRandom().nextBytes(k);
+        return k;
+    }
+
+    String kyMucPhieu(String maPhieu, long soTienGiam, long tongTien, long lucGiay) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(khoaKyPhieu, "HmacSHA256"));
+            String noiDung = maPhieu.trim().toUpperCase(Locale.ROOT) + "|" + soTienGiam + "|" + tongTien + "|" + lucGiay;
+            byte[] ky = mac.doFinal(noiDung.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return lucGiay + "." + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(ky);
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException("Không ký được mức giảm của phiếu.", e);
+        }
+    }
+
+    boolean chotPhieuHopLe(String chot, String maPhieu, long soTienGiam, long tongTien, long bayGioGiay) {
+        if (chot == null || maPhieu == null) return false;
+        int cham = chot.indexOf('.');
+        if (cham <= 0) return false;
+        long luc;
+        try {
+            luc = Long.parseLong(chot.substring(0, cham));
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        if (bayGioGiay < luc || bayGioGiay - luc > HAN_GIU_MUC_PHIEU_GIAY) return false;
+        byte[] dung = kyMucPhieu(maPhieu, soTienGiam, tongTien, luc).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return java.security.MessageDigest.isEqual(dung, chot.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static long bayGioGiay() {
+        return java.time.Instant.now().getEpochSecond();
     }
 
     private LocalDateTime bayGio() {
@@ -601,6 +660,21 @@ public class CuaHangService {
             if (lyDoPhieu != null) throw ApiException.badRequest("Không áp dụng được mã " + p.getMaPhieu() + ": " + lyDoPhieu);
             phieu = p;
             soTienGiam = PhieuApDung.soTienGiam(p, tongTien);
+            // Phiếu vừa bị sửa mức giảm so với lúc khách xem: hỏi lại (Áp dụng mức mới / Hủy giữ nguyên mức đã thấy)
+            Long daThay = req.soTienGiamDaThay();
+            if (daThay != null && daThay != soTienGiam) {
+                if (Boolean.TRUE.equals(req.giuNguyenGiamCu()) && chotPhieuHopLe(req.chotPhieu(), p.getMaPhieu(), daThay, tongTien, bayGioGiay())) {
+                    soTienGiam = Math.min(daThay, tongTien);
+                } else {
+                    Map<String, Object> ct = new LinkedHashMap<>();
+                    ct.put("maPhieu", p.getMaPhieu());
+                    ct.put("soTienGiamCu", daThay);
+                    ct.put("soTienGiamMoi", soTienGiam);
+                    throw new ApiException(HttpStatus.CONFLICT, Boolean.TRUE.equals(req.giuNguyenGiamCu())
+                            ? "Không giữ được mức giảm cũ của phiếu " + p.getMaPhieu() + " (giỏ hàng đã đổi hoặc đã quá lâu). Vui lòng kiểm tra lại tổng tiền rồi đặt hàng."
+                            : "Phiếu " + p.getMaPhieu() + " vừa đổi mức giảm.", "PHIEU_THAY_DOI", ct);
+                }
+            }
             // Trừ lượt có điều kiện (còn lượt mới trừ): 2 khách cùng dùng lượt cuối thì người sau bị từ chối, không cùng được giảm
             if (phieuRepo.tangLuotDung(p.getId()) == 0) {
                 throw ApiException.conflict("Mã " + p.getMaPhieu() + " vừa hết lượt sử dụng. Bạn chọn mã khác hoặc đặt hàng không dùng mã.");
@@ -814,6 +888,8 @@ public class CuaHangService {
         kq.put("tongTien", tongTien);
         kq.put("maPhieu", maPhieu);
         kq.put("soTienGiam", soTienGiam);
+        // Chữ ký cho mức giảm này: khách gửi lại khi chọn "giữ nguyên mức đã thấy" lúc phiếu vừa bị sửa
+        kq.put("chotPhieu", maPhieu == null ? null : kyMucPhieu(maPhieu, soTienGiam, tongTien, bayGioGiay()));
         kq.put("loiPhieu", loiPhieu);
         kq.put("phiVanChuyen", phi);
         kq.put("mienPhiVanChuyen", mienPhiVanChuyen);

@@ -63,22 +63,34 @@ const TRANG_THAI = Object.fromEntries(
   Object.entries(MAU_TRANG_THAI).map(([ma, color]) => [ma, { label: TRANG_THAI_HOA_DON[ma].label, color }]),
 )
 
+// Chỉ tải hóa đơn trong khoảng đang xem + kỳ liền trước (để tính % so với kỳ trước), không tải toàn bộ hóa đơn mỗi lần mở:
+// mặc định "Hôm nay" chỉ tải đơn của 2 ngày. "Tất cả" (không có ngày bắt đầu) mới tải hết.
+// daTai: khoảng đã có trong hoaDon ('' = không giới hạn phía đó); đổi sang khoảng nằm trong khoảng đã tải thì không gọi lại máy chủ.
+let daTai = null
+const baoTrum = (ngoai, trong) =>
+  !!ngoai && (!ngoai.tu || (!!trong.tu && trong.tu >= ngoai.tu)) && (!ngoai.den || (!!trong.den && trong.den <= ngoai.den))
+
 // ngam = true: tải ngầm (tự cập nhật), lỗi thì giữ số đang hiện, không báo; lần tải cũ về chậm không đè lần mới
 let lanTaiHd = 0
-async function load(ngam = false) {
+async function load(ngam = false, { kemGd3 = true } = {}) {
   const lan = ++lanTaiHd
-  taiGd3()
+  if (kemGd3) taiGd3()
+  const khoangTai = { ...khoangCanTai.value }
+  const loc = {}
+  if (khoangTai.tu) loc.tuNgay = khoangTai.tu
+  if (khoangTai.den) loc.denNgay = khoangTai.den
   try {
-    const res = await api.get('/hoa-don', { params: { page: 0, size: 2000 } })
+    const res = await api.get('/hoa-don', { params: { ...loc, page: 0, size: 2000 } })
     if (lan !== lanTaiHd) return
     const tatCa = [...(res?.data?.content ?? [])]
     const tongTrang = Number(res?.data?.totalPages ?? 1)
     for (let p = 1; p < tongTrang; p++) {
-      const tiep = await api.get('/hoa-don', { params: { page: p, size: 2000 } })
+      const tiep = await api.get('/hoa-don', { params: { ...loc, page: p, size: 2000 } })
       if (lan !== lanTaiHd) return
       tatCa.push(...(tiep?.data?.content ?? []))
     }
     hoaDon.value = tatCa.filter((h) => !laHoaDonCho(h))
+    daTai = khoangTai
     homNay.value = todayIso()
   } catch (e) {
     if (!ngam) toast.error(e.message || 'Không tải được dữ liệu thống kê.')
@@ -198,6 +210,14 @@ const trongKhoang = computed(() => locTheoKhoang(hoaDon.value, kq.value.tu, kq.v
 const tk = computed(() => tongHop(trongKhoang.value))
 const ky = computed(() => kyTruoc(kq.value.tu, kq.value.den))
 const tkTruoc = computed(() => (ky.value ? tongHop(locTheoKhoang(hoaDon.value, ky.value.tu, ky.value.den)) : null))
+const khoangCanTai = computed(() => ({ tu: ky.value ? ky.value.tu : kq.value.tu, den: kq.value.den }))
+// Đổi mốc / ngày sang khoảng chưa tải: tải khoảng mới (thẻ số hiện "…" trong lúc tải, không hiện số của khoảng cũ).
+// Không gọi lại /thong-ke ở đây vì taiGd3 đã tự theo dõi khoảng ngày.
+watch(khoangCanTai, (k) => {
+  if (daTai === null || baoTrum(daTai, k)) return
+  loading.value = true
+  load(false, { kemGd3: false })
+})
 const moTaKhoang = computed(() => {
   const { tu, den } = kq.value
   if (!tu && !den) return 'Toàn bộ thời gian'

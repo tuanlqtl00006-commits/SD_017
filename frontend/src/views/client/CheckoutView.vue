@@ -228,12 +228,20 @@ async function kiemTraTruocKhiDat() {
         ],
       }
     }
-    // 2. Phiếu bị sửa giá trị
+    // 2. Phiếu bị sửa mức giảm khi khách đang thanh toán (góp ý 19/11, như bên quầy): trang giữ số đã thấy, hỏi lại.
+    //    "Áp dụng" = lấy mức mới rồi đặt; "Hủy" = giữ nguyên mức đã thấy rồi đặt (máy chủ kiểm chữ ký của mức đó).
     const giamCu = Number(cartStore.discountAmount) || 0
-    const giamMoi = Number(conDung.soTienGiam) || 0
-    if (conDung && giamMoi !== giamCu) {
-      dong.push(`Phiếu ${dangDung.ma} vừa đổi mức giảm: ${formatMoney(giamCu)} → ${formatMoney(giamMoi)}. Áp dụng mức mới?`)
-      return { dong, nut: [{ nhan: 'Áp dụng', chinh: true, lam: apDungRoiDat(conDung) }, { nhan: 'Hủy', lam: datKhongPhieu }] }
+    const doi = cartStore.phieuDoiMuc
+    if (doi) {
+      dong.push(`Phiếu ${doi.ma} vừa đổi mức giảm: ${formatMoney(doi.cu)} → ${formatMoney(doi.moi)}. Áp dụng mức mới?`)
+      dong.push(`Bấm Hủy để giữ nguyên mức giảm ${formatMoney(doi.cu)}.`)
+      return {
+        dong,
+        nut: [
+          { nhan: 'Áp dụng', chinh: true, lam: async () => { cartStore.nhanMucPhieuMoi(); await guiDon() } },
+          { nhan: 'Hủy', lam: () => guiDon({ giuNguyenGiamCu: true }) },
+        ],
+      }
     }
     // 3. Có phiếu tốt hơn
     if (tot && tot.ma !== dangDung.ma && Number(tot.soTienGiam) > giamCu) {
@@ -336,7 +344,7 @@ async function xacNhanDatHangVaGui() {
   await guiDon()
 }
 
-async function guiDon() {
+async function guiDon({ giuNguyenGiamCu = false } = {}) {
   submitting.value = true
   submitError.value = ''
 
@@ -356,11 +364,26 @@ async function guiDon() {
         idPhuongThucThanhToan: form.value.phuongThucThanhToan === 'QR' ? 2 : 1,
         maPhieuGiamGia: cartStore.appliedVoucher ? cartStore.appliedVoucher.ma : null,
         chiTiet: cartStore.items.map((i) => ({ idSanPhamChiTiet: i.bienTheId, soLuong: i.soLuong })),
+        ...cartStore.phieuDaThay(giuNguyenGiamCu),
       })
     ).data
   } catch (e) {
-    submitError.value = e.message || 'Không đặt được hàng. Vui lòng thử lại.'
     submitting.value = false
+    // Phiếu bị sửa ngay lúc bấm đặt (sau lần kiểm tra cuối): hỏi lại khách. Đã chọn giữ mức cũ mà không giữ được
+    // (giỏ đổi / quá lâu) thì nhận mức mới, báo lý do để khách xem lại tổng tiền.
+    if (e.code === 'PHIEU_THAY_DOI') {
+      await cartStore.taiBaoGia()
+      if (giuNguyenGiamCu) {
+        cartStore.nhanMucPhieuMoi()
+      } else {
+        const kq = await kiemTraTruocKhiDat()
+        if (kq && kq !== 'ok') {
+          hoiTruocKhiDat.value = kq
+          return
+        }
+      }
+    }
+    submitError.value = e.message || 'Không đặt được hàng. Vui lòng thử lại.'
     return
   }
 

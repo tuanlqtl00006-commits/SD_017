@@ -439,6 +439,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('.bh-nut-tt').text()).toContain('3.861.000') // dòng cũ giữ giá cũ
     expect(w.text()).not.toContain('Cập nhật giá')
     expect(w.find('[data-testid="bh-dong-giam"]').exists()).toBe(true) // dòng cũ giữ hiển thị giảm giá cũ
+    expect(w.find('.bh-gio').text()).toContain('Kho còn') // một dòng thì vẫn hiện tồn kho
 
     // Thêm lại: popup, Hủy thì không thêm
     await w.find('[data-testid="bh-chon-sp"]').trigger('click')
@@ -459,6 +460,8 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(api.post).toHaveBeenCalledWith(expect.stringMatching(/\/san-pham$/), { idBienThe: SP.id, soLuong: 1, xacNhanGiaMoi: true })
     expect(may.ds[0].dong.map((d) => d.donGia)).toEqual([3861000, 4290000])
     expect(w.find('.bh-nut-tt').text()).toContain('8.151.000')
+    // Hai dòng cùng sản phẩm khác đợt: bỏ chữ "Kho còn N" (dòng nào cũng lặp cùng một số)
+    expect(w.find('.bh-gio').text()).not.toContain('Kho còn')
   })
 
   it('tăng số lượng ở dòng giá cũ khi giá đã đổi: popup, OK thì phần thêm thành dòng mới giá mới', async () => {
@@ -491,6 +494,8 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('.bh-nut-tt').attributes('disabled')).toBeUndefined()
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
+    // Góp ý 19/11: bấm Thanh toán không hỏi "Đợt giảm giá đã thay đổi", vào thẳng hộp xác nhận
+    expect(body().text()).not.toContain('Đợt giảm giá đã thay đổi')
     await nutXacNhan().trigger('click')
     await flushPromises()
     expect(may.ds).toHaveLength(0)
