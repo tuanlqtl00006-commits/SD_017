@@ -169,7 +169,11 @@ watch(
           Miễn phí vận chuyển toàn quốc cho đơn có tiền hàng từ <strong>{{ formatMoney(caiDatShip.mienPhiTu) }}</strong>.
         </template>
         <template v-if="caiDatShip.daTai">
-          <template v-if="caiDatShip.phiGiaoHang > 0">Phí giao hàng {{ formatMoney(caiDatShip.phiGiaoHang) }} mỗi đơn, như nhau ở mọi tỉnh / thành.</template>
+          <template v-if="caiDatShip.phiGiaoHang > 0 && caiDatShip.tinhTheoKm">
+            Phí giao hàng tính theo quãng đường từ cửa hàng: {{ formatMoney(caiDatShip.phiGiaoHang) }} cho {{ caiDatShip.kmCoBan }} km đầu,
+            thêm {{ formatMoney(caiDatShip.phiMoiBuoc) }} mỗi {{ caiDatShip.buocKm }} km tiếp theo.
+          </template>
+          <template v-else-if="caiDatShip.phiGiaoHang > 0">Phí giao hàng tính theo nơi nhận, hiện rõ ở trang thanh toán.</template>
           <template v-else>Giao hàng miễn phí cho mọi đơn.</template>
         </template>
       </div>

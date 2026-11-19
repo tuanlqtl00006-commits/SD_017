@@ -2,6 +2,7 @@ package com.footstyle.demo.controller;
 
 import com.footstyle.demo.service.CaiDatVanChuyenService;
 import com.footstyle.demo.service.CuaHangService;
+import com.footstyle.demo.service.PhiVanChuyenService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ public class CuaHangController {
 
     private final CuaHangService service;
     private final CaiDatVanChuyenService caiDatVanChuyen;
+    private final PhiVanChuyenService phiVanChuyenService;
 
     @GetMapping("/san-pham")
     public List<Map<String, Object>> danhSachSanPham(
@@ -104,7 +106,35 @@ public class CuaHangController {
     /** Cài đặt miễn phí vận chuyển theo giá trị đơn ({ mienPhiBat, mienPhiTu }) để giỏ hàng, màn quầy, sửa đơn hiện đúng trước khi gửi lên. */
     @GetMapping("/cai-dat-van-chuyen")
     public Map<String, Object> caiDatVanChuyen() {
-        return caiDatVanChuyen.moTa();
+        return phiVanChuyenService.themCachTinh(caiDatVanChuyen.moTa());
+    }
+
+    /**
+     * Phí giao hàng tới nơi nhận theo quãng đường (API bản đồ miễn phí OpenStreetMap), dùng cho màn quầy và sửa giao hàng
+     * hiện đúng số máy chủ sẽ thu. tienHang (tùy chọn): đạt ngưỡng free ship thì phí 0.
+     */
+    @GetMapping("/phi-van-chuyen")
+    public Map<String, Object> phiVanChuyen(@RequestParam(required = false) String tinhThanh,
+                                            @RequestParam(required = false) String phuongXa,
+                                            @RequestParam(required = false) String diaChi,
+                                            @RequestParam(required = false) Long tienHang) {
+        // Không gửi tỉnh: diaChi là địa chỉ ghi liền ("số nhà, Phường X, Tỉnh Y" - màn sửa đơn); không nhận ra tỉnh thì chưa tính
+        PhiVanChuyenService.KetQua kq = tinhThanh == null || tinhThanh.isBlank()
+                ? phiVanChuyenService.tinhTheoDiaChi(diaChi)
+                : phiVanChuyenService.tinh(tinhThanh, phuongXa, diaChi);
+        if (kq == null) {
+            Map<String, Object> rong = new LinkedHashMap<>();
+            rong.put("phiVanChuyen", null);
+            rong.put("soKm", null);
+            rong.put("nguon", null);
+            rong.put("mienPhi", false);
+            return rong;
+        }
+        Map<String, Object> m = kq.moTa();
+        boolean mienPhi = tienHang != null && caiDatVanChuyen.mienPhi(tienHang);
+        m.put("mienPhi", mienPhi);
+        if (mienPhi) m.put("phiVanChuyen", 0L);
+        return m;
     }
 
     @GetMapping("/thong-tin-thanh-toan")

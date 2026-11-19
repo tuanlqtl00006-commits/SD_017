@@ -1,6 +1,7 @@
 package com.footstyle.demo.controller;
 
 import com.footstyle.demo.service.CaiDatVanChuyenService;
+import com.footstyle.demo.service.PhiVanChuyenService;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CaiDatController {
 
     private final CaiDatVanChuyenService vanChuyen;
+    private final PhiVanChuyenService phiVanChuyen;
 
     /** mienPhiBat: bật miễn phí theo giá trị đơn; mienPhiTu: tiền hàng từ bao nhiêu thì miễn phí; phiGiaoHang: phí mỗi đơn giao hàng. */
     public record VanChuyenRequest(Boolean mienPhiBat, Long mienPhiTu, Long phiGiaoHang) {
@@ -26,12 +28,12 @@ public class CaiDatController {
 
     @GetMapping("/van-chuyen")
     public Map<String, Object> xemVanChuyen() {
-        return vanChuyen.moTaQuanLy();
+        return phiVanChuyen.themCachTinh(vanChuyen.moTaQuanLy());
     }
 
     @PutMapping("/van-chuyen")
     public Map<String, Object> luuVanChuyen(@RequestBody(required = false) VanChuyenRequest req) {
         vanChuyen.luu(req == null ? null : req.mienPhiBat(), req == null ? null : req.mienPhiTu(), req == null ? null : req.phiGiaoHang());
-        return vanChuyen.moTaQuanLy();
+        return phiVanChuyen.themCachTinh(vanChuyen.moTaQuanLy());
     }
 }

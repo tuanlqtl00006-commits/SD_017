@@ -80,6 +80,14 @@ public class BanHangService {
         this.caiDatVanChuyen = caiDatVanChuyen;
     }
 
+    /** Phí theo quãng đường (API bản đồ). Chưa nạp (test dựng tay) thì tính theo bảng phí tỉnh. */
+    private PhiVanChuyenService phiVanChuyen;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setPhiVanChuyen(PhiVanChuyenService phiVanChuyen) {
+        this.phiVanChuyen = phiVanChuyen;
+    }
+
     private Clock dongHo = Clock.systemDefaultZone();
 
     void datDongHo(Clock dongHo) {
@@ -571,7 +579,9 @@ public class BanHangService {
         Long phiNhap = giao ? gh.phiVanChuyen() : null;
         if (phiNhap != null && phiNhap < 0) throw ApiException.badRequest("Phí vận chuyển không được âm.");
         if (phiNhap != null && phiNhap > TIEN_TOI_DA) throw ApiException.badRequest("Số tiền quá lớn.");
-        Long phiTheoTinh = giao ? PhiVanChuyenTinh.phiTheoDiaChi(diaChi) : null;
+        Long phiTheoTinh = !giao ? null : phiVanChuyen != null
+                ? java.util.Optional.ofNullable(phiVanChuyen.tinhTheoDiaChi(diaChi)).map(PhiVanChuyenService.KetQua::phi).orElse(null)
+                : PhiVanChuyenTinh.phiTheoDiaChi(diaChi);
         long phiThuong = !giao ? 0 : phiNhap != null ? phiNhap : phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH;
         // Đơn đạt ngưỡng miễn phí vận chuyển (quản lý cài đặt) thì không thu phí giao, dù nhân viên có nhập phí
         long phi = caiDatVanChuyen.phi(tongTienHang, phiThuong);

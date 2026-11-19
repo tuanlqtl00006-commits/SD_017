@@ -279,14 +279,6 @@ public class HoaDonChoService {
         return capNhatTong(h, gia);
     }
 
-    /** Giữ lại đợt giảm giá cũ của các dòng trong hóa đơn chờ; giữ nguyên từng dòng sản phẩm. */
-    @Transactional
-    public Map<String, Object> giuGiaCu(Integer id) {
-        HoaDon h = cuaToi(id);
-        GiaKhiXem gia = giaHienTai();
-        return capNhatTong(h, gia);
-    }
-
     /** Hủy hóa đơn chờ: trả hàng về kho. Chưa có sản phẩm thì xóa hẳn (không để lại hóa đơn rỗng trong danh sách). */
     @Transactional
     public void huy(Integer id) {
@@ -404,7 +396,8 @@ public class HoaDonChoService {
 
             long giaGoc = giaHienTai;
             double phanTramGiam = gia.phanTram().getOrDefault(c.getId().longValue(), 0.0);
-            if (giamGiaService != null) {
+            // Dòng đúng giá hiện tại: giá gốc / % là của đợt đang chạy, không cần dò lại các mức giảm (đỡ 1 truy vấn mỗi dòng mỗi lần tải)
+            if (giamGiaService != null && donGia != giaMoi) {
                 List<Double> muc = giamGiaService.mucGiamCoThe(c.getId().longValue(), thoiDiems);
                 giaGoc = giaGocChoDong(donGia, giaHienTai, muc, phanTramGiam);
                 phanTramGiam = phanTramChoDong(donGia, giaGoc, muc, phanTramGiam);

@@ -67,8 +67,28 @@ function bo(d) {
 
 /* ----- Tạm tính (backend tính lại chính xác) ----- */
 const tienHang = computed(() => dong.value.reduce((s, d) => s + d.donGia * (Number(d.soLuong) || 0), 0))
-// Phí giao sau khi sửa, cùng luật với máy chủ (HoaDonSuaService.phiSauKhiSua): không đổi tiền hàng thì giữ phí của đơn;
-// tiền hàng mới đạt ngưỡng miễn phí thì 0; trước được miễn phí nay tụt dưới ngưỡng thì phí quản lý cài (phí không theo địa chỉ)
+// Phí giao sau khi sửa, cùng luật với máy chủ (HoaDonSuaService.phiSauKhiSua): không đổi địa chỉ và tiền hàng thì giữ phí của đơn;
+// tiền hàng mới đạt ngưỡng miễn phí thì 0; đổi địa chỉ (hoặc trước được miễn phí nay tụt dưới ngưỡng) thì phí theo quãng đường
+// tới địa chỉ mới (máy chủ tính bằng API bản đồ; lỗi mạng thì tạm tính theo bảng tỉnh)
+const phiTheoDiaChiMoi = ref(undefined)
+let lanHoiPhi = 0
+let henPhi = null
+watch(
+  () => f.diaChiGiaoHang,
+  (diaChi) => {
+    clearTimeout(henPhi)
+    henPhi = setTimeout(async () => {
+      const lan = ++lanHoiPhi
+      try {
+        const { data } = await api.get('/cua-hang/phi-van-chuyen', { params: { diaChi: String(diaChi || '').trim() } })
+        if (lan === lanHoiPhi) phiTheoDiaChiMoi.value = data?.phiVanChuyen ?? undefined
+      } catch {
+        if (lan === lanHoiPhi) phiTheoDiaChiMoi.value = undefined
+      }
+    }, 500)
+  },
+  { immediate: true },
+)
 const phiShip = computed(() =>
   phiSauKhiSuaDon({
     caiDat: caiDatShip,
@@ -77,6 +97,7 @@ const phiShip = computed(() =>
     tienHang: tienHang.value,
     tienHangCu: Number(props.data.hoaDon?.tongTien) || 0,
     phiCu: Number(props.data.hoaDon?.phiVanChuyen) || 0,
+    phiTheoDiaChiMoi: phiTheoDiaChiMoi.value,
   }),
 )
 const cu = computed(() => Number(props.data.hoaDon?.thanhTien) || 0)

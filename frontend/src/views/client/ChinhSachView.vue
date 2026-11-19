@@ -63,9 +63,13 @@ watch(() => route.hash, (h) => nextTick(() => cuonToi(h?.slice(1))))
                 (tiền hàng sau giảm theo đợt, chưa trừ phiếu giảm giá).
               </li>
               <li v-if="caiDatShip.daTai" data-testid="cs-phi-giao">
-                <template v-if="caiDatShip.phiGiaoHang > 0">
-                  {{ caiDatShip.mienPhiBat && caiDatShip.mienPhiTu > 0 ? 'Chưa đạt mức miễn phí thì phí' : 'Phí' }} giao hàng là
-                  <strong>{{ formatMoney(caiDatShip.phiGiaoHang) }}</strong> mỗi đơn, như nhau ở mọi tỉnh / thành.
+                <template v-if="caiDatShip.phiGiaoHang > 0 && caiDatShip.tinhTheoKm">
+                  {{ caiDatShip.mienPhiBat && caiDatShip.mienPhiTu > 0 ? 'Chưa đạt mức miễn phí thì phí' : 'Phí' }} giao hàng tính theo quãng đường
+                  từ cửa hàng: <strong>{{ formatMoney(caiDatShip.phiGiaoHang) }}</strong> cho {{ caiDatShip.kmCoBan }} km đầu, thêm
+                  {{ formatMoney(caiDatShip.phiMoiBuoc) }} mỗi {{ caiDatShip.buocKm }} km tiếp theo.
+                </template>
+                <template v-else-if="caiDatShip.phiGiaoHang > 0">
+                  {{ caiDatShip.mienPhiBat && caiDatShip.mienPhiTu > 0 ? 'Chưa đạt mức miễn phí thì phí' : 'Phí' }} giao hàng tính theo nơi nhận.
                 </template>
                 <template v-else>Giao hàng miễn phí cho mọi đơn.</template>
                 Phí hiện rõ ở giỏ hàng và trang thanh toán trước khi đặt.

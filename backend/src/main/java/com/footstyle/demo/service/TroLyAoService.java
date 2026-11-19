@@ -91,6 +91,13 @@ public class TroLyAoService {
         this.caiDatVanChuyen = caiDatVanChuyen;
     }
 
+    private PhiVanChuyenService phiVanChuyen;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setPhiVanChuyen(PhiVanChuyenService phiVanChuyen) {
+        this.phiVanChuyen = phiVanChuyen;
+    }
+
     public TroLyAoService(SanPhamChiTietRepository spctRepo, GiamGiaApDungService giamGiaService, PhieuGiamGiaRepository phieuRepo,
                           DotGiamGiaRepository dotRepo, HoaDonRepository hoaDonRepo,
                           @Value("${app.cua-hang.ten:FootStyle}") String tenCuaHang,
@@ -251,7 +258,11 @@ public class TroLyAoService {
             CaiDatVanChuyenService.CaiDat ship = caiDatVanChuyen.lay();
             return new TraLoi("Cửa hàng giao hàng toàn quốc qua " + BanHangService.DON_VI_VAN_CHUYEN + ":\n"
                     + "• Nội thành Hà Nội 1-2 ngày, tỉnh khác 3-5 ngày\n"
-                    + "• Phí giao hàng: " + tien(ship.phiGiaoHang()) + " mỗi đơn\n"
+                    + (phiVanChuyen != null
+                        ? "• Phí giao hàng tính theo quãng đường từ cửa hàng: " + tien(ship.phiGiaoHang()) + " cho "
+                            + soGon(phiVanChuyen.kmCoBan()) + " km đầu, thêm " + tien(phiVanChuyen.phiMoiBuoc()) + " mỗi "
+                            + soGon(phiVanChuyen.buocKm()) + " km tiếp theo (trang thanh toán hiện đúng số tiền theo địa chỉ của bạn)\n"
+                        : "• Phí giao hàng: " + tien(ship.phiGiaoHang()) + " mỗi đơn\n")
                     + (ship.bat() ? "• Đơn có tiền hàng từ " + tien(ship.nguong()) + " được miễn phí vận chuyển\n" : "")
                     + "• Được kiểm tra hàng trước khi nhận, thanh toán khi nhận hàng (COD)", false, List.of("Khuyến mãi hôm nay", "Đổi trả"));
         }
@@ -705,6 +716,11 @@ public class TroLyAoService {
     static String phanTram(double pt) {
         long x10 = Math.round(pt * 10);
         return (x10 % 10 == 0 ? String.valueOf(x10 / 10) : (x10 / 10) + "," + (x10 % 10)) + "%";
+    }
+
+    /** 10.0 -> "10", 12.5 -> "12.5" */
+    private static String soGon(double v) {
+        return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v);
     }
 
     private static String tien(long v) {

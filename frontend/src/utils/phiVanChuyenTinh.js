@@ -90,13 +90,15 @@ export function conThieuDeMienPhi(caiDat, tienHang) {
  *  - đổi địa chỉ: theo tỉnh ở cuối địa chỉ mới (không nhận ra tỉnh thì giữ phí cũ);
  *  - chỉ đổi sản phẩm làm đơn tụt dưới ngưỡng mà trước đó được miễn phí nhờ đạt ngưỡng: tính lại theo tỉnh.
  */
-export function phiSauKhiSuaDon({ caiDat, diaChiMoi, diaChiCu, tienHang, tienHangCu, phiCu }) {
+// phiTheoDiaChiMoi (tùy chọn): phí tới địa chỉ mới máy chủ đã tính theo quãng đường (GET /cua-hang/phi-van-chuyen);
+// không có thì tạm tính theo bảng tỉnh.
+export function phiSauKhiSuaDon({ caiDat, diaChiMoi, diaChiCu, tienHang, tienHangCu, phiCu, phiTheoDiaChiMoi }) {
   const gon = (s) => String(s ?? '').trim().replace(/\s+/g, ' ')
   const cu = Number(phiCu) || 0
   const doiDiaChi = gon(diaChiMoi) !== gon(diaChiCu)
   if (!doiDiaChi && Number(tienHang) === Number(tienHangCu)) return cu
   if (duocMienPhiVanChuyen(caiDat, tienHang)) return 0
-  const theoTinh = phiTheoDiaChi(diaChiMoi)
+  const theoTinh = phiTheoDiaChiMoi !== undefined && phiTheoDiaChiMoi !== null ? Number(phiTheoDiaChiMoi) : phiTheoDiaChi(diaChiMoi)
   if (doiDiaChi) return theoTinh ?? cu
   if (cu === 0 && duocMienPhiVanChuyen(caiDat, tienHangCu)) return theoTinh ?? PHI_MAC_DINH
   return cu

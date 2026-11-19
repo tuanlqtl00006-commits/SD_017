@@ -7,7 +7,8 @@ import { CHU_DE, nghe } from './suKien'
  * sửa đơn. Tải một lần khi màn đầu tiên cần, và tải lại khi quản lý vừa đổi cài đặt (kênh su-kien, chủ đề "cai-dat").
  * Chưa tải được thì màn hình hiện "chưa tính phí"; số chốt cuối cùng luôn do máy chủ tính.
  */
-export const caiDatVanChuyen = reactive({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 0, daTai: false })
+// tinhTheoKm / kmCoBan / buocKm / phiMoiBuoc: phí theo quãng đường (phiGiaoHang cho kmCoBan km đầu, mỗi buocKm km cộng phiMoiBuoc)
+export const caiDatVanChuyen = reactive({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 0, tinhTheoKm: false, kmCoBan: 0, buocKm: 0, phiMoiBuoc: 0, daTai: false })
 
 let dangTai = null
 let daNghe = false
@@ -17,6 +18,10 @@ export function nhanCaiDatVanChuyen(d) {
   caiDatVanChuyen.mienPhiBat = !!d?.mienPhiBat
   caiDatVanChuyen.mienPhiTu = Number(d?.mienPhiTu) || 0
   caiDatVanChuyen.phiGiaoHang = Number(d?.phiGiaoHang) || 0
+  caiDatVanChuyen.tinhTheoKm = !!d?.tinhTheoKm
+  caiDatVanChuyen.kmCoBan = Number(d?.kmCoBan) || 0
+  caiDatVanChuyen.buocKm = Number(d?.buocKm) || 0
+  caiDatVanChuyen.phiMoiBuoc = Number(d?.phiMoiBuoc) || 0
   caiDatVanChuyen.daTai = true
 }
 

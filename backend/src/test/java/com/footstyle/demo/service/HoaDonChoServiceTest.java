@@ -67,6 +67,12 @@ class HoaDonChoServiceTest {
             public Map<Long, Double> phanTramTheoBienThe(LocalDateTime thoiDiem) {
                 return phanTramDot;
             }
+
+            @Override
+            public List<Double> mucGiamCoThe(Long idBienThe, List<LocalDateTime> thoiDiems) {
+                Double pt = phanTramDot.get(idBienThe);
+                return pt == null || pt <= 0 ? List.of() : List.of(pt);
+            }
         };
         GiaoCaService giaoCa = new GiaoCaService(m.giaoCaRepo(), m.nhanVienRepo(), m.lichRepo(), hoaDonRepo(), thanhToanRepo(), m.phuongThucRepo());
         HoaDonChiTietRepository ctRepo = chiTietRepo();
@@ -458,16 +464,18 @@ class HoaDonChoServiceTest {
         assertEquals(70_000L, h.getPhiVanChuyen().longValue());
     }
 
-    /** Góp ý 16/11: bỏ bảng phí cứng theo tỉnh, phí giao là một mức quản lý cài đặt, giống nhau ở mọi tỉnh. */
+    /** Góp ý 18/11 [02:14] "ship chưa thấy API": nhân viên không nhập phí thì tính theo quãng đường (API bản đồ). */
     @Test
-    void giaoHang_nhanVienKhongNhapPhi_layPhiQuanLyCai_khongTheoTinh() {
-        banHang.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(false, 2_000_000L, 40_000L));
+    void giaoHang_nhanVienKhongNhapPhi_tinhTheoQuangDuongBanDo() {
+        CaiDatVanChuyenService caiDat = CaiDatVanChuyenService.trongBoNho(false, 2_000_000L, 40_000L);
+        banHang.setCaiDatVanChuyen(caiDat);
+        banHang.setPhiVanChuyen(new PhiVanChuyenService(caiDat, PhiVanChuyenServiceTest.banDoGia(1497.4), "Cửa hàng", 10, 50, 1000, true));
         Integer id = taoHoaDon();
         service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
-        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(290_000L,
+        Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(320_000L,
                 new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 8 Lê Duẩn", "Thành phố Hồ Chí Minh", "Phường Sài Gòn", null), null));
-        assertEquals(40_000L, kq.get("phiVanChuyen"), "TP Hồ Chí Minh cũng lấy đúng mức quản lý cài");
-        assertEquals(290_000L, kq.get("thanhTien"));
+        assertEquals(70_000L, kq.get("phiVanChuyen"), "1.497 km: 40.000 cho 10 km đầu + 30 bước 50 km × 1.000");
+        assertEquals(320_000L, kq.get("thanhTien"));
     }
 
     @Test
@@ -501,13 +509,13 @@ class HoaDonChoServiceTest {
     @Test
     void giaoHang_donChuaDatNguongMienPhi_thuPhiQuanLyCai() {
         banHang.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 500_000L));
-        // 1 ống cầu 250.000: chưa đạt 500.000 nên thu phí giao hàng quản lý cài (25.000, không theo tỉnh)
+        // 1 ống cầu 250.000: chưa đạt 500.000 nên thu phí giao hàng (không có bản đồ: tạm tính theo bảng tỉnh, TP HCM 50.000)
         Integer duoi = taoHoaDon();
         service.themSanPham(duoi, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1));
         Map<String, Object> kqDuoi = banHang.thanhToanHoaDonCho(duoi, tra(300_000L,
                 new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 8 Lê Duẩn", "Thành phố Hồ Chí Minh", "Phường Bến Nghé"), null));
-        assertEquals(25_000L, kqDuoi.get("phiVanChuyen"), "chưa đạt ngưỡng: phí quản lý cài, TP Hồ Chí Minh cũng vậy");
-        assertEquals(275_000L, kqDuoi.get("thanhTien"));
+        assertEquals(50_000L, kqDuoi.get("phiVanChuyen"), "chưa đạt ngưỡng: thu phí giao hàng");
+        assertEquals(300_000L, kqDuoi.get("thanhTien"));
     }
 
     @Test
@@ -531,7 +539,7 @@ class HoaDonChoServiceTest {
         service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 2));
         Map<String, Object> kq = banHang.thanhToanHoaDonCho(id, tra(550_000L,
                 new BanHangService.GiaoHangRequest("Nguyễn Thị Lan", "0901000001", "Số 8 Lê Duẩn", "Thành phố Hồ Chí Minh", "Phường Bến Nghé"), null));
-        assertEquals(25_000L, kq.get("phiVanChuyen"));
-        assertEquals(525_000L, kq.get("thanhTien"));
+        assertEquals(50_000L, kq.get("phiVanChuyen"));
+        assertEquals(550_000L, kq.get("thanhTien"));
     }
 }

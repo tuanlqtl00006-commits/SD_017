@@ -26,6 +26,7 @@ import BanHangPage from '../src/components/banHang/BanHangPage.vue'
 import { nhanTin } from '../src/services/suKien'
 import DiaChiHanhChinhSelect from '../src/components/common/DiaChiHanhChinhSelect.vue'
 import { caiDatVanChuyen, nhanCaiDatVanChuyen } from '../src/services/caiDatVanChuyen'
+import { phiVanChuyenTheoTinh } from '../src/utils/phiVanChuyenTinh'
 import DangNhapPage from '../src/components/auth/DangNhapPage.vue'
 import KhachDangNhapView from '../src/views/client/KhachDangNhapView.vue'
 import VaoCaPage from '../src/components/giaoCa/VaoCaPage.vue'
@@ -195,7 +196,9 @@ function mayChuGia({ dangMo = CA, phieus = () => [], tonKho = 5 } = {}) {
   }
   const tim = (url) => may.ds.find((h) => url.startsWith(`/ban-hang/hoa-don-cho/${h.id}`))
   useAuth().trangThai.nguoiDung = { id: 3, hoTen: 'Lê Quốc Bảo', vaiTro: 'NHAN_VIEN' }
-  api.get.mockImplementation(async (url) => {
+  api.get.mockImplementation(async (url, cfg) => {
+    // Phí giao hàng máy chủ tính (API bản đồ); máy chủ giả trả theo bảng tỉnh như khi không có bản đồ
+    if (url === '/cua-hang/phi-van-chuyen') return { data: { phiVanChuyen: phiVanChuyenTheoTinh(cfg?.params?.tinhThanh, cfg?.params?.phuongXa), soKm: null, nguon: 'BANG_TINH' } }
     if (url === '/giao-ca/hien-tai') return { data: { dangMo, tongKet: dangMo ? { soHoaDon: 0, doanhThu: 0 } : null, lichHomNay: [] } }
     if (url === '/ban-hang/san-pham/loc') {
       return { data: { items: may.ton > 0 ? [{ ...SP, tonKho: may.ton }] : [], tongSo: may.ton > 0 ? 1 : 0, trang: 0, boLoc: {} } }

@@ -1,8 +1,8 @@
 <script setup>
 // Hộp thoại "Sửa thông tin giao hàng" (góp ý 14/11: tách khỏi "Chỉnh sửa đơn"). Dùng chung cho màn chi tiết hóa đơn (nhân viên)
 // và màn đơn hàng của khách: đổi người nhận / SĐT / địa chỉ, mỗi đơn MỘT lần, trước khi giao cho đơn vị vận chuyển.
-// Phí giao không theo nơi nhận (một mức quản lý cài) nên đổi địa chỉ giữ phí của đơn; máy chủ tính lại lần cuối khi lưu.
-import { computed, reactive, ref } from 'vue'
+// Phí giao theo quãng đường tới nơi nhận (máy chủ tính bằng API bản đồ): đổi địa chỉ thì hiện phí mới; máy chủ chốt lại khi lưu.
+import { computed, reactive, ref, watch } from 'vue'
 import api from '../../services/api'
 import BaseModal from '../common/BaseModal.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
@@ -39,9 +39,35 @@ const dangLuu = ref(false)
 const diaChiMoi = computed(() => [form.diaChiCuThe.trim(), form.phuongXa, form.tinhThanh].filter(Boolean).join(', '))
 const tienHang = computed(() => Number(hd.value.tongTien) || 0)
 const phiCu = computed(() => Number(hd.value.phiVanChuyen) || 0)
+// Phí tới địa chỉ mới do máy chủ tính theo quãng đường; lỗi mạng thì để undefined (tạm tính theo bảng tỉnh)
+const phiTheoDiaChiMoi = ref(undefined)
+let lanHoiPhi = 0
+let henPhi = null
+watch(
+  () => [form.tinhThanh, form.phuongXa, form.diaChiCuThe],
+  () => {
+    clearTimeout(henPhi)
+    henPhi = setTimeout(async () => {
+      const lan = ++lanHoiPhi
+      if (!form.tinhThanh || !form.phuongXa) return
+      try {
+        const { data } = await api.get('/cua-hang/phi-van-chuyen', {
+          params: { tinhThanh: form.tinhThanh, phuongXa: form.phuongXa, diaChi: form.diaChiCuThe.trim() || undefined },
+        })
+        if (lan === lanHoiPhi) phiTheoDiaChiMoi.value = data?.phiVanChuyen ?? undefined
+      } catch {
+        if (lan === lanHoiPhi) phiTheoDiaChiMoi.value = undefined
+      }
+    }, 400)
+  },
+  { immediate: true },
+)
 const phiMoi = computed(() =>
   form.tinhThanh && form.phuongXa
-    ? phiSauKhiSuaDon({ caiDat, diaChiMoi: diaChiMoi.value, diaChiCu: giao.value.diaChi, tienHang: tienHang.value, tienHangCu: tienHang.value, phiCu: phiCu.value })
+    ? phiSauKhiSuaDon({
+        caiDat, diaChiMoi: diaChiMoi.value, diaChiCu: giao.value.diaChi, tienHang: tienHang.value, tienHangCu: tienHang.value,
+        phiCu: phiCu.value, phiTheoDiaChiMoi: phiTheoDiaChiMoi.value,
+      })
     : null,
 )
 

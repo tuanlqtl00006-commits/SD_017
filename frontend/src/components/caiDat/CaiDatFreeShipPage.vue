@@ -24,7 +24,7 @@ const loiTai = ref('')
 const dangLuu = ref(false)
 const hoiLuu = ref(false)
 const dangSua = ref(false)
-const daLuu = reactive({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 0, capNhatLuc: null })
+const daLuu = reactive({ mienPhiBat: false, mienPhiTu: 0, phiGiaoHang: 0, capNhatLuc: null, tinhTheoKm: false, kmCoBan: 0, buocKm: 0, phiMoiBuoc: 0 })
 const form = reactive({ mienPhiBat: false, mienPhiTu: '', phiGiaoHang: '' })
 
 const { loi, sua, cham, batDauGui, datLoiMayChu } = useLoiForm(() => {
@@ -48,7 +48,9 @@ const coThayDoi = computed(
     String(form.phiGiaoHang) !== String(daLuu.phiGiaoHang),
 )
 const cauHoi = computed(() => {
-  const phi = `Phí giao hàng mỗi đơn: ${formatMoney(form.phiGiaoHang)}.`
+  const phi = daLuu.tinhTheoKm
+    ? `Phí giao hàng ${daLuu.kmCoBan} km đầu: ${formatMoney(form.phiGiaoHang)} (xa hơn cộng ${formatMoney(daLuu.phiMoiBuoc)} mỗi ${daLuu.buocKm} km).`
+    : `Phí giao hàng mỗi đơn: ${formatMoney(form.phiGiaoHang)}.`
   return form.mienPhiBat
     ? `${phi} Đơn có tiền hàng từ ${formatMoney(form.mienPhiTu)} trở lên được miễn phí vận chuyển (bán tại quầy có giao hàng và đặt online). Các đơn đã tạo không đổi.`
     : `${phi} Tắt miễn phí vận chuyển theo giá trị đơn: mọi đơn giao hàng thu phí này. Các đơn đã tạo không đổi.`
@@ -72,6 +74,10 @@ function nhan(d) {
   daLuu.mienPhiBat = !!d?.mienPhiBat
   daLuu.mienPhiTu = Number(d?.mienPhiTu) || 0
   daLuu.phiGiaoHang = Number(d?.phiGiaoHang) || 0
+  daLuu.tinhTheoKm = !!d?.tinhTheoKm
+  daLuu.kmCoBan = Number(d?.kmCoBan) || 0
+  daLuu.buocKm = Number(d?.buocKm) || 0
+  daLuu.phiMoiBuoc = Number(d?.phiMoiBuoc) || 0
   daLuu.capNhatLuc = d?.capNhatLuc || null
   datForm()
 }
@@ -155,7 +161,7 @@ async function luu() {
         <!-- Mức đang áp dụng: chỉ để xem -->
         <dl class="cd-thong-tin" data-testid="cd-thong-tin">
           <div>
-            <dt>Phí giao hàng mỗi đơn</dt>
+            <dt>Phí giao hàng{{ daLuu.tinhTheoKm ? ` (${daLuu.kmCoBan} km đầu)` : '' }}</dt>
             <dd data-testid="cd-phi-hien-tai">{{ daLuu.phiGiaoHang ? formatMoney(daLuu.phiGiaoHang) : 'Miễn phí' }}</dd>
           </div>
           <div>
@@ -176,9 +182,12 @@ async function luu() {
         <p class="cd-tom-tat" data-testid="cd-mo-ta">
           <template v-if="daLuu.mienPhiBat">
             Đơn có tiền hàng từ <strong>{{ formatMoney(daLuu.mienPhiTu) }}</strong> trở lên được miễn phí vận chuyển. Đơn dưới mức này thu phí giao hàng
-            <strong>{{ formatMoney(daLuu.phiGiaoHang) }}</strong>.
+            <strong>{{ formatMoney(daLuu.phiGiaoHang) }}</strong><template v-if="daLuu.tinhTheoKm"> cho {{ daLuu.kmCoBan }} km đầu</template>.
           </template>
-          <template v-else>Mọi đơn giao hàng thu phí <strong>{{ formatMoney(daLuu.phiGiaoHang) }}</strong>.</template>
+          <template v-else>Mọi đơn giao hàng thu phí <strong>{{ formatMoney(daLuu.phiGiaoHang) }}</strong><template v-if="daLuu.tinhTheoKm"> cho {{ daLuu.kmCoBan }} km đầu</template>.</template>
+          <template v-if="daLuu.tinhTheoKm">
+            Xa hơn thì cộng {{ formatMoney(daLuu.phiMoiBuoc) }} mỗi {{ daLuu.buocKm }} km, quãng đường đo bằng bản đồ OpenStreetMap từ địa chỉ cửa hàng.
+          </template>
         </p>
 
         <button v-if="!dangSua" type="button" class="ad-btn ad-btn-primary" data-testid="cd-sua" @click="moSua">
@@ -189,7 +198,7 @@ async function luu() {
         <!-- Bấm "Chỉnh sửa" mới hiện phần nhập -->
         <form v-else class="cd-form" novalidate data-testid="cd-form" @submit.prevent="bamLuu">
           <div class="cd-o" @focusout="cham('phiGiaoHang')">
-            <label class="ad-label" for="cd-phi">Phí giao hàng mỗi đơn <span class="ad-required">*</span></label>
+            <label class="ad-label" for="cd-phi">Phí giao hàng{{ daLuu.tinhTheoKm ? ` (${daLuu.kmCoBan} km đầu)` : ' mỗi đơn' }} <span class="ad-required">*</span></label>
             <MoneyInput
               id="cd-phi"
               :model-value="form.phiGiaoHang"
@@ -199,7 +208,9 @@ async function luu() {
               @update:model-value="nhapPhi"
             />
             <p v-if="loi.phiGiaoHang" class="ad-error" data-testid="cd-loi-phi">{{ loi.phiGiaoHang }}</p>
-            <p v-else class="ad-hint">Thu cho mỗi đơn giao hàng chưa đạt mức miễn phí, không phân biệt tỉnh. Ở quầy nhân viên vẫn sửa được phí của từng đơn.</p>
+            <p v-else class="ad-hint">
+              Thu cho đơn giao hàng chưa đạt mức miễn phí<template v-if="daLuu.tinhTheoKm">, giao trong {{ daLuu.kmCoBan }} km; xa hơn cộng {{ formatMoney(daLuu.phiMoiBuoc) }} mỗi {{ daLuu.buocKm }} km</template>. Ở quầy nhân viên vẫn sửa được phí của từng đơn.
+            </p>
           </div>
 
           <div class="cd-dong">

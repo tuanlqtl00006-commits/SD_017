@@ -46,6 +46,19 @@ public class CuaHangService {
         this.caiDatVanChuyen = caiDatVanChuyen;
     }
 
+    /** Phí theo quãng đường (API bản đồ). Chưa nạp (test dựng tay) thì tính theo bảng phí tỉnh. */
+    private PhiVanChuyenService phiVanChuyen;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setPhiVanChuyen(PhiVanChuyenService phiVanChuyen) {
+        this.phiVanChuyen = phiVanChuyen;
+    }
+
+    /** Phí giao tới nơi nhận (chưa xét free ship): theo quãng đường nếu có dịch vụ bản đồ, không thì theo bảng tỉnh. */
+    private long phiNoiNhan(String tinhThanh, String phuongXa, String diaChiCuThe) {
+        return phiVanChuyen != null ? phiVanChuyen.tinh(tinhThanh, phuongXa, diaChiCuThe).phi() : PhiVanChuyenTinh.phi(tinhThanh, phuongXa);
+    }
+
     /** Gửi mail xác nhận đặt hàng. Nạp bằng setter (không bắt buộc) để không đổi hàm khởi tạo của lớp. */
     private MailService mailService;
 
@@ -510,8 +523,9 @@ public class CuaHangService {
         if (emailNguoiNhan.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập email nhận thông báo đơn hàng.", null, null, Map.of("emailNguoiNhan", "Email không được để trống"));
         }
-        if (!emailNguoiNhan.matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Email không đúng định dạng.", null, null, Map.of("emailNguoiNhan", "Email không đúng định dạng"));
+        // Cùng quy tắc email với đăng ký / khách hàng (QuyTacDuLieu.EMAIL): nhận cả dấu + và tên miền dài
+        if (emailNguoiNhan.length() > 255 || !QuyTacDuLieu.EMAIL.matcher(emailNguoiNhan).matches()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, QuyTacDuLieu.LOI_EMAIL, null, null, Map.of("emailNguoiNhan", QuyTacDuLieu.LOI_EMAIL));
         }
         if (req.diaChiGiaoHang() == null || req.diaChiGiaoHang().trim().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập địa chỉ giao hàng.", null, null, Map.of("diaChiGiaoHang", "Địa chỉ giao hàng không được để trống"));
@@ -604,7 +618,7 @@ public class CuaHangService {
         }
 
         // Phí vận chuyển: đơn đạt ngưỡng miễn phí (quản lý cài đặt) thì 0; chưa đạt thì theo địa chỉ nhận hàng (Hà Nội: phường 25.000, xã 30.000; tỉnh khác tùy tỉnh)
-        long phiVanChuyen = caiDatVanChuyen.phi(tongTien, PhiVanChuyenTinh.phi(req.tinhThanh(), req.phuongXa()));
+        long phiVanChuyen = caiDatVanChuyen.phi(tongTien, phiNoiNhan(req.tinhThanh(), req.phuongXa(), req.diaChiGiaoHang()));
         long thanhTien = Math.max(0L, tongTien - soTienGiam + phiVanChuyen);
 
         // Tạo hóa đơn
@@ -791,7 +805,7 @@ public class CuaHangService {
         // Đơn đạt ngưỡng miễn phí vận chuyển thì phí 0 dù chưa chọn tỉnh. Chưa đạt mà chưa chọn tỉnh thì chưa tính được phí giao (null), tổng tạm chưa gồm phí
         String tinh = req == null || req.tinhThanh() == null ? "" : req.tinhThanh().trim();
         boolean mienPhiVanChuyen = tongTien > 0 && caiDatVanChuyen.mienPhi(tongTien);
-        Long phi = mienPhiVanChuyen ? Long.valueOf(0L) : tinh.isEmpty() ? null : PhiVanChuyenTinh.phi(tinh, req.phuongXa());
+        Long phi = mienPhiVanChuyen ? Long.valueOf(0L) : tinh.isEmpty() ? null : phiNoiNhan(tinh, req.phuongXa(), null);
 
         Map<String, Object> kq = new LinkedHashMap<>();
         kq.put("dong", dong);

@@ -112,23 +112,34 @@ describe('Kiểm tra lại phiếu / giá khi bấm Đặt hàng', () => {
     expect(lenhDat()[0][1].maPhieuGiamGia).toBe('VCH200')
   })
 
-  it('phiếu đang dùng hết hiệu lực: báo lý do; "Quay lại" không đặt, phiếu vẫn giữ; "Đặt không dùng phiếu" thì bỏ phiếu rồi đặt', async () => {
+  it('phiếu đang dùng hết hiệu lực, không có phiếu thay: "Quay lại" bỏ phiếu, không đặt; "Đặt hàng" bỏ phiếu rồi đặt', async () => {
     giaMayChu({ loiPhieu: (ma) => (ma === 'HETHAN' ? 'Phiếu đã hết hạn sử dụng.' : null) })
     const { w, cart } = await moTrang({ ma: 'HETHAN', ten: 'Phiếu cũ', loaiGiam: 2, giaTriGiam: 200000, donToiThieu: 0 })
     await bamDatHang(w)
     expect(hop().text()).toContain('Phiếu HETHAN không còn dùng được')
     expect(hop().text()).toContain('Phiếu đã hết hạn sử dụng.')
+    expect(hop().findAll('button').map((b) => b.text())).toEqual(['Đặt hàng', 'Quay lại'])
     await nutTrongHop('Quay lại').trigger('click')
     await flushPromises()
     expect(hop().exists()).toBe(false)
     expect(lenhDat()).toHaveLength(0)
-    expect(cart.appliedVoucher?.ma).toBe('HETHAN')
+    expect(cart.appliedVoucher).toBeNull()
+    expect(w.findAll('button').find((b) => b.text().includes('Đặt hàng')).attributes('disabled')).toBeUndefined()
 
     await bamDatHang(w)
-    await nutTrongHop('Đặt hàng không dùng phiếu').trigger('click')
-    await flushPromises()
     expect(lenhDat()).toHaveLength(1)
     expect(lenhDat()[0][1].maPhieuGiamGia).toBeNull()
+  })
+
+  it('phiếu hết hiệu lực mà có phiếu khác: "Áp dụng" lấy phiếu mới rồi đặt', async () => {
+    giaMayChu({ phieu: [PHIEU_200K], loiPhieu: (ma) => (ma === 'HETHAN' ? 'Phiếu đã hết hạn sử dụng.' : null) })
+    const { w } = await moTrang({ ma: 'HETHAN', ten: 'Phiếu cũ', loaiGiam: 2, giaTriGiam: 200000, donToiThieu: 0 })
+    await bamDatHang(w)
+    expect(hop().findAll('button').map((b) => b.text())).toEqual(['Áp dụng', 'Hủy'])
+    await nutTrongHop('Áp dụng').trigger('click')
+    await flushPromises()
+    expect(lenhDat()).toHaveLength(1)
+    expect(lenhDat()[0][1].maPhieuGiamGia).toBe('VCH200')
   })
 
   it('phiếu bị sửa mức giảm: popup thông báo thay đổi, bấm Áp dụng thì áp dụng phiếu mới, bấm Hủy thì bỏ áp dụng phiếu giảm giá', async () => {
@@ -138,14 +149,16 @@ describe('Kiểm tra lại phiếu / giá khi bấm Đặt hàng', () => {
     cart.discountAmount = 200000
 
     await bamDatHang(w)
-    expect(hop().text()).toContain('Phiếu VCH200 vừa được cập nhật thay đổi giá trị')
+    expect(hop().text()).toContain('Phiếu VCH200 vừa đổi mức giảm')
     expect(hop().text()).toContain('200.000')
     expect(hop().text()).toContain('100.000')
 
-    // Bấm Hủy: bỏ áp dụng phiếu giảm giá
+    // Bấm Hủy: không áp dụng phiếu, vẫn đặt hàng không dùng phiếu (góp ý 17/11 [19:31])
     await nutTrongHop('Hủy').trigger('click')
     await flushPromises()
     expect(cart.appliedVoucher).toBeNull()
+    expect(lenhDat()).toHaveLength(1)
+    expect(lenhDat()[0][1].maPhieuGiamGia).toBeNull()
   })
 
   it('bắt buộc nhập email nhận thông báo đơn hàng cho cả khách đăng nhập và không đăng nhập', async () => {

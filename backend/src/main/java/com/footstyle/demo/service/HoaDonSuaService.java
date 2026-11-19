@@ -72,6 +72,14 @@ public class HoaDonSuaService {
         this.caiDatVanChuyen = caiDatVanChuyen;
     }
 
+    /** Phí theo quãng đường (API bản đồ). Chưa nạp (test dựng tay) thì tính theo bảng phí tỉnh. */
+    private PhiVanChuyenService phiVanChuyen;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setPhiVanChuyen(PhiVanChuyenService phiVanChuyen) {
+        this.phiVanChuyen = phiVanChuyen;
+    }
+
     private Clock dongHo = Clock.systemDefaultZone();
 
     void datDongHo(Clock dongHo) {
@@ -655,7 +663,9 @@ public class HoaDonSuaService {
         boolean doiDiaChi = diaChiMoi != null && !diaChiMoi.equals(diaChiCu);
         if (!doiDiaChi && tienHang == tienHangCu) return phiCu;
         if (caiDatVanChuyen.mienPhi(tienHang)) return 0L;
-        Long phiTheoTinh = PhiVanChuyenTinh.phiTheoDiaChi(diaChiMoi);
+        Long phiTheoTinh = phiVanChuyen != null
+                ? java.util.Optional.ofNullable(phiVanChuyen.tinhTheoDiaChi(diaChiMoi)).map(PhiVanChuyenService.KetQua::phi).orElse(null)
+                : PhiVanChuyenTinh.phiTheoDiaChi(diaChiMoi);
         if (doiDiaChi) return phiTheoTinh != null ? phiTheoTinh : phiCu;
         boolean truocDuocMienPhi = phiCu == 0 && caiDatVanChuyen.mienPhi(tienHangCu);
         return truocDuocMienPhi ? (phiTheoTinh != null ? phiTheoTinh : PhiVanChuyenTinh.PHI_MAC_DINH) : phiCu;

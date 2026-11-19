@@ -288,20 +288,9 @@ async function huyDotGiamGiaMoi() {
   dangChoXacNhanSauHoiDot.value = false
   hoiDotGiamGia.value = null
   if (id && phu[id]) phu[id].daHoiDot = true
+  // Giữ đợt cũ: các dòng vẫn giữ giá lúc thêm nên không cần gọi máy chủ, chỉ đi tiếp
   if (!id || dangLam.value) return
-  dangLam.value = true
-  try {
-    const moi = (await api.post(`/ban-hang/hoa-don-cho/${id}/giu-gia-cu`)).data
-    thayHoaDon(moi)
-    if (phu[id]) phu[id].daHoiDot = true
-    timSp.value?.taiLai()
-    if (tiepTuc) await moXacNhan()
-  } catch {
-    // Nếu chưa gọi được API hoặc lỗi tạm thời thì vẫn giữ nguyên đợt cũ trong giỏ
-    if (tiepTuc) await moXacNhan()
-  } finally {
-    dangLam.value = false
-  }
+  if (tiepTuc) await moXacNhan()
 }
 
 async function themSanPham(sp, loiQuet, soLuong = 1, opt = false) {
@@ -472,14 +461,64 @@ async function chonKhach(k) {
 /* ===================== Giao hàng ===================== */
 // Đơn đạt ngưỡng miễn phí vận chuyển (Cài đặt → Cài đặt free ship): không thu phí giao, ô phí thay bằng chữ "Miễn phí" (máy chủ cũng tính 0)
 const caiDatShip = dungCaiDatVanChuyen()
-// Phí giao theo địa chỉ nhận: chưa chọn tỉnh thì null (chưa tính), đổi tỉnh/phường là tính lại theo thời gian thực
-const phiShipTheoDiaChi = computed(() => (hd.value.p.giaoHang ? phiGiaoHang(hd.value.p.nguoiNhan.tinhThanh, hd.value.p.nguoiNhan.phuongXa) : 0))
+// Phí giao theo quãng đường từ cửa hàng tới địa chỉ nhận: máy chủ tính bằng API bản đồ (OpenStreetMap), đúng số sẽ thu lúc
+// thanh toán. Chưa chọn tỉnh thì null (chưa tính); mất mạng thì tạm tính theo bảng tỉnh như máy chủ.
+const phiShipTheoDiaChi = ref(null)
+const soKmShip = ref(null)
+const dangTinhPhiShip = ref(false)
+let lanHoiPhiShip = 0
+let henPhiShip = null
+async function taiPhiShip() {
+  const n = hd.value.p.nguoiNhan
+  const lan = ++lanHoiPhiShip
+  soKmShip.value = null
+  if (!hd.value.p.giaoHang) {
+    phiShipTheoDiaChi.value = 0
+    return
+  }
+  if (!n.tinhThanh) {
+    phiShipTheoDiaChi.value = null
+    return
+  }
+  dangTinhPhiShip.value = true
+  try {
+    const d = (await api.get('/cua-hang/phi-van-chuyen', {
+      params: { tinhThanh: n.tinhThanh, phuongXa: n.phuongXa || undefined, diaChi: n.diaChiCuThe?.trim() || undefined },
+    })).data
+    if (lan !== lanHoiPhiShip) return
+    phiShipTheoDiaChi.value = Number(d?.phiVanChuyen) || 0
+    soKmShip.value = d?.soKm ?? null
+  } catch {
+    if (lan === lanHoiPhiShip) phiShipTheoDiaChi.value = phiGiaoHang(n.tinhThanh, n.phuongXa)
+  } finally {
+    if (lan === lanHoiPhiShip) dangTinhPhiShip.value = false
+  }
+}
+watch(
+  () => [hd.value.id, hd.value.p.giaoHang, hd.value.p.nguoiNhan.tinhThanh, hd.value.p.nguoiNhan.phuongXa],
+  () => {
+    clearTimeout(henPhiShip)
+    taiPhiShip()
+  },
+  { immediate: true },
+)
+watch(
+  () => hd.value.p.nguoiNhan.diaChiCuThe,
+  () => {
+    clearTimeout(henPhiShip)
+    henPhiShip = setTimeout(taiPhiShip, 500) // đang gõ số nhà thì chờ gõ xong mới hỏi
+  },
+)
 // Ô phí vận chuyển: tự điền theo địa chỉ nhận, nhân viên sửa thì lấy số đã nhập; xóa trống ô thì về phí theo địa chỉ
 const coPhiNhapTay = computed(() => hd.value.p.giaoHang && hd.value.p.phiShipTay && hd.value.p.phiShip !== '')
 const mienPhiShip = computed(() => hd.value.p.giaoHang && duocMienPhiVanChuyen(caiDatShip, tienHang.value))
 const phiShipDon = computed(() => (mienPhiShip.value ? 0 : coPhiNhapTay.value ? Number(hd.value.p.phiShip) : phiShipTheoDiaChi.value))
 const phiShip = computed(() => phiShipDon.value ?? 0)
-const goiYOPhiShip = computed(() => (phiShipTheoDiaChi.value === null ? 'Chưa tính phí' : phiShipTheoDiaChi.value ? formatMoney(phiShipTheoDiaChi.value) : 'Miễn phí'))
+const goiYOPhiShip = computed(() =>
+  dangTinhPhiShip.value && phiShipTheoDiaChi.value === null
+    ? 'Đang tính phí…'
+    : phiShipTheoDiaChi.value === null ? 'Chưa tính phí' : phiShipTheoDiaChi.value ? formatMoney(phiShipTheoDiaChi.value) : 'Miễn phí',
+)
 function nhapPhiShip(v) {
   hd.value.p.phiShip = v
   hd.value.p.phiShipTay = true
@@ -1269,7 +1308,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                 {{ d.nhan }}<template v-if="d.khoa === 'tong-tien-hang'"> ({{ tongSoLuong(hd.gio) }} sản phẩm)</template><template v-if="d.ma"> ({{ d.ma }})</template>:
               </dt>
               <dd v-if="d.khoa === 'phi-van-chuyen' && mienPhiShip" class="bh-mien-phi-ship" data-testid="bh-mien-phi-ship" :title="`Đơn từ ${formatMoney(caiDatShip.mienPhiTu)} được miễn phí vận chuyển`">Miễn phí</dd>
-              <dd v-else-if="d.khoa === 'phi-van-chuyen'" class="bh-o-phi-ship">
+              <dd v-else-if="d.khoa === 'phi-van-chuyen'" class="bh-o-phi-ship" :title="soKmShip ? `Khoảng ${soKmShip} km từ cửa hàng (theo bản đồ)` : undefined">
                 <MoneyInput id="bh-phi-ship" small :model-value="hd.p.phiShipTay ? hd.p.phiShip : d.so || ''" aria-label="Phí vận chuyển" :placeholder="goiYOPhiShip" @update:model-value="nhapPhiShip" />
               </dd>
               <dd v-else-if="d.khoa === 'phieu'" class="bh-tien-giam">{{ d.so ? `-${formatMoney(d.so)}` : 'Không dùng phiếu' }}</dd>
