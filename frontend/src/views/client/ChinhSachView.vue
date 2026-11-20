@@ -1,9 +1,12 @@
 <script setup>
-// Quy định / chính sách cửa hàng (cô review 14/11: tất cả các nhóm phải có màn quy định của cửa hàng: đổi trả, thông tin mua hàng,
-// bảo hành...). Nội dung viết theo đúng cách hệ thống đang chạy:
+// Quy định / chính sách cửa hàng (cô review 14/11: tất cả các nhóm phải có màn quy định của cửa hàng).
+// 20/11: bỏ những gì dự án không làm (đổi trả & bảo hành, thời gian giao 1-2 / 3-5 ngày, kiểm tra hàng khi nhận).
+// Nội dung viết theo đúng cách hệ thống đang chạy:
 //  - Phí giao hàng và ngưỡng miễn phí vận chuyển lấy từ cài đặt của quản lý (Cài đặt -> Cài đặt free ship), không theo tỉnh;
 //  - Thanh toán: COD và chuyển khoản VietQR khi đặt online; tiền mặt / chuyển khoản / kết hợp khi mua tại cửa hàng;
-//  - Khách tự hủy đơn khi đơn còn "Chờ xác nhận" (KhachTaiKhoanController PUT /khach/don-hang/{ma}/huy).
+//  - Khách tự hủy đơn khi đơn còn "Chờ xác nhận" (KhachTaiKhoanController PUT /khach/don-hang/{ma}/huy);
+//  - Khách tự đổi người nhận / SĐT / địa chỉ 1 lần trước khi giao cho đơn vị vận chuyển (PUT /khach/don-hang/{ma}/sua-giao-hang);
+//  - Đơn chuyển khoản: hạn 5 phút, quá hạn đổi sang COD; xác nhận đơn khi đã nhận đủ tiền (HoaDonService).
 import { nextTick, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
@@ -15,7 +18,6 @@ const caiDatShip = dungCaiDatVanChuyen()
 const MUC = [
   { id: 'giao-hang', ten: 'Giao hàng', icon: 'bi-truck' },
   { id: 'thanh-toan', ten: 'Thanh toán', icon: 'bi-credit-card' },
-  { id: 'doi-tra', ten: 'Đổi trả & bảo hành', icon: 'bi-arrow-repeat' },
   { id: 'dat-hang', ten: 'Đặt hàng & hủy đơn', icon: 'bi-bag-check' },
   { id: 'bao-mat', ten: 'Bảo mật thông tin', icon: 'bi-shield-lock' },
 ]
@@ -40,7 +42,7 @@ watch(() => route.hash, (h) => nextTick(() => cuonToi(h?.slice(1))))
 
       <header class="cs-dau rounded-4 mb-4">
         <h1 class="cs-tieu-de">Chính sách cửa hàng</h1>
-        <p class="mb-0">Quy định về giao hàng, thanh toán, đổi trả, đặt hàng và bảo mật khi mua vợt tại FootStyle.</p>
+        <p class="mb-0">Quy định về giao hàng, thanh toán, đặt hàng và bảo mật khi mua vợt tại FootStyle.</p>
       </header>
 
       <div class="row g-4">
@@ -57,7 +59,7 @@ watch(() => route.hash, (h) => nextTick(() => cuonToi(h?.slice(1))))
           <section id="giao-hang" class="cs-the" data-testid="cs-giao-hang">
             <h2 class="cs-muc-ten"><i class="bi bi-truck"></i> Giao hàng</h2>
             <ul class="cs-ds">
-              <li>Giao hàng toàn quốc qua <strong>Giao Hàng Nhanh (GHN)</strong>. Nội thành Hà Nội 1-2 ngày, tỉnh khác 3-5 ngày.</li>
+              <li>Đơn vị vận chuyển: <strong>Giao Hàng Nhanh (GHN)</strong>.</li>
               <li v-if="caiDatShip.mienPhiBat && caiDatShip.mienPhiTu > 0" data-testid="cs-mien-phi">
                 <strong>Miễn phí vận chuyển</strong> cho đơn có tiền hàng từ <strong>{{ formatMoney(caiDatShip.mienPhiTu) }}</strong>
                 (tiền hàng sau giảm theo đợt, chưa trừ phiếu giảm giá).
@@ -74,7 +76,7 @@ watch(() => route.hash, (h) => nextTick(() => cuonToi(h?.slice(1))))
                 <template v-else>Giao hàng miễn phí cho mọi đơn.</template>
                 Phí hiện rõ ở giỏ hàng và trang thanh toán trước khi đặt.
               </li>
-              <li>Bạn được kiểm tra hàng trước khi nhận.</li>
+              <li>Đổi người nhận, số điện thoại hoặc địa chỉ được <strong>1 lần</strong> (trong "Đơn hàng của tôi" hoặc nhờ cửa hàng), trước khi cửa hàng giao đơn cho đơn vị vận chuyển.</li>
             </ul>
           </section>
 
@@ -88,6 +90,7 @@ watch(() => route.hash, (h) => nextTick(() => cuonToi(h?.slice(1))))
                   <ul class="cs-ds mb-0">
                     <li><strong>Thanh toán khi nhận hàng (COD)</strong>: trả tiền mặt cho nhân viên giao hàng.</li>
                     <li><strong>Chuyển khoản VietQR</strong>: quét mã QR ở trang đặt hàng thành công, số tiền và nội dung tự điền. Cửa hàng xác nhận đơn sau khi nhận được tiền.</li>
+                    <li>Chuyển khoản có <strong>5 phút</strong> để quét mã; quá hạn chưa trả thì bạn đổi được sang COD.</li>
                   </ul>
                 </div>
               </div>
@@ -103,23 +106,14 @@ watch(() => route.hash, (h) => nextTick(() => cuonToi(h?.slice(1))))
             </div>
           </section>
 
-          <!-- Đổi trả & bảo hành -->
-          <section id="doi-tra" class="cs-the">
-            <h2 class="cs-muc-ten"><i class="bi bi-arrow-repeat"></i> Đổi trả & bảo hành</h2>
-            <ul class="cs-ds">
-              <li>Đổi sản phẩm trong <strong>7 ngày</strong> nếu lỗi do nhà sản xuất, sản phẩm còn nguyên tem mác và có hóa đơn.</li>
-              <li>Vợt chính hãng được bảo hành khung theo chính sách của từng hãng.</li>
-              <li>Liên hệ hotline hoặc khung chat trên website để được hướng dẫn đổi trả, bảo hành.</li>
-            </ul>
-          </section>
-
           <!-- Đặt hàng & hủy đơn -->
           <section id="dat-hang" class="cs-the">
             <h2 class="cs-muc-ten"><i class="bi bi-bag-check"></i> Đặt hàng & hủy đơn</h2>
             <ul class="cs-ds">
               <li>Sau khi đặt, đơn ở trạng thái <strong>Chờ xác nhận</strong>. Nhân viên kiểm tra hàng trong kho rồi xác nhận và giao cho đơn vị vận chuyển.</li>
               <li>Bạn tự <strong>hủy đơn</strong> được khi đơn còn Chờ xác nhận (trong "Đơn hàng của tôi"). Đơn đã xác nhận muốn hủy thì liên hệ cửa hàng.</li>
-              <li>Cần đổi người nhận, địa chỉ hay sản phẩm: liên hệ cửa hàng khi đơn còn Chờ xác nhận để nhân viên chỉnh giúp.</li>
+              <li>Cần đổi sản phẩm trong đơn: liên hệ cửa hàng khi đơn còn Chờ xác nhận để nhân viên chỉnh giúp. Đổi người nhận, số điện thoại, địa chỉ xem mục Giao hàng.</li>
+              <li>Sản phẩm hết hàng sau khi bạn đặt: cửa hàng giữ đơn và gọi cho bạn để đổi sản phẩm khác, chờ hàng về hoặc hủy đơn.</li>
               <li>Đơn đã chuyển khoản mà bị hủy: cửa hàng hoàn lại tiền và gửi email thông báo cho bạn.</li>
               <li>Theo dõi đơn ở <RouterLink :to="{ path: '/shop/tai-khoan', query: { tab: 'orders' } }">Đơn hàng của tôi</RouterLink> (khi đã đăng nhập) hoặc <RouterLink to="/shop/tra-cuu">Tra cứu đơn hàng</RouterLink>.</li>
             </ul>

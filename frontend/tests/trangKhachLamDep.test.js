@@ -167,10 +167,15 @@ describe('Màn chính sách cửa hàng', () => {
     expect(phi).toContain('1.000 ₫ mỗi 50 km')
     expect(w.find('[data-testid="cs-bang-phi"]').exists()).toBe(false)
     expect(w.text()).not.toContain('giao tới phường')
-    for (const muc of ['Giao hàng', 'Thanh toán', 'Đổi trả & bảo hành', 'Đặt hàng & hủy đơn', 'Bảo mật thông tin']) expect(w.text()).toContain(muc)
+    for (const muc of ['Giao hàng', 'Thanh toán', 'Đặt hàng & hủy đơn', 'Bảo mật thông tin']) expect(w.text()).toContain(muc)
     expect(w.text()).toContain('Giao Hàng Nhanh')
     // không ghi các phương thức hệ thống không có
     expect(w.text()).not.toMatch(/MoMo|ZaloPay|quẹt thẻ/i)
+    // 20/11: không ghi những gì dự án không làm
+    expect(w.text()).not.toMatch(/đổi trả|bảo hành|chính hãng|toàn quốc|1-2 ngày|3-5 ngày|kiểm tra hàng trước khi nhận/i)
+    expect(w.html()).not.toContain('doi-tra')
+    expect(w.text()).toContain('5 phút')
+    expect(w.text()).toContain('1 lần')
     w.unmount()
 
     nhanCaiDatVanChuyen({ mienPhiBat: false, mienPhiTu: 2_000_000 })

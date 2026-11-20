@@ -368,33 +368,28 @@ function handleSearch() {
       <RouterView />
     </main>
 
-    <!-- Footer -->
-    <footer class="vnb-footer text-white pt-5 pb-4 mt-auto">
+    <!-- Footer: chỉ ghi những gì dự án có thật (20/11: bỏ bảo hành, email cskh không có hộp thư, câu hỏi thường gặp
+         không có trang, nhượng quyền không có chức năng, câu "hệ thống toàn quốc / chính hãng"; phí giao nay theo quãng đường) -->
+    <footer class="vnb-footer text-white pt-5 pb-4 mt-auto" data-testid="chan-trang">
       <div class="vnb-container">
         <div class="row g-4 mb-4">
           <div class="col-lg-4 col-md-6">
             <img src="/logo.png" alt="FootStyle" class="vnb-footer-logo mb-3" />
             <p class="small vnb-footer-text mb-3">
-              FootStyle - Hệ thống shop cầu lông toàn quốc chuyên phân phối vợt cầu lông chính hãng.
+              FootStyle - cửa hàng vợt cầu lông, mua tại cửa hàng hoặc đặt hàng online.
             </p>
             <div class="small vnb-footer-text">
               <p class="mb-1"><i class="bi bi-geo-alt-fill vnb-footer-icon me-2"></i> Trụ sở: 123 Đường Cầu Diễn, Bắc Từ Liêm, Hà Nội</p>
-              <p class="mb-1">
-                <i class="bi bi-telephone-fill vnb-footer-icon me-2"></i> Hotline: 
+              <p class="mb-0">
+                <i class="bi bi-telephone-fill vnb-footer-icon me-2"></i> Hotline:
                 <a href="tel:0977508430" class="text-white text-decoration-none fw-bold">0977508430</a> (8:00 - 21:30)
               </p>
-              <p class="mb-0"><i class="bi bi-envelope-fill vnb-footer-icon me-2"></i> Email: cskh@footstyle.vn</p>
             </div>
           </div>
 
           <div class="col-lg-2 col-md-6 col-6">
             <h6 class="vnb-footer-title text-uppercase fw-bold mb-3">Chính sách</h6>
             <ul class="list-unstyled small d-flex flex-column gap-2 vnb-footer-text">
-              <li>
-                <RouterLink :to="{ path: '/shop/chinh-sach', hash: '#doi-tra' }" class="vnb-footer-link text-decoration-none">
-                  Chính sách bảo hành
-                </RouterLink>
-              </li>
               <li>
                 <RouterLink :to="{ path: '/shop/chinh-sach', hash: '#giao-hang' }" class="vnb-footer-link text-decoration-none">
                   Chính sách giao hàng
@@ -417,12 +412,6 @@ function handleSearch() {
                   Hướng dẫn chọn vợt
                 </RouterLink>
               </li>
-
-              <li>
-                <RouterLink to="/shop/huong-dan" class="vnb-footer-link text-decoration-none">
-                  Câu hỏi thường gặp
-                </RouterLink>
-              </li>
             </ul>
           </div>
 
@@ -432,13 +421,8 @@ function handleSearch() {
               <span class="badge vnb-footer-badge p-2">COD Tiền mặt</span>
               <span class="badge vnb-footer-badge p-2">VietQR Banking</span>
             </div>
-            <div class="small vnb-footer-text mb-3">
-              Giao hàng toàn quốc qua Giao Hàng Nhanh (GHN). Phí giao theo nơi nhận, xem Chính sách giao hàng.
-            </div>
-            <div>
-              <RouterLink to="/shop/nhuong-quyen" class="btn btn-outline-light btn-sm rounded-pill fw-bold">
-                Hợp tác nhượng quyền →
-              </RouterLink>
+            <div class="small vnb-footer-text">
+              Đơn vị vận chuyển: Giao Hàng Nhanh (GHN). Phí giao hiện ở giỏ hàng và trang thanh toán trước khi đặt, xem Chính sách giao hàng.
             </div>
           </div>
         </div>
