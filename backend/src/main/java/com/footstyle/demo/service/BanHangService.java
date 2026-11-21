@@ -88,6 +88,14 @@ public class BanHangService {
         this.phiVanChuyen = phiVanChuyen;
     }
 
+    /** Giá lúc thêm của dòng hóa đơn chờ (HoaDonChoService); thanh toán xong thì bỏ các dòng của hóa đơn. Test dựng tay: null. */
+    private GiaLucThemKho giaLucThem;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setGiaLucThemKho(GiaLucThemKho giaLucThem) {
+        this.giaLucThem = giaLucThem;
+    }
+
     private Clock dongHo = Clock.systemDefaultZone();
 
     void datDongHo(Clock dongHo) {
@@ -618,6 +626,8 @@ public class BanHangService {
             ghiLichSu(hd, "Đã hoàn thành", "Khách đã thanh toán, nhận hàng tại cửa hàng", nguoi, luc);
         }
         ghiThanhToanQuay(hd, t, luc);
+        // Đã thanh toán: hóa đơn không còn chờ, bỏ giá lúc thêm của các dòng khỏi tệp (áp dụng sau commit)
+        if (giaLucThem != null) giaLucThem.xoaNhieu(dong.stream().map(HoaDonChiTiet::getId).toList());
         Map<String, Object> kq = ketQua(hd, t, ca);
         kq.put("giaoHang", giao);
         kq.put("phiVanChuyen", phi);

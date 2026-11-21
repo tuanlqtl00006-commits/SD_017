@@ -39,7 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 4 case khó bán tại quầy, chạy trên CSDL thật qua đúng các service của màn quầy; @Transactional nên mọi thay đổi được rollback.
  * 1. Đổi giá; 2. Phiếu hết hạn / bị sửa cho hết hạn / đổi giá trị giảm; 3. Chuyển quyền nhân viên; 4. Đợt giảm giá thay đổi.
  */
-@SpringBootTest
+// Giá lúc thêm của dòng test (đã rollback) ghi vào target/, không ghi vào cai-dat/gia-luc-them.json của máy đang chạy dự án
+@SpringBootTest(properties = "app.gia-luc-them-dir=target/test-cai-dat")
 @Transactional
 class CaseKhoBanTaiQuayCsdlThatTest {
 

@@ -1,6 +1,7 @@
 package com.footstyle.demo.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -391,6 +392,51 @@ class HoaDonChoServiceTest {
         assertEquals(3_003_000L, moi.get("donGia"));
         assertEquals(4_290_000L, moi.get("giaGoc"));
         assertEquals(30.0, moi.get("phanTramGiam"), "dòng thêm sau theo đợt mới");
+    }
+
+    /** 21/11: giá lúc thêm ghi ra tệp, khởi động lại backend (kho mới đọc lại tệp) dòng cũ vẫn đúng % + giá gốc của đợt cũ. */
+    @Test
+    void khoiDongLaiBackend_dongCuVanDungPhanTramVaGiaGocDotCu(@org.junit.jupiter.api.io.TempDir java.nio.file.Path thuMuc) throws Exception {
+        service.setGiaLucThemKho(new GiaLucThemKho(thuMuc.toString()));
+        phanTramDot.put(1L, 20.0);
+        Integer id = taoHoaDon();
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1));
+        assertTrue(java.nio.file.Files.exists(thuMuc.resolve("gia-luc-them.json")), "đã ghi ra tệp");
+
+        // Khởi động lại: kho mới chỉ còn dữ liệu trong tệp; quản lý sửa đợt 20% -> 30% và tăng giá niêm yết (không dò ra được nữa)
+        service.setGiaLucThemKho(new GiaLucThemKho(thuMuc.toString()));
+        phanTramDot.put(1L, 30.0);
+        vot.setGiaBan(4_590_000L);
+
+        Map<String, Object> cu = items(service.danhSach().get(0)).get(0);
+        assertEquals(3_432_000L, cu.get("donGia"));
+        assertEquals(4_290_000L, cu.get("giaGoc"), "giá gốc gạch là giá niêm yết lúc thêm");
+        assertEquals(20.0, cu.get("phanTramGiam"), "vẫn -20% của đợt lúc thêm");
+
+        // Bỏ dòng thì xóa luôn khỏi tệp
+        service.xoaDong(id, (Integer) cu.get("id"));
+        assertFalse(java.nio.file.Files.readString(thuMuc.resolve("gia-luc-them.json")).contains("\"" + cu.get("id") + "\""));
+    }
+
+    /** Tệp chỉ giữ dòng của hóa đơn đang chờ: hủy hóa đơn chờ / thanh toán xong thì bỏ các dòng đó khỏi tệp. */
+    @Test
+    void huyHoacThanhToan_boDongKhoiTepGiaLucThem(@org.junit.jupiter.api.io.TempDir java.nio.file.Path thuMuc) throws Exception {
+        GiaLucThemKho kho = new GiaLucThemKho(thuMuc.toString());
+        service.setGiaLucThemKho(kho);
+        banHang.setGiaLucThemKho(kho);
+        java.nio.file.Path tep = thuMuc.resolve("gia-luc-them.json");
+
+        Integer huy = taoHoaDon();
+        Integer idHuy = (Integer) items(service.themSanPham(huy, new HoaDonChoService.ThemSanPhamRequest(cau.getId(), 1))).get(0).get("id");
+        Integer ban = taoHoaDon();
+        Integer idBan = (Integer) items(service.themSanPham(ban, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1))).get(0).get("id");
+        assertTrue(kho.coDong(idHuy) && kho.coDong(idBan));
+
+        service.huy(huy);
+        assertFalse(kho.coDong(idHuy), "hủy hóa đơn chờ thì bỏ dòng");
+        banHang.thanhToanHoaDonCho(ban, tra(10_000_000L, null, null));
+        assertFalse(kho.coDong(idBan), "thanh toán xong thì bỏ dòng");
+        assertFalse(java.nio.file.Files.readString(tep).contains("\"" + idBan + "\""));
     }
 
     @Test
