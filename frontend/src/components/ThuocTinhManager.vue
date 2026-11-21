@@ -13,6 +13,7 @@ import { thuocTinhService } from '../services/thuocTinhService'
 import { THUOC_TINH, TRANG_THAI, trangThaiOf } from '../constants/thuocTinh'
 import { usePagination } from '../composables/usePagination'
 import { useToast } from '../composables/useToast'
+import { hoiXacNhan } from '../composables/useXacNhan'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { includesExact, includesText } from '../utils/text'
 import { laKhongApDung, NHOM_DANH_MUC } from '../utils/danhMuc'
@@ -90,6 +91,10 @@ function patchRow(daDoi) {
 const formState = ref(null) // null: đóng | { item: null }: thêm mới | { item }: chỉnh sửa
 async function save(payload) {
   const editing = formState.value?.item
+  const dongY = await hoiXacNhan(editing
+    ? { title: `Cập nhật ${lower}`, message: `Bạn có chắc muốn lưu thay đổi ${lower} "${payload.ten}"?`, confirmText: 'Lưu thay đổi' }
+    : { title: `Thêm ${lower}`, message: `Bạn có chắc muốn thêm ${lower} "${payload.ten}"?`, confirmText: 'Thêm' })
+  if (!dongY) return
   saving.value = true
   try {
     if (editing) {

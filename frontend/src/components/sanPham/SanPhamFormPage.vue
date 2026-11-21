@@ -29,6 +29,7 @@ import { useThemNhanh } from '../../composables/useThemNhanh'
 import { thuocTinhService } from '../../services/thuocTinhService'
 import { hinhAnhService } from '../../services/hinhAnhService'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { cat, timBanTrung } from '../../utils/kiemTra'
 
 // Trang THÊM / SỬA sản phẩm (đường dẫn /san-pham/them và /san-pham/:id/sua), giống video: có nút "Quay lại danh sách".
@@ -147,6 +148,7 @@ function moThemNhanhModal(s) {
 async function luuThuocTinhModal(payload) {
   if (!modalThemNhanh.value) return
   const s = modalThemNhanh.value
+  if (!(await hoiXacNhan({ title: 'Thêm thuộc tính', message: `Bạn có chắc muốn thêm "${payload?.ten ?? ''}"?`, confirmText: 'Thêm' }))) return
   dangLuuThuocTinh.value = true
   loiModalThuocTinh.value = ''
   try {
@@ -532,7 +534,7 @@ const datAnhChinh = (i) => datAnhChinhTrong(form.anh, i)
 
 const tieuDeNut = computed(() => (isEdit ? 'Lưu thay đổi' : bienThe.value.length ? 'Lưu sản phẩm và biến thể' : 'Thêm sản phẩm'))
 
-function guiForm() {
+async function guiForm() {
   if (dangTaiAnh.value || dangLuu.value) return // còn ảnh đang tải lên hoặc đang lưu thì chờ
   daBamLuu.value = true
   if (!kiemTra()) {
@@ -546,8 +548,10 @@ function guiForm() {
     })
     return // có lỗi thì dừng
   }
-  if (isEdit) luuSanPham()
-  else hoiLuu.value = true // thêm mới: hỏi xác nhận như video
+  if (isEdit) {
+    // Sửa sản phẩm cũng hỏi lại trước khi lưu (góp ý 21/11: thao tác nào cũng phải xác nhận)
+    if (await hoiXacNhan({ title: 'Cập nhật sản phẩm', message: `Bạn có chắc muốn lưu thay đổi sản phẩm ${form.ten || ''}?`, confirmText: 'Lưu thay đổi' })) luuSanPham()
+  } else hoiLuu.value = true // thêm mới: hỏi xác nhận như video
 }
 
 // xacNhanCapNhat = true: người dùng đã đồng ý cập nhật sản phẩm đã tồn tại (xem hộp hỏi bên dưới)

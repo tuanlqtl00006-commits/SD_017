@@ -4,6 +4,7 @@
 // Phí giao theo quãng đường tới nơi nhận (máy chủ tính bằng API bản đồ): đổi địa chỉ thì hiện phí mới; máy chủ chốt lại khi lưu.
 import { computed, reactive, ref, watch } from 'vue'
 import api from '../../services/api'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import BaseModal from '../common/BaseModal.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
@@ -75,6 +76,7 @@ async function luu() {
   if (dangLuu.value) return
   loi.value = {}
   loiChung.value = ''
+  if (!(await hoiXacNhan({ title: 'Lưu thông tin giao hàng', message: 'Thông tin giao hàng của mỗi đơn chỉ đổi được một lần. Bạn có chắc muốn lưu?', confirmText: 'Lưu thay đổi' }))) return
   dangLuu.value = true
   try {
     const { data } = await api.put(props.url, {

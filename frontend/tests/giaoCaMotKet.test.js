@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// Hộp xác nhận dùng chung (21/11): các test ở đây kiểm luồng sau khi người dùng đã bấm Xác nhận; hộp xác nhận kiểm riêng ở xacNhanChung.test.js
+vi.mock('../src/composables/useXacNhan', () => ({ hoiXacNhan: vi.fn(async () => true) }))
 import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 
 const { api, replace, push } = vi.hoisted(() => ({

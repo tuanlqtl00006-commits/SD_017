@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PhieuGiamGiaFormModal from './PhieuGiamGiaFormModal.vue'
 import { cauBaoKetQuaMail, phieuGiamGiaService, theoDoiKetQuaMail } from '../../services/phieuGiamGiaService'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 
 // Trang riêng để thêm (/phieu-giam-gia/them) hoặc sửa (/phieu-giam-gia/:id/sua) phiếu giảm giá, giống video.
 const route = useRoute()
@@ -46,6 +47,10 @@ async function baoKetQuaMail(phieu) {
 }
 
 async function save(payload) {
+  const dongY = await hoiXacNhan(id.value
+    ? { title: 'Cập nhật phiếu giảm giá', message: `Bạn có chắc muốn lưu thay đổi phiếu ${payload.ma || ''}?`.replace('  ', ' '), confirmText: 'Lưu thay đổi' }
+    : { title: 'Thêm phiếu giảm giá', message: `Bạn có chắc muốn tạo phiếu ${payload.ten || ''}?`, confirmText: 'Tạo phiếu' })
+  if (!dongY) return
   saving.value = true
   try {
     // Phiếu cá nhân: backend gửi mail (phiếu mới / cập nhật / hủy) và trả về câu tóm tắt trong ketQuaMail.

@@ -563,11 +563,14 @@ class PhieuGiamGiaServiceTest {
         assertTrue(assertThrows(ApiException.class, () -> service.them(r2)).getMessage().contains("Đơn tối thiểu"));
     }
 
+    /** Góp ý 21/11: phiếu % được để giảm tối đa lớn hơn đơn tối thiểu (đơn từ 20 triệu, giảm tối đa 50 triệu cho đơn lớn hơn). */
     @Test
-    void phieuPhanTram_giamToiDaLonHonDonToiThieu_baoLoi() {
-        PhieuGiamGiaRequest r = new PhieuGiamGiaRequest("VCHPT01", "Giảm 50%", "CONG_KHAI", "PHAN_TRAM", 50L, 200_000L, 100_000L,
-                10, null, BAY_GIO, BAY_GIO.plusDays(3), null);
-        assertTrue(assertThrows(ApiException.class, () -> service.them(r)).getMessage().contains("Giảm tối đa không được lớn hơn đơn tối thiểu"));
+    void phieuPhanTram_giamToiDaLonHonDonToiThieu_vanTaoDuoc() {
+        PhieuGiamGiaRequest r = new PhieuGiamGiaRequest("VCHPT01", "Giảm 10% đơn từ 20 triệu", "CONG_KHAI", "PHAN_TRAM", 10L, 50_000_000L,
+                20_000_000L, 10, null, BAY_GIO, BAY_GIO.plusDays(3), null);
+        var kq = service.them(r);
+        assertEquals(50_000_000L, kq.giamToiDa());
+        assertEquals(20_000_000L, kq.donToiThieu());
     }
 
     @Test

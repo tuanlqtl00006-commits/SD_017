@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
 import api from '../../services/api'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { loiMatKhau } from '../../utils/kiemTra'
 import { formatMoney, formatNgayGio } from '../../utils/format'
 import { docDonHang, ghiDonHang, dongBoTrangThaiDon } from '../../utils/donHangLocal'
@@ -182,6 +183,7 @@ async function saveAddress() {
   if (!f.diaChiCuThe.trim()) errs.diaChiCuThe = 'Vui lòng nhập địa chỉ cụ thể (số nhà, tên đường...).'
   addressErrors.value = errs
   if (Object.keys(errs).length > 0) return
+  if (!(await hoiXacNhan({ title: 'Thêm địa chỉ', message: 'Bạn có chắc muốn thêm địa chỉ này vào sổ địa chỉ?', confirmText: 'Thêm địa chỉ' }))) return
 
   addressSaving.value = true
   addressError.value = ''
@@ -316,6 +318,10 @@ async function saveAll() {
   const hoSoOk = validateProfile()
   const matKhauOk = muonDoiMatKhau ? validatePassword() : true
   if (!hoSoOk || !matKhauOk) return
+  const dongY = await hoiXacNhan(muonDoiMatKhau
+    ? { title: 'Lưu thông tin và đổi mật khẩu', message: 'Bạn có chắc muốn lưu thông tin tài khoản và đổi mật khẩu? Các phiên đăng nhập trên máy khác sẽ hết hiệu lực.', confirmText: 'Lưu thay đổi' }
+    : { title: 'Lưu thông tin tài khoản', message: 'Bạn có chắc muốn lưu thay đổi thông tin tài khoản?', confirmText: 'Lưu thay đổi' })
+  if (!dongY) return
   pwErrors.value = {}
   pwSuccess.value = ''
   if (muonDoiMatKhau) {

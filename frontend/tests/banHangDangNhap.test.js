@@ -369,13 +369,35 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     vi.restoreAllMocks()
   })
 
-  it('nhập số lượng lớn hơn tồn kho trong bảng chọn: báo ngay, không gửi', async () => {
+  it('nhập số lượng lớn hơn tồn kho trong bảng chọn: tự đưa về tối đa (góp ý 21/11), bấm Thêm lần nữa thì thêm đúng số tối đa', async () => {
     const { w } = await moBanHang()
-    await body().find('.bh-o-sl').setValue('9')
+    const o = () => body().find('.bh-o-sl')
+    await o().setValue('9') // gõ xong rời ô (sự kiện change) là đưa về tối đa ngay
+    expect(o().element.value).toBe('5')
+    expect(body().text()).toContain('Chỉ còn 5 sản phẩm trong kho, đã đưa về 5.')
+    expect(api.post.mock.calls.some((c) => c[0].endsWith('/san-pham'))).toBe(false)
+
+    await o().setValue('0')
+    expect(o().element.value).toBe('1')
+    expect(body().text()).toContain('Số lượng tối thiểu là 1, đã đưa về 1.')
+
+    await o().setValue('9')
+    expect(o().element.value).toBe('5')
     await nutThem(w).trigger('click')
     await flushPromises()
-    expect(body().text()).toContain('Chỉ còn 5 sản phẩm trong kho.')
-    expect(api.post.mock.calls.some((c) => c[0].endsWith('/san-pham'))).toBe(false)
+    expect(api.post).toHaveBeenCalledWith(expect.stringMatching(/\/san-pham$/), expect.objectContaining({ soLuong: 5 }))
+  })
+
+  it('gõ số lượng ở dòng giỏ quá tồn kho: ô tự đưa về tối đa và gửi đúng số tối đa (góp ý 21/11)', async () => {
+    const { w } = await moBanHang()
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    const o = w.find('.bh-gio input[type="number"]')
+    await o.setValue('101')
+    await flushPromises()
+    expect(o.element.value).toBe('5')
+    expect(api.put).toHaveBeenCalledWith(expect.stringContaining('/chi-tiet/'), expect.objectContaining({ soLuong: 5 }))
+    expect(api.put.mock.calls.some((c) => c[1]?.soLuong === 101)).toBe(false)
   })
 
   it('bỏ sản phẩm / hủy hóa đơn chờ: trả hàng về kho; sản phẩm hết hàng biến mất khỏi bảng', async () => {
@@ -407,11 +429,17 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(may.ds).toHaveLength(0)
   })
 
-  it('chưa vào ca: không tạo hóa đơn, nhắc vào ca', async () => {
+  it('chưa vào ca: khóa nút Thêm hóa đơn chờ, Chọn sản phẩm, quét camera, nút Thêm trong bảng chọn (góp ý 21/11); không tạo hóa đơn', async () => {
     const { w } = await moBanHang({ dangMo: null })
     expect(w.text()).toContain('Bạn chưa vào ca nên mới chỉ xem được.')
-    await nutThem(w).trigger('click')
+    expect(w.find('[data-testid="bh-them-hd"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-testid="bh-chon-sp"]').attributes('disabled')).toBeDefined()
+    expect(w.find('button[title="Bạn chưa vào ca"] .bi-camera').exists()).toBe(true)
+    // nút Chọn sản phẩm bị khóa nên bảng chọn không mở; phím tắt F2 cũng không mở
+    expect(nutThem(w).exists()).toBe(false)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2' }))
     await flushPromises()
+    expect(nutThem(w).exists()).toBe(false)
     expect(api.post).not.toHaveBeenCalled()
   })
 
@@ -464,17 +492,24 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('.bh-gio').text()).not.toContain('Kho còn')
   })
 
-  it('tăng số lượng ở dòng giá cũ khi giá đã đổi: popup, OK thì phần thêm thành dòng mới giá mới', async () => {
+  it('giá đổi khi đang lên đơn: dòng cũ ẩn nút +, chữ đỏ giá cũ → giá mới (góp ý 21/11); gõ tăng số lượng thì popup, OK thì phần thêm thành dòng mới giá mới', async () => {
     const { w, may } = await moBanHang()
     await nutThem(w).trigger('click')
     await flushPromises()
     await body().find('[data-testid="bh-dong-chon-sp"]').trigger('click')
     await flushPromises()
+    const nutCong = () => w.find('button[aria-label="Tăng số lượng Yonex Astrox 99 Pro"]')
+    expect(nutCong().exists()).toBe(true)
+    expect(w.find('[data-testid="bh-gia-doi"]').exists()).toBe(false)
     may.gia = 4290000
     nhanTin({ chuDe: ['san-pham'], nguon: 'may-khac' })
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
-    await w.find('button[aria-label="Tăng số lượng Yonex Astrox 99 Pro"]').trigger('click')
+    expect(nutCong().exists()).toBe(false)
+    const chuDo = w.find('[data-testid="bh-gia-doi"]')
+    expect(chuDo.classes()).toContain('text-danger')
+    expect(chuDo.text()).toMatch(/Giá đã cập nhật: 3\.861\.000 ₫ → 4\.290\.000 ₫/)
+    await w.find('.bh-gio input[type="number"]').setValue('2')
     await flushPromises()
     expect(body().find('[data-testid="bh-hoi-gia"]').exists()).toBe(true)
     await body().find('[data-testid="bh-hoi-gia-ok"]').trigger('click')
@@ -904,6 +939,60 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await nutXacNhan().trigger('click')
     await flushPromises()
     expect(may.thanhToan).toEqual(expect.objectContaining({ maPhieu: 'GIAM50K', soTienGiam: 50000 }))
+  })
+
+  it('góp ý 21/11: có phiếu tốt hơn khi đang lên đơn thì KHÔNG tự đổi, đơn giữ phiếu cũ; bấm Thanh toán mới hỏi, chọn Áp dụng thì đổi', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    let ds = [{ ma: 'GIAM50K', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 }]
+    const { w, may } = await moBanHang({ phieus: () => ds })
+    await nutThem(w).trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(w.text()).toContain('GIAM50K')
+    ds = [{ ma: 'GIAM90K', loaiGiam: 'SO_TIEN', giaTri: 90000, apDungDuoc: true, soTienGiam: 90000 }, ...ds]
+    await nutThem(w).trigger('click') // giỏ đổi -> tải lại danh sách phiếu (đã có GIAM90K)
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(w.text()).toContain('GIAM50K')
+    expect(w.text()).not.toContain('GIAM90K')
+    await w.find('.bh-nut-tt').trigger('click')
+    await flushPromises()
+    expect(hopPhieu().text()).toContain('Vừa có phiếu GIAM90K')
+    await nutTrongHopPhieu('Áp dụng GIAM90K').trigger('click')
+    await flushPromises()
+    await nutXacNhan().trigger('click')
+    await flushPromises()
+    expect(may.thanhToan).toEqual(expect.objectContaining({ maPhieu: 'GIAM90K', soTienGiam: 90000 }))
+  })
+
+  it('góp ý 21/11: phiếu đang áp bị hủy / không còn đủ điều kiện thì không tự thay, báo đỏ; bấm Thanh toán hỏi áp phiếu khác hoặc không dùng phiếu', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    let ds = [{ ma: 'GIAM50K', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 }]
+    const { w, may } = await moBanHang({ phieus: () => ds })
+    await nutThem(w).trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    ds = [
+      { ma: 'GIAM30K', loaiGiam: 'SO_TIEN', giaTri: 30000, apDungDuoc: true, soTienGiam: 30000 },
+      { ma: 'GIAM50K', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: false, soTienGiam: 0, lyDo: 'Phiếu đang ngừng hoạt động.' },
+    ]
+    await nutThem(w).trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(w.text()).toContain('Phiếu đang ngừng hoạt động.')
+    expect(w.text()).not.toContain('GIAM30K') // không tự thay sang phiếu khác
+    await w.find('.bh-nut-tt').trigger('click')
+    await flushPromises()
+    expect(hopPhieu().text()).toContain('Phiếu GIAM50K không còn dùng được')
+    expect(hopPhieu().text()).toContain('GIAM30K')
+    await nutTrongHopPhieu('Thanh toán không dùng phiếu').trigger('click')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(w.text()).not.toContain('GIAM30K') // đã chọn không dùng phiếu: không tự áp lại
+    await nutXacNhan().trigger('click')
+    await flushPromises()
+    expect(may.thanhToan.maPhieu || '').toBe('')
   })
 })
 

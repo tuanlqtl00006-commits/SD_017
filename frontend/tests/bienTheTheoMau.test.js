@@ -1,6 +1,8 @@
 // Biến thể nhóm theo màu ở trang Thêm sản phẩm (theo nhận xét của cô + 2 video mẫu):
 // đúng tích số (4 x 3 x 2 = 24), nhóm theo màu, mặc định + Áp dụng, ảnh theo màu, định dạng giá, báo lỗi rõ.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+// Hộp xác nhận dùng chung (21/11): các test ở đây kiểm luồng sau khi người dùng đã bấm Xác nhận; hộp xác nhận kiểm riêng ở xacNhanChung.test.js
+vi.mock('../src/composables/useXacNhan', () => ({ hoiXacNhan: vi.fn(async () => true) }))
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { mockApi, THUOC_TINH, themAnhChung } from './helpersDanhMuc'

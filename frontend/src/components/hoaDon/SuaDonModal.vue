@@ -8,6 +8,7 @@ import api from '../../services/api'
 import BaseModal from '../common/BaseModal.vue'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { formatMoney } from '../../utils/format'
 import { phiSauKhiSuaDon } from '../../utils/phiVanChuyenTinh'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
@@ -121,6 +122,7 @@ async function luu() {
     focusLoiDau('#sua-don-form')
     return
   }
+  if (!(await hoiXacNhan({ title: 'Lưu sửa đơn', message: 'Mỗi đơn chỉ được sửa một lần. Bạn có chắc muốn lưu các thay đổi của đơn này?', confirmText: 'Lưu thay đổi' }))) return
   dangGui.value = true
   try {
     const res = await api.put(`/hoa-don/${props.data.hoaDon.id}/sua-don`, {

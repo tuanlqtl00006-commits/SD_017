@@ -13,6 +13,7 @@ import KhachHangAddressModal from '../KhachHangAddressModal.vue'
 import { khachHangService } from '../../services/khachHangService'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { ghepDiaChi } from '../../utils/diaChi'
 import { ngayTuApi } from '../../utils/ngay'
 import {
@@ -202,6 +203,10 @@ async function luu() {
       diaChiCuThe: cat(form.diaChiCuThe),
     })
   }
+  const dongY = await hoiXacNhan(isEdit.value
+    ? { title: 'Cập nhật khách hàng', message: `Bạn có chắc muốn lưu thay đổi thông tin khách hàng ${payload.hoTen}?`, confirmText: 'Lưu thay đổi' }
+    : { title: 'Thêm khách hàng', message: `Bạn có chắc muốn thêm khách hàng ${payload.hoTen}?`, confirmText: 'Thêm khách hàng' })
+  if (!dongY) return
   dangLuu.value = true
   try {
     if (isEdit.value) await khachHangService.update(id.value, payload)

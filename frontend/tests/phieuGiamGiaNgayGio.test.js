@@ -350,6 +350,18 @@ describe('Form phiếu: bố cục + ngày giờ + trạng thái dự kiến', (
     w.unmount()
   })
 
+  it('góp ý 21/11: phiếu % được để giảm tối đa lớn hơn đơn tối thiểu (đơn từ 20 triệu, giảm tối đa 50 triệu)', async () => {
+    const w = await montarForm()
+    await w.get('#pgg-gia-tri').setValue('10')
+    await w.get('#pgg-giam-toi-da').setValue('50000000')
+    await w.get('#pgg-don-toi-thieu').setValue('20000000')
+    expect(khungCua(w, '#pgg-giam-toi-da')).not.toContain('Giảm tối đa không được lớn hơn')
+    expect(khungCua(w, '#pgg-don-toi-thieu')).not.toContain('lớn hơn hoặc bằng giảm tối đa')
+    expect(w.find('#pgg-giam-toi-da-msg').exists()).toBe(false)
+    expect(w.find('#pgg-don-toi-thieu-msg').exists()).toBe(false)
+    w.unmount()
+  })
+
   it('chọn ngày giờ bắt đầu và kết thúc hợp lệ', async () => {
     const w = await montarForm()
     await nhapNgay(w, 'pgg-ngay-kt', '2026-10-15', '18:00')

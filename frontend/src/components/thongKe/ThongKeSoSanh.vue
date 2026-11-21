@@ -7,6 +7,7 @@ import { RouterLink } from 'vue-router'
 import api from '../../services/api'
 import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { exportExcel } from '../../utils/exportExcel'
 import { formatDate, formatMoney, todayIso } from '../../utils/format'
 import { nhanTienGon } from '../../utils/thongKe'
@@ -1229,6 +1230,7 @@ async function guiEmail() {
     loiEmail.value = 'Ghi chú không được chứa mã HTML hoặc kịch bản.'
     return
   }
+  if (!(await hoiXacNhan({ title: 'Gửi báo cáo qua email', message: `Bạn có chắc muốn gửi báo cáo so sánh tới ${dsEmail.join(', ')}?`, confirmText: 'Gửi email' }))) return
   dangGui.value = true
   try {
     const emailChuan = dsEmail.join(', ')

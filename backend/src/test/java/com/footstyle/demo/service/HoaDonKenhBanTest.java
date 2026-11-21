@@ -43,6 +43,33 @@ class HoaDonKenhBanTest {
         assertTrue(online.stream().allMatch(h -> "Trực tuyến".equals(h.getLoaiDon())), "tab online: mọi đơn ghi Trực tuyến");
     }
 
+    @Autowired
+    private com.footstyle.demo.repository.HoaDonRepository hoaDonRepo;
+
+    /** Góp ý 21/11: hóa đơn chờ tại quầy (khách vãng lai, 0 đồng, chưa thanh toán) không vào Quản lý hóa đơn. */
+    @Test
+    void hoaDonChoTaiQuay_khongNamTrongDanhSachVaBoDem() {
+        long truoc = service.demTheoTrangThai(null, null, null, null).get("tatCa");
+        com.footstyle.demo.entity.HoaDon h = new com.footstyle.demo.entity.HoaDon();
+        h.setMaHoaDon("HDCHO2111");
+        h.setLoaiDon(com.footstyle.demo.entity.HoaDon.TAI_QUAY);
+        h.setTrangThai(com.footstyle.demo.entity.HoaDon.CHO_XAC_NHAN);
+        // Giống HoaDonChoService.tao(): mới tạo là 0 đồng, khách vãng lai
+        h.setTongTien(java.math.BigDecimal.ZERO);
+        h.setSoTienGiam(java.math.BigDecimal.ZERO);
+        h.setPhiVanChuyen(java.math.BigDecimal.ZERO);
+        h.setThanhTien(java.math.BigDecimal.ZERO);
+        h.setNgayTao(java.time.LocalDateTime.now());
+        h.setNgayCapNhat(java.time.LocalDateTime.now());
+        h = hoaDonRepo.saveAndFlush(h);
+        Integer id = h.getId();
+
+        assertTrue(ds(null).stream().noneMatch(x -> x.getId().equals(id)), "tab Tất cả không có hóa đơn chờ");
+        assertTrue(ds(HoaDonService.KENH_TAI_QUAY).stream().noneMatch(x -> x.getId().equals(id)), "tab Đơn tại quầy không có hóa đơn chờ");
+        assertEquals(truoc, service.demTheoTrangThai(null, null, null, null).get("tatCa"), "bộ đếm không tăng");
+        assertEquals(0L, service.demTheoTrangThai(null, null, null, null, HoaDonService.KENH_TAI_QUAY).get("1"), "tab Chờ xác nhận của tại quầy = 0");
+    }
+
     @Test
     void boDemTheoTab_khopDanhSach() {
         Map<String, Long> demQuay = service.demTheoTrangThai(null, null, null, null, HoaDonService.KENH_TAI_QUAY);

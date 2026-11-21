@@ -3,6 +3,7 @@ import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import QRCode from 'qrcode'
 import api from '../../services/api'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
 import { formatMoney } from '../../utils/format'
 import { layPhien } from '../../services/phien'
@@ -92,6 +93,7 @@ function capNhatTrangThaiDon(d) {
 
 async function doiSangCod() {
   if (dangDoiCod.value) return
+  if (!(await hoiXacNhan({ title: 'Đổi sang thanh toán khi nhận hàng', message: `Bạn có chắc muốn đổi đơn ${maHoaDon.value} sang thanh toán khi nhận hàng (COD)?`, confirmText: 'Đổi sang COD' }))) return
   dangDoiCod.value = true
   loiDoiCod.value = ''
   try {

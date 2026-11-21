@@ -97,6 +97,9 @@ public class HoaDonService {
         }
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            // Hóa đơn chờ tại quầy (nhân viên bấm "Thêm hóa đơn chờ", chưa thanh toán: khách vãng lai, 0 đồng lúc mới tạo) chỉ nằm ở màn
+            // Bán hàng tại quầy, không đưa vào Quản lý hóa đơn (góp ý 21/11). Thanh toán xong mới thành hóa đơn thật.
+            predicates.add(cb.not(cb.and(cb.equal(root.get("loaiDon"), HoaDon.TAI_QUAY), cb.equal(root.get("trangThai"), HoaDon.CHO_XAC_NHAN))));
             if (maHoaDon != null && !maHoaDon.trim().isEmpty()) {
                 // Thoát % và _ để gõ "HD_1" không bị hiểu là ký tự đại diện của LIKE
                 predicates.add(cb.like(root.get("maHoaDon"), "%" + thoatLike(maHoaDon.trim()) + "%", '\\'));

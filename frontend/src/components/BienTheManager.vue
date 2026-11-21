@@ -15,6 +15,7 @@ import { useThuocTinh } from '../composables/useThuocTinh'
 import { usePagination } from '../composables/usePagination'
 import { useThemNhanh } from '../composables/useThemNhanh'
 import { useToast } from '../composables/useToast'
+import { hoiXacNhan } from '../composables/useXacNhan'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import { formatMoney, todayIso } from '../utils/format'
 import { includesText } from '../utils/text'
@@ -48,6 +49,7 @@ async function themNhanhSanPham(tenGoc) {
     toast.error(`Sản phẩm "${daCo.ten}" đã có trong danh sách.`)
     return daCo
   }
+  if (!(await hoiXacNhan({ title: 'Thêm sản phẩm', message: `Bạn có chắc muốn thêm nhanh sản phẩm "${ten}"?`, confirmText: 'Thêm sản phẩm' }))) return null
   try {
     const dm = tt['danh-muc'].find((x) => x.hoatDong)?.id || 1
     const th = tt['thuong-hieu'].find((x) => x.hoatDong)?.id || 1

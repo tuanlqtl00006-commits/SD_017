@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Hộp xác nhận dùng chung (21/11): các test ở đây kiểm luồng sau khi người dùng đã bấm Xác nhận; hộp xác nhận kiểm riêng ở xacNhanChung.test.js
+vi.mock('../src/composables/useXacNhan', () => ({ hoiXacNhan: vi.fn(async () => true) }))
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -80,9 +82,10 @@ describe('Màn quầy: không hiện số "chờ đơn online" (góp ý 16/11 [0
     const o = w.find('input[aria-label="Số lượng Vợt Yonex Astrox 99"]')
     await o.setValue('21')
     await o.trigger('change')
-    await w.find('.bh-nut-them').trigger('click')
+    // Góp ý 21/11: nhập quá tồn kho thì tự đưa về tối đa (không giữ số sai)
+    expect(o.element.value).toBe('20')
+    expect(w.text()).toContain('Chỉ còn 20 sản phẩm trong kho, đã đưa về 20.')
     expect(w.emitted('chon')).toBeUndefined()
-    expect(w.text()).toContain('Chỉ còn 20 sản phẩm trong kho.')
     await o.setValue('5')
     await o.trigger('change')
     await w.find('.bh-nut-them').trigger('click')

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { nhanVienService } from '../../services/nhanVienService'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { exportExcel } from '../../utils/exportExcel'
 import { todayIso } from '../../utils/format'
 import { HUONG_DAN_TUOI_NHAN_VIEN } from '../../utils/kiemTra'
@@ -96,7 +97,11 @@ async function kiemTraFile() {
 
 async function nhapVaoHeThong() {
   if (!file.value || dangXuLy.value) return
-  dangXuLy.value = true
+  dangXuLy.value = true // khóa nút từ lúc hỏi: bấm nhiều lần chỉ hỏi / gửi một lần
+  if (!(await hoiXacNhan({ title: 'Nhập nhân viên từ Excel', message: `Bạn có chắc muốn nhập các nhân viên trong file ${file.value.name} vào hệ thống?`, confirmText: 'Nhập vào hệ thống' }))) {
+    dangXuLy.value = false
+    return
+  }
   loiChung.value = ''
   try {
     ketQua.value = await nhanVienService.importExcel(file.value, { chiKiemTra: false })

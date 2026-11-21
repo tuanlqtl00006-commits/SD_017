@@ -12,6 +12,7 @@ import { ghepDiaChi } from '../utils/diaChi'
 import { SO_DIA_CHI_MAX, cat, chuanHoaHoTen, loiDiaChiCuThe, loiHoTen, loiSdt } from '../utils/kiemTra'
 import { useLoiForm } from '../composables/useLoiForm'
 import { useToast } from '../composables/useToast'
+import { hoiXacNhan } from '../composables/useXacNhan'
 
 const toast = useToast()
 
@@ -157,6 +158,10 @@ async function saveAddress() {
     diaChiCuThe: cat(f.diaChiCuThe),
     laDiaChiMacDinh: f.laDiaChiMacDinh,
   }
+  const dongY = await hoiXacNhan(f.id
+    ? { title: 'Cập nhật địa chỉ', message: 'Bạn có chắc muốn lưu thay đổi địa chỉ này?', confirmText: 'Lưu thay đổi' }
+    : { title: 'Thêm địa chỉ', message: 'Bạn có chắc muốn thêm địa chỉ này cho khách hàng?', confirmText: 'Thêm địa chỉ' })
+  if (!dongY) return
   saving.value = true
   try {
     let saved = null
@@ -187,6 +192,7 @@ async function saveAddress() {
 /* ----- Đặt mặc định (API riêng, chỉ đổi cờ mặc định nên địa chỉ cũ nhập thiếu thông tin vẫn đặt được) ----- */
 async function datMacDinh(addr) {
   if (addr.laDiaChiMacDinh || idDangDatMacDinh.value) return
+  if (!(await hoiXacNhan({ title: 'Đặt địa chỉ mặc định', message: 'Bạn có chắc muốn đặt địa chỉ này làm địa chỉ mặc định?', confirmText: 'Đặt mặc định' }))) return
   idDangDatMacDinh.value = addr.id
   try {
     await api.put(`/dia-chi/${addr.id}/mac-dinh`)

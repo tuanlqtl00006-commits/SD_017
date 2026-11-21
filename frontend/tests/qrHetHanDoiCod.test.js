@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// Hộp xác nhận dùng chung (21/11): các test ở đây kiểm luồng sau khi người dùng đã bấm Xác nhận; hộp xác nhận kiểm riêng ở xacNhanChung.test.js
+vi.mock('../src/composables/useXacNhan', () => ({ hoiXacNhan: vi.fn(async () => true) }))
 import { flushPromises, mount } from '@vue/test-utils'
 
 // Góp ý 14/11 (video 22:22 [04:52–08:06]): mã QR chuyển khoản có hạn 5 phút, đếm ngược ngay dưới;

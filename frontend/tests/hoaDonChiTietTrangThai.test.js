@@ -4,6 +4,8 @@
 //  - chuyển sang "Đã xác nhận" thì tự mở bản in hóa đơn (PDF);
 //  - đơn tại quầy không có phí / đơn vị vận chuyển, khách lẻ không hiện số điện thoại, hiện mã phiếu + % giảm, logo GHN/GHTK.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+// Hộp xác nhận dùng chung (21/11): các test ở đây kiểm luồng sau khi người dùng đã bấm Xác nhận; hộp xác nhận kiểm riêng ở xacNhanChung.test.js
+vi.mock('../src/composables/useXacNhan', () => ({ hoiXacNhan: vi.fn(async () => true) }))
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { useToast } from '../src/composables/useToast'

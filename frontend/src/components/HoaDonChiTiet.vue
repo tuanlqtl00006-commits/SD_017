@@ -8,6 +8,7 @@ import HoaDonNoiDung from './hoaDon/HoaDonNoiDung.vue'
 import SuaDonModal from './hoaDon/SuaDonModal.vue'
 import SuaGiaoHangModal from './hoaDon/SuaGiaoHangModal.vue'
 import { useToast } from '../composables/useToast'
+import { hoiXacNhan } from '../composables/useXacNhan'
 import { useAuth } from '../composables/useAuth'
 import { useChatChuaDoc } from '../composables/useChatChuaDoc'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
@@ -280,6 +281,7 @@ function giuHangCho() {
 }
 async function guiMailHetHang() {
   if (hetHang.dang) return
+  if (!(await hoiXacNhan({ title: 'Gửi thư báo hết hàng', message: 'Bạn có chắc muốn gửi email báo hết hàng cho khách? Đơn vẫn giữ ở Chờ xác nhận.', confirmText: 'Gửi thư' }))) return
   hetHang.dang = true
   try {
     setData((await api.post(`/hoa-don/${idHoaDon}/bao-het-hang`)).data)
@@ -293,6 +295,7 @@ async function guiMailHetHang() {
 }
 async function huyVaHoanTien() {
   if (hetHang.dang) return
+  if (!(await hoiXacNhan({ title: 'Hủy đơn và hoàn tiền', message: 'Bạn có chắc muốn hủy đơn này vì hết hàng và hoàn tiền cho khách? Thao tác không hoàn tác được.', confirmText: 'Hủy đơn', variant: 'danger' }))) return
   hetHang.dang = true
   const ghiChu = `Hết hàng: ${hetHang.thieu.join('; ')}`.slice(0, 500)
   try {

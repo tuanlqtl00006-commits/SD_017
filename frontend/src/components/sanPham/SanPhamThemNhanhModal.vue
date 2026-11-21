@@ -6,6 +6,7 @@ import Select2 from '../common/Select2.vue'
 import { sanPhamService } from '../../services/sanPhamService'
 import { thuocTinhService } from '../../services/thuocTinhService'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { tuDanhSach } from '../../utils/luaChon'
 import { cat, timBanTrung } from '../../utils/kiemTra'
 import { chatLieuHopDanhMuc, idKhongApDung, laDanhMucVot, laKhongApDung } from '../../utils/danhMuc'
@@ -84,6 +85,7 @@ function moThemThuocTinh(slug, field) {
 async function luuThuocTinhModal(payload) {
   if (!modalThuocTinh.value) return
   const { slug, field } = modalThuocTinh.value
+  if (!(await hoiXacNhan({ title: 'Thêm thuộc tính', message: `Bạn có chắc muốn thêm "${payload?.ten ?? ''}"?`, confirmText: 'Thêm' }))) return
   dangLuuThuocTinh.value = true
   loiModalThuocTinh.value = ''
   try {
@@ -164,6 +166,7 @@ async function submit() {
     nextTick(() => document.querySelector('#sp-them-nhanh-form .is-invalid')?.focus())
     return
   }
+  if (!(await hoiXacNhan({ title: 'Thêm sản phẩm', message: 'Bạn có chắc muốn thêm sản phẩm này?', confirmText: 'Thêm sản phẩm' }))) return
 
   dangLuu.value = true
   try {

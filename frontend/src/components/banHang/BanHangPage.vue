@@ -71,6 +71,7 @@ function phuMoi(id = null) {
     maPhieu: '', // luôn là phiếu giảm nhiều nhất do hệ thống tự áp (taiPhieu), nhân viên không chọn
     soTienGiam: null, // số tiền giảm của phiếu đã chốt (không tự cập nhật khi phiếu bị sửa)
     giuNguyenGiamCu: false, // true nếu nhân viên chọn Hủy (giữ nguyên giảm cũ)
+    khongDungPhieu: false, // true nếu nhân viên đã chọn thanh toán không dùng phiếu: không tự áp lại phiếu nào
     ghiChu: '',
     phuongThuc: 'TIEN_MAT',
     tienMat: '',
@@ -307,6 +308,20 @@ async function doiSl(d, giaTri, opt = false) {
     dangLam.value = false
   }
 }
+/* Góp ý 21/11: gõ số lượng ở dòng giỏ quá tồn kho (vd 101 khi còn 100) hoặc dưới 1 thì tự đưa về tối đa / tối thiểu
+ * (ô hiện ngay số mới), không giữ số sai để nhân viên tự sửa. */
+function nhapSlDong(d, el) {
+  const n = Math.floor(Number(el.value))
+  const toiDa = Math.min(SO_LUONG_TOI_DA, d.soLuong + Number(d.tonKho || 0))
+  const v = !Number.isFinite(n) || n < 1 ? 1 : Math.min(n, toiDa)
+  if (String(v) !== String(el.value)) {
+    el.value = v
+    toast.error(Number.isFinite(n) && n > toiDa
+      ? `${d.ten} chỉ còn ${d.tonKho} sản phẩm trong kho, đã đưa số lượng về tối đa ${v}.`
+      : 'Số lượng tối thiểu là 1, đã đưa về 1. Muốn bỏ sản phẩm thì bấm nút xóa.')
+  }
+  doiSl(d, v)
+}
 const dongSapBo = ref(null) // dòng đang chờ nhân viên xác nhận bỏ khỏi hóa đơn
 async function xoaDong(d) {
   dongSapBo.value = null
@@ -352,20 +367,21 @@ async function taiPhieu() {
   dangTaiPhieu.value = true
   try {
     const moi = (await api.get('/ban-hang/phieu-giam-gia', { params: { idKhachHang: h.khach?.id, tongTien: tienHang.value } })).data
-    // User request: "không tự động cập nhật giá trị khi phiếu bị sửa"
-    // Nếu phiếu đang dùng đã có mức giảm lưu trong h.p.soTienGiam, không tự động cập nhật lại khi phiếu bị sửa giá trị
     const dangDung = h.p.maPhieu ? moi.find((p) => p.ma === h.p.maPhieu) : null
     const tot = moi.find((p) => p.apDungDuoc)
     phieus.value = moi
-    const mucGiamDangDung = dangDung ? Number(dangDung.soTienGiam || 0) : 0
-    const mucGiamTot = tot ? Number(tot.soTienGiam || 0) : 0
-    if (!h.p.maPhieu || !dangDung || !dangDung.apDungDuoc || (mucGiamTot > mucGiamDangDung && !h.p.giuNguyenGiamCu)) {
-      h.p.maPhieu = tot?.ma ?? ''
-      h.p.soTienGiam = tot ? Number(tot.soTienGiam) : null
-      h.p.giuNguyenGiamCu = false
-    } else if (h.p.soTienGiam == null) {
+    if (!h.p.maPhieu) {
+      // Đơn chưa có phiếu: tự áp phiếu giảm nhiều nhất đang dùng được (09/11), trừ khi nhân viên đã chọn không dùng phiếu
+      if (!h.p.khongDungPhieu && tot) {
+        h.p.maPhieu = tot.ma
+        h.p.soTienGiam = Number(tot.soTienGiam)
+        h.p.giuNguyenGiamCu = false
+      }
+    } else if (h.p.soTienGiam == null && dangDung?.apDungDuoc) {
       h.p.soTienGiam = Number(dangDung.soTienGiam) || 0
     }
+    // Đơn đã có phiếu: GIỮ NGUYÊN phiếu và mức giảm đang áp (góp ý 21/11), kể cả khi có phiếu mới giảm nhiều hơn, phiếu bị sửa
+    // mức giảm, bị hủy / hết lượt hay đơn không còn đủ điều kiện. Bấm Thanh toán mới kiểm tra và hỏi (kiemTraPhieuTruocKhiThanhToan).
   } catch (e) {
     phieus.value = []
     toast.error(e.message || 'Không tải được phiếu giảm giá.')
@@ -799,6 +815,7 @@ async function kiemTraPhieuTruocKhiThanhToan() {
     const chon = moi.find((p) => p.ma === ma)
     h.p.soTienGiam = chon ? Number(chon.soTienGiam) : 0
     h.p.giuNguyenGiamCu = false
+    h.p.khongDungPhieu = !ma // chọn "không dùng phiếu" thì không tự áp lại phiếu nào cho đơn này
   }
   if (dangDungMa && !conDung) {
     const lyDo = moi.find((x) => x.ma === dangDungMa)?.lyDo || 'phiếu đã hết hạn, hết lượt hoặc bị ngừng hoạt động'
@@ -859,6 +876,7 @@ async function kiemTraPhieuTruocKhiThanhToan() {
 async function chonTrongHoiPhieu(n) {
   hoiPhieu.value = null
   n.lam()
+  if (n.quayLai) return // "Quay lại": chỉ đóng hộp thoại, ở lại màn bán hàng
   await nextTick() // tiền mặt khách đưa tự theo số phải trả mới
   if (lyDoKhongThanhToan.value) {
     toast.error(lyDoKhongThanhToan.value)
@@ -869,27 +887,10 @@ async function chonTrongHoiPhieu(n) {
 
 async function moXacNhan() {
   if (hd.value.p.giaoHang) daChamGiao.value = true
-  if (lyDoKhongThanhToan.value) {
-    if (loiPhieu.value) {
-      hoiPhieu.value = {
-        dong: [loiPhieu.value, 'Bạn có muốn bỏ áp dụng phiếu giảm giá để tiếp tục thanh toán không?'],
-        nut: [
-          {
-            nhan: 'Bỏ phiếu và tiếp tục',
-            chinh: true,
-            lam: () => {
-              hd.value.p.maPhieu = ''
-              hd.value.p.soTienGiam = null
-              hd.value.p.giuNguyenGiamCu = false
-              hoiPhieu.value = null
-              xacNhan.value = true
-            },
-          },
-          { nhan: 'Quay lại', lam: () => { hoiPhieu.value = null } },
-        ],
-      }
-      return
-    }
+  // Phiếu đang áp không còn dùng được (bị hủy / sửa / hết lượt / đơn không đủ điều kiện): không chặn ở đây mà xuống bước kiểm tra
+  // phiếu bên dưới để hỏi nhân viên (áp phiếu khác nếu có, hoặc thanh toán không dùng phiếu)
+  const chiVuongPhieu = Boolean(loiPhieu.value) && lyDoKhongThanhToan.value === loiPhieu.value
+  if (lyDoKhongThanhToan.value && !chiVuongPhieu) {
     toast.error(lyDoKhongThanhToan.value)
     if (canVaoCa.value) moCa.value = true
     return
@@ -905,6 +906,26 @@ async function moXacNhan() {
     }
   } finally {
     dangKiemPhieu.value = false
+  }
+  if (loiPhieu.value) {
+    // Không tải lại được danh sách phiếu mà phiếu đang áp vẫn báo không dùng được: hỏi bỏ phiếu để thanh toán tiếp
+    hoiPhieu.value = {
+      dong: [loiPhieu.value, 'Bạn có muốn bỏ áp dụng phiếu giảm giá để tiếp tục thanh toán không?'],
+      nut: [
+        {
+          nhan: 'Bỏ phiếu và tiếp tục',
+          chinh: true,
+          lam: () => {
+            hd.value.p.maPhieu = ''
+            hd.value.p.soTienGiam = null
+            hd.value.p.giuNguyenGiamCu = false
+            hd.value.p.khongDungPhieu = true
+          },
+        },
+        { nhan: 'Quay lại', quayLai: true, lam: () => {} },
+      ],
+    }
+    return
   }
   xacNhan.value = true
 }
@@ -1039,6 +1060,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', phimTat))
 function phimTat(e) {
   if (e.key === 'F2') {
     e.preventDefault()
+    if (canVaoCa.value) return // chưa vào ca: không mở bảng chọn sản phẩm (góp ý 21/11)
     if (moChonSp.value) timSp.value?.focusTim()
     else moChonSp.value = true
   } else if (e.key === 'F9') {
@@ -1072,7 +1094,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
         <!-- Hóa đơn chờ -->
         <section class="ad-card bh-khoi-cho">
           <div class="bh-cho-dau">
-            <button type="button" class="ad-btn ad-btn-sm" data-testid="bh-them-hd" :disabled="dsCho.length >= SO_HOA_DON_CHO_TOI_DA" @click="themHoaDon">
+            <button type="button" class="ad-btn ad-btn-sm" data-testid="bh-them-hd" :disabled="canVaoCa || dsCho.length >= SO_HOA_DON_CHO_TOI_DA" :title="canVaoCa ? 'Bạn chưa vào ca' : ''" @click="themHoaDon">
               <i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm hóa đơn chờ
             </button>
             <!-- Review: bỏ bớt chữ hướng dẫn nhỏ (phím tắt F2 / F9 vẫn dùng được, ghi trong chú thích của nút) -->
@@ -1096,8 +1118,9 @@ const soLuongTab = (h) => tongSoLuong(h.items)
               <span class="ad-pill ad-pill-blue">{{ tongSoLuong(hd.gio) }} sản phẩm</span>
             </div>
             <div class="bh-gio-cong-cu">
-              <button type="button" class="ad-btn" title="Quét bằng camera" @click="moCamera = true"><i class="bi bi-camera" aria-hidden="true"></i></button>
-              <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-chon-sp" title="Chọn sản phẩm (F2)" @click="moChonSp = true">
+              <!-- Góp ý 21/11: chưa vào ca thì khóa hẳn nút quét / chọn sản phẩm (trước đây vẫn bấm được, thêm mới báo lỗi) -->
+              <button type="button" class="ad-btn" :title="canVaoCa ? 'Bạn chưa vào ca' : 'Quét bằng camera'" :disabled="canVaoCa" @click="moCamera = true"><i class="bi bi-camera" aria-hidden="true"></i></button>
+              <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-chon-sp" :title="canVaoCa ? 'Bạn chưa vào ca' : 'Chọn sản phẩm (F2)'" :disabled="canVaoCa" @click="moChonSp = true">
                 <i class="bi bi-plus-circle" aria-hidden="true"></i> Chọn sản phẩm
               </button>
             </div>
@@ -1144,13 +1167,18 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                     <td class="ad-nowrap">
                       <div class="fw-medium">{{ formatMoney(d.donGia) }}</div>
                       <small v-if="dangGiamTheoDot(d)" class="text-muted"><s>{{ formatMoney(d.giaGoc) }}</s></small>
+                      <!-- Góp ý 21/11: giá đổi khi đang lên đơn thì báo rõ bằng chữ đỏ (dòng này vẫn giữ giá lúc thêm) -->
+                      <small v-if="d.giaDoi" class="text-danger d-block fw-semibold" data-testid="bh-gia-doi">
+                        Giá đã cập nhật: {{ formatMoney(d.donGia) }} → {{ formatMoney(d.giaHienTai) }}
+                      </small>
                     </td>
                     <td class="text-center">
                       <div class="bh-cot-sl">
                         <div class="bh-sl">
                           <button type="button" :aria-label="`Giảm số lượng ${d.ten}`" :disabled="d.soLuong <= 1" @click="doiSl(d, d.soLuong - 1)"><i class="bi bi-dash"></i></button>
-                          <input :value="d.soLuong" type="number" min="1" :max="d.soLuong + d.tonKho" :disabled="dangLam" :aria-label="`Số lượng ${d.ten}`" @change="doiSl(d, $event.target.value)" />
-                          <button type="button" :aria-label="`Tăng số lượng ${d.ten}`" :disabled="dangLam || d.tonKho <= 0" @click="doiSl(d, d.soLuong + 1)"><i class="bi bi-plus"></i></button>
+                          <input :value="d.soLuong" type="number" min="1" :max="d.soLuong + d.tonKho" :disabled="dangLam" :aria-label="`Số lượng ${d.ten}`" @change="nhapSlDong(d, $event.target)" />
+                          <!-- Dòng giữ giá cũ (giá đã đổi): ẩn nút +, muốn thêm thì chọn lại sản phẩm để thêm dòng theo giá mới -->
+                          <button v-if="!d.giaDoi" type="button" :aria-label="`Tăng số lượng ${d.ten}`" :disabled="dangLam || d.tonKho <= 0" @click="doiSl(d, d.soLuong + 1)"><i class="bi bi-plus"></i></button>
                         </div>
                         <!-- Nhiều dòng cùng biến thể (khác giá / khác đợt) dùng chung một tồn kho: bỏ chữ để không dòng nào cũng lặp cùng một số -->
                         <small v-if="!trungBienThe(d)" class="text-muted">Kho còn {{ d.tonKho }}</small>
@@ -1510,7 +1538,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 
     <!-- Chọn sản phẩm: hộp thoại có lọc + bảng + phân trang -->
     <BaseModal v-if="moChonSp" title="Chọn sản phẩm" size="xl" @close="moChonSp = false">
-      <TimSanPham ref="timSp" trong-hop @chon="themSanPham" />
+      <TimSanPham ref="timSp" trong-hop :khoa-them="canVaoCa" @chon="themSanPham" />
       <template #footer>
         <span class="me-auto small text-muted">Đang thêm vào <b>{{ hd.maHoaDon || 'hóa đơn mới' }}</b> · {{ tongSoLuong(hd.gio) }} sản phẩm trong giỏ</span>
         <button type="button" class="ad-btn" data-testid="bh-dong-chon-sp" @click="moChonSp = false">Đóng</button>

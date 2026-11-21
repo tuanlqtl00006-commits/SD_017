@@ -14,6 +14,7 @@ import api from '../../services/api'
 import { lichLamViecService } from '../../services/lichLamViecService'
 import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { formatMoney, formatNgayGio, todayIso } from '../../utils/format'
 import { inBienBanGiaoCa, moTaChenhLech, thoiLuong } from '../../utils/giaoCa'
 import { congNgayIso } from '../../utils/lichTuan'
@@ -147,6 +148,7 @@ async function guiDongHo() {
     dongHo.loi = 'Tiền để lại cho ca sau không được lớn hơn tiền mặt thực tế.'
     return
   }
+  if (!(await hoiXacNhan({ title: 'Đóng ca hộ', message: `Bạn có chắc muốn đóng ca ${chiTiet.value.maGiaoCa || ''} thay nhân viên? Ca đã đóng không mở lại được.`, confirmText: 'Đóng ca', variant: 'danger' }))) return
   dongHo.dangGui = true
   try {
     await api.post(`/giao-ca/${chiTiet.value.id}/dong-ho`, {
@@ -165,6 +167,7 @@ async function guiDongHo() {
   }
 }
 async function huyHoaDonCho() {
+  if (!(await hoiXacNhan({ title: 'Hủy hóa đơn chờ', message: `Bạn có chắc muốn hủy ${dongHo.soHoaDonCho} hóa đơn chờ của ca này? Hàng trong các hóa đơn sẽ được trả về kho.`, confirmText: 'Hủy hóa đơn chờ', variant: 'danger' }))) return
   try {
     const kq = (await api.post(`/giao-ca/${chiTiet.value.id}/huy-hoa-don-cho`)).data
     toast.success(`Đã hủy ${kq.soHoaDonDaHuy} hóa đơn chờ, trả hàng về kho.`)

@@ -5,6 +5,7 @@ import { computed, ref } from 'vue'
 import BaseModal from '../common/BaseModal.vue'
 import { lichLamViecService } from '../../services/lichLamViecService'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { formatDate } from '../../utils/format'
 import { TOI_DA_DONG_NHAP_LICH, taiFileMauLich } from '../../utils/mauLichLamViec'
 
@@ -85,7 +86,11 @@ async function kiemTraFile() {
 
 async function nhapVaoHeThong() {
   if (!file.value || dangXuLy.value) return
-  dangXuLy.value = true
+  dangXuLy.value = true // khóa nút từ lúc hỏi: bấm nhiều lần chỉ hỏi / gửi một lần
+  if (!(await hoiXacNhan({ title: 'Nhập lịch làm việc từ Excel', message: `Bạn có chắc muốn nhập lịch làm việc trong file ${file.value.name} vào hệ thống?`, confirmText: 'Nhập vào hệ thống' }))) {
+    dangXuLy.value = false
+    return
+  }
   loiChung.value = ''
   try {
     ketQua.value = await lichLamViecService.importExcel(file.value, { chiKiemTra: false })

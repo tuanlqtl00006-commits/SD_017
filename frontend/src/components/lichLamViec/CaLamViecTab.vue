@@ -6,6 +6,7 @@ import StatusSwitch from '../common/StatusSwitch.vue'
 import { lichLamViecService } from '../../services/lichLamViecService'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { mauCa } from '../../utils/lichTuan'
 
 const props = defineProps({ cas: { type: Array, default: () => [] } })
@@ -59,8 +60,12 @@ async function luu() {
     focusLoiDau('#ca-form')
     return
   }
-  dangLuu.value = true
   const body = { tenCa: f.tenCa.trim(), gioBatDau: f.gioBatDau, gioKetThuc: f.gioKetThuc }
+  const dongY = await hoiXacNhan(f.id
+    ? { title: 'Cập nhật ca làm việc', message: `Bạn có chắc muốn lưu thay đổi ${body.tenCa} (${body.gioBatDau} - ${body.gioKetThuc})?`, confirmText: 'Lưu thay đổi' }
+    : { title: 'Thêm ca làm việc', message: `Bạn có chắc muốn thêm ${body.tenCa} (${body.gioBatDau} - ${body.gioKetThuc})?`, confirmText: 'Thêm ca' })
+  if (!dongY) return
+  dangLuu.value = true
   try {
     if (f.id) await lichLamViecService.suaCa(f.id, body)
     else await lichLamViecService.themCa(body)
@@ -76,6 +81,10 @@ async function luu() {
 }
 
 async function doiTrangThai(c) {
+  const dongY = await hoiXacNhan(c.hoatDong
+    ? { title: 'Ngừng dùng ca', message: `Bạn có chắc muốn ngừng dùng ${c.tenCa}? Ca ngừng dùng không xếp lịch mới được.`, confirmText: 'Ngừng dùng', variant: 'danger' }
+    : { title: 'Bật ca', message: `Bạn có chắc muốn bật lại ${c.tenCa}?`, confirmText: 'Bật ca' })
+  if (!dongY) return
   try {
     const kq = await lichLamViecService.doiTrangThaiCa(c.id)
     toast.success(kq.hoatDong ? `Đã bật ${kq.tenCa}.` : `Đã ngừng dùng ${kq.tenCa}.`)

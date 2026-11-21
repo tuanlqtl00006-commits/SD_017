@@ -12,7 +12,8 @@ import { formatPhanTram } from '../../utils/giamGia'
 import { useSuKien } from '../../composables/useSuKien'
 
 // trongHop: hiện trong hộp thoại 'Chọn sản phẩm' của màn bán hàng (không có khung thẻ / tiêu đề / ô quét mã riêng)
-const props = defineProps({ trongHop: { type: Boolean, default: false } })
+// khoaThem: nhân viên chưa vào ca thì khóa nút Thêm / ô quét mã (góp ý 21/11)
+const props = defineProps({ trongHop: { type: Boolean, default: false }, khoaThem: { type: Boolean, default: false } })
 const emit = defineEmits(['chon'])
 const KICH_THUOC = 10
 
@@ -92,20 +93,31 @@ function nhapSl(sp, v) {
 function slCua(sp) {
   return soLuong[sp.id] ?? 1
 }
-function them(sp) {
+/* Góp ý 21/11: nhập quá tồn kho (vd 101 khi còn 100) hoặc dưới 1 thì tự đưa về tối đa / tối thiểu, không giữ số sai
+ * để nhân viên tự sửa. Trả về true nếu đã phải đưa về (kèm dòng báo dưới ô). */
+function kepSl(sp, el) {
   const raw = slCua(sp)
-  const sl = Number(raw)
-  if (!Number.isInteger(sl) || sl < 1) loiDong[sp.id] = 'Số lượng phải là số nguyên từ 1.'
-  else if (sl > sp.tonKho) loiDong[sp.id] = `Chỉ còn ${sp.tonKho} sản phẩm trong kho.`
-  else {
-    delete loiDong[sp.id]
-    emit('chon', sp, null, sl)
-    soLuong[sp.id] = 1
-    return
-  }
+  const n = Math.floor(Number(raw))
+  const v = !Number.isFinite(n) || n < 1 ? 1 : Math.min(n, sp.tonKho)
+  if (String(v) === String(raw)) return false
+  soLuong[sp.id] = v
+  if (el) el.value = v
+  loiDong[sp.id] = Number.isFinite(n) && n > sp.tonKho
+    ? `Chỉ còn ${sp.tonKho} sản phẩm trong kho, đã đưa về ${v}.`
+    : 'Số lượng tối thiểu là 1, đã đưa về 1.'
+  return true
+}
+function them(sp) {
+  if (props.khoaThem) return // chưa vào ca (Enter trong ô số lượng cũng không thêm được)
+  // Số vừa được đưa về tối đa / tối thiểu: chưa thêm, để nhân viên thấy số mới rồi bấm Thêm lần nữa
+  if (kepSl(sp)) return
+  delete loiDong[sp.id]
+  emit('chon', sp, null, Number(slCua(sp)))
+  soLuong[sp.id] = 1
 }
 
 async function quetMa(giaTri) {
+  if (props.khoaThem) return // chưa vào ca: quét mã cũng không thêm
   const m = String(giaTri ?? ma.value).trim()
   if (!m) return
   try {
@@ -139,7 +151,7 @@ defineExpose({ taiLai: () => tai(), focusTim: () => oTim.value?.focus() })
           <i class="bi bi-upc-scan" aria-hidden="true"></i>
           <input ref="oMa" v-model="ma" type="text" class="form-control ad-control" placeholder="Quét / nhập mã + Enter" aria-label="Quét mã sản phẩm" autocomplete="off" />
         </form>
-        <button type="button" class="ad-btn" @click="moCamera = true"><i class="bi bi-camera" aria-hidden="true"></i> Camera</button>
+        <button type="button" class="ad-btn" :disabled="props.khoaThem" @click="moCamera = true"><i class="bi bi-camera" aria-hidden="true"></i> Camera</button>
       </div>
     </header>
 
@@ -220,12 +232,13 @@ defineExpose({ taiLai: () => tai(), focusTim: () => oTim.value?.focus() })
                   :class="{ 'is-invalid': loiDong[sp.id] }"
                   :aria-label="`Số lượng ${sp.tenSanPham}`"
                   @input="nhapSl(sp, $event.target.value)"
+                  @change="kepSl(sp, $event.target)"
                   @keydown.enter.prevent="them(sp)"
                 />
                 <small v-if="loiDong[sp.id]" class="ad-error d-block">{{ loiDong[sp.id] }}</small>
               </td>
               <td class="ad-col-actions">
-                <button type="button" class="ad-btn ad-btn-primary ad-btn-sm bh-nut-them" :aria-label="`Thêm ${sp.tenSanPham} vào hóa đơn`" @click="them(sp)">
+                <button type="button" class="ad-btn ad-btn-primary ad-btn-sm bh-nut-them" :aria-label="`Thêm ${sp.tenSanPham} vào hóa đơn`" :disabled="props.khoaThem" :title="props.khoaThem ? 'Bạn chưa vào ca' : ''" @click="them(sp)">
                   <i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm
                 </button>
               </td>

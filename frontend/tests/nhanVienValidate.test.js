@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// Hộp xác nhận dùng chung (21/11): các test ở đây kiểm luồng sau khi người dùng đã bấm Xác nhận; hộp xác nhận kiểm riêng ở xacNhanChung.test.js
+vi.mock('../src/composables/useXacNhan', () => ({ hoiXacNhan: vi.fn(async () => true) }))
 import { flushPromises, mount } from '@vue/test-utils'
 
 // Form THÊM / SỬA nhân viên: lỗi hiện dưới từng ô, ngày sinh bắt buộc và từ đủ 18 tuổi, form sửa kiểm tra như form thêm.

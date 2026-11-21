@@ -5,6 +5,7 @@ import api from '../../services/api'
 import BaseModal from '../common/BaseModal.vue'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { EMAIL, cat, chuanHoaHoTen, loiHoTen, loiSdt } from '../../utils/kiemTra'
 
 const props = defineProps({ khach: { type: Object, default: null } })
@@ -80,6 +81,7 @@ async function luuKhach() {
     focusLoiDau('#kh-nhanh-form')
     return
   }
+  if (!(await hoiXacNhan({ title: 'Thêm khách hàng', message: `Bạn có chắc muốn thêm khách hàng ${chuanHoaHoTen(f.hoTen)}?`, confirmText: 'Thêm khách hàng' }))) return
   dangLuu.value = true
   try {
     const res = await api.post('/khach-hang', { hoTen: chuanHoaHoTen(f.hoTen), sdt: cat(f.sdt), email: cat(f.email), gioiTinh: Number(f.gioiTinh) })

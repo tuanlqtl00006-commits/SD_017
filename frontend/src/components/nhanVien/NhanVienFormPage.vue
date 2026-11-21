@@ -11,6 +11,7 @@ import { diaChiHanhChinhService } from '../../services/diaChiHanhChinhService'
 import { nhanVienService } from '../../services/nhanVienService'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
+import { hoiXacNhan } from '../../composables/useXacNhan'
 import { avatarColors, formatDate, getInitials, todayIso } from '../../utils/format'
 import {
   HUONG_DAN_TUOI_NHAN_VIEN,
@@ -450,7 +451,15 @@ async function guiForm() {
     payload.matKhau = form.matKhau
     if (maNhanVien.value) payload.maNhanVien = maNhanVien.value
   }
+  // Khóa nút ngay từ lúc hỏi: bấm Lưu hai lần liên tiếp không hỏi / gửi hai lần
   dangLuu.value = true
+  const dongY = await hoiXacNhan(isEdit
+    ? { title: 'Cập nhật nhân viên', message: `Bạn có chắc muốn lưu thay đổi thông tin nhân viên ${payload.hoTen}?`, confirmText: 'Lưu thay đổi' }
+    : { title: 'Thêm nhân viên', message: `Bạn có chắc muốn thêm nhân viên ${payload.hoTen}?`, confirmText: 'Thêm nhân viên' })
+  if (!dongY) {
+    dangLuu.value = false
+    return
+  }
   try {
     if (isEdit) {
       await nhanVienService.update(idXem, payload)
