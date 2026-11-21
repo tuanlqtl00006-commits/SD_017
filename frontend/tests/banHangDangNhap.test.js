@@ -508,13 +508,19 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(nutCong().exists()).toBe(false)
     const chuDo = w.find('[data-testid="bh-gia-doi"]')
     expect(chuDo.classes()).toContain('text-danger')
-    expect(chuDo.text()).toMatch(/Giá đã cập nhật: 3\.861\.000 ₫ → 4\.290\.000 ₫/)
+    // Chỉ ghi số tiền, không có chữ "Giá đã cập nhật"; giỏ chưa có dòng giá mới nên tạm hiện ở dòng giá cũ
+    expect(chuDo.text()).toBe('3.861.000 ₫ → 4.290.000 ₫')
     await w.find('.bh-gio input[type="number"]').setValue('2')
     await flushPromises()
     expect(body().find('[data-testid="bh-hoi-gia"]').exists()).toBe(true)
     await body().find('[data-testid="bh-hoi-gia-ok"]').trigger('click')
     await flushPromises()
     expect(may.ds[0].dong.map((d) => [d.donGia, d.soLuong])).toEqual([[3861000, 1], [4290000, 1]])
+    // Đã có dòng giá mới: chữ đỏ chuyển xuống dòng 2 (dòng giá mới), dòng 1 không còn
+    const dong = w.findAll('.bh-gio tbody tr')
+    expect(dong[0].find('[data-testid="bh-gia-doi"]').exists()).toBe(false)
+    expect(dong[1].find('[data-testid="bh-gia-doi"]').text()).toBe('3.861.000 ₫ → 4.290.000 ₫')
+    expect(w.text()).not.toContain('Giá đã cập nhật')
   })
 
   it('dòng giữ giá cũ vẫn thanh toán được ngay, không bị chặn vì giá đổi', async () => {

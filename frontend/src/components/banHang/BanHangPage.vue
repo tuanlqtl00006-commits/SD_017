@@ -343,6 +343,17 @@ const giamDot = computed(() => tienGiamDot(hd.value.gio))
 /** Dòng có biến thể trùng với dòng khác trong giỏ (cùng sản phẩm, khác giá / khác đợt giảm giá). */
 const trungBienThe = (d) => hd.value.gio.filter((x) => x.idBienThe === d.idBienThe).length > 1
 
+/* Chữ đỏ khi giá đổi lúc đang lên đơn (góp ý 21/11): chỉ ghi "giá cũ → giá mới", đặt ở DÒNG GIÁ MỚI (dòng thêm sau theo giá
+ * hiện tại). Giỏ chưa có dòng giá mới thì tạm hiện ở dòng giá cũ để nhân viên vẫn biết giá đã đổi. */
+function chuGiaDoi(d) {
+  if (d.giaDoi) {
+    const coDongMoi = hd.value.gio.some((x) => x.idBienThe === d.idBienThe && !x.giaDoi)
+    return coDongMoi ? '' : `${formatMoney(d.donGia)} → ${formatMoney(d.giaHienTai)}`
+  }
+  const cu = hd.value.gio.find((x) => x.idBienThe === d.idBienThe && x.giaDoi && x.id !== d.id)
+  return cu ? `${formatMoney(cu.donGia)} → ${formatMoney(d.donGia)}` : ''
+}
+
 const phanTramGiamDong = (d) => {
   if (d.phanTramGiam && Number(d.phanTramGiam) > 0) return Number(d.phanTramGiam)
   if (d.giaGoc && d.donGia && Number(d.giaGoc) > Number(d.donGia)) {
@@ -1167,10 +1178,8 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                     <td class="ad-nowrap">
                       <div class="fw-medium">{{ formatMoney(d.donGia) }}</div>
                       <small v-if="dangGiamTheoDot(d)" class="text-muted"><s>{{ formatMoney(d.giaGoc) }}</s></small>
-                      <!-- Góp ý 21/11: giá đổi khi đang lên đơn thì báo rõ bằng chữ đỏ (dòng này vẫn giữ giá lúc thêm) -->
-                      <small v-if="d.giaDoi" class="text-danger d-block fw-semibold" data-testid="bh-gia-doi">
-                        Giá đã cập nhật: {{ formatMoney(d.donGia) }} → {{ formatMoney(d.giaHienTai) }}
-                      </small>
+                      <!-- Góp ý 21/11: giá đổi khi đang lên đơn thì chữ đỏ "giá cũ → giá mới" (chỉ số tiền) ở dòng giá mới -->
+                      <small v-if="chuGiaDoi(d)" class="text-danger d-block fw-semibold" data-testid="bh-gia-doi">{{ chuGiaDoi(d) }}</small>
                     </td>
                     <td class="text-center">
                       <div class="bh-cot-sl">

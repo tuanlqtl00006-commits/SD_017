@@ -1,5 +1,14 @@
 # Chạy project FootStyle (GĐ3: đăng nhập / phân quyền, bán tại quầy, giao ca, bán hàng online, chat, thống kê + các trang quản lý GĐ2)
 
+> **Cập nhật 21/11/2026 — dữ liệu đầy đủ giống máy Tuấn:** `database/SD_17_du_lieu_day_du.sql` chứa TOÀN BỘ CSDL đang dùng
+> (35 bảng: 48 vợt, 98 biến thể, 425 hóa đơn, 144 ca, 15 đợt giảm giá — đợt đang / sắp chạy giảm 25–30%, phiếu, khách, chat...).
+> File **xóa hết bảng cũ** trong database `shop_cau_long_footstyle` rồi tạo lại y hệt, nên sao lưu trước nếu cần giữ dữ liệu của mình.
+> Chạy một lệnh (phải có `-I` và `-f 65001` để chữ tiếng Việt đúng):
+> ```
+> sqlcmd -S localhost -U sa -P <mật khẩu SQL> -C -I -f 65001 -i database\SD_17_du_lieu_day_du.sql
+> ```
+> **Mật khẩu mọi nhân viên: `123456`** (NV01 quản lý; NV03, NV04, NV05 nhân viên). Các file mẫu cũ bên dưới vẫn dùng `Footstyle@123`.
+
 > **Cập nhật 25/10/2026 (GĐ3):** thư mục `database/` hiện có 4 file, chạy trong SSMS (mở file → Execute / F5):
 > 1. `database/SD_17.sql` — tạo database `shop_cau_long_footstyle` và toàn bộ bảng theo ERD (đã gồm bảng GĐ3: `ca_lam_viec`, `lich_lam_viec`, `giao_ca`, `hoi_thoai`, `thanh_vien_hoi_thoai`, `tin_nhan`). Chỉ chạy **một lần** cho CSDL mới.
 > 2. `database/SD_17_du_lieu_va_nang_cap.sql` — dữ liệu mẫu + nâng cấp (chạy **sau** file 1; chạy lại nhiều lần không lỗi). Gồm tài khoản nhân viên, sản phẩm, phiếu / đợt giảm giá, hóa đơn mẫu, 3 ca làm việc 07:00 - 12:00 / 12:00 - 17:00 / 17:00 - 22:00.
@@ -148,7 +157,7 @@ Giao diện quản trị chạy với vai trò **Quản lý** (thấy toàn bộ
 
 ## Giai đoạn 3 (cập nhật 25/10/2026)
 
-### Tài khoản demo (mật khẩu `Footstyle@123`)
+### Tài khoản demo (mật khẩu `123456` nếu dựng từ `SD_17_du_lieu_day_du.sql`; `Footstyle@123` nếu dựng từ các file mẫu cũ)
 | Tài khoản | Vai trò | Ghi chú |
 |---|---|---|
 | `NV01` | Quản lý | Thấy mọi menu, không nhận ca / giao ca; xếp lịch mỗi ca một nhân viên |
