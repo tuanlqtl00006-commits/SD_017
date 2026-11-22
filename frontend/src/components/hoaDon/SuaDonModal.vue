@@ -10,6 +10,7 @@ import { useLoiForm } from '../../composables/useLoiForm'
 import { useToast } from '../../composables/useToast'
 import { hoiXacNhan } from '../../composables/useXacNhan'
 import { formatMoney } from '../../utils/format'
+import { nhapSoDienThoai } from '../../utils/kiemTra'
 import { phiSauKhiSuaDon } from '../../utils/phiVanChuyenTinh'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
 
@@ -159,7 +160,7 @@ async function luu() {
         </div>
         <div class="col-md-6">
           <label class="ad-label" for="sd-sdt">Số điện thoại <span class="ad-required">*</span></label>
-          <input id="sd-sdt" v-model="f.sdtNguoiNhan" type="tel" class="form-control ad-control" :class="{ 'is-invalid': loi.sdtNguoiNhan }" maxlength="15" @input="sua('sdtNguoiNhan')" @blur="cham('sdtNguoiNhan')" />
+          <input id="sd-sdt" :value="f.sdtNguoiNhan" type="tel" inputmode="numeric" class="form-control ad-control" :class="{ 'is-invalid': loi.sdtNguoiNhan }" @input="f.sdtNguoiNhan = nhapSoDienThoai($event); sua('sdtNguoiNhan')" @blur="cham('sdtNguoiNhan')" />
           <p v-if="loi.sdtNguoiNhan" class="ad-error">{{ loi.sdtNguoiNhan }}</p>
         </div>
         <div class="col-12">

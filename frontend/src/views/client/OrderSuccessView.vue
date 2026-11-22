@@ -314,11 +314,6 @@ onMounted(async () => {
                 <p class="osv-qr-note">
                   {{ loaiThanhToan === 'MOMO' ? 'Mở ứng dụng Ví MoMo hoặc camera điện thoại quét mã QR. Sau khi xác nhận thanh toán, hệ thống sẽ tự động cập nhật đơn hàng.' : loaiThanhToan === 'VNPAY' ? 'Mở ứng dụng ngân hàng hoặc ví VNPAY quét mã VNPAY-QR để thanh toán. Hệ thống sẽ tự động xác nhận đơn ngay khi nhận được tiền.' : 'Mở app ngân hàng bất kỳ, quét mã QR; số tiền và nội dung sẽ tự điền. Hệ thống sẽ tự động xác nhận sau khi nhận được tiền.' }}
                 </p>
-                <div class="mt-2 text-center">
-                  <a :href="linkGiaLap" target="_blank" class="small text-decoration-none text-muted">
-                    <i class="bi bi-box-arrow-up-right me-1"></i>Mở giao diện thanh toán giả lập trên tab mới (dùng cho chạy thử nghiệm)
-                  </a>
-                </div>
               </template>
               <div v-else-if="qrLoi" class="small text-danger py-3">
                 Không tải được thông tin thanh toán. Vui lòng liên hệ cửa hàng để được hướng dẫn chuyển khoản.

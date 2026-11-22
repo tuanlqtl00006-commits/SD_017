@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { nhapSoDienThoai } from '../../utils/kiemTra'
 
 const sent = ref(false)
 const franchiseForm = ref({
@@ -128,7 +129,7 @@ function submitFranchise() {
               </div>
               <div class="col-md-6">
                 <label class="form-label small fw-bold">Số điện thoại liên hệ *</label>
-                <input type="tel" v-model="franchiseForm.sdt" class="form-control" placeholder="0987654321" required />
+                <input type="tel" inputmode="numeric" :value="franchiseForm.sdt" @input="franchiseForm.sdt = nhapSoDienThoai($event)" class="form-control" placeholder="0987654321" required />
               </div>
             </div>
 

@@ -585,11 +585,6 @@ function buyNow() {
                     Mua ngay
                   </button>
                 </div>
-
-                <!-- Cam kết: đúng chính sách ở trang Chính sách -->
-                <ul class="pd-cam-ket">
-                  <li><i class="bi bi-truck"></i><span><strong>Giao Hàng Nhanh</strong><RouterLink to="/shop/chinh-sach#giao-hang">Toàn quốc, xem bảng phí</RouterLink></span></li>
-                </ul>
               </div>
             </div>
           </div>
@@ -1029,45 +1024,6 @@ function buyNow() {
   opacity: 0.45;
   box-shadow: none;
 }
-.pd-cam-ket {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-  margin: 24px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.pd-cam-ket li {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px;
-  font-size: 0.8rem;
-  background: #f8fafc;
-  border-radius: 14px;
-}
-.pd-cam-ket i {
-  font-size: 1.15rem;
-  color: var(--ft-primary, #1d4ed8);
-}
-.pd-cam-ket span {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  color: #64748b;
-}
-.pd-cam-ket strong {
-  font-size: 0.85rem;
-  color: var(--ft-ink, #0f172a);
-}
-.pd-cam-ket a {
-  color: #64748b;
-  text-decoration: none;
-}
-.pd-cam-ket a:hover {
-  color: var(--ft-primary, #1d4ed8);
-  text-decoration: underline;
-}
 .pd-duoi {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1165,9 +1121,6 @@ function buyNow() {
   }
   .pd-gia {
     font-size: 1.6rem;
-  }
-  .pd-cam-ket {
-    grid-template-columns: minmax(0, 1fr);
   }
   .pd-the {
     padding: 20px;

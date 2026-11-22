@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import { nhapSoDienThoai } from '../../utils/kiemTra'
 
 // Danh sách tin tuyển dụng thực tế bám sát 100% hình ảnh mẫu
 const allJobs = ref([
@@ -389,7 +390,9 @@ function onImageError(e) {
                     <label class="form-label small fw-medium mb-1">Số điện thoại <span class="text-danger">*</span></label>
                     <input
                       type="tel"
-                      v-model="applyForm.sdt"
+                      inputmode="numeric"
+                      :value="applyForm.sdt"
+                      @input="applyForm.sdt = nhapSoDienThoai($event)"
                       class="form-control form-control-sm"
                       placeholder="0987654321"
                       pattern="[0-9]{10}"

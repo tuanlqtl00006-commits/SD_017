@@ -5,6 +5,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import api from '../../services/api'
 import { hoiXacNhan } from '../../composables/useXacNhan'
+import { nhapSoDienThoai } from '../../utils/kiemTra'
 import BaseModal from '../common/BaseModal.vue'
 import DiaChiHanhChinhSelect from '../common/DiaChiHanhChinhSelect.vue'
 import { dungCaiDatVanChuyen } from '../../services/caiDatVanChuyen'
@@ -121,7 +122,7 @@ async function luu() {
         </div>
         <div class="col-md-6">
           <label class="form-label small fw-semibold" for="sgh-sdt">Số điện thoại <span class="text-danger">*</span></label>
-          <input id="sgh-sdt" v-model="form.sdt" type="tel" class="form-control" :class="{ 'is-invalid': loi.sdtNguoiNhan }" />
+          <input id="sgh-sdt" :value="form.sdt" type="tel" inputmode="numeric" @input="form.sdt = nhapSoDienThoai($event)" class="form-control" :class="{ 'is-invalid': loi.sdtNguoiNhan }" />
           <div v-if="loi.sdtNguoiNhan" class="invalid-feedback">{{ loi.sdtNguoiNhan }}</div>
         </div>
         <DiaChiHanhChinhSelect

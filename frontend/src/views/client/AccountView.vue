@@ -5,7 +5,7 @@ import { useAuth } from '../../composables/useAuth'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
 import api from '../../services/api'
 import { hoiXacNhan } from '../../composables/useXacNhan'
-import { loiMatKhau } from '../../utils/kiemTra'
+import { loiMatKhau, nhapSoDienThoai } from '../../utils/kiemTra'
 import { formatMoney, formatNgayGio } from '../../utils/format'
 import { docDonHang, ghiDonHang, dongBoTrangThaiDon } from '../../utils/donHangLocal'
 import { khachDiaChiService } from '../../services/khachDiaChiService'
@@ -684,7 +684,9 @@ async function guiLaiMailThanhToan(ma) {
                     type="tel"
                     class="form-control"
                     :class="{ 'is-invalid': profileErrors.sdt }"
-                    v-model="profile.sdt"
+                    inputmode="numeric"
+                    :value="profile.sdt"
+                    @input="profile.sdt = nhapSoDienThoai($event)"
                   />
                   <div v-if="profileErrors.sdt" class="invalid-feedback">{{ profileErrors.sdt }}</div>
                 </div>

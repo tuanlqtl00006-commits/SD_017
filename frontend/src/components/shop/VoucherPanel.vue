@@ -1,5 +1,5 @@
 <script setup>
-// Khối "MÃ GIẢM GIÁ" ở trang thanh toán: banner gợi ý mã giảm nhiều nhất (Dùng ngay) + ô nhập / chọn mã.
+// Khối "MÃ GIẢM GIÁ" ở trang thanh toán: nút nhỏ góc trên "Áp / Đổi phiếu tốt nhất" + ô nhập / chọn mã (mã tốt nhất xếp đầu, không tự áp).
 // Dùng chung giỏ hàng (cart store) với trang giỏ hàng, nên mã áp ở đâu cũng được giữ lại.
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import api from '../../services/api'
@@ -10,7 +10,6 @@ import { formatMoney } from '../../utils/format'
 const cartStore = useCartStore()
 
 const danhSachMa = ref([])
-const voucherCode = ref('')
 const loi = ref('')
 const dangKiemTra = ref(false)
 const moDanhSach = ref(false)
@@ -51,24 +50,22 @@ const maSapXep = computed(() =>
     (a, b) => Number(b.dungDuoc) - Number(a.dungDuoc) || Number(b.soTienGiam || 0) - Number(a.soTienGiam || 0),
   ),
 )
-const maLoc = computed(() => {
-  const q = voucherCode.value.trim().toUpperCase()
-  return q ? maSapXep.value.filter((v) => v.ma.toUpperCase().includes(q)) : maSapXep.value
-})
+// Khách chọn phiếu từ danh sách (góp ý 22/11: không bắt gõ / tìm mã), mã giảm nhiều nhất xếp đầu
+const maLoc = maSapXep
 const maTotNhat = computed(() => phieuTotNhat(danhSachMa.value))
-// Banner gợi ý chỉ hiện khi mã tốt nhất CHƯA được áp dụng
+// Nút nhỏ góc trên "Áp / Đổi phiếu tốt nhất" (góp ý 22/11): chỉ hiện khi mã tốt nhất CHƯA được áp dụng.
+// Không tự áp phiếu nào: khách tự bấm nút hoặc chọn trong danh sách (mã giảm nhiều nhất xếp đầu).
 const goiY = computed(() => (maTotNhat.value && cartStore.appliedVoucher?.ma !== maTotNhat.value.ma ? maTotNhat.value : null))
 
 async function apDung(maNhap) {
   loi.value = ''
-  const code = String(maNhap ?? voucherCode.value).trim().toUpperCase()
+  const code = String(maNhap ?? '').trim().toUpperCase()
   if (!code) {
     moDanhSach.value = !moDanhSach.value
     loi.value = ''
     return
   }
   if (cartStore.appliedVoucher?.ma?.toUpperCase() === code) {
-    voucherCode.value = ''
     moDanhSach.value = false
     return
   }
@@ -92,7 +89,6 @@ async function apDung(maNhap) {
       }
       cartStore.setVoucher(phieuChoGio(found))
     }
-    voucherCode.value = ''
     moDanhSach.value = false
   } catch (err) {
     loi.value =
@@ -130,17 +126,17 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
   <div class="vp">
     <div class="vp-title">
       <i class="bi bi-ticket-perforated-fill text-primary"></i> MÃ GIẢM GIÁ
-      <span v-if="maHopLe.length" class="vp-count-badge">{{ maHopLe.length }} mã khả dụng</span>
-    </div>
-
-    <!-- Gợi ý mã giảm nhiều nhất -->
-    <div v-if="goiY" class="vp-banner">
-      <i class="bi bi-stars vp-banner-icon"></i>
-      <div class="vp-banner-text">
-        <div class="vp-banner-main">Có mã <strong>{{ goiY.ma }}</strong> tốt nhất!</div>
-        <div class="vp-banner-sub">Tiết kiệm được <strong>{{ formatMoney(goiY.soTienGiam) }}</strong></div>
-      </div>
-      <button type="button" class="vp-banner-btn" :disabled="dangKiemTra" @click="apDung(goiY.ma)">Dùng ngay</button>
+      <button
+        v-if="goiY"
+        type="button"
+        class="vp-nut-tot"
+        :disabled="dangKiemTra"
+        :title="`Áp mã ${goiY.ma}, tiết kiệm ${formatMoney(goiY.soTienGiam)}`"
+        data-testid="vp-ap-phieu-tot"
+        @click="apDung(goiY.ma)"
+      >
+        {{ cartStore.appliedVoucher ? 'Đổi phiếu tốt nhất' : 'Áp phiếu tốt nhất' }}
+      </button>
     </div>
 
     <!-- Mã đang áp dụng: hiện ngay trên ô mã (cô review 14/11 [26:19]), bấm X để bỏ -->
@@ -154,28 +150,25 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
     </div>
 
     <div ref="comboRef" class="vp-combo">
-      <div class="vp-input">
-        <input
-          id="voucher-code-input"
-          name="voucher_code_input"
-          v-model="voucherCode"
-          type="text"
-          class="text-uppercase"
-          placeholder="Nhập mã giảm giá nếu có..."
-          autocomplete="one-time-code"
-          data-lpignore="true"
-          data-1p-ignore="true"
-          autocorrect="off"
-          spellcheck="false"
-          @focus="loi = ''"
-          @keyup.enter="apDung()"
-          @keyup.esc="moDanhSach = false"
-        />
-        <button type="button" :disabled="dangKiemTra" @click="apDung()">
-          <span v-if="dangKiemTra" class="spinner-border spinner-border-sm"></span>
-          <span v-else>Áp dụng</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        class="vp-chon"
+        :class="{ 'is-mo': moDanhSach }"
+        :disabled="dangKiemTra"
+        aria-haspopup="listbox"
+        :aria-expanded="moDanhSach"
+        data-testid="vp-chon-phieu"
+        @click="loi = ''; moDanhSach = !moDanhSach"
+        @keyup.esc="moDanhSach = false"
+      >
+        <span v-if="dangKiemTra" class="spinner-border spinner-border-sm"></span>
+        <span class="vp-chon-chu">
+          <template v-if="cartStore.appliedVoucher">Đổi phiếu giảm giá</template>
+          <template v-else-if="maHopLe.length">Chọn phiếu giảm giá · {{ maHopLe.length }} mã</template>
+          <template v-else>Chưa có phiếu dùng được cho đơn này</template>
+        </span>
+        <i class="bi bi-chevron-down vp-chon-mui" aria-hidden="true"></i>
+      </button>
 
       <!-- Bảng danh sách mã giảm giá dạng Coupon (chỉ hiện mã đủ điều kiện áp dụng) -->
       <div v-if="moDanhSach" class="vp-dropdown">
@@ -253,55 +246,28 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
   font-weight: 800;
   letter-spacing: 0.04em;
   color: #1f2937;
+  white-space: nowrap;
 }
 
-/* Banner gợi ý mã tốt nhất */
-.vp-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.7rem 0.8rem;
-  margin-bottom: 0.6rem;
-  background: #f2f7ff;
-  border: 1px dashed #9ec5fe;
-  border-radius: 12px;
-}
-.vp-banner-icon {
-  font-size: 1.3rem;
-  color: #0d6efd;
-}
-.vp-banner-text {
-  flex: 1;
-  min-width: 0;
-}
-.vp-banner-main {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #1f2937;
-}
-.vp-banner-main strong {
-  color: #0d6efd;
-}
-.vp-banner-sub {
-  font-size: 0.74rem;
-  color: #6b7280;
-}
-.vp-banner-sub strong {
-  color: #0d6efd;
-}
-.vp-banner-btn {
+/* Nút nhỏ góc trên: áp / đổi sang mã giảm nhiều nhất */
+.vp-nut-tot {
+  margin-left: auto;
   flex-shrink: 0;
-  padding: 0.4rem 0.9rem;
-  font-size: 0.8rem;
-  font-weight: 800;
+  padding: 0.12rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0;
   color: #fff;
-  background: #0d6efd;
+  white-space: nowrap;
+  background: #2563eb;
   border: 0;
   border-radius: 999px;
-  box-shadow: 0 4px 10px rgba(13, 110, 253, 0.3);
 }
-.vp-banner-btn:disabled {
-  opacity: 0.7;
+.vp-nut-tot:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.vp-nut-tot:disabled {
+  opacity: 0.6;
 }
 
 /* Mã đang áp dụng */
@@ -341,31 +307,34 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
 .vp-combo {
   position: relative;
 }
-.vp-input {
+.vp-chon {
   display: flex;
-}
-.vp-input input {
-  flex: 1;
-  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
   padding: 0.55rem 0.8rem;
   font-size: 0.85rem;
+  color: #1f2937;
+  text-align: left;
+  background: #fff;
   border: 1px solid #d5dbe5;
-  border-right: 0;
-  border-radius: 8px 0 0 8px;
-  outline: none;
+  border-radius: 8px;
 }
-.vp-input input:focus {
+.vp-chon:hover:not(:disabled),
+.vp-chon.is-mo {
   border-color: #0d6efd;
   box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.12);
 }
-.vp-input button {
-  padding: 0 1.1rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #fff;
-  background: #0d6efd;
-  border: 0;
-  border-radius: 0 8px 8px 0;
+.vp-chon-chu {
+  flex: 1;
+  min-width: 0;
+}
+.vp-chon-mui {
+  color: #64748b;
+  transition: transform 0.15s ease;
+}
+.vp-chon.is-mo .vp-chon-mui {
+  transform: rotate(180deg);
 }
 .vp-error {
   margin-top: 0.4rem;
@@ -373,16 +342,6 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
   color: #dc2626;
 }
 
-.vp-count-badge {
-  display: inline-block;
-  padding: 0.15rem 0.5rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #0d6efd;
-  background: #e7f1ff;
-  border-radius: 999px;
-  margin-left: auto;
-}
 
 /* Bảng chọn mã xổ xuống */
 .vp-dropdown {
@@ -438,8 +397,10 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
   scrollbar-width: thin;
 }
 
-/* Thẻ coupon phiếu giảm giá */
+/* Thẻ coupon phiếu giảm giá. flex-shrink: 0: danh sách là cột flex có max-height, thẻ có overflow hidden
+   nên nếu cho co thì các thẻ bị ép thấp lại và cắt mất dòng "Tiết kiệm" + nút Áp dụng (để danh sách tự cuộn). */
 .vp-coupon-card {
+  flex-shrink: 0;
   display: flex;
   align-items: stretch;
   background: #fff;
@@ -537,6 +498,8 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   margin-top: 0.25rem;
   padding-top: 0.35rem;
   border-top: 1px dashed #f1f5f9;
@@ -557,6 +520,7 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
   background: #0d6efd;
   border: 0;
   border-radius: 6px;
+  white-space: nowrap;
   cursor: pointer;
   transition: all 0.15s ease;
 }

@@ -6,6 +6,7 @@ import { useAuth } from '../../composables/useAuth'
 import { useLoiForm } from '../../composables/useLoiForm'
 import { duongDanQuayLaiAnToan } from '../../services/phien'
 import api from '../../services/api'
+import { nhapSoDienThoai } from '../../utils/kiemTra'
 
 const router = useRouter()
 const route = useRoute()
@@ -223,8 +224,10 @@ async function dangNhap() {
           <div class="mb-3">
             <label class="form-label fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
             <input
-              v-model="fDk.sdt"
+              :value="fDk.sdt"
               type="tel"
+              inputmode="numeric"
+              @input="fDk.sdt = nhapSoDienThoai($event)"
               class="form-control kh-o"
               placeholder="vd: 0901234567"
               required

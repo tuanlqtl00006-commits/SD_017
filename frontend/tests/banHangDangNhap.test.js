@@ -521,6 +521,19 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(dong[0].find('[data-testid="bh-gia-doi"]').exists()).toBe(false)
     expect(dong[1].find('[data-testid="bh-gia-doi"]').text()).toBe('3.861.000 ₫ → 4.290.000 ₫')
     expect(w.text()).not.toContain('Giá đã cập nhật')
+    // Giá đổi lần nữa: dòng mới (dòng 3) ghi đủ cả hai mức giá cũ, hai dòng cũ không có chữ đỏ
+    may.gia = 4000000
+    nhanTin({ chuDe: ['san-pham'], nguon: 'may-khac' })
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    await w.findAll('.bh-gio input[type="number"]')[1].setValue('2')
+    await flushPromises()
+    await body().find('[data-testid="bh-hoi-gia-ok"]').trigger('click')
+    await flushPromises()
+    expect(may.ds[0].dong.map((d) => [d.donGia, d.soLuong])).toEqual([[3861000, 1], [4290000, 1], [4000000, 1]])
+    const dong3 = w.findAll('.bh-gio tbody tr')
+    expect(dong3.map((r) => r.find('[data-testid="bh-gia-doi"]').exists())).toEqual([false, false, true])
+    expect(dong3[2].find('[data-testid="bh-gia-doi"]').text()).toBe('3.861.000 ₫, 4.290.000 ₫ → 4.000.000 ₫')
   })
 
   it('dòng giữ giá cũ vẫn thanh toán được ngay, không bị chặn vì giá đổi', async () => {
@@ -891,6 +904,36 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     // Ghi chú: thiếu 1.139.000 ₫, giỏ có giá 3.861.000 ₫ nên thêm 1 sản phẩm là đủ
     const ghiChu = w.find('[data-testid="bh-goi-y-ngan"]').text().replace(/\s+/g, ' ')
     expect(ghiChu).toContain('Mua thêm 1.139.000 ₫ (thêm 1 sản phẩm Yonex Astrox 99 Pro là đủ) để dùng phiếu VIP10 (giảm 500.000 ₫)')
+  })
+
+  it('phiếu: có phiếu mới giảm nhiều hơn thì không tự đổi, bỏ nhãn Tốt nhất, hiện nút nhỏ "Đổi phiếu tốt nhất"; bấm thì đổi', async () => {
+    let ds = [{ id: 1, ma: 'GIAM50K', ten: 'Giảm 50k', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 }]
+    const { w } = await moBanHang({ phieus: () => ds })
+    await nutThem().trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    const apDung = () => w.find('[data-testid="bh-phieu-ap-dung"]')
+    const nutDoi = () => w.find('[data-testid="bh-doi-phieu-tot"]')
+    expect(apDung().text()).toContain('Tốt nhất')
+    expect(nutDoi().exists()).toBe(false)
+    // Quản lý vừa tạo phiếu giảm 200k (máy chủ xếp lên đầu); giỏ đổi nên tải lại phiếu
+    ds = [{ id: 2, ma: 'GIAM200K', ten: 'Giảm 200k', loaiGiam: 'SO_TIEN', giaTri: 200000, apDungDuoc: true, soTienGiam: 200000 }, ...ds]
+    await nutThem().trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(apDung().text()).toContain('Đang áp dụng phiếu GIAM50K')
+    expect(apDung().text()).not.toContain('Tốt nhất')
+    // Nút nhỏ ở mép khung: chỉ icon, rê chuột / đọc màn hình mới thấy chữ
+    expect(nutDoi().text()).toBe('')
+    expect(nutDoi().find('.bi-stars').exists()).toBe(true)
+    expect(nutDoi().attributes('title')).toBe('Đổi phiếu tốt nhất: GIAM200K (giảm 200.000 ₫)')
+    expect(nutDoi().attributes('aria-label')).toBe('Đổi phiếu tốt nhất GIAM200K')
+    await nutDoi().trigger('click')
+    await flushPromises()
+    expect(apDung().text()).toContain('Đang áp dụng phiếu GIAM200K (giảm 200.000')
+    expect(apDung().text()).toContain('Tốt nhất')
+    expect(nutDoi().exists()).toBe(false)
+    expect(w.find('.bh-tien-giam').text()).toContain('-200.000')
   })
 
   it('phiếu: đã kịch mức giảm cao nhất thì không hiện ghi chú', async () => {

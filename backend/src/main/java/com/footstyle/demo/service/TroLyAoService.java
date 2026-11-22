@@ -8,6 +8,7 @@ import com.footstyle.demo.entity.PhieuGiamGia;
 import com.footstyle.demo.entity.SanPham;
 import com.footstyle.demo.entity.SanPhamChiTiet;
 import com.footstyle.demo.repository.DotGiamGiaRepository;
+import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.PhieuGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
@@ -98,6 +99,17 @@ public class TroLyAoService {
         this.phiVanChuyen = phiVanChuyen;
     }
 
+    /** Số lượng đã bán để trả lời "vợt bán chạy" (cùng cách tính với trang chủ). Chưa nạp (test) thì xếp theo giá. */
+    private HoaDonChiTietRepository hoaDonChiTietRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setHoaDonChiTietRepo(HoaDonChiTietRepository hoaDonChiTietRepo) {
+        this.hoaDonChiTietRepo = hoaDonChiTietRepo;
+    }
+
+    /** Số ngày tính "bán chạy", khớp CuaHangService.BAN_CHAY_SO_NGAY (trang chủ). */
+    static final int BAN_CHAY_SO_NGAY = 30;
+
     public TroLyAoService(SanPhamChiTietRepository spctRepo, GiamGiaApDungService giamGiaService, PhieuGiamGiaRepository phieuRepo,
                           DotGiamGiaRepository dotRepo, HoaDonRepository hoaDonRepo,
                           @Value("${app.cua-hang.ten:FootStyle}") String tenCuaHang,
@@ -147,6 +159,8 @@ public class TroLyAoService {
         }
         TraLoi hoi = cauHoiThuongGap(t);
         if (hoi != null) return hoi;
+        TraLoi ss = soSanh(t);
+        if (ss != null) return cat(ss);
         TraLoi sp = timSanPham(cauHoi, t);
         if (sp != null) return cat(sp);
         if (coMot(t, " xin chao ", " chao ", " hello ", " hi ", " alo ", " shop oi ")) return loiChao(nc == null ? null : nc.tenKhach());
@@ -256,26 +270,29 @@ public class TroLyAoService {
         if (coMot(t, "giao hang", " ship", "van chuyen", "bao lau nhan", "phi ship", "giao toi", "giao den")) {
             // Phí nói theo đúng cách hệ thống tính (phí giao hàng + ngưỡng miễn phí quản lý cài đặt), đơn vị giao là đơn vị ghi trên hóa đơn
             CaiDatVanChuyenService.CaiDat ship = caiDatVanChuyen.lay();
-            return new TraLoi("Cửa hàng giao hàng toàn quốc qua " + BanHangService.DON_VI_VAN_CHUYEN + ":\n"
-                    + "• Nội thành Hà Nội 1-2 ngày, tỉnh khác 3-5 ngày\n"
+            // Chỉ nói điều có ở trang Chính sách (góp ý 22/11: không ghi số ngày giao, "kiểm tra hàng" mà cửa hàng không cam kết)
+            return new TraLoi("Cửa hàng giao hàng qua " + BanHangService.DON_VI_VAN_CHUYEN + ":\n"
                     + (phiVanChuyen != null
                         ? "• Phí giao hàng tính theo quãng đường từ cửa hàng: " + tien(ship.phiGiaoHang()) + " cho "
                             + soGon(phiVanChuyen.kmCoBan()) + " km đầu, thêm " + tien(phiVanChuyen.phiMoiBuoc()) + " mỗi "
                             + soGon(phiVanChuyen.buocKm()) + " km tiếp theo (trang thanh toán hiện đúng số tiền theo địa chỉ của bạn)\n"
                         : "• Phí giao hàng: " + tien(ship.phiGiaoHang()) + " mỗi đơn\n")
                     + (ship.bat() ? "• Đơn có tiền hàng từ " + tien(ship.nguong()) + " được miễn phí vận chuyển\n" : "")
-                    + "• Được kiểm tra hàng trước khi nhận, thanh toán khi nhận hàng (COD)", false, List.of("Khuyến mãi hôm nay", "Đổi trả"));
+                    + "• Đổi người nhận, số điện thoại hoặc địa chỉ được 1 lần, trước khi cửa hàng giao đơn cho đơn vị vận chuyển\n"
+                    + "• Đơn online có thể thanh toán khi nhận hàng (COD)", false, List.of("Khuyến mãi hôm nay", "Hủy / đổi đơn"));
         }
-        if (coMot(t, "doi tra", "doi hang", "tra hang", "hoan tien", "bao hanh", "loi san pham", "bi loi")) {
-            return new TraLoi("Chính sách đổi trả - bảo hành:\n"
-                    + "• Đổi sản phẩm trong 7 ngày nếu lỗi do nhà sản xuất, còn nguyên tem mác, hóa đơn\n"
-                    + "• Vợt chính hãng bảo hành khung theo chính sách của hãng\n"
-                    + "• Không đổi trả sản phẩm đã qua sử dụng không do lỗi nhà sản xuất\n"
-                    + "Cần đổi trả, bạn bấm \"Gặp nhân viên\" và gửi mã đơn để được hỗ trợ.", false, List.of("Gặp nhân viên"));
+        // Đúng mục "Đặt hàng & hủy đơn" ở trang Chính sách: cửa hàng không có chính sách đổi trả / bảo hành riêng (góp ý 19/11, 22/11)
+        if (coMot(t, "doi tra", "doi hang", "tra hang", "hoan tien", "bao hanh", "loi san pham", "bi loi", "huy don", "doi don", "doi san pham")) {
+            return new TraLoi("Về hủy / đổi đơn hàng:\n"
+                    + "• Đơn còn Chờ xác nhận: bạn tự hủy được trong \"Đơn hàng của tôi\"; muốn đổi sản phẩm thì nhờ nhân viên chỉnh giúp\n"
+                    + "• Đơn đã xác nhận muốn hủy: liên hệ cửa hàng\n"
+                    + "• Đơn đã chuyển khoản mà bị hủy: cửa hàng hoàn lại tiền và gửi email thông báo cho bạn\n"
+                    + "Cần hỗ trợ, bạn bấm \"Gặp nhân viên\" và gửi mã đơn nhé.", false, List.of("Gặp nhân viên"));
         }
-        if (coMot(t, "thanh toan", "chuyen khoan", " cod ", "tra gop", "the ngan hang", "vnpay")) {
-            return new TraLoi("Cửa hàng nhận thanh toán bằng tiền mặt, chuyển khoản (quét mã QR tại quầy), ví VNPay, và thanh toán khi nhận hàng (COD) với đơn online.",
-                    false, GOI_Y_MAC_DINH);
+        if (coMot(t, "thanh toan", "chuyen khoan", " cod ", "tra gop", "the ngan hang", "vnpay", "momo", " qr ")) {
+            return new TraLoi("Hình thức thanh toán:\n"
+                    + "• Đặt online: thanh toán khi nhận hàng (COD), chuyển khoản VietQR (quét mã ở trang đặt hàng thành công, có 5 phút để quét), ví MoMo, VNPay\n"
+                    + "• Mua tại cửa hàng: tiền mặt, chuyển khoản, hoặc kết hợp cả hai", false, GOI_Y_MAC_DINH);
         }
         if (coMot(t, "cang day", "cang cuoc", "dan vot", "bao nhieu kg", "may kg", "luc cang")) {
             return new TraLoi("Gợi ý mức căng dây:\n• Người mới chơi: 9 - 10 kg\n• Chơi phong trào: 10 - 11 kg\n• Chơi lâu năm / thi đấu: 11 - 13 kg\n"
@@ -319,7 +336,8 @@ public class TroLyAoService {
             theoSp.computeIfAbsent(c.getSanPham().getId(), k -> new ArrayList<>()).add(c);
         }
         BoLoc loc = docBoLoc(cauHoiGoc, t, thuongHieus, mauSacs);
-        boolean hoiSanPham = coMot(t, " vot", "san pham", " mua ", " gia ", "con hang", "goi y", " tu van", "nen mua", "loai nao",
+        SapXep sapXep = docSapXep(t);
+        boolean hoiSanPham = sapXep != null || coMot(t, " vot", "san pham", " mua ", " gia ", "con hang", "goi y", " tu van", "nen mua", "loai nao",
                 "bao nhieu tien", "phu kien", " giay", " balo", " tui ", "qua cau", "ong cau", " ao ", " quan ");
 
         // Khách gõ tên mẫu (vd "astrox 99", "nanoflare 800"): khớp đúng 1 mẫu thì trả chi tiết, nhiều mẫu thì lọc theo tên
@@ -334,7 +352,8 @@ public class TroLyAoService {
         Map<Long, Double> giam = giamGiaService.phanTramTheoBienThe(LocalDateTime.now(dongHo));
         final int max = caoNhat;
         List<Integer> trungNhat = diemTen.entrySet().stream().filter(e -> e.getValue() == max).map(Map.Entry::getKey).toList();
-        if (max >= 2 && trungNhat.size() == 1) return chiTietSanPham(theoSp.get(trungNhat.get(0)), giam, loc);
+        Integer motMau = max >= 2 ? phanDinh(t, trungNhat, theoSp) : null;
+        if (motMau != null) return chiTietSanPham(theoSp.get(motMau), giam, loc);
         if (!loc.coLoc() && !hoiSanPham && diemTen.isEmpty()) return null;
 
         List<GoiYSp> ketQua = new ArrayList<>();
@@ -375,12 +394,32 @@ public class TroLyAoService {
             return new TraLoi("Hiện chưa có sản phẩm còn hàng phù hợp (" + moTaLoc(loc)
                     + "). Bạn thử nới khoảng giá hoặc hỏi hãng khác, hoặc bấm \"Gặp nhân viên\" để được tư vấn.", false, GOI_Y_MAC_DINH);
         }
-        ketQua.sort(loc.dangGiam() ? Comparator.comparingDouble(GoiYSp::phanTram).reversed() : Comparator.<GoiYSp>comparingLong(GoiYSp::giaThapNhat));
+        String cachXep;
+        if (sapXep == SapXep.BAN_CHAY && hoaDonChiTietRepo != null) {
+            Map<Integer, Long> daBan = soLuongDaBan();
+            ketQua.sort(Comparator.<GoiYSp>comparingLong(g -> daBan.getOrDefault(g.sp().getId(), 0L)).reversed()
+                    .thenComparingLong(GoiYSp::giaThapNhat));
+            cachXep = "bán chạy nhất " + BAN_CHAY_SO_NGAY + " ngày qua";
+        } else if (sapXep == SapXep.DAT) {
+            ketQua.sort(Comparator.comparingLong(GoiYSp::giaCaoNhat).reversed());
+            cachXep = "giá cao nhất";
+        } else if (loc.dangGiam()) {
+            ketQua.sort(Comparator.comparingDouble(GoiYSp::phanTram).reversed());
+            cachXep = "giảm nhiều nhất";
+        } else {
+            ketQua.sort(Comparator.comparingLong(GoiYSp::giaThapNhat));
+            cachXep = sapXep == SapXep.RE ? "giá thấp nhất" : "giá tốt nhất";
+        }
         // Trả lời ngắn + THẺ sản phẩm (ảnh, tên, giá; bấm sang trang chi tiết) thay cho danh sách chữ dài
         StringBuilder sb = new StringBuilder();
         int soThe = Math.min(5, ketQua.size());
         sb.append(loc.coLoc() ? "Có " + ketQua.size() + " sản phẩm còn hàng phù hợp (" + moTaLoc(loc) + ")" : "Một số sản phẩm đang có tại cửa hàng");
-        sb.append(ketQua.size() > soThe ? ", mình gửi " + soThe + " mẫu " + (loc.dangGiam() ? "giảm nhiều nhất" : "giá tốt nhất") + ":" : ":");
+        if (sapXep != null && ketQua.size() > 1) {
+            sb.append(", xếp theo ").append(cachXep);
+            sb.append(ketQua.size() > soThe ? ", mình gửi " + soThe + " mẫu đầu:" : ":");
+        } else {
+            sb.append(ketQua.size() > soThe ? ", mình gửi " + soThe + " mẫu " + cachXep + ":" : ":");
+        }
         sb.append("\nBấm vào thẻ để xem chi tiết, hoặc gõ tên mẫu để mình tư vấn kỹ hơn.");
         List<Integer> the = ketQua.subList(0, soThe).stream().map(g -> g.sp().getId()).toList();
         return new TraLoi(sb.toString(), false, List.of("Khuyến mãi hôm nay", "Gặp nhân viên"), the);
@@ -388,6 +427,146 @@ public class TroLyAoService {
 
     /** Một sản phẩm gợi ý: khoảng giá (sau đợt giảm) của các biến thể còn hàng khớp bộ lọc. */
     record GoiYSp(SanPham sp, long giaThapNhat, long giaCaoNhat, double phanTram, List<String> phanLoai) {
+    }
+
+    /** Cách xếp khách muốn: rẻ nhất, đắt / cao cấp nhất, bán chạy nhất. */
+    enum SapXep { RE, DAT, BAN_CHAY }
+
+    static SapXep docSapXep(String t) {
+        if (coMot(t, "ban chay", "mua nhieu nhat", "hot nhat", "pho bien nhat", "nhieu nguoi mua", "ua chuong")) return SapXep.BAN_CHAY;
+        if (coMot(t, "dat nhat", "cao cap nhat", "xin nhat", "gia cao nhat", "dat tien nhat")) return SapXep.DAT;
+        if (coMot(t, "re nhat", "gia thap nhat", "gia re", "re tien", "binh dan", "tiet kiem")) return SapXep.RE;
+        return null;
+    }
+
+    /** Số lượng đã bán theo sản phẩm trong 30 ngày (đơn hoàn thành), cùng cách tính với "Bán chạy nhất" ở trang chủ. */
+    private Map<Integer, Long> soLuongDaBan() {
+        LocalDateTime den = LocalDateTime.now(dongHo);
+        Map<Integer, Long> kq = new java.util.HashMap<>();
+        for (Map<String, Object> m : ThongKeService.sanPhamBanChay(
+                hoaDonChiTietRepo.findByHoaDon_TrangThaiAndHoaDon_NgayTaoBetween(HoaDon.HOAN_THANH, den.minusDays(BAN_CHAY_SO_NGAY), den))) {
+            if (m.get("idSanPham") instanceof Integer id && m.get("soLuong") instanceof Long sl) kq.put(id, sl);
+        }
+        return kq;
+    }
+
+    /* ===================== So sánh 2 mẫu ===================== */
+
+    private static final Pattern TACH_SO_SANH = Pattern.compile("\\s(?:va|voi|vs|hay la|hay|hoac)\\s|,");
+
+    /**
+     * "so sánh Astrox 99 và Nanoflare 700", "astrox 99 hay nanoflare 700 tốt hơn": tìm từng mẫu theo tên trong CSDL, trả lời song song
+     * (giá sau đợt, điểm cân bằng, độ cứng, trọng lượng, còn hàng) kèm thẻ của các mẫu. Không nhận ra đủ 2 mẫu thì để bước tìm sản phẩm lo.
+     */
+    TraLoi soSanh(String t) {
+        boolean noiRo = coMot(t, " so sanh ", " vs ", " khac gi ", " khac nhau ");
+        boolean hayHon = t.contains(" hay ") && coMot(t, " hon ", "nen mua", "nen chon", "nen lay");
+        if (!noiRo && !hayHon) return null;
+        Map<Integer, List<SanPhamChiTiet>> theoSp = nhomDangBan();
+        List<Integer> chon = new ArrayList<>();
+        for (String phan : TACH_SO_SANH.split(t.replaceFirst("^.*?so sanh ", " "))) {
+            String p = " " + phan.trim() + " ";
+            int caoNhat = 0;
+            List<Integer> trung = new ArrayList<>();
+            for (List<SanPhamChiTiet> nhom : theoSp.values()) {
+                SanPham sp = nhom.get(0).getSanPham();
+                int d = diemTen(p, sp.getTenSanPham(), sp.getThuongHieu() == null ? null : sp.getThuongHieu().getTen());
+                if (d > caoNhat) {
+                    caoNhat = d;
+                    trung.clear();
+                }
+                if (d > 0 && d == caoNhat) trung.add(sp.getId());
+            }
+            Integer mot = phanDinh(p, trung, theoSp);
+            if (mot != null && !chon.contains(mot)) chon.add(mot);
+        }
+        if (chon.size() < 2) {
+            return noiRo ? new TraLoi("Bạn gõ tên 2 mẫu cần so sánh giúp mình nhé, vd: \"so sánh Astrox 99 và Nanoflare 700\".", false, GOI_Y_MAC_DINH)
+                    : null;
+        }
+        if (chon.size() > 3) chon = chon.subList(0, 3);
+        Map<Long, Double> giam = giamGiaService.phanTramTheoBienThe(LocalDateTime.now(dongHo));
+        StringBuilder sb = new StringBuilder("So sánh ").append(chon.size()).append(" mẫu:\n");
+        Set<String> canBang = new LinkedHashSet<>();
+        Set<String> doCung = new LinkedHashSet<>();
+        for (Integer id : chon) {
+            List<SanPhamChiTiet> nhom = theoSp.get(id);
+            SanPham sp = nhom.get(0).getSanPham();
+            long min = Long.MAX_VALUE;
+            long lon = 0;
+            double ptMax = 0;
+            int ton = 0;
+            Set<String> trongLuong = new LinkedHashSet<>();
+            for (SanPhamChiTiet c : nhom) {
+                double pt = giam.getOrDefault(c.getId().longValue(), 0.0);
+                long gia = PhieuApDung.giaSauDot(c.getGiaBan() == null ? 0 : c.getGiaBan(), pt);
+                min = Math.min(min, gia);
+                lon = Math.max(lon, gia);
+                ptMax = Math.max(ptMax, pt);
+                ton += c.getSoLuongTon() == null ? 0 : Math.max(0, c.getSoLuongTon());
+                if (c.getTrongLuong() != null && !NhomDanhMuc.laKhongApDung(c.getTrongLuong().getTen())) trongLuong.add(c.getTrongLuong().getTen());
+            }
+            List<String> tt = new ArrayList<>();
+            tt.add(min == lon ? tien(min) : tien(min) + " - " + tien(lon));
+            if (ptMax > 0) tt.set(0, tt.get(0) + " (đang giảm đến " + phanTram(ptMax) + ")");
+            if (sp.getDiemCanBang() != null && !NhomDanhMuc.laKhongApDung(sp.getDiemCanBang().getTen())) {
+                String cb = sp.getDiemCanBang().getTen().toLowerCase(java.util.Locale.ROOT);
+                tt.add(cb);
+                canBang.add(BanHangService.boDau(cb));
+            }
+            if (sp.getDoCung() != null && !NhomDanhMuc.laKhongApDung(sp.getDoCung().getTen())) {
+                String dc = sp.getDoCung().getTen().toLowerCase(java.util.Locale.ROOT);
+                tt.add("thân " + dc);
+                doCung.add(BanHangService.boDau(dc));
+            }
+            if (!trongLuong.isEmpty()) tt.add(String.join(" / ", trongLuong));
+            tt.add(ton > 0 ? (ton <= 3 ? "chỉ còn " + ton : "còn hàng") : "hết hàng");
+            sb.append("• ").append(sp.getTenSanPham()).append(": ").append(String.join(", ", tt)).append('\n');
+        }
+        // Gợi ý chọn theo đúng khác biệt giữa các mẫu (chỉ nói điều suy ra từ thông số, không bịa đánh giá)
+        if (canBang.size() > 1) sb.append("Nặng đầu hợp đánh tấn công, đập cầu; nhẹ đầu hợp phòng thủ, phản tạt nhanh; cân bằng hợp chơi toàn diện.\n");
+        if (doCung.size() > 1) sb.append("Thân dẻo dễ trợ lực, hợp người mới; thân cứng cầu đi chính xác hơn nhưng cần lực tay tốt.\n");
+        sb.append("Bấm vào thẻ để xem chi tiết từng mẫu, cần tư vấn thêm thì bấm \"Gặp nhân viên\" nhé.");
+        return new TraLoi(sb.toString(), false, List.of("Gặp nhân viên", "Khuyến mãi hôm nay"), List.copyOf(chon));
+    }
+
+    /**
+     * Nhiều mẫu cùng điểm tên (vd "astrox 99 pro" khớp cả "Astrox 99 Pro" và "Astrox 99 Game 2025" vì "pro", "game" là từ chung):
+     * mẫu có nhiều chữ trong tên (kể cả từ chung như pro / game, trừ "vợt cầu lông" và tên hãng) xuất hiện trong câu hơn thì thắng.
+     * Vẫn hòa (vd chỉ gõ "astrox 99") thì null để liệt kê các mẫu cho khách chọn.
+     */
+    static Integer phanDinh(String t, List<Integer> trung, Map<Integer, List<SanPhamChiTiet>> theoSp) {
+        if (trung.isEmpty()) return null;
+        if (trung.size() == 1) return trung.get(0);
+        Integer tot = null;
+        int diemTot = -1;
+        boolean hoa = false;
+        for (Integer id : trung) {
+            SanPham sp = theoSp.get(id).get(0).getSanPham();
+            String hang = sp.getThuongHieu() == null ? "" : BanHangService.boDau(sp.getThuongHieu().getTen());
+            int khop = 0;
+            for (String x : new LinkedHashSet<>(List.of(BanHangService.boDau(sp.getTenSanPham()).split("[^a-z0-9]+")))) {
+                if (x.isEmpty() || x.equals("vot") || x.equals("cau") || x.equals("long") || x.equals(hang)) continue;
+                if (t.contains(" " + x + " ")) khop++;
+            }
+            if (khop > diemTot) {
+                tot = id;
+                diemTot = khop;
+                hoa = false;
+            } else if (khop == diemTot) {
+                hoa = true;
+            }
+        }
+        return hoa ? null : tot;
+    }
+
+    /** Biến thể đang bán, gom theo sản phẩm (giữ thứ tự CSDL). */
+    private Map<Integer, List<SanPhamChiTiet>> nhomDangBan() {
+        Map<Integer, List<SanPhamChiTiet>> theoSp = new LinkedHashMap<>();
+        for (SanPhamChiTiet c : spctRepo.findAll()) {
+            if (BanHangService.dangBan(c)) theoSp.computeIfAbsent(c.getSanPham().getId(), k -> new ArrayList<>()).add(c);
+        }
+        return theoSp;
     }
 
     private TraLoi chiTietSanPham(List<SanPhamChiTiet> nhom, Map<Long, Double> giam) {
@@ -443,11 +622,46 @@ public class TroLyAoService {
         String hang = thuongHieu == null ? "" : BanHangService.boDau(thuongHieu);
         int diem = 0;
         Set<String> daTinh = new LinkedHashSet<>();
+        String[] tuCau = t.trim().split(" ");
         for (String tu : BanHangService.boDau(tenSanPham).split("[^a-z0-9]+")) {
             if (tu.length() < 2 || TU_CHUNG.contains(tu) || tu.equals(hang) || tu.matches("\\d?u|g\\d") || !daTinh.add(tu)) continue;
             if (t.contains(" " + tu + " ")) diem += tu.chars().anyMatch(Character::isDigit) ? 2 : 1;
+            else if (gonGanDung(tuCau, tu)) diem += 1; // gõ sai 1 chữ: "astrok", "nanoflar", "thruter"
         }
         return diem;
+    }
+
+    /** Có từ nào trong câu gõ gần đúng {@code tu} (chỉ chữ, từ 5 ký tự, sai đúng 1 chữ: thiếu / thừa / khác 1 chữ) không. */
+    static boolean gonGanDung(String[] tuCau, String tu) {
+        if (tu.length() < 5 || !tu.chars().allMatch(Character::isLetter)) return false;
+        for (String x : tuCau) {
+            if (x.length() >= 4 && !TU_CHUNG.contains(x) && x.chars().allMatch(Character::isLetter) && lechMotChu(x, tu)) return true;
+        }
+        return false;
+    }
+
+    /** a và b khác nhau đúng 1 chữ (đổi, thêm hoặc bớt 1 ký tự). */
+    static boolean lechMotChu(String a, String b) {
+        if (a.equals(b) || Math.abs(a.length() - b.length()) > 1) return false;
+        int i = 0;
+        int j = 0;
+        boolean daLech = false;
+        while (i < a.length() && j < b.length()) {
+            if (a.charAt(i) == b.charAt(j)) {
+                i++;
+                j++;
+                continue;
+            }
+            if (daLech) return false;
+            daLech = true;
+            if (a.length() > b.length()) i++;
+            else if (a.length() < b.length()) j++;
+            else {
+                i++;
+                j++;
+            }
+        }
+        return true;
     }
 
     static BoLoc docBoLoc(String t, Set<String> thuongHieus) {
@@ -456,11 +670,23 @@ public class TroLyAoService {
 
     static BoLoc docBoLoc(String cauHoiGoc, String t, Set<String> thuongHieus, Set<String> mauSacs) {
         String hang = null;
+        String khongCach = t.replace(" ", "").replace("-", "");
+        String[] tuCau = t.trim().split(" ");
         for (String th : thuongHieus) {
             String k = BanHangService.boDau(th);
             if (!k.isEmpty() && t.contains(" " + k + " ")) {
                 hang = th;
                 break;
+            }
+        }
+        // Gõ tách / dính / sai 1 chữ tên hãng: "li ning", "li-ning" -> Lining; "yonec", "victo" -> Yonex, Victor
+        if (hang == null) {
+            for (String th : thuongHieus) {
+                String k = BanHangService.boDau(th).replaceAll("[^a-z0-9]", "");
+                if (k.length() >= 5 && (khongCach.contains(k) && !t.contains(" " + k) || gonGanDung(tuCau, k))) {
+                    hang = th;
+                    break;
+                }
             }
         }
         String nhom = null;

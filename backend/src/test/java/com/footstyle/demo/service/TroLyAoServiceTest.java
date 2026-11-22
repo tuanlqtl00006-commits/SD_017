@@ -302,13 +302,82 @@ class TroLyAoServiceTest {
         assertEquals(java.util.List.of(2), the("nanoflare 700 giá bao nhiêu"), "kèm thẻ của đúng mẫu đó");
     }
 
+    // Góp ý 22/11 "hoàn thiện Chat AI": gõ sai tên vẫn hiểu, xếp rẻ / đắt / bán chạy, so sánh 2 mẫu - đều lấy từ dữ liệu cửa hàng
+    @Test
+    void goSaiTenHangVaTenMau_vanHieu() {
+        assertEquals(java.util.List.of(2), the("vợt yonec dưới 3 triệu"), "yonec -> Yonex");
+        assertEquals(java.util.List.of(3), the("vot li ning"), "li ning -> Lining");
+        assertTrue(hoi("astrok 99 còn hàng không").startsWith("Vợt cầu lông Yonex Astrox 99 Pro"), "astrok -> Astrox");
+        assertTrue(hoi("nanoflar 700 giá bao nhiêu").contains("2.601.000 ₫ (giảm 10% từ 2.890.000 ₫)"));
+        assertTrue(TroLyAoService.lechMotChu("yonec", "yonex"));
+        assertTrue(TroLyAoService.lechMotChu("nanoflar", "nanoflare"));
+        assertFalse(TroLyAoService.lechMotChu("astrox", "astrox"));
+        assertFalse(TroLyAoService.lechMotChu("victor", "vector1"));
+    }
+
+    @Test
+    void xepTheoReDatBanChay() {
+        assertEquals(java.util.List.of(3, 2, 1), the("vợt rẻ nhất"), "Axforce 890k, Nanoflare 2.601.000, Astrox");
+        TroLyAoService.TraLoi dat = troLy.traLoi("vợt đắt nhất", null);
+        assertEquals(java.util.List.of(1, 2, 3), dat.sanPham());
+        assertTrue(dat.noiDung().contains("xếp theo giá cao nhất"), dat.noiDung());
+        // Bán chạy: 30 ngày qua, đơn hoàn thành (cùng cách tính với trang chủ); Axforce bán 5, Nanoflare 2
+        HoaDon xong = new HoaDon();
+        xong.setId(7);
+        List<com.footstyle.demo.entity.HoaDonChiTiet> daBan = new ArrayList<>();
+        for (int[] x : new int[][] {{3, 2}, {4, 5}}) {
+            com.footstyle.demo.entity.HoaDonChiTiet ct = new com.footstyle.demo.entity.HoaDonChiTiet();
+            ct.setHoaDon(xong);
+            ct.setSanPhamChiTiet(bienThes.stream().filter(c -> c.getId() == x[0]).findFirst().orElseThrow());
+            ct.setSoLuong(x[1]);
+            ct.setThanhTien(BigDecimal.valueOf(1_000_000L * x[1]));
+            daBan.add(ct);
+        }
+        troLy.setHoaDonChiTietRepo(KhoGia.tao(com.footstyle.demo.repository.HoaDonChiTietRepository.class,
+                (t, a) -> "findByHoaDon_TrangThaiAndHoaDon_NgayTaoBetween".equals(t) && Integer.valueOf(HoaDon.HOAN_THANH).equals(a[0]) ? daBan : KhoGia.KHONG_CO));
+        TroLyAoService.TraLoi banChay = troLy.traLoi("vợt nào bán chạy", null);
+        assertEquals(java.util.List.of(3, 2, 1), banChay.sanPham(), "Axforce (5) > Nanoflare (2) > Astrox (0)");
+        assertTrue(banChay.noiDung().contains("xếp theo bán chạy nhất 30 ngày qua"), banChay.noiDung());
+    }
+
+    @Test
+    void soSanhHaiMau() {
+        TroLyAoService.TraLoi ss = troLy.traLoi("so sánh astrox 99 và nanoflare 700", null);
+        assertEquals(java.util.List.of(1, 2), ss.sanPham(), "thẻ của đúng 2 mẫu");
+        String nd = ss.noiDung();
+        assertTrue(nd.contains("• Vợt cầu lông Yonex Astrox 99 Pro: 4.290.000 ₫ - 4.390.000 ₫, nặng đầu, thân cứng, 4U / 3U, còn hàng"), nd);
+        assertTrue(nd.contains("• Vợt cầu lông Yonex Nanoflare 700: 2.601.000 ₫ (đang giảm đến 10%), nhẹ đầu, thân trung bình, 4U, còn hàng"), nd);
+        assertTrue(nd.contains("Nặng đầu hợp đánh tấn công"), nd);
+        assertEquals(java.util.List.of(1, 3), the("astrox 99 hay axforce 20 thì nên mua cái nào"));
+        assertTrue(hoi("so sánh giúp mình").contains("gõ tên 2 mẫu cần so sánh"));
+    }
+
+    @Test
+    void haiMauCungTen_goThemChuPhanBiet_thiChonDungMau() {
+        SanPham game = sanPham(6, "Vợt cầu lông Yonex Astrox 99 Game 2025", "Yonex", "Vợt cầu lông", "Nặng đầu", "Trung bình");
+        bienThe(7, game, "Trắng", "4U", 2_000_000L, 4);
+        // "pro" / "game" là từ chung nên điểm tên bằng nhau; chữ "pro" khách gõ thêm quyết định mẫu nào
+        assertTrue(hoi("astrox 99 pro còn hàng không").startsWith("Vợt cầu lông Yonex Astrox 99 Pro"));
+        assertTrue(hoi("vot astrox 99 game").startsWith("Vợt cầu lông Yonex Astrox 99 Game 2025"));
+        // Chỉ gõ "astrox 99": không tự chọn, liệt kê cả 2 mẫu
+        assertEquals(java.util.Set.of(1, 6), new java.util.HashSet<>(the("astrox 99")));
+        assertEquals(java.util.List.of(1, 2), the("so sánh astrox 99 pro với nanoflare 700"));
+    }
+
     @Test
     void cauHoiThuongGap() {
-        assertTrue(hoi("ship mất bao lâu vậy").contains("giao hàng toàn quốc"));
+        assertTrue(hoi("ship mất bao lâu vậy").contains("giao hàng qua Giao Hàng Nhanh"));
+        assertFalse(hoi("ship mất bao lâu vậy").contains("1-2 ngày"), "không hứa số ngày giao mà trang Chính sách không ghi");
         assertTrue(hoi("Địa chỉ shop ở đâu").contains("Số 15 Trần Phú, Hà Đông"));
         assertTrue(hoi("hotline của shop").contains("0912 000 001"));
         assertTrue(hoi("mấy giờ mở cửa").contains("7:00 - 22:00"));
-        assertTrue(hoi("chính sách đổi trả thế nào").contains("Đổi sản phẩm trong 7 ngày"));
+        // Khớp trang Chính sách (góp ý 22/11): không có đổi trả 7 ngày / bảo hành, chỉ có hủy / đổi đơn khi còn Chờ xác nhận
+        String doiTra = hoi("chính sách đổi trả thế nào");
+        assertTrue(doiTra.contains("Đơn còn Chờ xác nhận: bạn tự hủy được"), doiTra);
+        assertFalse(doiTra.contains("7 ngày") || doiTra.contains("bảo hành"), doiTra);
+        String tt = hoi("có trả bằng momo được không");
+        assertTrue(tt.contains("COD") && tt.contains("VietQR") && tt.contains("MoMo") && tt.contains("VNPay"), tt);
+        assertTrue(tt.contains("tiền mặt, chuyển khoản, hoặc kết hợp cả hai"), tt);
         assertTrue(hoi("có trả bằng chuyển khoản được không").contains("chuyển khoản"));
         assertTrue(hoi("nên căng dây bao nhiêu kg").contains("9 - 10 kg"));
     }

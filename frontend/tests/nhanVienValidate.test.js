@@ -161,10 +161,15 @@ describe('Form nhân viên: lỗi hiện dưới từng ô khi rời ô', () => 
     const w = await moForm()
     await roiO(w, '#nv-sdt')
     expect(loiO(w, 'nv-sdt-msg')).toBe('Nhập số điện thoại.')
-    for (const sai of ['1123456789', '2212345678', '091234567', '09123456789', '09123abcde']) {
+    for (const sai of ['1123456789', '2212345678', '091234567', '09123abcde']) {
       await w.find('#nv-sdt').setValue(sai)
       expect(loiO(w, 'nv-sdt-msg'), sai).toBe(LOI_SDT)
     }
+    // Ô chỉ giữ chữ số, tối đa 10: gõ dấu "-", chữ hoặc số thứ 11 thì bị bỏ ngay trên ô
+    await w.find('#nv-sdt').setValue('-09123456789')
+    expect(w.find('#nv-sdt').element.value).toBe('0912345678')
+    await w.find('#nv-sdt').setValue('09123abcde')
+    expect(w.find('#nv-sdt').element.value).toBe('09123')
     await w.find('#nv-sdt').setValue('0123456789')
     expect(loiO(w, 'nv-sdt-msg')).toBe('')
     await w.find('#nv-sdt').setValue('0912000001') // trùng NV01

@@ -350,8 +350,9 @@ function chuGiaDoi(d) {
     const coDongMoi = hd.value.gio.some((x) => x.idBienThe === d.idBienThe && !x.giaDoi)
     return coDongMoi ? '' : `${formatMoney(d.donGia)} → ${formatMoney(d.giaHienTai)}`
   }
-  const cu = hd.value.gio.find((x) => x.idBienThe === d.idBienThe && x.giaDoi && x.id !== d.id)
-  return cu ? `${formatMoney(cu.donGia)} → ${formatMoney(d.donGia)}` : ''
+  // Dòng giá mới: liệt kê đủ các mức giá cũ khác nhau của cùng biến thể (vd 700.000 ₫, 800.000 ₫ → 440.000 ₫)
+  const giaCu = [...new Set(hd.value.gio.filter((x) => x.idBienThe === d.idBienThe && x.giaDoi && x.id !== d.id).map((x) => Number(x.donGia)))]
+  return giaCu.length ? `${giaCu.map(formatMoney).join(', ')} → ${formatMoney(d.donGia)}` : ''
 }
 
 const phanTramGiamDong = (d) => {
@@ -419,6 +420,24 @@ const loiPhieu = computed(() => {
   if (!phieuChon.value) return `Phiếu ${hd.value.p.maPhieu} không còn dùng được cho đơn này.`
   return phieuChon.value.apDungDuoc ? '' : phieuChon.value.lyDo
 })
+// Phiếu giảm nhiều nhất đang dùng được (máy chủ trả danh sách đã xếp giảm nhiều nhất lên đầu).
+// Đơn đang áp phiếu khác giảm ít hơn (hoặc chưa áp / phiếu đang áp hết hiệu lực) thì hiện nút nhỏ "Đổi phiếu tốt nhất";
+// hệ thống không tự đổi (góp ý 21/11), nhân viên bấm mới đổi.
+const phieuTotHon = computed(() => {
+  const tot = phieus.value.find((p) => p.apDungDuoc)
+  if (!tot || dangTaiPhieu.value || tot.ma === hd.value.p.maPhieu) return null
+  const dangDungDuoc = phieuChon.value?.apDungDuoc && giamPhieu.value > 0
+  return dangDungDuoc && giamPhieu.value >= Number(tot.soTienGiam) ? null : tot
+})
+function doiPhieuTotNhat() {
+  const tot = phieuTotHon.value
+  if (!tot) return
+  const p = hd.value.p
+  p.maPhieu = tot.ma
+  p.soTienGiam = Number(tot.soTienGiam)
+  p.giuNguyenGiamCu = false
+  p.khongDungPhieu = false
+}
 // Ghi chú dưới dòng phiếu: mua thêm bao nhiêu (tiền và số sản phẩm trong giỏ) thì hệ thống đổi sang phiếu mới giảm nhiều hơn
 const goiYPhieu = computed(() => goiYPhieuMoi(phieus.value, tienHang.value, hd.value.gio, phieuChon.value))
 
@@ -1270,19 +1289,32 @@ const soLuongTab = (h) => tongSoLuong(h.items)
             </label>
           </div>
 
-          <!-- Phiếu giảm giá: hệ thống luôn tự áp phiếu giảm nhiều nhất, nhân viên chỉ xem, không chọn / bỏ phiếu.
+          <!-- Phiếu giảm giá: đơn chưa có phiếu thì tự áp phiếu giảm nhiều nhất; đã có phiếu thì giữ nguyên, có phiếu tốt hơn thì hiện nút nhỏ "Đổi phiếu tốt nhất".
                Dòng ghi chú bên dưới báo mua thêm bao nhiêu thì được phiếu mới giảm nhiều hơn. -->
-          <div id="bh-phieu" class="bh-phieu-ap" :class="{ 'is-trong': !(phieuChon && giamPhieu) }" data-testid="bh-phieu-ap-dung">
+          <div id="bh-phieu" class="bh-phieu-ap" :class="{ 'is-trong': !(phieuChon && giamPhieu), 'co-nut-doi': phieuTotHon }" data-testid="bh-phieu-ap-dung">
             <i class="bi bi-ticket-perforated" aria-hidden="true"></i>
             <span class="bh-phieu-ap-chu" :title="phieuChon && giamPhieu ? phieuChon.ten : ''">
               <template v-if="phieuChon && giamPhieu">
                 Đang áp dụng phiếu <b>{{ phieuChon.ma }}</b> (giảm <b>{{ formatMoney(giamPhieu) }}</b>)
-                <span class="bh-phieu-tot">Tốt nhất</span>
+                <span v-if="!phieuTotHon" class="bh-phieu-tot">Tốt nhất</span>
               </template>
               <template v-else-if="!hd.gio.length">Phiếu giảm giá: chưa có sản phẩm</template>
               <template v-else-if="dangTaiPhieu && !phieus.length">Đang tìm phiếu giảm giá…</template>
+              <template v-else-if="phieuTotHon">Đơn chưa áp phiếu giảm giá</template>
               <template v-else>Không có phiếu dùng được cho đơn này</template>
             </span>
+            <button
+              v-if="phieuTotHon"
+              type="button"
+              class="bh-phieu-doi"
+              :disabled="canVaoCa"
+              :title="`${phieuChon && giamPhieu ? 'Đổi' : 'Áp'} phiếu tốt nhất: ${phieuTotHon.ma} (giảm ${formatMoney(phieuTotHon.soTienGiam)})`"
+              :aria-label="`${phieuChon && giamPhieu ? 'Đổi' : 'Áp'} phiếu tốt nhất ${phieuTotHon.ma}`"
+              data-testid="bh-doi-phieu-tot"
+              @click="doiPhieuTotNhat"
+            >
+              <i class="bi bi-stars" aria-hidden="true"></i>
+            </button>
           </div>
           <p v-if="goiYPhieu" class="bh-goi-y-ngan" data-testid="bh-goi-y-ngan">
             <i class="bi bi-lightbulb" aria-hidden="true"></i>
@@ -1781,6 +1813,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
   border-radius: 10px;
 }
 .bh-phieu-ap {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1808,6 +1841,34 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 }
 .bh-phieu-ap-chu b {
   color: #15803d;
+}
+/* Nút nhỏ gắn ở mép trên bên phải khung phiếu (góp ý 22/11): không chiếm chỗ của dòng chữ */
+.bh-phieu-ap.co-nut-doi {
+  margin-top: 0.6rem;
+}
+.bh-phieu-doi {
+  position: absolute;
+  top: 0;
+  right: 0.5rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 0.72rem;
+  color: #fff;
+  background: #2563eb;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+}
+.bh-phieu-doi:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.bh-phieu-doi:disabled {
+  opacity: 0.5;
 }
 .bh-phieu-tot {
   display: inline-block;

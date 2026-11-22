@@ -123,6 +123,17 @@ export function loiSdt(giaTri, thieu = 'Vui lòng nhập số điện thoại.')
   return ''
 }
 
+/**
+ * Ô số điện thoại: chỉ giữ chữ số, tối đa 10 (gõ "-", chữ, dấu cách... thì bị bỏ ngay trên ô).
+ * Dùng: <input :value="form.sdt" @input="form.sdt = nhapSoDienThoai($event)">
+ */
+export function nhapSoDienThoai(e, toiDa = 10) {
+  const o = e?.target
+  const so = String(o?.value ?? '').replace(/\D/g, '').slice(0, toiDa)
+  if (o && o.value !== so) o.value = so
+  return so
+}
+
 export function loiEmail(giaTri, { thieu = 'Vui lòng nhập email.', dinhDang = LOI_EMAIL } = {}) {
   const email = cat(giaTri)
   if (!email) return thieu

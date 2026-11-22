@@ -21,7 +21,7 @@ vi.mock('../src/services/cuaHangService', () => ({ cuaHangService: cuaHang }))
 
 import KhungChatKhach from '../src/components/chat/KhungChatKhach.vue'
 import { xoaKhoSanPhamChat } from '../src/components/chat/khoSanPhamChat'
-import { luuPhienKhach, tachTheSanPham, xemTruocTinCuoi } from '../src/utils/chat'
+import { luuPhienKhach, tachLienKet, tachTheSanPham, xemTruocTinCuoi } from '../src/utils/chat'
 
 const tn = (id, loai, noiDung) => ({ id, loaiNguoiGui: loai, noiDung, tenNguoiGui: loai === 3 ? 'Trợ lý ảo' : 'Lan', idNhanVien: null, thoiGian: '2026-11-15T09:00:00' })
 const SP = [
@@ -53,6 +53,15 @@ describe('Tách thẻ sản phẩm khỏi nội dung tin', () => {
   it('dòng cuối "[[SP:..]]" thành danh sách id; tin thường giữ nguyên; xem trước tin cuối không lộ dòng đánh dấu', () => {
     expect(tachTheSanPham('Có 2 sản phẩm:\nBấm vào thẻ.\n[[SP:12,15]]')).toEqual({ chu: 'Có 2 sản phẩm:\nBấm vào thẻ.', sanPham: [12, 15] })
     expect(tachTheSanPham('Xin chào [[SP:1]] ở giữa câu')).toEqual({ chu: 'Xin chào [[SP:1]] ở giữa câu', sanPham: [] })
+    // Nhân viên dán đường dẫn trang sản phẩm: không hiện URL thô, đổi thành thẻ sản phẩm (góp ý 22/11)
+    expect(tachTheSanPham('http://localhost:5173/shop/san-pham/71')).toEqual({ chu: '', sanPham: [71] })
+    expect(tachTheSanPham('Mẫu này ạ:\nhttps://footstyle.vn/shop/san-pham/71?mau=Do\n/shop/san-pham/9 cũng được')).toEqual({ chu: 'Mẫu này ạ:\ncũng được', sanPham: [71, 9] })
+    expect(tachTheSanPham('Như trên [[SP:5]]\n[[SP:71]]')).toEqual({ chu: 'Như trên [[SP:5]]', sanPham: [71] })
+    expect(tachTheSanPham('xem http://localhost:5173/shop/san-pham/71\n[[SP:71,8]]')).toEqual({ chu: 'xem', sanPham: [71, 8] })
+    // Đường dẫn khác giữ nguyên trong chữ, khung chat vẽ thành liên kết bấm được
+    expect(tachTheSanPham('Chính sách: http://localhost:5173/shop/chinh-sach')).toEqual({ chu: 'Chính sách: http://localhost:5173/shop/chinh-sach', sanPham: [] })
+    expect(tachLienKet('Xem https://a.vn/x?y=1. nhé')).toEqual([{ chu: 'Xem ' }, { url: 'https://a.vn/x?y=1' }, { chu: '. nhé' }])
+    expect(tachLienKet('không có link')).toEqual([{ chu: 'không có link' }])
     expect(xemTruocTinCuoi(tn(1, 3, 'Gợi ý:\n[[SP:12]]'))).toBe('Trợ lý: Gợi ý:')
   })
 })

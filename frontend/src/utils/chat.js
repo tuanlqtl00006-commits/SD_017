@@ -114,7 +114,8 @@ export function locHoiThoai(ds = [], tuKhoa = '', boDau = (s) => s) {
 /** Xem trước tin cuối trong danh sách: "Bạn: ...", "Trợ lý: ...", "Lan: ..." */
 export function xemTruocTinCuoi(t, idToi = null, nhom = false) {
   if (!t) return 'Chưa có tin nhắn'
-  const nd = tachTheSanPham(t.noiDung).chu // bỏ dòng đánh dấu thẻ sản phẩm
+  const tach = tachTheSanPham(t.noiDung) // bỏ dòng đánh dấu thẻ sản phẩm / đường dẫn sản phẩm
+  const nd = tach.chu || (tach.sanPham.length ? '[Sản phẩm]' : '')
   if (t.loaiNguoiGui === NGUOI_GUI.HE_THONG) return nd
   if (t.loaiNguoiGui === NGUOI_GUI.NHAN_VIEN && idToi !== null && t.idNhanVien === idToi) return `Bạn: ${nd}`
   if (t.loaiNguoiGui === NGUOI_GUI.TRO_LY_AO) return `Trợ lý: ${nd}`
@@ -179,6 +180,39 @@ export const TRA_LOI_NHANH = [
 export function tachTheSanPham(noiDung = '') {
   const s = String(noiDung ?? '')
   const m = s.match(/\n?\[\[SP:([\d,]+)\]\]\s*$/)
-  if (!m) return { chu: s, sanPham: [] }
-  return { chu: s.slice(0, m.index).trimEnd(), sanPham: m[1].split(',').map(Number).filter((x) => x > 0) }
+  const goc = m ? { chu: s.slice(0, m.index).trimEnd(), sanPham: m[1].split(',').map(Number).filter((x) => x > 0) } : { chu: s, sanPham: [] }
+  return tachLinkSanPham(goc)
+}
+
+// Đường dẫn trang chi tiết sản phẩm nhân viên dán vào tin (vd http://localhost:5173/shop/san-pham/71?mau=Do):
+// bỏ khỏi bong bóng, hiện thành thẻ sản phẩm như trợ lý ảo gợi ý (góp ý 22/11: không hiện URL thô).
+const LINK_SAN_PHAM = /(^|\s)(?:https?:\/\/[^\s/]+)?\/shop\/san-pham\/(\d+)(?:[?#][^\s]*)?(?=\s|$)/g
+
+function tachLinkSanPham({ chu, sanPham }) {
+  const ids = [...sanPham]
+  let coLink = false
+  const conLai = chu.replace(LINK_SAN_PHAM, (_, truoc, id) => {
+    coLink = true
+    if (!ids.includes(Number(id))) ids.push(Number(id))
+    return truoc
+  })
+  if (!coLink) return { chu, sanPham }
+  return { chu: conLai.split('\n').map((l) => l.trim()).filter(Boolean).join('\n'), sanPham: ids }
+}
+
+/**
+ * Chia chữ trong bong bóng thành các đoạn chữ thường và đường dẫn http(s) để vẽ thành liên kết bấm được (không dùng v-html).
+ * vd "Xem https://a.vn/x nhé" -> [{ chu: 'Xem ' }, { url: 'https://a.vn/x' }, { chu: ' nhé' }]
+ */
+export function tachLienKet(chu = '') {
+  const s = String(chu ?? '')
+  const ra = []
+  let cuoi = 0
+  for (const m of s.matchAll(/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g)) {
+    if (m.index > cuoi) ra.push({ chu: s.slice(cuoi, m.index) })
+    ra.push({ url: m[0] })
+    cuoi = m.index + m[0].length
+  }
+  if (cuoi < s.length) ra.push({ chu: s.slice(cuoi) })
+  return ra
 }

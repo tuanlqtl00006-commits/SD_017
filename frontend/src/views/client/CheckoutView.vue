@@ -10,6 +10,7 @@ import { docDonHang, ghiDonHang } from '../../utils/donHangLocal'
 import VoucherPanel from '../../components/shop/VoucherPanel.vue'
 import VanChuyenLogo from '../../components/common/VanChuyenLogo.vue'
 import { formatMoney } from '../../utils/format'
+import { nhapSoDienThoai } from '../../utils/kiemTra'
 import { dongTienDon } from '../../utils/tienDon'
 import { useBaoGiaGioHang } from '../../composables/useBaoGiaGioHang'
 import api from '../../services/api'
@@ -535,7 +536,9 @@ async function guiDon({ giuNguyenGiamCu = false } = {}) {
                   class="form-control"
                   :class="{ 'is-invalid': errors.sdt }"
                   placeholder="Ví dụ: 0912345678"
-                  v-model="form.sdt"
+                  inputmode="numeric"
+                  :value="form.sdt"
+                  @input="form.sdt = nhapSoDienThoai($event)"
                 />
                 <div v-if="errors.sdt" class="invalid-feedback">{{ errors.sdt }}</div>
               </div>

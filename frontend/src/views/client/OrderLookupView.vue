@@ -6,7 +6,7 @@ import api from '../../services/api'
 import HoaDonNoiDung from '../../components/hoaDon/HoaDonNoiDung.vue'
 import { formatMoney, formatNgayGio } from '../../utils/format'
 import { docDonHang } from '../../utils/donHangLocal'
-import { loiSdt } from '../../utils/kiemTra'
+import { loiSdt, nhapSoDienThoai } from '../../utils/kiemTra'
 import { useAutoRefresh } from '../../composables/useAutoRefresh'
 
 const route = useRoute()
@@ -326,13 +326,13 @@ async function guiLaiMail() {
                 id="ol-sdt"
                 type="tel"
                 inputmode="numeric"
-                maxlength="10"
                 autocomplete="tel"
                 class="form-control ol-input"
                 placeholder="Nhập số điện thoại"
                 aria-label="Số điện thoại đặt hàng"
                 data-testid="ol-sdt"
-                v-model="sdt"
+                :value="sdt"
+                @input="sdt = nhapSoDienThoai($event)"
               />
             </div>
           </div>

@@ -3,7 +3,7 @@
 // Tin của mình nằm bên phải; tin hệ thống ở giữa; chia đoạn theo ngày; tự cuộn xuống khi có tin mới nếu đang ở cuối.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { avatarColors, getInitials } from '../../utils/format'
-import { chuanBiHienThi, gioPhut, NGUOI_GUI, tachTheSanPham } from '../../utils/chat'
+import { chuanBiHienThi, gioPhut, NGUOI_GUI, tachLienKet, tachTheSanPham } from '../../utils/chat'
 import TheSanPhamChat from './TheSanPhamChat.vue'
 
 const props = defineProps({
@@ -77,7 +77,7 @@ function kieuAvatar(t) {
           </div>
           <div class="ktn-than">
             <div v-if="hienTen && !d.cuaToi && !d.noiTiep" class="ktn-ten">{{ d.tin.tenNguoiGui || 'Khách' }}</div>
-            <div class="ktn-bong" :class="{ 'is-bot': d.tin.loaiNguoiGui === NGUOI_GUI.TRO_LY_AO }">{{ d.chu }}</div>
+            <div v-if="d.chu || !d.sanPham.length" class="ktn-bong" :class="{ 'is-bot': d.tin.loaiNguoiGui === NGUOI_GUI.TRO_LY_AO }"><template v-for="(p, i) in tachLienKet(d.chu)" :key="i"><a v-if="p.url" :href="p.url" target="_blank" rel="noopener noreferrer" class="ktn-link">{{ p.url }}</a><template v-else>{{ p.chu }}</template></template></div>
             <TheSanPhamChat v-if="d.sanPham.length" :ids="d.sanPham" :chu="d.chu" />
             <time class="ktn-gio" :datetime="d.tin.thoiGian">{{ gioPhut(d.tin.thoiGian) }}</time>
           </div>
@@ -125,6 +125,11 @@ function kieuAvatar(t) {
 .ktn-trong .bi {
   font-size: 2rem;
   opacity: 0.6;
+}
+.ktn-link {
+  color: inherit;
+  text-decoration: underline;
+  word-break: break-all;
 }
 .ktn-ngay {
   text-align: center;

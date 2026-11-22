@@ -28,6 +28,7 @@ import {
   loiNgaySinh,
   loiSdt,
   ngaySinhMuonNhat,
+  nhapSoDienThoai,
   ngaySinhSomNhat,
   sinhMatKhauTam,
   timBanTrung,
@@ -677,12 +678,11 @@ async function xacNhanDoiMatKhau() {
                   inputmode="numeric"
                   class="form-control ad-control"
                   :class="{ 'is-invalid': loi.soDienThoai }"
-                  maxlength="10"
                   placeholder="Nhập số điện thoại..."
                   autocomplete="off"
                   :aria-invalid="!!loi.soDienThoai"
                   aria-describedby="nv-sdt-msg"
-                  @input="sua('soDienThoai')"
+                  @input="form.soDienThoai = nhapSoDienThoai($event); sua('soDienThoai')"
                   @blur="cham('soDienThoai')"
                 />
                 <p v-if="loi.soDienThoai" id="nv-sdt-msg" class="ad-error mt-1">{{ loi.soDienThoai }}</p>
