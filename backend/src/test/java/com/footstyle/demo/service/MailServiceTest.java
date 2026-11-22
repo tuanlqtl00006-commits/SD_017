@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.PhieuGiamGia;
 import com.footstyle.demo.service.PhieuMailNoiDung.Loai;
@@ -469,6 +470,55 @@ class MailServiceTest {
         assertNotNull(phanLoai(phan, "image/jpeg"));
     }
 
+    // Góp ý 22/11: thư có thanh tiến độ (khách xem ngay đơn tới bước nào), bỏ nút theo dõi; đơn chuyển khoản thêm nút mở trang thanh toán
+    @Test
+    void guiXacNhanDatHang_coThanhTienDo_khongNutTheoDoi_donChuyenKhoanCoLinkThanhToan() throws Exception {
+        GhiThu sender = new GhiThu();
+        MailService s = dich(new NoiCap(sender));
+        s.guiXacNhanDatHang("Tuấn", "tuan@gmail.com", "HD971", List.of("Vợt Victor (Trắng) x1 - 3.400.000 ₫"),
+                "3.400.000 ₫", "Đà Nẵng", "Chuyển khoản VietQR", null, "http://localhost:5173/shop/dat-hang-thanh-cong?ma=HD971");
+        doiDuThu(sender, 1);
+        MimeMessage m = docLai(sender.daGui.get(0));
+        assertTrue(m.getSubject().contains("Đặt hàng thành công"), m.getSubject());
+        String html = (String) phanLoai(cacPhanLa(m), "text/html").getContent();
+        assertTrue(html.contains("TIẾN ĐỘ ĐƠN HÀNG") && html.contains("Chờ xác nhận") && html.contains("Đã hoàn thành"), html);
+        assertFalse(html.contains("Theo dõi đơn hàng") || html.contains("/shop/tra-cuu"), "bỏ nút theo dõi");
+        assertTrue(html.contains("gửi thư cho bạn mỗi khi đơn"), html);
+        assertTrue(html.contains("/shop/dat-hang-thanh-cong?ma=HD971") && html.contains("Mở trang thanh toán"), html);
+
+        GhiThu cod = new GhiThu();
+        MailService s2 = dich(new NoiCap(cod));
+        s2.guiXacNhanDatHang("Tuấn", "tuan@gmail.com", "HD972", List.of("Vợt (Đen) x1"), "1 ₫", "HN", "Thanh toán khi nhận hàng (COD)", null);
+        doiDuThu(cod, 1);
+        String htmlCod = (String) phanLoai(cacPhanLa(docLai(cod.daGui.get(0))), "text/html").getContent();
+        assertTrue(htmlCod.contains("TIẾN ĐỘ ĐƠN HÀNG"));
+        assertFalse(htmlCod.contains("Mở trang thanh toán"), "đơn COD không có nút thanh toán");
+    }
+
+    @Test
+    void tienDoChu_buocDaQuaHienTaiVaThatBai() {
+        assertEquals("[✓] Chờ xác nhận > [✓] Đã xác nhận > [●] Chờ giao hàng > Đang giao hàng > Đã giao hàng > Đã hoàn thành",
+                MailService.tienDoChu(HoaDon.CHO_LAY_HANG));
+        assertEquals("[✓] Chờ xác nhận > [✓] Đã xác nhận > [✓] Chờ giao hàng > [✓] Đang giao hàng > [●] Giao hàng thất bại",
+                MailService.tienDoChu(HoaDon.GIAO_THAT_BAI));
+    }
+
+    @Test
+    void guiCapNhatTrangThai_coThanhTienDo_khongNutTraCuu() throws Exception {
+        GhiThu sender = new GhiThu();
+        MailService s = dich(new NoiCap(sender));
+        s.guiCapNhatTrangThai("Tuấn", "tuan@gmail.com", "HD971", HoaDon.DANG_GIAO, null, "3.384.000 ₫", "Đà Nẵng");
+        doiDuThu(sender, 1);
+        MimeMessage m = docLai(sender.daGui.get(0));
+        List<Part> phan = cacPhanLa(m);
+        String html = (String) phanLoai(phan, "text/html").getContent();
+        assertTrue(html.contains("TIẾN ĐỘ ĐƠN HÀNG") && html.contains("Đang giao hàng"), html);
+        assertTrue(html.contains("&#10003;"), "các bước đã qua có dấu tích");
+        assertFalse(html.contains("Tra cứu đơn hàng</a>"), "bỏ nút tra cứu");
+        String chu = (String) phanLoai(phan, "text/plain").getContent();
+        assertTrue(chu.contains("[●] Đang giao hàng"), chu);
+    }
+
     /* ---------- review: email đặt hàng đẹp hơn + email khi đổi trạng thái ---------- */
 
     @Test
@@ -507,7 +557,9 @@ class MailServiceTest {
         int giao = tieuDe.get(0).contains("đang được giao") ? 0 : 1;
         assertTrue(tieuDe.get(giao).contains("HD971"));
         assertTrue(html.get(giao).contains("ĐANG GIAO HÀNG"));
-        assertTrue(html.get(giao).contains("https://footstyle.vn"), "có nút tra cứu đơn");
+        // Góp ý 22/11: thay nút tra cứu bằng thanh tiến độ ngay trong thư
+        assertTrue(html.get(giao).contains("TIẾN ĐỘ ĐƠN HÀNG"), "có thanh tiến độ");
+        assertTrue(html.get(1 - giao).contains("Giao hàng thất bại"), "thanh tiến độ ghi bước thất bại");
         assertTrue(html.get(1 - giao).contains("Khách không nghe máy"), "giao thất bại ghi lý do");
         assertTrue(html.get(1 - giao).contains("Giao hàng chưa thành công"));
     }

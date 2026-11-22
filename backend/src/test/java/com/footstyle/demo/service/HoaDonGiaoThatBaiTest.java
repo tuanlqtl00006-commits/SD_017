@@ -152,9 +152,20 @@ class HoaDonGiaoThatBaiTest {
         service.doiTrangThai(1, sang(HoaDon.DANG_GIAO, null));
         service.doiTrangThai(1, sang(HoaDon.DA_GIAO, null));
         assertNotNull(hd.getNgayGiaoThucTe());
+        // Đơn COD (commit a01ec70): chưa "Xác nhận đã nhận tiền" thì không cho Hoàn thành, đơn giữ nguyên Đã giao
+        ApiException chuaNhanTien = loi(() -> service.doiTrangThai(1, sang(HoaDon.HOAN_THANH, null)));
+        assertTrue(chuaNhanTien.getMessage().contains("Bắt buộc phải xác nhận đã nhận được tiền"), chuaNhanTien.getMessage());
+        assertEquals(HoaDon.DA_GIAO, hd.getTrangThai());
+        assertTrue(kho.thanhToan.isEmpty());
+        // Nhân viên bấm "Xác nhận đã nhận tiền" (HoaDonSuaService.xacNhanTienCod ghi khoản đã thanh toán phần còn lại) rồi mới Hoàn thành
+        LichSuThanhToan daNhan = new LichSuThanhToan();
+        daNhan.setHoaDon(hd);
+        daNhan.setSoTien(new BigDecimal("530000"));
+        daNhan.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
+        kho.thanhToan.add(daNhan);
         service.doiTrangThai(1, sang(HoaDon.HOAN_THANH, null));
         assertEquals(HoaDon.HOAN_THANH, hd.getTrangThai());
-        assertEquals(1, kho.thanhToan.size());
+        assertEquals(1, kho.thanhToan.size(), "đã nhận đủ: hoàn thành không ghi thêm khoản tiền nào");
         assertEquals(0, new BigDecimal("530000").compareTo(kho.thanhToan.get(0).getSoTien()));
         assertEquals(LichSuThanhToan.DA_THANH_TOAN, kho.thanhToan.get(0).getTrangThai());
         assertEquals(List.of("Giao hàng thất bại", "Đang giao hàng", "Đã giao hàng", "Đã hoàn thành"),

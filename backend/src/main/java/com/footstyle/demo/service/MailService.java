@@ -1,5 +1,6 @@
 package com.footstyle.demo.service;
 
+import com.footstyle.demo.entity.HoaDon;
 import com.footstyle.demo.entity.KhachHang;
 import com.footstyle.demo.entity.PhieuGiamGia;
 import com.footstyle.demo.service.PhieuMailNoiDung.Loai;
@@ -481,6 +482,16 @@ public class MailService {
     /** Như trên, kèm bảng tiền (tạm tính, giảm giá, phí vận chuyển) và số điện thoại người nhận; `tien` = null thì chỉ ghi tổng. */
     public void guiXacNhanDatHang(String hoTen, String email, String maHoaDon, java.util.List<String> monHang,
                                   String thanhTienChu, String diaChi, String cachThanhToan, TienDon tien) {
+        guiXacNhanDatHang(hoTen, email, maHoaDon, monHang, thanhTienChu, diaChi, cachThanhToan, tien, null);
+    }
+
+    /**
+     * Thư khi khách đặt hàng online: đơn, tiền, thanh tiến độ (đang ở "Chờ xác nhận"). Góp ý 22/11: khách xem ngay đơn tới bước nào,
+     * không cần nút theo dõi; mỗi lần đơn chuyển bước cửa hàng gửi thêm thư kèm thanh tiến độ ({@link #guiCapNhatTrangThai}).
+     * Đơn chọn chuyển khoản ({@code linkThanhToan} khác null): thêm nút mở trang quét mã QR (có hạn 5 phút).
+     */
+    public void guiXacNhanDatHang(String hoTen, String email, String maHoaDon, java.util.List<String> monHang,
+                                  String thanhTienChu, String diaChi, String cachThanhToan, TienDon tien, String linkThanhToan) {
         if (email == null || !email.contains("@")) return;
         final String den = email.trim();
         String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
@@ -496,7 +507,12 @@ public class MailService {
         chu.append("\nTổng thanh toán: ").append(thanhTienChu)
                 .append("\nGiao tới: ").append(diaChi)
                 .append("\nThanh toán: ").append(cachThanhToan)
-                .append("\n\nBạn có thể tra cứu đơn hàng bằng mã ").append(ma).append(" trên website.\n");
+                .append("\n\nTiến độ đơn hàng: ").append(tienDoChu(HoaDon.CHO_XAC_NHAN))
+                .append("\nCửa hàng sẽ gửi thư cho bạn mỗi khi đơn chuyển sang bước tiếp theo.\n");
+        if (linkThanhToan != null) {
+            chu.append("\nĐơn chọn chuyển khoản: vui lòng quét mã QR trong ").append(CuaHangService.HAN_CHUYEN_KHOAN_PHUT)
+                    .append(" phút tại trang thanh toán: ").append(linkThanhToan).append('\n');
+        }
 
         final byte[] logoGan = logo;
         String phong = "font-family:Arial,Helvetica,sans-serif;";
@@ -510,6 +526,7 @@ public class MailService {
                 .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>")
                 .append("Đơn hàng của bạn tại <strong>").append(esc(tenCuaHang))
                 .append("</strong> đã được tiếp nhận thành công và đang chờ cửa hàng xác nhận.</td></tr>\n");
+        thanhTienDo(h, HoaDon.CHO_XAC_NHAN, "#16a34a");
 
         // Thẻ mã đơn hàng nổi bật
         h.append("<tr><td style=\"padding:12px 28px 8px 28px;\">")
@@ -593,21 +610,22 @@ public class MailService {
         dongThongTinDon(h, "Phương thức thanh toán", cachThanhToan, false);
         h.append("</table></td></tr></table></td></tr>\n");
 
-        // Hộp hướng dẫn tra cứu đơn hàng
+        // Ghi chú: các bước sau cửa hàng gửi thư kèm thanh tiến độ (không cần bấm theo dõi)
         h.append("<tr><td style=\"padding:12px 28px 8px 28px;\">")
                 .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;\">")
                 .append("<tr><td style=\"padding:14px 18px;").append(phong).append("font-size:14px;line-height:22px;color:#1e3a8a;\">")
-                .append("Bạn có thể kiểm tra tiến độ đơn hàng bất cứ lúc nào tại mục <strong>Tra cứu đơn hàng</strong> trên website bằng mã đơn <strong>")
-                .append(esc(ma)).append("</strong>.")
+                .append("Cửa hàng sẽ gửi thư cho bạn mỗi khi đơn <strong>").append(esc(ma))
+                .append("</strong> chuyển sang bước tiếp theo, kèm thanh tiến độ như trên.")
                 .append("</td></tr></table></td></tr>\n");
-
-        if (linkCuaHang != null) {
-            h.append("<tr><td align=\"center\" style=\"padding:14px 28px 4px 28px;\">")
-                    .append("<a href=\"").append(esc(linkCuaHang)).append("\" target=\"_blank\" style=\"").append(phong)
-                    .append("display:inline-block;background-color:#16a34a;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;\">")
-                    .append("Tra cứu đơn hàng</a></td></tr>\n");
+        if (linkThanhToan != null) {
+            h.append("<tr><td style=\"padding:8px 28px 4px 28px;").append(phong).append("font-size:14px;line-height:22px;color:#92400e;\">")
+                    .append("Đơn chọn <strong>chuyển khoản</strong>: vui lòng quét mã QR trong <strong>").append(CuaHangService.HAN_CHUYEN_KHOAN_PHUT)
+                    .append(" phút</strong>. Quá hạn chưa thanh toán thì cửa hàng tự gửi link thanh toán mới vào email này.</td></tr>\n")
+                    .append("<tr><td align=\"center\" style=\"padding:10px 28px 4px 28px;\">")
+                    .append("<a href=\"").append(esc(linkThanhToan)).append("\" target=\"_blank\" style=\"").append(phong)
+                    .append("display:inline-block;background-color:#d97706;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;\">")
+                    .append("Mở trang thanh toán</a></td></tr>\n");
         }
-
         dongKhungHtml(h);
         final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
         luongGui.submit(() -> gui(den, thu, logoGan));
@@ -630,7 +648,8 @@ public class MailService {
 
         StringBuilder chu = new StringBuilder("Xin chào " + ten + ",\n\n"
                 + "Cảm ơn bạn đã đặt hàng tại " + tenCuaHang + ". Đơn hàng " + ma + " của bạn đã được ghi nhận nhưng CHƯA HOÀN TẤT THANH TOÁN.\n\n"
-                + "Nếu bạn đã lỡ tắt trình duyệt hoặc thanh toán chưa thành công, vui lòng bấm vào đường dẫn sau để quay lại màn hình thanh toán và quét mã QR:\n"
+                + "Nếu bạn đã lỡ tắt trình duyệt hoặc thanh toán chưa thành công, vui lòng bấm vào đường dẫn sau để quay lại màn hình thanh toán và quét mã QR"
+                + " (mã có hiệu lực " + CuaHangService.HAN_CHUYEN_KHOAN_PHUT + " phút kể từ lúc gửi thư này):\n"
                 + link + "\n\n");
         if (monHang != null) {
             chu.append("Chi tiết sản phẩm:\n");
@@ -655,7 +674,8 @@ public class MailService {
                 .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>")
                 .append("Đơn hàng của bạn tại <strong>").append(esc(tenCuaHang))
                 .append("</strong> đã được tiếp nhận nhưng <strong style=\"color:#d97706;\">CHƯA HOÀN TẤT THANH TOÁN</strong>.<br>")
-                .append("Nếu bạn đã lỡ tắt nhầm trình duyệt hoặc chuyển khoản chưa thành công, vui lòng bấm vào nút <strong>Quay lại màn hình thanh toán</strong> bên dưới để hoàn tất:</td></tr>\n");
+                .append("Nếu bạn đã lỡ tắt nhầm trình duyệt hoặc chuyển khoản chưa thành công, vui lòng bấm vào nút <strong>Quay lại màn hình thanh toán</strong> bên dưới để hoàn tất.<br>")
+                .append("Mã QR mới có hiệu lực <strong>").append(CuaHangService.HAN_CHUYEN_KHOAN_PHUT).append(" phút</strong> kể từ lúc gửi thư này.</td></tr>\n");
 
         // Thẻ mã đơn hàng nổi bật
         h.append("<tr><td style=\"padding:8px 28px 8px 28px;\">")
@@ -1005,7 +1025,7 @@ public class MailService {
         if (lyDo != null) chu.append("\nLý do: ").append(lyDo);
         if (thanhTienChu != null) chu.append("\nTổng thanh toán: ").append(thanhTienChu);
         if (diaChi != null && !diaChi.isBlank()) chu.append("\nGiao tới: ").append(diaChi);
-        chu.append("\n\nBạn có thể tra cứu đơn hàng bằng mã ").append(ma).append(" trên website.\n");
+        chu.append("\n\nTiến độ đơn hàng: ").append(tienDoChu(trangThai)).append('\n');
 
         final byte[] logoGan = logo;
         String phong = "font-family:Arial,Helvetica,sans-serif;";
@@ -1013,6 +1033,7 @@ public class MailService {
         moKhungHtml(h, tieuDe, "Đơn hàng " + ma + ": " + nd.tieuDe(), nd.mau(), logoGan != null, nd.nhan(), nd.tieuDe());
         h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
                 .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>").append(esc(nd.loiNhan())).append("</td></tr>\n");
+        thanhTienDo(h, trangThai, nd.mau());
         h.append("<tr><td style=\"padding:12px 28px 8px 28px;\">")
                 .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;\">")
                 .append("<tr><td style=\"padding:14px 18px;\">")
@@ -1023,16 +1044,68 @@ public class MailService {
         if (thanhTienChu != null) dongThongTinDon(h, "Tổng thanh toán", thanhTienChu, false);
         if (diaChi != null && !diaChi.isBlank()) dongThongTinDon(h, "Giao tới", diaChi, false);
         h.append("</table></td></tr></table></td></tr>\n");
-        if (linkCuaHang != null) {
-            h.append("<tr><td align=\"center\" style=\"padding:14px 28px 4px 28px;\">")
-                    .append("<a href=\"").append(esc(linkCuaHang)).append("\" target=\"_blank\" style=\"").append(phong)
-                    .append("display:inline-block;background-color:").append(nd.mau())
-                    .append(";color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;\">")
-                    .append("Tra cứu đơn hàng</a></td></tr>\n");
-        }
+        // Thanh tiến độ đã cho khách thấy đơn đang ở bước nào: bỏ nút "Tra cứu đơn hàng" (góp ý 22/11)
         dongKhungHtml(h);
         final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
         luongGui.submit(() -> gui(den, thu, logoGan));
+    }
+
+    /** Các bước của đơn online, cùng tên và thứ tự với thanh tiến độ ở màn tra cứu / chi tiết hóa đơn. */
+    private static final int[] CAC_BUOC = {HoaDon.CHO_XAC_NHAN, HoaDon.DA_XAC_NHAN, HoaDon.CHO_LAY_HANG, HoaDon.DANG_GIAO,
+            HoaDon.DA_GIAO, HoaDon.HOAN_THANH};
+
+    /**
+     * Thanh tiến độ trong thư (góp ý 22/11: khách xem ngay đơn đang tới bước nào, không phải bấm theo dõi).
+     * Bước đã qua: tròn xanh lá có dấu ✓; bước hiện tại: tròn màu nhấn, chữ đậm; bước sau: tròn viền xám.
+     * Giao hàng thất bại: các bước tới "Đang giao hàng" đã qua, bước hiện tại là "Giao hàng thất bại" (màu cam).
+     * Dựng bằng bảng (không dùng flex / CSS ngoài) để hiện đúng trên Gmail, Outlook.
+     */
+    void thanhTienDo(StringBuilder h, int trangThai, String mauNhan) {
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        boolean thatBai = trangThai == HoaDon.GIAO_THAT_BAI;
+        int hienTai = thatBai ? 4 : -1; // giao thất bại: thay bước "Đã giao hàng" (vị trí 4) bằng ô thất bại
+        for (int i = 0; i < CAC_BUOC.length && !thatBai; i++) if (CAC_BUOC[i] == trangThai) hienTai = i;
+        h.append("<tr><td style=\"padding:14px 20px 6px 20px;\">")
+                .append("<div style=\"").append(phong).append("font-size:13px;font-weight:bold;color:#111827;letter-spacing:0.5px;margin:0 8px 10px 8px;\">TIẾN ĐỘ ĐƠN HÀNG</div>")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;table-layout:fixed;\"><tr>");
+        int soO = thatBai ? 5 : CAC_BUOC.length;
+        for (int i = 0; i < soO; i++) {
+            boolean daQua = i < hienTai;
+            boolean dangO = i == hienTai;
+            String ten = thatBai && i == 4 ? "Giao hàng thất bại" : HoaDonLuongTrangThai.ten(CAC_BUOC[i]);
+            String mauO = dangO ? (thatBai ? "#ea580c" : mauNhan) : daQua ? "#16a34a" : "#ffffff";
+            String vien = dangO || daQua ? mauO : "#cbd5e1";
+            String chuO = dangO || daQua ? "#ffffff" : "#94a3b8";
+            String kyHieu = daQua ? "&#10003;" : thatBai && dangO ? "!" : String.valueOf(i + 1);
+            // Đường nối giữa các bước: nửa trái / nửa phải của mỗi ô, xanh khi đã qua
+            String noiTrai = i == 0 ? "transparent" : (i <= hienTai ? "#16a34a" : "#e2e8f0");
+            String noiPhai = i == soO - 1 ? "transparent" : (i < hienTai ? "#16a34a" : "#e2e8f0");
+            h.append("<td align=\"center\" valign=\"top\" style=\"padding:0;\">")
+                    .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>")
+                    .append("<td style=\"width:50%;padding:0;\"><div style=\"height:3px;background-color:").append(noiTrai).append(";font-size:0;line-height:0;\">&nbsp;</div></td>")
+                    .append("<td style=\"padding:0;\"><div style=\"").append(phong).append("width:30px;height:30px;line-height:30px;border-radius:50%;text-align:center;")
+                    .append("font-size:14px;font-weight:bold;background-color:").append(mauO).append(";color:").append(chuO)
+                    .append(";border:2px solid ").append(vien).append(";\">").append(kyHieu).append("</div></td>")
+                    .append("<td style=\"width:50%;padding:0;\"><div style=\"height:3px;background-color:").append(noiPhai).append(";font-size:0;line-height:0;\">&nbsp;</div></td>")
+                    .append("</tr></table>")
+                    .append("<div style=\"").append(phong).append("font-size:11px;line-height:15px;margin-top:6px;padding:0 2px;color:")
+                    .append(dangO ? (thatBai ? "#ea580c" : "#111827") : daQua ? "#15803d" : "#94a3b8").append(";font-weight:")
+                    .append(dangO ? "bold" : "normal").append(";\">").append(esc(ten)).append("</div></td>");
+        }
+        h.append("</tr></table></td></tr>\n");
+    }
+
+    /** Tiến độ dạng chữ cho bản thư không HTML: "[✓] Chờ xác nhận > [●] Đã xác nhận > Chờ giao hàng > ...". */
+    static String tienDoChu(int trangThai) {
+        boolean thatBai = trangThai == HoaDon.GIAO_THAT_BAI;
+        int hienTai = thatBai ? 4 : -1;
+        for (int i = 0; i < CAC_BUOC.length && !thatBai; i++) if (CAC_BUOC[i] == trangThai) hienTai = i;
+        java.util.List<String> p = new java.util.ArrayList<>();
+        for (int i = 0; i < (thatBai ? 5 : CAC_BUOC.length); i++) {
+            String ten = thatBai && i == 4 ? "Giao hàng thất bại" : HoaDonLuongTrangThai.ten(CAC_BUOC[i]);
+            p.add(i < hienTai ? "[✓] " + ten : i == hienTai ? "[●] " + ten : ten);
+        }
+        return String.join(" > ", p);
     }
 
     /** Một dòng tiền (nhãn - giá trị) trong bảng sản phẩm của thư đặt hàng. */

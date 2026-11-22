@@ -62,8 +62,11 @@ function nhanTrangThaiThanhToan(p) {
 }
 
 // Hiển thị mức giảm giá: phần trăm "-30% (- 30.000 ₫)", số tiền "- 30.000 ₫"
+// Tra cứu chỉ bằng mã đơn: máy chủ ẩn mã phiếu (bảo mật) nhưng vẫn giữ số tiền giảm -> vẫn hiện số tiền, không ghi "Không dùng phiếu"
+const coGiamPhieu = computed(() => !!hd.value.maPhieuGiamGia || Number(hd.value.soTienGiam) > 0)
 const hienThiGiamGia = computed(() => {
-  if (!hd.value.maPhieuGiamGia) return ''
+  if (!coGiamPhieu.value) return ''
+  if (!hd.value.maPhieuGiamGia) return `- ${money(hd.value.soTienGiam)}`
   const isPercent = Number(hd.value.loaiPhieuGiamGia) === 1
   const pt = Number(hd.value.phanTramGiam || (isPercent ? hd.value.giaTriPhieuGiamGia : 0))
   if (pt > 0) return `-${pt}% (- ${money(hd.value.soTienGiam)})`
@@ -365,7 +368,7 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
                 <span v-if="moTaGiam" class="visually-hidden">{{ moTaGiam }}</span>
               </span>
             </div>
-            <span v-if="hd.maPhieuGiamGia" class="hd-summary-discount">
+            <span v-if="coGiamPhieu" class="hd-summary-discount">
               {{ hienThiGiamGia }}
             </span>
             <span v-else class="text-muted">Không dùng phiếu</span>

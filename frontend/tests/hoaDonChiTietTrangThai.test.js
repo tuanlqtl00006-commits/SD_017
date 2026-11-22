@@ -618,6 +618,15 @@ describe('Phiếu giảm giá trên hóa đơn (cô: "mã nào, giảm bao nhiê
     expect(w.find('.hd-phieu').exists()).toBe(false)
     expect(w.find('[data-dong="giam-gia"] .hd-voucher').exists()).toBe(false)
   })
+
+  // Tra cứu chỉ bằng mã đơn: máy chủ ẩn mã phiếu nhưng vẫn có số tiền giảm -> dòng phiếu vẫn trừ tiền, không ghi "Không dùng phiếu"
+  it('mã phiếu bị ẩn nhưng có tiền giảm: vẫn hiện số tiền giảm, không ghi "Không dùng phiếu"', async () => {
+    const w = await montar(donGiaoHang(1, [TAO], { soTienGiam: 1122000, thanhTien: 239000 }))
+    const dong = w.get('[data-dong="giam-gia"]')
+    expect(dong.text()).toContain('- 1.122.000')
+    expect(dong.text()).not.toContain('Không dùng phiếu')
+    expect(w.find('.hd-phieu').exists()).toBe(false)
+  })
 })
 
 describe('Tổng tiền', () => {

@@ -46,7 +46,7 @@ describe('Mã QR chuyển khoản có hạn 5 phút', () => {
     w.unmount()
   })
 
-  it('hết 5 phút chưa có tiền: ẩn QR, báo đơn treo; bấm đổi sang COD thì gọi máy chủ kèm SĐT và lưu lại trên máy', async () => {
+  it('hết 5 phút chưa có tiền: ẩn QR, báo đơn treo; chỉ còn nút "Chuyển khoản lại" (22/11: bỏ đổi sang COD, ô SĐT, hủy đơn)', async () => {
     const w = gan()
     await flushPromises()
     vi.advanceTimersByTime(5 * 60_000)
@@ -54,11 +54,72 @@ describe('Mã QR chuyển khoản có hạn 5 phút', () => {
     expect(w.find('[data-testid="osv-het-han"]').exists()).toBe(true)
     expect(w.find('img[alt="Mã VietQR thanh toán"]').exists()).toBe(false)
     expect(w.text()).toContain('Đơn treo - chưa thanh toán')
-    await w.find('[data-testid="osv-doi-cod"]').trigger('click')
+    expect(w.find('[data-testid="osv-chuyen-khoan-lai"]').exists()).toBe(true)
+    expect(w.find('[data-testid="osv-huy-don"]').exists()).toBe(false)
+    expect(w.find('[data-testid="osv-sdt"]').exists()).toBe(false)
+    expect(w.find('[data-testid="osv-doi-cod"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('Đổi sang thanh toán khi nhận hàng')
+    w.unmount()
+  })
+
+  it('cửa hàng đã đổi đơn sang COD (nhân viên đổi giúp): trang báo đơn trả tiền khi nhận hàng', async () => {
+    api.get.mockImplementation(async (url) => {
+      if (url.startsWith('/cua-hang/thanh-toan-gia-lap/')) throw new Error('tắt giả lập')
+      if (url === '/cua-hang/thong-tin-thanh-toan') return { data: { nganHang: 'MB', soTaiKhoan: '0123456789', tenChuTaiKhoan: 'X' } }
+      if (url === '/cua-hang/tra-cuu') return { data: { trangThai: 1, daThanhToanDu: false, idPhuongThucThanhToan: 1 } }
+      return { data: {} }
+    })
+    const w = gan()
     await flushPromises()
-    expect(api.post).toHaveBeenCalledWith('/cua-hang/don-hang/HD777/doi-sang-cod', { sdt: '0901000001' })
     expect(w.find('[data-testid="osv-da-doi-cod"]').exists()).toBe(true)
-    expect(docDonHang()[0].phuongThucThanhToan).toBe('COD')
+    expect(docDonHang()[0].maHoaDon).toBe('HD777')
+    w.unmount()
+  })
+
+  // Góp ý 22/11: quá hạn mà khách muốn chuyển khoản lại -> gửi link qua email, mã QR đếm lại 5 phút
+  it('quá hạn, bấm "Chuyển khoản lại": gửi link qua email, hiện lại QR và đếm lại 5 phút', async () => {
+    api.post.mockResolvedValue({ data: { ok: true, message: 'Đã gửi link thanh toán của đơn HD777 tới tu***@gmail.com.', hanChuyenKhoan: '2026-11-15T10:11:00' } })
+    const w = gan()
+    await flushPromises()
+    vi.advanceTimersByTime(6 * 60_000)
+    await flushPromises()
+    await w.find('[data-testid="osv-chuyen-khoan-lai"]').trigger('click')
+    await flushPromises()
+    expect(api.post).toHaveBeenCalledWith('/cua-hang/don-hang/HD777/gui-mail-thanh-toan', { sdt: '0901000001' })
+    expect(w.find('[data-testid="osv-het-han"]').exists()).toBe(false)
+    expect(w.find('[data-testid="osv-da-gui-mail"]').text()).toContain('tu***@gmail.com')
+    expect(w.find('[data-testid="osv-dem-nguoc"]').text()).toContain('05:00')
+    w.unmount()
+  })
+
+  it('máy chủ đã tự gửi link khi QR hết hạn (daGuiLaiLink): trang hiện mã mới, đếm theo hạn mới và báo đã gửi email', async () => {
+    api.get.mockImplementation(async (url) => {
+      if (url.startsWith('/cua-hang/thanh-toan-gia-lap/')) throw new Error('tắt giả lập')
+      if (url === '/cua-hang/thong-tin-thanh-toan') return { data: { nganHang: 'MB', soTaiKhoan: '0123456789', tenChuTaiKhoan: 'X' } }
+      if (url === '/cua-hang/tra-cuu') return { data: { trangThai: 1, daThanhToanDu: false, idPhuongThucThanhToan: 2, daGuiLaiLink: true, hanChuyenKhoan: '2026-11-15T10:10:00' } }
+      return { data: {} }
+    })
+    const w = gan()
+    await flushPromises()
+    vi.advanceTimersByTime(6 * 60_000)
+    await flushPromises()
+    expect(w.find('[data-testid="osv-het-han"]').exists()).toBe(false)
+    expect(w.find('[data-testid="osv-da-gui-mail"]').text()).toContain('đã tự gửi link thanh toán mới vào email')
+    expect(w.find('[data-testid="osv-dem-nguoc"]').text()).toContain('04:00')
+    w.unmount()
+  })
+
+  it('cửa hàng hủy đơn: trang báo đơn đã hủy, không nhầm thành hết hàng', async () => {
+    api.get.mockImplementation(async (url) => {
+      if (url.startsWith('/cua-hang/thanh-toan-gia-lap/')) throw new Error('tắt giả lập')
+      if (url === '/cua-hang/tra-cuu') return { data: { trangThai: 0, daThanhToanDu: false, idPhuongThucThanhToan: 2 } }
+      return { data: {} }
+    })
+    const w = gan()
+    await flushPromises()
+    expect(w.find('[data-testid="osv-da-huy"]').exists()).toBe(true)
+    expect(w.text()).toContain('Đơn hàng đã hủy')
+    expect(w.find('[data-testid="osv-het-hang-chua-tra"]').exists()).toBe(false)
     w.unmount()
   })
 })

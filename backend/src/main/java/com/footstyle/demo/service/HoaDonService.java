@@ -348,7 +348,7 @@ public class HoaDonService {
         response.put("duocBaoHetHang", !dsThieuHang.isEmpty());
         response.put("dsThieuHang", dsThieuHang);
         // Đơn chuyển khoản quá 5 phút chưa nhận tiền: "đơn treo" (chờ khách chuyển hoặc đổi sang COD)
-        response.put("donTreo", CuaHangService.laDonTreo(hd, daThanhToan.longValue(), LocalDateTime.now()));
+        response.put("donTreo", CuaHangService.laDonTreo(hd, daThanhToan.longValue(), LocalDateTime.now(), CuaHangService.batDauQr(hd, dsLichSu)));
         response.put("canHoanTien", canHoanTien);
         response.put("soTienCanHoan", canHoanTien ? daThanhToan : BigDecimal.ZERO);
 
@@ -511,6 +511,20 @@ public class HoaDonService {
             }
         }
 
+        // Đơn giao hàng (COD): trước khi chuyển sang Hoàn thành, bắt buộc phải có bước xác nhận đã nhận được tiền
+        // ("Xác nhận tiền COD", HoaDonSuaService.xacNhanTienCod). Kiểm tra trước khi đổi trạng thái để báo lỗi thì đơn giữ nguyên.
+        if (moi == HoaDon.HOAN_THANH && !laTaiQuay(hd)) {
+            BigDecimal daTra = BigDecimal.ZERO;
+            for (LichSuThanhToan tt : lichSuThanhToanRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+                if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN) {
+                    daTra = daTra.add(soTien(tt.getSoTien()));
+                }
+            }
+            if (daTra.compareTo(thanhTien(hd)) < 0) {
+                throw ApiException.badRequest("Đơn COD: Bắt buộc phải xác nhận đã nhận được tiền trước khi chuyển sang trạng thái Hoàn thành.");
+            }
+        }
+
         LocalDateTime now = LocalDateTime.now();
         // Đơn online chỉ trừ tồn kho khi nhân viên xác nhận (lúc khách đặt chưa trừ) - tránh tồn kho âm khi nhiều đơn cùng chờ
         boolean chuaTruKho = !laTaiQuay(hd) && hienTai == HoaDon.CHO_XAC_NHAN;
@@ -538,19 +552,6 @@ public class HoaDonService {
             hd.setNgayGiaoThucTe(now);
         }
         hoaDonRepository.save(hd);
-
-        // Đơn giao hàng (COD): trước khi chuyển sang Hoàn thành, bắt buộc phải có bước xác nhận đã nhận được tiền
-        if (moi == HoaDon.HOAN_THANH && !laTaiQuay(hd)) {
-            BigDecimal daTra = BigDecimal.ZERO;
-            for (LichSuThanhToan tt : lichSuThanhToanRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
-                if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN) {
-                    daTra = daTra.add(soTien(tt.getSoTien()));
-                }
-            }
-            if (daTra.compareTo(thanhTien(hd)) < 0) {
-                throw ApiException.badRequest("Đơn COD: Bắt buộc phải xác nhận đã nhận được tiền trước khi chuyển sang trạng thái Hoàn thành.");
-            }
-        }
 
         // Hoàn thành mà khách chưa trả đủ (áp dụng cho đơn tại quầy): ghi nhận phần tiền còn lại
         if (moi == HoaDon.HOAN_THANH && laTaiQuay(hd)) {
@@ -608,8 +609,8 @@ public class HoaDonService {
         ls.setNguoiThaoTac(nguoi.isEmpty() ? "Quản lý" : nguoi);
         lichSuHoaDonRepository.save(ls);
 
-        // Đơn online đổi trạng thái: gửi thư báo cho khách; hủy (kể cả tự hủy
-        // do hết hàng) thì gửi thư hủy kèm lý do. Nếu đã thanh toán thì gửi thư hoàn tiền. Gửi ở luồng riêng nên không làm chậm thao tác.
+        // Đơn online đổi trạng thái: gửi thư kèm thanh tiến độ (góp ý 22/11: khách xem ngay đơn tới bước nào, không phải bấm theo dõi);
+        // hủy thì thư hủy kèm lý do, hủy mà đã thanh toán thì thư hoàn tiền. Gửi ở luồng riêng nên không làm chậm thao tác.
         if (mailService != null && !laTaiQuay(hd)) {
             String email = emailNhanThongBao(hd);
             if (email != null) {

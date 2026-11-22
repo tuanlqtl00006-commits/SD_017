@@ -65,7 +65,7 @@ const soTien = computed(() => {
 const nganHang = ref(null)
 const qrLoi = ref(false)
 const daThanhToan = ref(false)
-// Góp ý 14/11 (video 22:22 [04:52–08:06]): mã QR có hạn 5 phút; quá hạn chưa nhận tiền thì đơn tạm treo, khách đổi được sang COD
+// Góp ý 14/11 (video 22:22 [04:52–08:06]): mã QR có hạn 5 phút; quá hạn chưa nhận tiền thì đơn tạm treo, khách gửi lại link chuyển khoản hoặc hủy đơn (22/11: bỏ nút đổi sang COD)
 const HAN_PHUT = 5
 const batDau = ref(donLuu.value?.ngayTao ? new Date(donLuu.value.ngayTao).getTime() : Date.now())
 const bayGio = ref(Date.now())
@@ -76,13 +76,19 @@ const conLaiText = computed(() => {
   return `${String(Math.floor(giay / 60)).padStart(2, '0')}:${String(giay % 60).padStart(2, '0')}`
 })
 const daDoiCod = ref(false)
-const dangDoiCod = ref(false)
-const loiDoiCod = ref('')
 const daHuyHetHang = ref(false)
 const hetHangChuaTra = ref(false)
 const lyDoHetHang = ref('')
 
-const choThanhToan = computed(() => thanhToanQR.value && !daThanhToan.value && !daDoiCod.value && !daHuyHetHang.value && !hetHangChuaTra.value)
+// Góp ý 22/11: QR quá hạn thì khách chọn gửi lại link chuyển khoản qua email (QR đếm lại 5 phút) hoặc hủy đơn (bỏ nút đổi sang COD)
+const daHuyDon = ref(false)
+const dangGuiMail = ref(false)
+const thongBaoMail = ref('')
+const loiThaoTac = ref('')
+// Mã QR hết hạn thì hệ thống tự gửi link thanh toán mới vào email (1 lần); máy chủ báo qua daGuiLaiLink
+const daGuiLaiLink = ref(false)
+
+const choThanhToan = computed(() => thanhToanQR.value && !daThanhToan.value && !daDoiCod.value && !daHuyHetHang.value && !hetHangChuaTra.value && !daHuyDon.value)
 const sdtKhach = computed(() => donLuu.value?.sdtKhachHang || donBackend.value?.sdtNguoiNhan || '')
 let timer = null
 let dongHo = null
@@ -102,6 +108,15 @@ function capNhatTrangThaiDon(d) {
   const lyDo = d.lyDoHetHang || d.chiTietDon?.hoaDon?.lyDoHetHang || d.chiTietDon?.lyDoHetHang || ''
   const daTra = Number(d.daTra) || 0
   const daTraDu = Boolean(d.daThanhToanDu) || daTra > 0
+
+  if (d.daGuiLaiLink) daGuiLaiLink.value = true
+  // Đơn cửa hàng đã hủy mà không phải do hết hàng
+  if (d.trangThai === 0 && !isHetHang) {
+    daHuyDon.value = true
+    clearInterval(timer)
+    clearInterval(dongHo)
+    return
+  }
 
   if (isHetHang || d.trangThai === 0 || d.trangThai === 7) {
     if (daTraDu) {
@@ -124,23 +139,27 @@ function capNhatTrangThaiDon(d) {
   }
 }
 
-async function doiSangCod() {
-  if (dangDoiCod.value) return
-  if (!(await hoiXacNhan({ title: 'Đổi sang thanh toán khi nhận hàng', message: `Bạn có chắc muốn đổi đơn ${maHoaDon.value} sang thanh toán khi nhận hàng (COD)?`, confirmText: 'Đổi sang COD' }))) return
-  dangDoiCod.value = true
-  loiDoiCod.value = ''
+
+// Muốn chuyển khoản lại: gửi thư có link trang thanh toán, mã QR đếm lại 5 phút từ lúc gửi (trang này cũng hiện lại mã)
+async function guiLinkChuyenKhoanLai() {
+  if (dangGuiMail.value) return
+  if (!(await hoiXacNhan({ title: 'Chuyển khoản lại', message: `Gửi link thanh toán đơn ${maHoaDon.value} vào email đặt hàng? Mã QR mới có hiệu lực ${HAN_PHUT} phút.`, confirmText: 'Gửi link' }))) return
+  dangGuiMail.value = true
+  loiThaoTac.value = ''
+  thongBaoMail.value = ''
   try {
-    await api.post(`/cua-hang/don-hang/${encodeURIComponent(maHoaDon.value)}/doi-sang-cod`, { sdt: donLuu.value?.sdtKhachHang })
-    daDoiCod.value = true
-    clearInterval(timer)
-    clearInterval(dongHo)
-    ghiDonHang(docDonHang().map((o) => (o.maHoaDon === maHoaDon.value ? { ...o, phuongThucThanhToan: 'COD' } : o)))
+    const r = (await api.post(`/cua-hang/don-hang/${encodeURIComponent(maHoaDon.value)}/gui-mail-thanh-toan`, { sdt: donLuu.value?.sdtKhachHang || undefined })).data
+    if (r?.hanChuyenKhoan) batDau.value = new Date(r.hanChuyenKhoan).getTime() - HAN_PHUT * 60000
+    else batDau.value = Date.now()
+    bayGio.value = Date.now()
+    thongBaoMail.value = r?.message || 'Đã gửi link thanh toán vào email đặt hàng.'
   } catch (e) {
-    loiDoiCod.value = e?.message || 'Không đổi được cách thanh toán. Vui lòng liên hệ cửa hàng.'
+    loiThaoTac.value = e?.message || 'Không gửi được link thanh toán. Vui lòng thử lại hoặc liên hệ cửa hàng.'
   } finally {
-    dangDoiCod.value = false
+    dangGuiMail.value = false
   }
 }
+
 const daSaoChep = ref('')
 // Chế độ giả lập (demo đồ án): QR trỏ tới trang "ngân hàng giả", bấm xác nhận là coi như đã chuyển tiền
 const giaLap = ref(false)
@@ -238,23 +257,27 @@ onMounted(async () => {
             <div class="mb-4">
               <div
                 class="rounded-circle d-inline-flex align-items-center justify-content-center"
-                :class="daHuyHetHang ? 'bg-danger-subtle text-danger' : hetHangChuaTra ? 'bg-warning-subtle text-warning' : choThanhToan ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'"
+                :class="daHuyDon ? 'bg-secondary-subtle text-secondary' : daHuyHetHang ? 'bg-danger-subtle text-danger' : hetHangChuaTra ? 'bg-warning-subtle text-warning' : choThanhToan ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'"
                 style="width: 80px; height: 80px;"
               >
-                <i class="bi display-4" :class="daHuyHetHang || hetHangChuaTra ? 'bi-exclamation-triangle' : choThanhToan ? 'bi-hourglass-split' : 'bi-check-lg'"></i>
+                <i class="bi display-4" :class="daHuyDon ? 'bi-x-lg' : daHuyHetHang || hetHangChuaTra ? 'bi-exclamation-triangle' : choThanhToan ? 'bi-hourglass-split' : 'bi-check-lg'"></i>
               </div>
             </div>
 
-            <h3 class="fw-bold text-dark mb-2">{{ daHuyHetHang ? 'Sản phẩm đã hết hàng' : hetHangChuaTra ? 'Sản phẩm trong đơn đã hết hàng' : choThanhToan ? (hetHan ? 'Đơn hàng đang tạm treo' : 'Đơn hàng đang chờ thanh toán') : daThanhToan ? 'Thanh toán thành công!' : 'Đặt Hàng Thành Công!' }}</h3>
+            <h3 class="fw-bold text-dark mb-2">{{ daHuyDon ? 'Đơn hàng đã hủy' : daHuyHetHang ? 'Sản phẩm đã hết hàng' : hetHangChuaTra ? 'Sản phẩm trong đơn đã hết hàng' : choThanhToan ? (hetHan ? 'Đơn hàng đang tạm treo' : 'Đơn hàng đang chờ thanh toán') : daThanhToan ? 'Thanh toán thành công!' : 'Đặt Hàng Thành Công!' }}</h3>
             <p class="text-muted mb-4">
-              <template v-if="daHuyHetHang">
+              <template v-if="daHuyDon">
+                Đơn hàng chưa thanh toán nên không phát sinh hoàn tiền. Cảm ơn bạn đã quan tâm <strong>FootStyle</strong>.
+              </template>
+              <template v-else-if="daHuyHetHang">
                 Hệ thống đã nhận thanh toán, tuy nhiên sản phẩm trong đơn vừa hết hàng do đơn hàng khác vừa thanh toán trước.
               </template>
               <template v-else-if="hetHangChuaTra">
                 Rất tiếc, sản phẩm trong đơn vừa hết hàng tồn kho do đơn hàng khác vừa thanh toán trước.
               </template>
               <template v-else-if="choThanhToan">
-                Đơn hàng của bạn chỉ được xử lý <strong>sau khi cửa hàng nhận được tiền</strong>. Vui lòng quét mã QR bên dưới để thanh toán.
+                Đơn hàng của bạn chỉ được xử lý <strong>sau khi cửa hàng nhận được tiền</strong>.
+                {{ hetHan ? 'Mã QR đã hết hạn, vui lòng chọn một cách bên dưới.' : 'Vui lòng quét mã QR bên dưới để thanh toán.' }}
               </template>
               <template v-else>
                 Cảm ơn bạn đã tin tưởng và mua sắm tại <strong>FootStyle Sports</strong>.
@@ -268,12 +291,15 @@ onMounted(async () => {
               </div>
               <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">Trạng thái:</span>
-                <span class="badge" :class="daHuyHetHang ? 'bg-danger text-white' : hetHangChuaTra ? 'bg-warning text-dark' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyHetHang ? 'Hết hàng (Đã chuyển khoản)' : hetHangChuaTra ? 'Hết hàng tồn kho' : choThanhToan ? (hetHan ? 'Đơn treo - chưa thanh toán' : 'Chờ thanh toán') : 'Chờ xác nhận' }}</span>
+                <span class="badge" :class="daHuyDon ? 'bg-secondary text-white' : daHuyHetHang ? 'bg-danger text-white' : hetHangChuaTra ? 'bg-warning text-dark' : choThanhToan ? 'bg-warning text-dark' : 'bg-primary text-white'">{{ daHuyDon ? 'Đã hủy' : daHuyHetHang ? 'Hết hàng (Đã chuyển khoản)' : hetHangChuaTra ? 'Hết hàng tồn kho' : choThanhToan ? (hetHan ? 'Đơn treo - chưa thanh toán' : 'Chờ thanh toán') : 'Chờ xác nhận' }}</span>
               </div>
             </div>
 
             <!-- Thanh toán chuyển khoản VietQR / Thông báo hết hàng -->
-            <div v-if="daHuyHetHang" class="alert alert-warning text-start mb-4" data-testid="osv-da-huy-het-hang">
+            <div v-if="daHuyDon" class="alert alert-secondary text-start mb-4" data-testid="osv-da-huy">
+              <i class="bi bi-x-circle-fill me-2"></i>Đơn <strong>{{ maHoaDon }}</strong> đã được hủy.
+            </div>
+            <div v-else-if="daHuyHetHang" class="alert alert-warning text-start mb-4" data-testid="osv-da-huy-het-hang">
               <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Đã ghi nhận thanh toán nhưng sản phẩm vừa hết hàng</div>
               <p v-if="lyDoHetHang" class="small text-danger mb-2 fw-semibold">{{ lyDoHetHang }}</p>
               <p class="mb-0 small text-muted">
@@ -296,13 +322,16 @@ onMounted(async () => {
             </div>
             <div v-else-if="thanhToanQR && hetHan" class="osv-treo mb-4" data-testid="osv-het-han">
               <div class="fw-bold mb-1"><i class="bi bi-hourglass-bottom me-2"></i>Đã quá {{ HAN_PHUT }} phút, cửa hàng chưa nhận được tiền</div>
-              <p class="small mb-3">Đơn đang tạm treo. Nếu bạn đã chuyển khoản, vui lòng chờ hệ thống cập nhật. Chưa chuyển thì có thể đổi sang trả tiền khi nhận hàng.</p>
-              <button type="button" class="btn btn-primary rounded-pill px-4 fw-semibold" :disabled="dangDoiCod" data-testid="osv-doi-cod" @click="doiSangCod">
-                <span v-if="dangDoiCod" class="spinner-border spinner-border-sm me-1"></span> Đổi sang thanh toán khi nhận hàng (COD)
-              </button>
-              <p v-if="loiDoiCod" class="text-danger small mt-2 mb-0">{{ loiDoiCod }}</p>
+              <p class="small mb-3">Đơn đang tạm treo. Nếu bạn đã chuyển khoản, vui lòng chờ hệ thống cập nhật. Chưa chuyển thì bấm "Chuyển khoản lại" để nhận link thanh toán mới qua email.</p>
+              <div class="osv-treo-nut">
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-semibold" :disabled="dangGuiMail" data-testid="osv-chuyen-khoan-lai" @click="guiLinkChuyenKhoanLai">
+                  <span v-if="dangGuiMail" class="spinner-border spinner-border-sm me-1"></span><i v-else class="bi bi-envelope me-1"></i> Chuyển khoản lại (gửi link qua email)
+                </button>
+              </div>
+              <p v-if="loiThaoTac" class="text-danger small mt-2 mb-0" data-testid="osv-loi">{{ loiThaoTac }}</p>
             </div>
             <div v-else-if="thanhToanQR" class="osv-qr mb-4">
+              <p v-if="thongBaoMail || daGuiLaiLink" class="alert alert-success small py-2 mb-2" data-testid="osv-da-gui-mail"><i class="bi bi-envelope-check me-1"></i>{{ thongBaoMail || 'Mã QR cũ đã hết hạn, cửa hàng đã tự gửi link thanh toán mới vào email của bạn. Mã mới bên dưới còn hiệu lực ' + HAN_PHUT + ' phút.' }}</p>
               <div class="osv-dem" data-testid="osv-dem-nguoc"><i class="bi bi-clock me-1"></i>Mã QR còn hiệu lực <strong>{{ conLaiText }}</strong></div>
               <div class="osv-qr-title"><i class="bi bi-qr-code-scan me-2"></i>Quét mã {{ tenLoaiThanhToan }} để thanh toán</div>
               <template v-if="giaLap">
@@ -445,6 +474,12 @@ onMounted(async () => {
   color: #a56a00;
   background: #fffbeb;
   border-radius: 999px;
+}
+.osv-treo-nut {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 .osv-treo {
   padding: 1rem 1.1rem;
