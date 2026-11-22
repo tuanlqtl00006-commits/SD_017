@@ -88,6 +88,12 @@ public class CuaHangController {
         return service.doiSangCod(maHoaDon, body == null ? null : body.get("sdt"));
     }
 
+    /** Gửi lại email thông báo đơn chưa thanh toán kèm link quay lại màn hình thanh toán. Body: { sdt }. */
+    @PostMapping("/don-hang/{maHoaDon}/gui-mail-thanh-toan")
+    public Map<String, Object> guiMailThanhToan(@PathVariable String maHoaDon, @RequestBody(required = false) Map<String, String> body) {
+        return service.guiMailThanhToan(maHoaDon, body == null ? null : body.get("sdt"));
+    }
+
     /** Tra cứu theo số điện thoại: danh sách đơn gọn của số đó; xem chi tiết từng đơn thì dùng /tra-cuu (mã đơn + SĐT). */
     @GetMapping("/tra-cuu-sdt")
     public Map<String, Object> traCuuTheoSdt(@RequestParam(required = false) String sdt) {

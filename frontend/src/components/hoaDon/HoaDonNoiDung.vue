@@ -258,7 +258,12 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
             <span class="ad-icon-box"><i class="bi bi-card-checklist" aria-hidden="true"></i></span>
             <div>
               <h2 id="hd-status-title" class="ad-card-title mb-0">Trạng thái đơn hàng</h2>
-              <p class="ad-card-sub mb-0">{{ hd.maHoaDon }} · {{ hd.tenLoaiDon }}</p>
+              <div class="ad-card-sub mb-0 d-flex align-items-center gap-2 flex-wrap">
+                <span>{{ hd.maHoaDon }} · {{ hd.tenLoaiDon }}</span>
+                <span v-if="hd.maNhanVien || hd.tenNhanVien" class="badge bg-light text-dark border" data-testid="hd-header-ma-nv">
+                  <i class="bi bi-person-badge me-1" aria-hidden="true"></i>NV: {{ hd.maNhanVien ? ('[' + hd.maNhanVien + '] ') : '' }}{{ hd.tenNhanVien || '' }}
+                </span>
+              </div>
             </div>
           </div>
           <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
@@ -318,11 +323,11 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
         <div v-if="coNutThanhToanQr" class="hd-actions mt-3">
           <a
             :href="`/shop/dat-hang-thanh-cong?ma=${encodeURIComponent(hd.maHoaDon || '')}`"
-            class="btn btn-warning rounded-pill px-4 fw-bold text-dark text-decoration-none"
+            class="btn btn-warning rounded-pill px-4 fw-bold text-dark text-decoration-none shadow-sm"
             data-testid="hd-tiep-tuc-thanh-toan"
             @click.prevent="$router?.push?.({ path: '/shop/dat-hang-thanh-cong', query: { ma: hd.maHoaDon } })"
           >
-            <i class="bi bi-qr-code-scan me-1" aria-hidden="true"></i>Tiếp tục thanh toán
+            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Thanh toán lại / Tiếp tục thanh toán
           </a>
         </div>
         <div v-if="slots['hanh-dong']" class="hd-actions">
@@ -426,6 +431,13 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
             <span class="hd-info-label">Người đặt:</span>
             <span class="hd-info-value text-secondary">{{ khach.ten }} <span v-if="khach.sdt && khach.sdt !== sdtHienThi">({{ khach.sdt }})</span></span>
           </div>
+          <div v-if="hd.maNhanVien || hd.tenNhanVien" class="hd-info-row">
+            <span class="hd-info-label">Nhân viên xử lý:</span>
+            <span class="hd-info-value text-primary fw-semibold" data-testid="hd-khach-ma-nv">
+              <span v-if="hd.maNhanVien" class="font-monospace">[{{ hd.maNhanVien }}]</span>
+              {{ hd.tenNhanVien || '' }}
+            </span>
+          </div>
         </div>
 
         <!-- Cột 2: Thông tin giao hàng & vận chuyển -->
@@ -466,6 +478,13 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
             <div><dt>Số điện thoại</dt><dd>{{ khach.sdt || '—' }}</dd></div>
             <div><dt>Email</dt><dd class="hd-break">{{ khach.email || 'Không có' }}</dd></div>
           </template>
+          <div v-if="!cheDoKhach">
+            <dt>Nhân viên xử lý</dt>
+            <dd class="fw-semibold text-primary" data-testid="hd-nhan-vien-xu-ly">
+              <span v-if="hd.maNhanVien" class="font-monospace">[{{ hd.maNhanVien }}]</span>
+              {{ hd.tenNhanVien || (hd.maNhanVien ? '' : 'Chưa xử lý') }}
+            </dd>
+          </div>
         </dl>
       </section>
 

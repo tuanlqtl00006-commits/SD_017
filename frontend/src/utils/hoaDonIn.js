@@ -161,7 +161,7 @@ export function taoHtmlHoaDon({ hd = {}, khach = {}, giao = {}, sanPham = [], da
     <div class="sec">
       <h2>Thông tin đơn hàng</h2>
       <div class="two">
-        <div><p><b>Mã hóa đơn:</b> ${esc(hd.maHoaDon)}</p><p><b>Loại đơn:</b> ${esc(hd.tenLoaiDon)}</p><p><b>Nhân viên:</b> ${esc(hd.tenNhanVien || '—')}</p></div>
+        <div><p><b>Mã hóa đơn:</b> ${esc(hd.maHoaDon)}</p><p><b>Loại đơn:</b> ${esc(hd.tenLoaiDon)}</p><p><b>Nhân viên:</b> ${esc(hd.maNhanVien ? ('[' + hd.maNhanVien + '] ' + (hd.tenNhanVien || '')) : (hd.tenNhanVien || '—'))}</p></div>
         <div><p><b>Trạng thái:</b> ${esc(trangThai.label)}</p><p><b>Thanh toán:</b> ${esc(hd.phuongThucThanhToan || '—')}</p></div>
       </div>
     </div>

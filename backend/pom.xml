@@ -36,6 +36,8 @@
              - Byte Buddy (Hibernate dùng để tạo lớp proxy) cũ báo "Java NN is not supported" lúc khởi động trên JDK mới. -->
         <lombok.version>1.18.48</lombok.version>
         <byte-buddy.version>1.17.8</byte-buddy.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
     </properties>
     <dependencies>
         <dependency>

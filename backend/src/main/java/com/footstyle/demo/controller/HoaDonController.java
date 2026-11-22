@@ -34,7 +34,8 @@ public class HoaDonController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size) {
 
-        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 2000), Sort.by("id").descending());
+        // Sắp xếp đơn đặt mới nhất xuống cuối danh sách (đơn cũ lên đầu) để ưu tiên xử lý cho khách đặt trước (FIFO)
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 2000), Sort.by("id").ascending());
         Page<HoaDonRequest> responsePage = hoaDonService.getDanhSachCoLoc(maHoaDon, tuNgay, denNgay, loaiDon, trangThai, kenh, pageable);
 
         Map<String, Object> responseMap = new HashMap<>();
@@ -91,6 +92,18 @@ public class HoaDonController {
     public Map<String, Object> xacNhanThanhToan(@PathVariable Integer id,
                                                 @RequestBody(required = false) HoaDonSuaService.XacNhanThanhToanRequest req) {
         return hoaDonSuaService.xacNhanThanhToan(id, req);
+    }
+
+    /** Đơn online chuyển khoản chưa thanh toán: Admin đổi trực tiếp sang COD khi khách liên hệ (không cần chờ hết 5 phút). */
+    @PutMapping("/{id}/doi-sang-cod")
+    public Map<String, Object> doiSangCod(@PathVariable Integer id) {
+        return hoaDonSuaService.adminDoiSangCod(id);
+    }
+
+    /** Đơn COD: Xác nhận đã nhận tiền COD từ đơn vị vận chuyển / khách hàng trước khi hoàn thành đơn. */
+    @PostMapping("/{id}/xac-nhan-tien-cod")
+    public Map<String, Object> xacNhanTienCod(@PathVariable Integer id) {
+        return hoaDonSuaService.xacNhanTienCod(id);
     }
 
     /** Đơn online tạm hết hàng: gửi thư chăm sóc khách (đổi sản phẩm / chờ hàng / hủy), đơn giữ Chờ xác nhận. */

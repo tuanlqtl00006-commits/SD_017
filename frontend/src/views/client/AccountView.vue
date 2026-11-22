@@ -486,6 +486,48 @@ async function xacNhanHuyDon() {
   hienThongBao('success', `Đã hủy đơn hàng ${h.ma}.`)
   huyDon.value = null
 }
+
+function canPayAgain(order) {
+  if (!order) return false
+  const pttt = Number(order.idPhuongThucThanhToan) === 2 ||
+    String(order.phuongThucThanhToan || '').toUpperCase().includes('QR') ||
+    String(order.phuongThucThanhToan || '').includes('Chuyển khoản')
+  const daTraDu = Boolean(order.daThanhToanDu)
+  const isChoXacNhan = order.trangThai === 0 || order.trangThai === 1
+  return pttt && !daTraDu && isChoXacNhan
+}
+
+const canPayAgainDetail = computed(() => {
+  if (!donDangXem.value) return false
+  const hd = donDangXem.value.hoaDon || donDangXem.value
+  const pttt = Number(hd.idPhuongThucThanhToan) === 2 ||
+    String(hd.phuongThucThanhToan || '').toUpperCase().includes('QR') ||
+    String(hd.phuongThucThanhToan || '').includes('Chuyển khoản')
+  const daTra = Number(donDangXem.value.daThanhToan ?? donDangXem.value.daTra ?? 0)
+  const daTraDu = Boolean(donDangXem.value.daThanhToanDu) || daTra >= Number(hd.thanhTien || 0)
+  const isChoXacNhan = hd.trangThai === 0 || hd.trangThai === 1
+  const laHetHang = Boolean(donDangXem.value.hetHang || hd.hetHang || donDangXem.value.daBaoHetHang || hd.daBaoHetHang)
+  return pttt && !daTraDu && isChoXacNhan && !laHetHang
+})
+
+const dangGuiMailThanhToan = ref(false)
+const thongBaoMailThanhToan = ref('')
+const loiMailThanhToan = ref('')
+
+async function guiLaiMailThanhToan(ma) {
+  if (dangGuiMailThanhToan.value || !ma) return
+  dangGuiMailThanhToan.value = true
+  thongBaoMailThanhToan.value = ''
+  loiMailThanhToan.value = ''
+  try {
+    const res = (await api.post(`/cua-hang/don-hang/${encodeURIComponent(ma)}/gui-mail-thanh-toan`)).data
+    thongBaoMailThanhToan.value = res?.thongBao || 'Đã gửi liên kết thanh toán đến email của bạn.'
+  } catch (e) {
+    loiMailThanhToan.value = e?.response?.data?.message || e?.message || 'Không gửi được email. Vui lòng thử lại.'
+  } finally {
+    dangGuiMailThanhToan.value = false
+  }
+}
 </script>
 
 <template>
@@ -834,13 +876,15 @@ async function xacNhanHuyDon() {
                     Tổng thanh toán
                     <strong>{{ formatMoney(order.tongThanhToan) }}</strong>
                   </div>
-                  <div class="d-flex gap-2">
+                  <div class="d-flex flex-wrap gap-2">
                     <RouterLink
-                      v-if="(order.phuongThucThanhToan === 'QR' || order.idPhuongThucThanhToan === 2) && order.trangThai === 0"
-                      :to="{ path: '/shop/tra-cuu', query: { ma: order.maHoaDon } }"
-                      class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark"
+                      v-if="canPayAgain(order)"
+                      :to="{ path: '/shop/dat-hang-thanh-cong', query: { ma: order.maHoaDon } }"
+                      class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark shadow-sm"
+                      data-testid="ac-thanh-toan-lai"
+                      title="Quay lại màn hình thanh toán"
                     >
-                      <i class="bi bi-qr-code-scan me-1"></i>Thanh toán QR
+                      <i class="bi bi-arrow-repeat me-1"></i>Thanh toán lại
                     </RouterLink>
                     <button
                       v-if="order.trangThai === 0"

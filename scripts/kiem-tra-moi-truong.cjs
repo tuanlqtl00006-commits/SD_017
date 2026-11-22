@@ -109,6 +109,22 @@ function kiemTraJava(moiTruong = process.env, chay = chayJava, fsDung = fs, heDi
       )
       return { thongTin: 'Java: khong tim thay', loi, canhBao }
     }
+  } else if (heDieuHanh === 'win32') {
+    const userProfile = moiTruong.USERPROFILE || moiTruong.HOME || ''
+    const duongDanDuPhong = [
+      'C:\\Program Files\\Java\\jdk-17',
+      'C:\\Program Files\\Java\\jdk-21',
+      'C:\\Program Files\\Java\\jdk-25',
+      path.join(userProfile, '.jdks', 'ms-17.0.20'),
+    ]
+    for (const d of duongDanDuPhong) {
+      const j = path.join(d, 'bin', tenJava)
+      if (fsDung.existsSync(j)) {
+        lenh = j
+        nguon = `tu dong tim thay tai ${d}`
+        break
+      }
+    }
   }
   const kq = chay(lenh)
   if (!kq || kq.chinh === null) {

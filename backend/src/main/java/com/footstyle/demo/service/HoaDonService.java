@@ -18,6 +18,7 @@ import com.footstyle.demo.repository.HoaDonChiTietRepository;
 import com.footstyle.demo.repository.HoaDonRepository;
 import com.footstyle.demo.repository.LichSuHoaDonRepository;
 import com.footstyle.demo.repository.LichSuThanhToanRepository;
+import com.footstyle.demo.repository.NhanVienRepository;
 import com.footstyle.demo.repository.PhieuGiamGiaKhachHangRepository;
 import com.footstyle.demo.repository.PhieuGiamGiaRepository;
 import com.footstyle.demo.repository.SanPhamChiTietRepository;
@@ -67,6 +68,14 @@ public class HoaDonService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setGiamGiaApDungService(GiamGiaApDungService giamGiaApDungService) {
         this.giamGiaApDungService = giamGiaApDungService;
+    }
+
+    /** Kho nhân viên để lưu người xử lý đơn hàng. Nạp bằng setter để tương thích khởi tạo trong test. */
+    private NhanVienRepository nhanVienRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setNhanVienRepository(NhanVienRepository nhanVienRepository) {
+        this.nhanVienRepository = nhanVienRepository;
     }
 
     /* ===================== Danh sách ===================== */
@@ -242,7 +251,8 @@ public class HoaDonService {
         boolean daSua = dsLichSu.stream()
                 .anyMatch(l -> HoaDonSuaService.HANH_DONG_SUA.equals(l.getHanhDong()));
         info.put("daChinhSua", daSua);
-        info.put("duocChinhSua", !laTaiQuay(hd) && trangThai == HoaDon.CHO_XAC_NHAN && !daSua);
+        // Không cho phép chỉnh sửa số lượng sản phẩm trên đơn online
+        info.put("duocChinhSua", false);
         // "Sửa thông tin giao hàng" tách riêng (nhân viên và khách, mỗi đơn 1 lần, trước khi giao cho đơn vị vận chuyển)
         info.put("duocSuaGiaoHang", HoaDonSuaService.duocSuaGiaoHang(hd, dsLichSu));
         info.put("daSuaGiaoHang", dsLichSu.stream().anyMatch(l -> HoaDonSuaService.HANH_DONG_SUA_GIAO.equals(l.getHanhDong())));
@@ -321,8 +331,14 @@ public class HoaDonService {
         response.put("thanhToan", thanhToan);
         response.put("daThanhToan", daThanhToan);
         // Đơn online khách chọn chuyển khoản: nhân viên kiểm tra sao kê rồi bấm "Xác nhận đã nhận chuyển khoản"
-        response.put("duocXacNhanThanhToan", !laTaiQuay(hd) && HoaDonSuaService.CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())
+        response.put("duocXacNhanThanhToan", !laTaiQuay(hd) && HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())
                 && !HoaDonLuongTrangThai.laTrangThaiCuoi(trangThai) && daThanhToan.compareTo(thanhTien(hd)) < 0);
+        // Đơn online chuyển khoản chưa thanh toán: admin có quyền đổi sang COD trực tiếp khi khách liên hệ (không phải chờ hết 5 phút)
+        response.put("duocDoiSangCod", !laTaiQuay(hd) && HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())
+                && trangThai == HoaDon.CHO_XAC_NHAN && daThanhToan.compareTo(BigDecimal.ZERO) <= 0);
+        // Đơn COD: trước khi chuyển sang Hoàn thành, bắt buộc phải có bước xác nhận đã nhận được tiền
+        response.put("duocXacNhanTienCod", !laTaiQuay(hd) && Integer.valueOf(1).equals(hd.getIdPhuongThucThanhToan())
+                && (trangThai == HoaDon.DA_GIAO || trangThai == HoaDon.DANG_GIAO) && daThanhToan.compareTo(thanhTien(hd)) < 0);
         // Đơn đã hủy mà khách đã thanh toán tiền (chưa hoàn trả): nhân viên có nút "Xác nhận đã hoàn tiền"
         boolean canHoanTien = (trangThai == HoaDon.DA_HUY) && daThanhToan.compareTo(BigDecimal.ZERO) > 0;
         response.put("duocXacNhanHoanTien", canHoanTien);
@@ -509,6 +525,13 @@ public class HoaDonService {
         }
         // Gọi trước khi đổi trạng thái: lúc này hóa đơn vẫn còn được đếm là "chưa hủy" (xem hoanLuotPhieu)
         String hoanPhieu = moi == HoaDon.DA_HUY ? hoanLuotPhieu(hd) : "";
+        // Gán nhân viên xử lý đơn nếu đơn chưa có nhân viên (ví dụ đơn online do khách tự đặt)
+        if (hd.getNhanVien() == null && nhanVienRepository != null) {
+            com.footstyle.demo.security.XacThuc.hienTai()
+                    .filter(com.footstyle.demo.security.NguoiDung::laNhanVien)
+                    .flatMap(nd -> nhanVienRepository.findById(nd.id()))
+                    .ifPresent(hd::setNhanVien);
+        }
         hd.setTrangThai(moi);
         hd.setNgayCapNhat(now);
         if (moi == HoaDon.DA_GIAO) {
@@ -516,8 +539,21 @@ public class HoaDonService {
         }
         hoaDonRepository.save(hd);
 
-        // Hoàn thành mà khách chưa trả đủ (đơn COD / tại quầy): ghi nhận phần tiền còn lại
-        if (moi == HoaDon.HOAN_THANH) {
+        // Đơn giao hàng (COD): trước khi chuyển sang Hoàn thành, bắt buộc phải có bước xác nhận đã nhận được tiền
+        if (moi == HoaDon.HOAN_THANH && !laTaiQuay(hd)) {
+            BigDecimal daTra = BigDecimal.ZERO;
+            for (LichSuThanhToan tt : lichSuThanhToanRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
+                if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN) {
+                    daTra = daTra.add(soTien(tt.getSoTien()));
+                }
+            }
+            if (daTra.compareTo(thanhTien(hd)) < 0) {
+                throw ApiException.badRequest("Đơn COD: Bắt buộc phải xác nhận đã nhận được tiền trước khi chuyển sang trạng thái Hoàn thành.");
+            }
+        }
+
+        // Hoàn thành mà khách chưa trả đủ (áp dụng cho đơn tại quầy): ghi nhận phần tiền còn lại
+        if (moi == HoaDon.HOAN_THANH && laTaiQuay(hd)) {
             BigDecimal daTra = BigDecimal.ZERO;
             for (LichSuThanhToan tt : lichSuThanhToanRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
                 if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN) {
@@ -531,13 +567,12 @@ public class HoaDonService {
                 tt.setSoTien(conLai);
                 tt.setThoiGian(now);
                 tt.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
-                tt.setMoTa(Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon())
-                        ? "Thu tiền khi giao hàng (COD)" : "Thanh toán đơn tại cửa hàng");
+                tt.setMoTa("Thanh toán đơn tại cửa hàng");
                 lichSuThanhToanRepository.save(tt);
             }
         }
 
-        // Hủy đơn khách đã trả trước (chuyển khoản) -> ghi khoản HOÀN PHÍ trả lại khách
+        // Hủy đơn khách đã trả trước (chuyển khoản) -> ghi khoản HOÀN PHÍ chờ hoàn trả (trangThai = 0)
         String hoanPhi = "";
         BigDecimal tienHoan = BigDecimal.ZERO;
         if (moi == HoaDon.DA_HUY) {
@@ -551,7 +586,7 @@ public class HoaDonService {
                 tt.setHoaDon(hd);
                 tt.setSoTien(daTra.negate());
                 tt.setThoiGian(now);
-                tt.setTrangThai(LichSuThanhToan.DA_THANH_TOAN);
+                tt.setTrangThai(0); // 0 = Chờ hoàn trả (nhân viên xác nhận sau khi chuyển tiền hoàn lại cho khách)
                 tt.setIdPhuongThucThanhToan(hd.getIdPhuongThucThanhToan());
                 tt.setMoTa("Hoàn phí cho khách khi hủy đơn");
                 lichSuThanhToanRepository.save(tt);
@@ -630,9 +665,9 @@ public class HoaDonService {
         }
         List<String> thieu = danhSachThieuHang(hd);
         if (!thieu.isEmpty()) {
-            // Màn chi tiết hóa đơn bắt mã THIEU_HANG để mở popup hết hàng
+            // Màn chi tiết hóa đơn bắt mã THIEU_HANG để mở popup báo hết hàng và chỉ cho hủy đơn
             throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "Không đủ hàng để xác nhận đơn: " + String.join("; ", thieu)
-                    + ". Đơn vẫn ở Chờ xác nhận.", "THIEU_HANG", Map.of("thieu", thieu));
+                    + ". Đơn vẫn ở Chờ xác nhận. Vui lòng liên hệ khách hàng và thực hiện Hủy đơn.", "THIEU_HANG", Map.of("thieu", thieu));
         }
         for (Map.Entry<Integer, Integer> e : canTru.entrySet()) {
             if (sanPhamChiTietRepository.truTonKho(e.getKey(), e.getValue()) == 0) {

@@ -93,7 +93,7 @@ public class ThanhToanGiaLapController {
         m.put("thanhTien", thanhTien);
         m.put("conLai", conLai);
         m.put("daThanhToanDu", Boolean.TRUE.equals(don.get("daThanhToanDu")));
-        m.put("laChuyenKhoan", Integer.valueOf(2).equals(don.get("idPhuongThucThanhToan")));
+        m.put("laChuyenKhoan", HoaDonSuaService.laChuyenKhoanOnline(don.get("idPhuongThucThanhToan") instanceof Number n ? n.intValue() : null));
         m.put("daHuy", tt == 0);
         m.put("hetHang", hetHang);
         m.put("lyDoHetHang", lyDoHetHang);
@@ -113,7 +113,7 @@ public class ThanhToanGiaLapController {
         kiemTraBat();
         Map<String, Object> tt = thongTin(maHoaDon);
         if (Boolean.TRUE.equals(tt.get("daHuy"))) throw ApiException.conflict("Đơn hàng đã bị hủy.");
-        if (!Boolean.TRUE.equals(tt.get("laChuyenKhoan"))) throw ApiException.conflict("Đơn này không thanh toán bằng chuyển khoản.");
+        if (!Boolean.TRUE.equals(tt.get("laChuyenKhoan"))) throw ApiException.conflict("Đơn này không thanh toán bằng chuyển khoản hoặc quét mã online.");
         long conLai = ((Number) tt.get("conLai")).longValue();
         if (conLai <= 0) throw ApiException.conflict("Đơn hàng đã được thanh toán đủ.");
         String ma = String.valueOf(tt.get("maHoaDon"));

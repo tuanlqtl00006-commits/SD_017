@@ -518,4 +518,25 @@ class MailServiceTest {
         assertNull(MailService.emailTrongMoTa("Khách đặt online đơn HD9 - Giao tới: X"));
         assertNull(MailService.emailTrongMoTa(null));
     }
+
+    @Test
+    void guiThongBaoChuaThanhToan_coDuongDanThanhToanLai() throws Exception {
+        GhiThu sender = new GhiThu();
+        MailService s = dich(new NoiCap(sender));
+        String link = "http://localhost:5173/shop/dat-hang-thanh-cong?ma=HD88";
+        s.guiThongBaoChuaThanhToan("Nam", "nam@gmail.com", "HD88",
+                List.of("Vợt cầu lông Yonex Astrox 88D Pro (Đỏ) x1 - 3.800.000 ₫"),
+                "3.800.000 ₫", "Hà Nội", "Chuyển khoản VietQR",
+                new MailService.TienDon("3.800.000 ₫", null, null, "0 ₫", "0987654321"),
+                link);
+        doiDuThu(sender, 1);
+        MimeMessage d = docLai(sender.daGui.get(0));
+        assertTrue(d.getSubject().contains("chưa thanh toán"));
+        assertTrue(d.getSubject().contains("HD88"));
+        String html = (String) phanLoai(cacPhanLa(d), "text/html").getContent();
+        assertTrue(html.contains("CHƯA HOÀN TẤT THANH TOÁN"));
+        assertTrue(html.contains(link), "chứa đường dẫn thanh toán lại");
+        assertTrue(html.contains("Quay lại màn hình thanh toán"));
+        assertTrue(html.contains("3.800.000 ₫"));
+    }
 }

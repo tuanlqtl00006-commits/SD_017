@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import api from '../../services/api'
@@ -243,6 +243,41 @@ function traCuuLocal(code, so) {
     return null
   }
 }
+
+const canPayAgain = computed(() => {
+  if (!orderResult.value) return false
+  const hd = orderResult.value.hoaDon || orderResult.value
+  const pttt = Number(hd.idPhuongThucThanhToan) === 2 ||
+    String(hd.phuongThucThanhToan || '').toUpperCase().includes('QR') ||
+    String(hd.phuongThucThanhToan || '').includes('Chuyển khoản')
+  const daTra = Number(orderResult.value.daThanhToan ?? orderResult.value.daTra ?? 0)
+  const daTraDu = Boolean(orderResult.value.daThanhToanDu) || daTra >= Number(hd.thanhTien || 0)
+  const isChoXacNhan = hd.trangThai === 0 || hd.trangThai === 1
+  const laHetHang = Boolean(orderResult.value.hetHang || hd.hetHang || orderResult.value.daBaoHetHang || hd.daBaoHetHang)
+  return pttt && !daTraDu && isChoXacNhan && !laHetHang
+})
+
+const dangGuiMail = ref(false)
+const thongBaoMail = ref('')
+const loiMail = ref('')
+
+async function guiLaiMail() {
+  const ma = orderCode.value || orderResult.value?.hoaDon?.maHoaDon || orderResult.value?.maHoaDon
+  if (!ma || dangGuiMail.value) return
+  dangGuiMail.value = true
+  thongBaoMail.value = ''
+  loiMail.value = ''
+  try {
+    const res = (await api.post(`/cua-hang/don-hang/${encodeURIComponent(ma)}/gui-mail-thanh-toan`, null, {
+      params: { sdt: sdt.value || undefined },
+    })).data
+    thongBaoMail.value = res?.thongBao || 'Đã gửi liên kết thanh toán đến email của bạn.'
+  } catch (e) {
+    loiMail.value = e?.response?.data?.message || e?.message || 'Không gửi được email. Vui lòng thử lại.'
+  } finally {
+    dangGuiMail.value = false
+  }
+}
 </script>
 
 <template>
@@ -335,6 +370,14 @@ function traCuuLocal(code, so) {
                 <td><span class="badge bg-primary-subtle text-primary">{{ d.tenTrangThai }}</span></td>
                 <td class="text-end fw-semibold text-nowrap">{{ formatMoney(d.thanhTien) }}</td>
                 <td class="text-end">
+                  <RouterLink
+                    v-if="(Number(d.idPhuongThucThanhToan) === 2 || String(d.loaiDon || '').toLowerCase().includes('chuyển khoản')) && d.trangThai === 1"
+                    :to="{ path: '/shop/dat-hang-thanh-cong', query: { ma: d.maHoaDon } }"
+                    class="btn btn-warning btn-sm rounded-pill me-1 fw-bold text-dark shadow-sm"
+                    data-testid="ol-ds-thanh-toan-lai"
+                  >
+                    <i class="bi bi-arrow-repeat me-1"></i>Thanh toán lại
+                  </RouterLink>
                   <button type="button" class="btn btn-outline-primary btn-sm" :disabled="loading" data-testid="ol-xem-don" @click="xemDon(d)">Xem chi tiết</button>
                 </td>
               </tr>

@@ -180,29 +180,18 @@ class HoaDonSuaServiceTest {
     }
 
     @Test
-    void themCungSanPhamKhiGiaDaDoi_tachDongMoi_vaChiSuaDuocMotLan() {
+    void themCungSanPhamKhiGiaDaDoi_tachDongMoi_khongChoSuaSoLuong() {
         phanTramDot.put(1L, 20.0); // cầu đang giảm 20%: 200.000
-        service.suaDon(1, sua("Số 16 Trần Phú, Hà Đông, Hà Nội",
-                new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 1, 1)));
-        assertEquals(2, dong.size(), "dòng cũ giữ giá lúc đặt 250.000, dòng mới theo giá 200.000");
-        assertEquals(0, BigDecimal.valueOf(200_000).compareTo(dong.get(1).getDonGia()));
-        assertEquals(0, BigDecimal.valueOf(725_000).compareTo(hd.getThanhTien()), "700.000 + phí 25.000 theo địa chỉ mới (Hà Nội, phường)");
-        assertTrue(lichSu.get(0).getMoTa().contains("tách dòng mới"));
-        ApiException e = assertThrows(ApiException.class, () -> service.suaDon(1, sua("Số 99 Lê Lợi, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1))));
-        assertEquals("DA_SUA_DON", e.getCode());
+        ApiException e = assertThrows(ApiException.class, () -> service.suaDon(1, sua("Số 16 Trần Phú, Hà Đông, Hà Nội",
+                new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 1, 1))));
+        assertTrue(e.getMessage().contains("Không cho phép chỉnh sửa số lượng sản phẩm trên đơn online"));
     }
 
     @Test
-    void khachDaTraTruoc_bonSanPham_ghiHoanPhi() {
+    void khachDaTraTruoc_botSanPham_khongChoSuaSoLuong() {
         daChuyenKhoan(530_000);
-        Map<String, Object> kq = service.suaDon(1, sua("Số 99 Lê Lợi, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1)));
-        assertEquals(0, BigDecimal.valueOf(275_000).compareTo(hd.getThanhTien()), "250.000 + phí 25.000 theo địa chỉ mới");
-        assertEquals(2, thanhToan.size());
-        assertEquals(0, BigDecimal.valueOf(-255_000).compareTo(thanhToan.get(1).getSoTien()), "hoàn lại 530.000 - 275.000");
-        assertEquals("Số 99 Lê Lợi, Hà Đông, Hà Nội", hd.getDiaChiGiaoHang());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> ketQua = (Map<String, Object>) kq.get("ketQuaSua");
-        assertEquals(255_000L, ketQua.get("hoanPhi"));
+        ApiException e = assertThrows(ApiException.class, () -> service.suaDon(1, sua("Số 99 Lê Lợi, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1))));
+        assertTrue(e.getMessage().contains("Không cho phép chỉnh sửa số lượng sản phẩm trên đơn online"));
     }
 
     @Test
@@ -214,9 +203,9 @@ class HoaDonSuaServiceTest {
     }
 
     @Test
-    void giuNguyenDiaChi_giuPhiShipCuaDon() {
-        service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1)));
-        assertEquals(0, BigDecimal.valueOf(30_000).compareTo(hd.getPhiVanChuyen()), "chỉ sửa số lượng thì giữ phí nhân viên đã nhập lúc bán");
+    void giuNguyenDiaChi_suaSoLuong_khongChoPhep() {
+        ApiException e = assertThrows(ApiException.class, () -> service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1))));
+        assertTrue(e.getMessage().contains("Không cho phép chỉnh sửa số lượng sản phẩm trên đơn online"));
     }
 
     @Test
@@ -226,14 +215,11 @@ class HoaDonSuaServiceTest {
     }
 
     @Test
-    void khachDaTraTruoc_themSanPham_phuPhiThuKhiGiao_mienShip() {
+    void khachDaTraTruoc_themSanPham_khongChoPhep() {
         daChuyenKhoan(530_000);
-        service.suaDon(1, sua("Số 16 Trần Phú, Hà Đông, Hà Nội",
-                new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 2, 1)));
-        assertEquals(0, BigDecimal.valueOf(25_000).compareTo(hd.getPhiVanChuyen()), "phí theo địa chỉ mới (Hà Nội, phường)");
-        assertEquals(0, BigDecimal.valueOf(1_725_000).compareTo(hd.getThanhTien()));
-        assertEquals(1, thanhToan.size(), "phụ phí thu khi giao hàng, chưa ghi thanh toán");
-        assertTrue(lichSu.get(0).getMoTa().contains("Phụ phí 1.195.000 ₫"), lichSu.get(0).getMoTa());
+        ApiException e = assertThrows(ApiException.class, () -> service.suaDon(1, sua("Số 16 Trần Phú, Hà Đông, Hà Nội",
+                new HoaDonSuaService.DongSua(1, 1, 2), new HoaDonSuaService.DongSua(null, 2, 1))));
+        assertTrue(e.getMessage().contains("Không cho phép chỉnh sửa số lượng sản phẩm trên đơn online"));
     }
 
     @Test
@@ -257,12 +243,9 @@ class HoaDonSuaServiceTest {
     }
 
     @Test
-    void suaSoLuong_donDatNguongMienPhi_phiVe0() {
-        service.setCaiDatVanChuyen(CaiDatVanChuyenService.trongBoNho(true, 700_000L));
-        service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 3)));
-        assertEquals(0, BigDecimal.ZERO.compareTo(hd.getPhiVanChuyen()), "750.000 đạt ngưỡng 700.000 nên miễn phí giao hàng");
-        assertEquals(0, BigDecimal.valueOf(750_000).compareTo(hd.getThanhTien()));
-        assertTrue(lichSu.get(0).getMoTa().contains("Phí giao hàng 30.000 ₫ → 0 ₫"));
+    void suaSoLuong_khongChoPhep() {
+        ApiException e = assertThrows(ApiException.class, () -> service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 3))));
+        assertTrue(e.getMessage().contains("Không cho phép chỉnh sửa số lượng sản phẩm trên đơn online"));
     }
 
     @Test
@@ -356,10 +339,10 @@ class HoaDonSuaServiceTest {
         assertTrue(ls.getMoTa().contains("trước: Nguyễn Thị Lan"), ls.getMoTa());
         ApiException e = assertThrows(ApiException.class, () -> service.suaThongTinGiaoHang(1, giao("Xã Sóc Sơn", "Thành phố Hà Nội", "Đổi lần 2")));
         assertEquals("DA_SUA_GIAO_HANG", e.getCode());
-        // vẫn còn "Chỉnh sửa đơn" (sản phẩm) riêng
-        service.suaDon(1, new HoaDonSuaService.SuaDonRequest("Trần Văn Hùng", "0912345678", hd.getDiaChiGiaoHang(),
-                List.of(new HoaDonSuaService.DongSua(1, 1, 1)), "Khách bớt 1 ống cầu"));
-        assertEquals(1, dong.get(0).getSoLuong());
+        // Không cho sửa sản phẩm trên đơn online
+        ApiException e2 = assertThrows(ApiException.class, () -> service.suaDon(1, new HoaDonSuaService.SuaDonRequest("Trần Văn Hùng", "0912345678", hd.getDiaChiGiaoHang(),
+                List.of(new HoaDonSuaService.DongSua(1, 1, 1)), "Khách bớt 1 ống cầu")));
+        assertTrue(e2.getMessage().contains("Không cho phép chỉnh sửa số lượng sản phẩm trên đơn online"));
     }
 
     @Test
@@ -416,10 +399,8 @@ class HoaDonSuaServiceTest {
         hd.setPhieuGiamGia(p);
         hd.setSoTienGiam(BigDecimal.valueOf(50_000));
         hd.setThanhTien(BigDecimal.valueOf(480_000));
-        service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1)));
-        assertNull(hd.getPhieuGiamGia());
-        assertEquals(List.of(77), phieuTraLuot, "trả lại 1 lượt phiếu PGG77");
-        assertTrue(lichSu.get(lichSu.size() - 1).getMoTa().contains("Trả lại lượt phiếu PGG77"), lichSu.get(lichSu.size() - 1).getMoTa());
+        ApiException e = assertThrows(ApiException.class, () -> service.suaDon(1, sua("Số 15 Trần Phú, Hà Đông, Hà Nội", new HoaDonSuaService.DongSua(1, 1, 1))));
+        assertTrue(e.getMessage().contains("Không cho phép chỉnh sửa số lượng sản phẩm trên đơn online"));
     }
 
     // Cô test case khó 14/11 [08:21]: xác nhận đã hoàn tiền thì khách nhận được email
@@ -444,5 +425,33 @@ class HoaDonSuaServiceTest {
         assertEquals("530.000 ₫", thu.get(0)[2]);
         assertEquals("FT-HOAN-9", thu.get(0)[3]);
         assertTrue(lichSu.get(lichSu.size() - 1).getMoTa().contains("Đã gửi thư báo tới lan@gmail.com"));
+    }
+
+    @Test
+    void donDaThanhToan_suaGiaoHang_phiKhacNhau_baoLoi() {
+        daChuyenKhoan(530_000); // Đơn đã thanh toán trước
+        // Địa chỉ ban đầu ở Hà Nội phí 30k, đổi sang TP HCM phí 50k -> phí khác nhau
+        ApiException e = assertThrows(ApiException.class, () ->
+                service.suaThongTinGiaoHang(1, giao("Phường Bến Nghé", "Thành phố Hồ Chí Minh", "Khách gọi đổi")));
+        assertTrue(e.getMessage().contains("phạm vi phí ship bằng nhau"), e.getMessage());
+    }
+
+    @Test
+    void adminDoiSangCod_thanhCong() {
+        hd.setTrangThai(HoaDon.CHO_XAC_NHAN);
+        hd.setIdPhuongThucThanhToan(HoaDonSuaService.CHUYEN_KHOAN_ONLINE);
+        service.adminDoiSangCod(1);
+        assertEquals(1, hd.getIdPhuongThucThanhToan(), "Đổi sang COD (id = 1)");
+        assertTrue(lichSu.get(lichSu.size() - 1).getHanhDong().contains("Đổi phương thức thanh toán"));
+    }
+
+    @Test
+    void xacNhanTienCod_thanhCong() {
+        hd.setTrangThai(HoaDon.DA_GIAO);
+        hd.setIdPhuongThucThanhToan(1); // COD
+        service.xacNhanTienCod(1);
+        assertEquals(1, thanhToan.size());
+        assertEquals(0, BigDecimal.valueOf(530_000).compareTo(thanhToan.get(0).getSoTien()));
+        assertTrue(lichSu.get(lichSu.size() - 1).getHanhDong().contains("Xác nhận tiền COD"));
     }
 }

@@ -57,7 +57,29 @@ const form = ref({
   phuongXa: '',
   diaChiCuThe: '',
   ghiChu: '',
-  phuongThucThanhToan: 'COD', // COD hoặc QR
+  phuongThucThanhToan: 'COD', // COD, QR (VietQR), MOMO, VNPAY
+})
+
+function layIdPhuongThuc(pt) {
+  if (pt === 'VNPAY') return 4
+  if (pt === 'MOMO') return 6
+  if (pt === 'QR' || pt === 'VIETQR') return 2
+  return 1 // COD
+}
+
+const tenPhuongThucChon = computed(() => {
+  switch (form.value.phuongThucThanhToan) {
+    case 'MOMO':
+      return 'Ví điện tử MoMo'
+    case 'VNPAY':
+      return 'Cổng thanh toán VNPay'
+    case 'QR':
+    case 'VIETQR':
+      return 'Chuyển khoản VietQR'
+    case 'COD':
+    default:
+      return 'Thanh toán khi nhận hàng (COD)'
+  }
 })
 
 // Phí ship theo nơi khách chọn (Hà Nội: phường 25.000 / xã 30.000; tỉnh khác tùy tỉnh), cập nhật theo thời gian thực
@@ -361,7 +383,7 @@ async function guiDon({ giuNguyenGiamCu = false } = {}) {
         phuongXa: form.value.phuongXa,
         ghiChu: form.value.ghiChu.trim(),
         idKhachHang: laKhachDaDangNhap() ? (auth.trangThai.nguoiDung?.id ?? null) : null,
-        idPhuongThucThanhToan: form.value.phuongThucThanhToan === 'QR' ? 2 : 1,
+        idPhuongThucThanhToan: layIdPhuongThuc(form.value.phuongThucThanhToan),
         maPhieuGiamGia: cartStore.appliedVoucher ? cartStore.appliedVoucher.ma : null,
         chiTiet: cartStore.items.map((i) => ({ idSanPhamChiTiet: i.bienTheId, soLuong: i.soLuong })),
         ...cartStore.phieuDaThay(giuNguyenGiamCu),
@@ -659,7 +681,7 @@ async function guiDon({ giuNguyenGiamCu = false } = {}) {
                 <span class="tt-pttt-icon is-cod"><i class="bi bi-cash-stack"></i></span>
               </label>
 
-              <label class="tt-pttt" :class="{ 'is-chon': form.phuongThucThanhToan === 'QR' }">
+              <label class="tt-pttt" :class="{ 'is-chon': form.phuongThucThanhToan === 'QR' || form.phuongThucThanhToan === 'VIETQR' }">
                 <input
                   type="radio"
                   class="form-check-input mt-0"
@@ -673,7 +695,41 @@ async function guiDon({ giuNguyenGiamCu = false } = {}) {
                     Quét mã QR tự động điền số tiền và nội dung qua ứng dụng ngân hàng bất kỳ.
                   </div>
                 </div>
-                <span class="tt-pttt-icon"><i class="bi bi-qr-code"></i></span>
+                <span class="tt-pttt-icon is-vietqr"><i class="bi bi-qr-code"></i></span>
+              </label>
+
+              <label class="tt-pttt" :class="{ 'is-chon': form.phuongThucThanhToan === 'MOMO' }">
+                <input
+                  type="radio"
+                  class="form-check-input mt-0"
+                  name="payment"
+                  value="MOMO"
+                  v-model="form.phuongThucThanhToan"
+                />
+                <div class="flex-grow-1">
+                  <div class="tt-pttt-ten">Ví điện tử MoMo</div>
+                  <div class="tt-pttt-mo-ta">
+                    Quét mã MoMo QR thanh toán tức thì qua ứng dụng ví MoMo.
+                  </div>
+                </div>
+                <span class="tt-pttt-icon is-momo"><i class="bi bi-wallet2"></i></span>
+              </label>
+
+              <label class="tt-pttt" :class="{ 'is-chon': form.phuongThucThanhToan === 'VNPAY' }">
+                <input
+                  type="radio"
+                  class="form-check-input mt-0"
+                  name="payment"
+                  value="VNPAY"
+                  v-model="form.phuongThucThanhToan"
+                />
+                <div class="flex-grow-1">
+                  <div class="tt-pttt-ten">Cổng thanh toán VNPay</div>
+                  <div class="tt-pttt-mo-ta">
+                    Quét mã VNPAY-QR qua ứng dụng ngân hàng hoặc ví VNPAY.
+                  </div>
+                </div>
+                <span class="tt-pttt-icon is-vnpay"><i class="bi bi-credit-card-2-front"></i></span>
               </label>
             </div>
           </div>
@@ -795,7 +851,7 @@ async function guiDon({ giuNguyenGiamCu = false } = {}) {
                   <div class="d-flex justify-content-between py-2 border-bottom">
                     <span class="text-muted">Hình thức thanh toán:</span>
                     <span class="badge bg-secondary-subtle text-dark fw-semibold">
-                      {{ form.phuongThucThanhToan === 'QR' ? 'Chuyển khoản VietQR' : 'Thanh toán khi nhận hàng (COD)' }}
+                      {{ tenPhuongThucChon }}
                     </span>
                   </div>
                   <div class="d-flex justify-content-between py-2 border-bottom">
@@ -1300,6 +1356,18 @@ async function guiDon({ giuNguyenGiamCu = false } = {}) {
 .tt-pttt-icon.is-cod {
   color: #15803d;
   background: #f0fdf4;
+}
+.tt-pttt-icon.is-vietqr {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+.tt-pttt-icon.is-momo {
+  color: #c0197d;
+  background: #fdf2f8;
+}
+.tt-pttt-icon.is-vnpay {
+  color: #005baa;
+  background: #eef7ff;
 }
 .tt-tom-tat {
   position: sticky;

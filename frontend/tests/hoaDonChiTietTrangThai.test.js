@@ -670,38 +670,26 @@ describe('Xác nhận đơn online bị thiếu hàng: popup', () => {
   }
   const nut = (id) => document.body.querySelector(`[data-testid="${id}"]`)
 
-  it('không còn nút "Báo hết hàng cho khách"; bấm Xác nhận thì mở popup ghi rõ món thiếu, không mở hộp xác nhận', async () => {
-    const put = vi.fn()
+  it('không còn nút gửi mail báo hết hàng hay giữ hàng; mở popup ghi rõ món thiếu và chỉ cho phép Hủy đơn', async () => {
+    const put = vi.fn(async () => ({ data: donGiaoHang(0) }))
     const w = await montar(donThieu(), put)
     expect(w.text()).not.toContain('Báo hết hàng cho khách')
     await bamXacNhanDon(w)
     expect(nut('hd-het-hang').textContent).toContain('kho còn 0, đơn cần 1')
-    expect(document.getElementById('hd-ghi-chu')).toBeNull()
-    expect(nut('hd-het-hang-hoan'), 'COD chưa trả tiền thì không có nút hoàn tiền').toBeNull()
-    nut('hd-het-hang-giu').click()
+    expect(nut('hd-het-hang').textContent).toContain('Hệ thống không cho phép xác nhận khi không đủ hàng tồn kho')
+    expect(nut('hd-het-hang-giu')).toBeNull()
+    expect(nut('hd-het-hang-mail')).toBeNull()
+    nut('hd-het-hang-hoan-ok').click()
     await flushPromises()
-    expect(nut('hd-het-hang')).toBeNull()
-    expect(put).not.toHaveBeenCalled()
+    expect(put).toHaveBeenCalledWith('/hoa-don/1/trang-thai', expect.objectContaining({ trangThaiMoi: 0, ghiChu: `Hết hàng: ${THIEU[0]}` }))
   })
 
-  it('Gửi mail báo hết hàng: gọi /bao-het-hang, đơn vẫn Chờ xác nhận', async () => {
-    const post = vi.fn(async () => ({ data: donThieu() }))
-    const w = await montar(donThieu(), vi.fn(), post)
-    await bamXacNhanDon(w)
-    nut('hd-het-hang-mail').click()
-    await flushPromises()
-    expect(post).toHaveBeenCalledWith('/hoa-don/1/bao-het-hang')
-    expect(nut('hd-het-hang')).toBeNull()
-  })
-
-  it('đơn đã chuyển khoản: Hoàn tiền cho khách hỏi lại rồi mới hủy đơn với lý do hết hàng', async () => {
+  it('đơn đã chuyển khoản mà thiếu hàng: bấm Hủy đơn và hoàn tiền sẽ hủy đơn với lý do hết hàng', async () => {
     const put = vi.fn(async () => ({ data: donGiaoHang(0) }))
     const w = await montar(donThieu(980000), put)
     await bamXacNhanDon(w)
-    nut('hd-het-hang-hoan').click()
-    await flushPromises()
-    expect(put).not.toHaveBeenCalled()
-    expect(nut('hd-het-hang-hoi-huy').textContent).toContain('980.000')
+    expect(nut('hd-het-hang').textContent).toContain('980.000')
+    expect(nut('hd-het-hang-hoan-ok').textContent).toContain('Hủy đơn và hoàn tiền')
     nut('hd-het-hang-hoan-ok').click()
     await flushPromises()
     expect(put).toHaveBeenCalledWith('/hoa-don/1/trang-thai', expect.objectContaining({ trangThaiMoi: 0, ghiChu: `Hết hàng: ${THIEU[0]}` }))

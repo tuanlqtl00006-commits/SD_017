@@ -115,7 +115,10 @@ public class SchemaUpgradeRunner implements ApplicationRunner {
                     + "WHERE NOT EXISTS (SELECT 1 FROM vai_tro r WHERE r.ten_vai_tro = v.ten)",
             "UPDATE ca_lam_viec SET ten_ca = N'Ca sáng' WHERE id = 1 AND ten_ca <> N'Ca sáng'",
             "UPDATE ca_lam_viec SET ten_ca = N'Ca chiều' WHERE id = 2 AND ten_ca <> N'Ca chiều'",
-            "UPDATE ca_lam_viec SET ten_ca = N'Ca tối' WHERE id = 3 AND ten_ca <> N'Ca tối'");
+            "UPDATE ca_lam_viec SET ten_ca = N'Ca tối' WHERE id = 3 AND ten_ca <> N'Ca tối'",
+            "INSERT INTO phuong_thuc_thanh_toan (id_hinh_thuc_thanh_toan, ma_phuong_thuc, ten_phuong_thuc, trang_thai) "
+                    + "SELECT h.id, 'PT06', N'Ví điện tử MoMo', 1 FROM hinh_thuc_thanh_toan h WHERE h.ma_hinh_thuc = 'HT02' "
+                    + "AND NOT EXISTS (SELECT 1 FROM phuong_thuc_thanh_toan t WHERE t.ma_phuong_thuc = 'PT06')");
 
     /**
      * Các bảng có mã do hệ thống tự cấp: {bảng, cột mã}. Mã cũ nhiều số 0 (HD000001, NV0001, SP001, DGG001, DC000...)

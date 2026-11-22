@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest(properties = "app.van-chuyen.ban-do-bat=false") // không gọi API bản đồ trong test: phí theo bảng tỉnh
+@SpringBootTest(properties = {"app.van-chuyen.ban-do-bat=false", "app.van-chuyen.mien-phi-bat=false"}) // không gọi API bản đồ; tắt free ship để kiểm tra đúng phí theo tỉnh và null khi chưa chọn tỉnh
 @Transactional
 class CuaHangServiceTest {
 

@@ -82,6 +82,13 @@ public class CuaHangService {
         this.hoaDonSuaService = hoaDonSuaService;
     }
 
+    private PhuongThucThanhToanRepository phuongThucRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setPhuongThucRepo(PhuongThucThanhToanRepository phuongThucRepo) {
+        this.phuongThucRepo = phuongThucRepo;
+    }
+
     public record DatHangOnlineRequest(
             String hoTenNguoiNhan,
             String sdtNguoiNhan,
@@ -714,7 +721,13 @@ public class CuaHangService {
         hd.setDiaChiGiaoHang(diaChiFull);
         hd.setGhiChu(req.ghiChu());
         hd.setPhieuGiamGia(phieu);
-        hd.setIdPhuongThucThanhToan(req.idPhuongThucThanhToan() == null ? 1 : req.idPhuongThucThanhToan());
+        Integer idPt = req.idPhuongThucThanhToan() == null ? 1 : req.idPhuongThucThanhToan();
+        if (Integer.valueOf(6).equals(idPt) && phuongThucRepo != null) {
+            idPt = phuongThucRepo.findFirstByMaPhuongThuc(PhuongThucThanhToan.MOMO).map(PhuongThucThanhToan::getId).orElse(2);
+        } else if (Integer.valueOf(4).equals(idPt) && phuongThucRepo != null) {
+            idPt = phuongThucRepo.findFirstByMaPhuongThuc(PhuongThucThanhToan.VNPAY).map(PhuongThucThanhToan::getId).orElse(2);
+        }
+        hd.setIdPhuongThucThanhToan(idPt);
         hd.setNgayTao(now);
         hd.setNgayCapNhat(now);
 
@@ -752,9 +765,9 @@ public class CuaHangService {
                 + (emailNhan.isEmpty() ? "" : " - " + MailService.NHAN_EMAIL_DON + emailNhan));
         lichSuHoaDonRepo.save(ls);
 
-        // Nếu chuyển khoản, chuẩn bị mã VietQR
+        // Nếu chuyển khoản hoặc quét mã (VietQR, MoMo, VNPay), chuẩn bị mã VietQR
         String vietQrUrl = null;
-        if (Integer.valueOf(2).equals(req.idPhuongThucThanhToan())) {
+        if (HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())) {
             vietQrUrl = "https://img.vietqr.io/image/MB-0348888899-compact2.png?amount="
                     + thanhTien + "&addInfo=" + maHd + "%20FOOTSTYLE&accountName=SHOP%20CAU%20LONG%20FOOTSTYLE";
         }
@@ -770,7 +783,15 @@ public class CuaHangService {
         res.put("sdtNguoiNhan", hd.getSdtNguoiNhan());
         res.put("diaChiGiaoHang", hd.getDiaChiGiaoHang());
         res.put("idPhuongThucThanhToan", hd.getIdPhuongThucThanhToan());
-        res.put("tenPhuongThuc", Integer.valueOf(2).equals(hd.getIdPhuongThucThanhToan()) ? "Chuyển khoản VietQR" : "Thanh toán khi nhận hàng (COD)");
+        String tenPt = "Thanh toán khi nhận hàng (COD)";
+        if (Integer.valueOf(4).equals(hd.getIdPhuongThucThanhToan())) {
+            tenPt = "Cổng thanh toán VNPay";
+        } else if (Integer.valueOf(6).equals(hd.getIdPhuongThucThanhToan())) {
+            tenPt = "Ví điện tử MoMo";
+        } else if (HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())) {
+            tenPt = "Chuyển khoản VietQR";
+        }
+        res.put("tenPhuongThuc", tenPt);
         res.put("vietQrUrl", vietQrUrl);
         res.put("soLuongMon", dsChiTiet.size());
         res.put("ngayTao", now.toString());
@@ -794,9 +815,20 @@ public class CuaHangService {
                     phieu != null ? phieu.getMaPhieu() : null,
                     String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", phiVanChuyen),
                     sdt);
-            mailService.guiXacNhanDatHang(hd.getHoTenNguoiNhan(), email, maHd, mon,
-                    String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", thanhTien),
-                    diaChiFull, (String) res.get("tenPhuongThuc"), tien);
+            boolean chuaThanhToan = HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan());
+            if (chuaThanhToan) {
+                String baseUrl = mailService.getLinkCuaHang();
+                if (baseUrl == null || baseUrl.isBlank()) baseUrl = "http://localhost:5173";
+                else baseUrl = baseUrl.replaceAll("/+$", "");
+                String linkThanhToan = baseUrl + "/shop/dat-hang-thanh-cong?ma=" + maHd;
+                mailService.guiThongBaoChuaThanhToan(hd.getHoTenNguoiNhan(), email, maHd, mon,
+                        String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", thanhTien),
+                        diaChiFull, (String) res.get("tenPhuongThuc"), tien, linkThanhToan);
+            } else {
+                mailService.guiXacNhanDatHang(hd.getHoTenNguoiNhan(), email, maHd, mon,
+                        String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", thanhTien),
+                        diaChiFull, (String) res.get("tenPhuongThuc"), tien);
+            }
         }
 
         return res;
@@ -947,7 +979,7 @@ public class CuaHangService {
     /** Đơn online chuyển khoản, còn Chờ xác nhận, chưa nhận đồng nào và đã quá hạn chuyển khoản. */
     public static boolean laDonTreo(HoaDon hd, long daTra, LocalDateTime luc) {
         return Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon())
-                && HoaDonSuaService.CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())
+                && HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())
                 && Integer.valueOf(HoaDon.CHO_XAC_NHAN).equals(hd.getTrangThai())
                 && daTra <= 0 && hd.getNgayTao() != null
                 && !luc.isBefore(hd.getNgayTao().plusMinutes(HAN_CHUYEN_KHOAN_PHUT));
@@ -962,8 +994,8 @@ public class CuaHangService {
         if (hd == null || so.isEmpty() || !dungSdtDatHang(hd, so)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma + " với số điện thoại này.", null, null, null);
         }
-        if (!Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon()) || !HoaDonSuaService.CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())) {
-            throw ApiException.conflict("Đơn này không thanh toán bằng chuyển khoản.");
+        if (!Integer.valueOf(HoaDon.GIAO_HANG).equals(hd.getLoaiDon()) || !HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())) {
+            throw ApiException.conflict("Đơn này không thanh toán bằng chuyển khoản hoặc quét mã online.");
         }
         if (!Integer.valueOf(HoaDon.CHO_XAC_NHAN).equals(hd.getTrangThai())) throw ApiException.conflict("Đơn đã được cửa hàng xử lý, không đổi được cách thanh toán.");
         long daTra = 0;
@@ -985,6 +1017,74 @@ public class CuaHangService {
                 + (treo ? " sau khi quá " + HAN_CHUYEN_KHOAN_PHUT + " phút chưa chuyển khoản." : "."));
         lichSuHoaDonRepo.save(ls);
         return chiTietDon(hd);
+    }
+
+    /**
+     * Gửi email thông báo đơn chưa thanh toán kèm đường dẫn để khách quay lại màn hình thanh toán.
+     * Áp dụng khi khách thanh toán chưa thành công hoặc tắt nhầm trình duyệt (cả khách đăng nhập và chưa đăng nhập).
+     */
+    public Map<String, Object> guiMailThanhToan(String maHoaDon, String sdt) {
+        String ma = maHoaDon == null ? "" : maHoaDon.trim();
+        HoaDon hd = ma.isEmpty() ? null : hoaDonRepo.findFirstByMaHoaDonIgnoreCase(ma).orElse(null);
+        if (hd == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma, null, null, null);
+        }
+        if (Integer.valueOf(HoaDon.DA_HUY).equals(hd.getTrangThai())) {
+            throw ApiException.conflict("Đơn hàng " + ma + " đã bị hủy.");
+        }
+
+        // Tìm email nhận thông báo: ưu tiên lịch sử lúc đặt, sau đó đến tài khoản khách
+        String email = "";
+        List<LichSuHoaDon> ls = lichSuHoaDonRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId());
+        for (LichSuHoaDon l : ls) {
+            if (l.getMoTa() != null && l.getMoTa().contains(MailService.NHAN_EMAIL_DON)) {
+                email = l.getMoTa().substring(l.getMoTa().indexOf(MailService.NHAN_EMAIL_DON) + MailService.NHAN_EMAIL_DON.length()).trim();
+                if (email.contains(" ")) email = email.split("\\s+")[0].trim();
+                break;
+            }
+        }
+        if (email.isEmpty() && hd.getKhachHang() != null && hd.getKhachHang().getEmail() != null) {
+            email = hd.getKhachHang().getEmail().trim();
+        }
+
+        if (email.isEmpty() || !email.contains("@")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Đơn hàng này không có địa chỉ email để nhận thông báo.", null, null, null);
+        }
+
+        if (mailService != null) {
+            List<HoaDonChiTiet> dsChiTiet = hoaDonChiTietRepo.findByHoaDon_IdOrderByIdAsc(hd.getId());
+            List<String> mon = new ArrayList<>();
+            for (HoaDonChiTiet ct : dsChiTiet) {
+                SanPhamChiTiet bt = ct.getSanPhamChiTiet();
+                String tenSp = bt != null && bt.getSanPham() != null ? bt.getSanPham().getTenSanPham() : "Sản phẩm";
+                String mau = bt != null && bt.getMauSac() != null ? " (" + bt.getMauSac().getTen() + ")" : "";
+                long tienMon = ct.getThanhTien() != null ? ct.getThanhTien().longValue() : 0L;
+                String giaChu = tienMon > 0 ? " - " + String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", tienMon) : "";
+                mon.add(tenSp + mau + " x" + ct.getSoLuong() + giaChu);
+            }
+            long tongTien = hd.getTongTien() == null ? 0 : hd.getTongTien().longValue();
+            long soTienGiam = hd.getSoTienGiam() == null ? 0 : hd.getSoTienGiam().longValue();
+            long phiVanChuyen = hd.getPhiVanChuyen() == null ? 0 : hd.getPhiVanChuyen().longValue();
+            long thanhTien = hd.getThanhTien() == null ? 0 : hd.getThanhTien().longValue();
+
+            MailService.TienDon tien = new MailService.TienDon(
+                    String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", tongTien),
+                    soTienGiam > 0 ? String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", soTienGiam) : null,
+                    hd.getPhieuGiamGia() != null ? hd.getPhieuGiamGia().getMaPhieu() : null,
+                    String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", phiVanChuyen),
+                    hd.getSdtNguoiNhan());
+
+            String baseUrl = mailService.getLinkCuaHang();
+            if (baseUrl == null || baseUrl.isBlank()) baseUrl = "http://localhost:5173";
+            else baseUrl = baseUrl.replaceAll("/+$", "");
+            String linkThanhToan = baseUrl + "/shop/dat-hang-thanh-cong?ma=" + hd.getMaHoaDon();
+
+            mailService.guiThongBaoChuaThanhToan(hd.getHoTenNguoiNhan(), email, hd.getMaHoaDon(), mon,
+                    String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", thanhTien),
+                    hd.getDiaChiGiaoHang(), "Chuyển khoản VietQR", tien, linkThanhToan);
+        }
+
+        return Map.of("ok", true, "message", "Đã gửi email thông báo thanh toán lại cho đơn " + ma + " tới " + email);
     }
 
     /** Hóa đơn chờ tại quầy chưa thanh toán: chưa phải đơn của khách, không cho tra cứu công khai. */
@@ -1061,6 +1161,7 @@ public class CuaHangService {
             m.put("trangThai", hd.getTrangThai());
             m.put("tenTrangThai", HoaDonLuongTrangThai.ten(hd.getTrangThai()));
             m.put("thanhTien", hd.getThanhTien());
+            m.put("idPhuongThucThanhToan", hd.getIdPhuongThucThanhToan());
             don.add(m);
         }
         if (don.isEmpty()) {

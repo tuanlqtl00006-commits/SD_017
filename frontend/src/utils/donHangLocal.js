@@ -73,6 +73,14 @@ export async function dongBoTrangThaiDon(ds, hoiBackend) {
           o.trangThaiText = m[1]
           doi = true
         }
+        if (d?.idPhuongThucThanhToan != null && o.idPhuongThucThanhToan !== d.idPhuongThucThanhToan) {
+          o.idPhuongThucThanhToan = d.idPhuongThucThanhToan
+          doi = true
+        }
+        if (d?.daThanhToanDu != null && o.daThanhToanDu !== d.daThanhToanDu) {
+          o.daThanhToanDu = d.daThanhToanDu
+          doi = true
+        }
         // Món hàng lấy theo hóa đơn thật (bản lưu lúc đặt có thể thiếu tên sản phẩm / sai biến thể)
         const chiTiet = Array.isArray(d?.chiTiet) ? d.chiTiet : []
         if (chiTiet.length) {

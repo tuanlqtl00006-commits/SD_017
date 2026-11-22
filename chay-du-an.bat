@@ -16,6 +16,12 @@ set "CONG=8081"
 if defined SERVER_PORT set "CONG=%SERVER_PORT%"
 set "API=http://localhost:%CONG%/api/phieu-giam-gia/trang-thai-mail"
 
+REM Tu dong phat hien JDK 17 neu chua dat bien JAVA_HOME
+if not defined JAVA_HOME (
+  if exist "C:\Program Files\Java\jdk-17" set "JAVA_HOME=C:\Program Files\Java\jdk-17"
+  if not defined JAVA_HOME if exist "%USERPROFILE%\.jdks\ms-17.0.20" set "JAVA_HOME=%USERPROFILE%\.jdks\ms-17.0.20"
+)
+
 where npm >nul 2>&1
 if errorlevel 1 (
   echo [FootStyle] Chua cai Node.js ^(khong tim thay lenh npm^). Cai Node.js LTS tai https://nodejs.org roi chay lai.

@@ -40,6 +40,8 @@ const maHopLe = computed(() => {
     if (v.trangThai !== undefined && v.trangThai !== null && Number(v.trangThai) === 0) return false
     if (v.ngayKetThuc && new Date(v.ngayKetThuc) < now) return false
     if (v.lyDo && (v.lyDo.includes('hết hạn') || v.lyDo.includes('ngừng hoạt động'))) return false
+    // Ẩn toàn bộ các phiếu giảm giá không đủ điều kiện áp dụng
+    if (!v.dungDuoc) return false
     return true
   })
 })
@@ -61,8 +63,8 @@ async function apDung(maNhap) {
   loi.value = ''
   const code = String(maNhap ?? voucherCode.value).trim().toUpperCase()
   if (!code) {
-    if (cartStore.appliedVoucher) moDanhSach.value = false
-    else loi.value = 'Vui lòng nhập mã giảm giá.'
+    moDanhSach.value = !moDanhSach.value
+    loi.value = ''
     return
   }
   if (cartStore.appliedVoucher?.ma?.toUpperCase() === code) {
@@ -126,7 +128,10 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
 
 <template>
   <div class="vp">
-    <div class="vp-title"><i class="bi bi-ticket-perforated"></i> MÃ GIẢM GIÁ</div>
+    <div class="vp-title">
+      <i class="bi bi-ticket-perforated-fill text-primary"></i> MÃ GIẢM GIÁ
+      <span v-if="maHopLe.length" class="vp-count-badge">{{ maHopLe.length }} mã khả dụng</span>
+    </div>
 
     <!-- Gợi ý mã giảm nhiều nhất -->
     <div v-if="goiY" class="vp-banner">
@@ -138,7 +143,6 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
       <button type="button" class="vp-banner-btn" :disabled="dangKiemTra" @click="apDung(goiY.ma)">Dùng ngay</button>
     </div>
 
-    <!-- Ô nhập / chọn mã -->
     <!-- Mã đang áp dụng: hiện ngay trên ô mã (cô review 14/11 [26:19]), bấm X để bỏ -->
     <div v-if="cartStore.appliedVoucher" class="vp-applied" data-testid="vp-dang-ap">
       <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
@@ -157,14 +161,13 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
           v-model="voucherCode"
           type="text"
           class="text-uppercase"
-          placeholder="Nhập hoặc chọn mã giảm giá..."
+          placeholder="Nhập mã giảm giá nếu có..."
           autocomplete="one-time-code"
           data-lpignore="true"
           data-1p-ignore="true"
           autocorrect="off"
           spellcheck="false"
-          @focus="moDanhSach = true; loi = ''"
-          @click="moDanhSach = true"
+          @focus="loi = ''"
           @keyup.enter="apDung()"
           @keyup.esc="moDanhSach = false"
         />
@@ -174,33 +177,61 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
         </button>
       </div>
 
-      <div v-if="moDanhSach && danhSachMa.length" class="vp-dropdown">
-        <div class="vp-dropdown-head">Mã giảm giá có sẵn ({{ maLoc.length }})</div>
-        <div v-if="!maLoc.length" class="vp-empty">Không có mã nào khớp.</div>
-        <div class="vp-list">
+      <!-- Bảng danh sách mã giảm giá dạng Coupon (chỉ hiện mã đủ điều kiện áp dụng) -->
+      <div v-if="moDanhSach" class="vp-dropdown">
+        <div class="vp-dropdown-head">
+          <span><i class="bi bi-ticket-perforated-fill me-1"></i> Mã giảm giá đủ điều kiện ({{ maLoc.length }})</span>
+          <button type="button" class="vp-close-dropdown-btn" @click="moDanhSach = false" aria-label="Đóng"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div v-if="!maLoc.length" class="vp-empty">
+          <i class="bi bi-info-circle me-1"></i> Không có mã giảm giá nào đủ điều kiện áp dụng cho đơn hàng hiện tại.
+        </div>
+        <div v-else class="vp-list">
           <div
             v-for="v in maLoc"
             :key="v.ma"
-            class="vp-voucher"
-            :class="{ off: !v.dungDuoc, current: cartStore.appliedVoucher?.ma === v.ma }"
+            class="vp-coupon-card"
+            :class="{ current: cartStore.appliedVoucher?.ma === v.ma }"
             role="button"
-            :tabindex="v.dungDuoc ? 0 : -1"
-            :aria-disabled="!v.dungDuoc"
+            tabindex="0"
             @click="chonMa(v)"
             @keyup.enter="chonMa(v)"
           >
-            <div class="vp-voucher-info">
-              <div class="vp-voucher-code">
-                {{ v.ma }}
-                <span class="vp-voucher-value">{{ v.loaiGiam === 1 ? `Giảm ${v.giaTriGiam}%` : `Giảm ${tienGon(v.giaTriGiam)}` }}</span>
-                <span v-if="cartStore.appliedVoucher?.ma === v.ma" class="vp-tag now">Đang dùng</span>
-                <span v-else-if="v.caNhan" class="vp-tag">Tặng riêng</span>
-                <span v-if="maTotNhat?.ma === v.ma" class="vp-tag best">Giảm nhiều nhất</span>
-              </div>
-              <div class="vp-voucher-desc">{{ dieuKienMa(v) }}</div>
-              <div v-if="!v.dungDuoc && v.lyDo" class="vp-voucher-why">{{ v.lyDo }}</div>
+            <!-- Phần bên trái: Huy hiệu mức giảm dạng cuống vé -->
+            <div class="vp-coupon-left">
+              <div class="vp-coupon-cut top"></div>
+              <div class="vp-coupon-cut bottom"></div>
+              <div class="vp-coupon-val">{{ v.loaiGiam === 1 ? `${v.giaTriGiam}%` : tienGon(v.giaTriGiam) }}</div>
+              <div class="vp-coupon-lbl">GIẢM</div>
             </div>
-            <div v-if="v.dungDuoc" class="vp-voucher-save">-{{ formatMoney(v.soTienGiam) }}</div>
+
+            <!-- Phần bên phải: Chi tiết mã & nút bấm -->
+            <div class="vp-coupon-right">
+              <div class="vp-coupon-header">
+                <span class="vp-coupon-code">{{ v.ma }}</span>
+                <span v-if="cartStore.appliedVoucher?.ma === v.ma" class="vp-tag now">
+                  <i class="bi bi-check-circle-fill me-1"></i>Đang dùng
+                </span>
+                <span v-else-if="maTotNhat?.ma === v.ma" class="vp-tag best">
+                  <i class="bi bi-stars me-1"></i>Tốt nhất
+                </span>
+                <span v-else-if="v.caNhan" class="vp-tag">
+                  <i class="bi bi-gift-fill me-1"></i>Tặng riêng
+                </span>
+              </div>
+              <div class="vp-coupon-desc">{{ dieuKienMa(v) }}</div>
+              <div class="vp-coupon-footer">
+                <span class="vp-coupon-save">Tiết kiệm: <strong>-{{ formatMoney(v.soTienGiam) }}</strong></span>
+                <button
+                  type="button"
+                  class="vp-coupon-btn"
+                  :class="{ active: cartStore.appliedVoucher?.ma === v.ma }"
+                  @click.stop="chonMa(v)"
+                >
+                  {{ cartStore.appliedVoucher?.ma === v.ma ? 'Đã chọn' : 'Áp dụng' }}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -342,6 +373,17 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
   color: #dc2626;
 }
 
+.vp-count-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #0d6efd;
+  background: #e7f1ff;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
 /* Bảng chọn mã xổ xuống */
 .vp-dropdown {
   position: absolute;
@@ -350,105 +392,187 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
   right: 0;
   z-index: 30;
   background: #fff;
-  border: 1px solid #e3ebf8;
+  border: 1px solid #cbd5e1;
   border-radius: 14px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
   overflow: hidden;
 }
 .vp-dropdown-head {
-  padding: 0.5rem 0.85rem;
-  font-size: 0.74rem;
-  font-weight: 700;
-  color: #0d6efd;
-  background: linear-gradient(90deg, #eef5ff, #fff);
-  border-bottom: 1px solid #eef2f9;
-}
-.vp-empty {
-  padding: 0.9rem;
-  font-size: 0.82rem;
-  color: #9aa3b2;
-  text-align: center;
-}
-.vp-list {
-  max-height: 250px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  scrollbar-width: thin;
-}
-.vp-voucher {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0.7rem;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0d6efd;
+  background: linear-gradient(90deg, #eff6ff, #f8fafc);
+  border-bottom: 1px solid #e2e8f0;
+}
+.vp-close-dropdown-btn {
+  background: transparent;
+  border: 0;
+  padding: 0.2rem;
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.vp-close-dropdown-btn:hover {
+  color: #0f172a;
+}
+.vp-empty {
+  padding: 1.2rem 1rem;
+  font-size: 0.82rem;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.5;
+}
+.vp-list {
+  max-height: 290px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  scrollbar-width: thin;
+}
+
+/* Thẻ coupon phiếu giảm giá */
+.vp-coupon-card {
+  display: flex;
+  align-items: stretch;
   background: #fff;
-  border: 1px solid #e8eef8;
-  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+.vp-coupon-card:hover {
+  border-color: #0d6efd;
+  box-shadow: 0 4px 14px rgba(13, 110, 253, 0.12);
+  transform: translateY(-1px);
+}
+.vp-coupon-card.current {
+  border-color: #22c55e;
+  background: #f0fdf4;
+}
+
+/* Cột cuống vé bên trái */
+.vp-coupon-left {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 82px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #1e40af, #0d6efd);
+  color: #fff;
+  padding: 0.5rem 0.2rem;
+  border-right: 1px dashed rgba(255, 255, 255, 0.5);
+}
+.vp-coupon-card.current .vp-coupon-left {
+  background: linear-gradient(135deg, #15803d, #22c55e);
+}
+.vp-coupon-val {
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+}
+.vp-coupon-lbl {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  opacity: 0.9;
+  margin-top: 2px;
+}
+.vp-coupon-cut {
+  position: absolute;
+  right: -6px;
+  width: 11px;
+  height: 11px;
+  background: #fff;
+  border-radius: 50%;
+  z-index: 2;
+}
+.vp-coupon-cut.top {
+  top: -6px;
+}
+.vp-coupon-cut.bottom {
+  bottom: -6px;
+}
+
+/* Cột thông tin bên phải */
+.vp-coupon-right {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+.vp-coupon-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.vp-coupon-code {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.5px;
+}
+.vp-coupon-desc {
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.3;
+}
+.vp-coupon-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed #f1f5f9;
+}
+.vp-coupon-save {
+  font-size: 0.75rem;
+  color: #0f172a;
+}
+.vp-coupon-save strong {
+  color: #0d6efd;
+  font-size: 0.82rem;
+}
+.vp-coupon-btn {
+  padding: 0.22rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: #0d6efd;
+  border: 0;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.vp-voucher:hover:not(.off) {
-  border-color: #9ec5fe;
-  box-shadow: 0 4px 12px rgba(13, 110, 253, 0.12);
+.vp-coupon-btn:hover {
+  background: #0b5ed7;
 }
-.vp-voucher:focus-visible {
-  outline: 2px solid #0d6efd;
+.vp-coupon-btn.active {
+  background: #16a34a;
 }
-.vp-voucher.off {
-  cursor: not-allowed;
-  background: #f4f5f7;
-  border-color: #eceef1;
-}
-.vp-voucher.off .vp-voucher-code,
-.vp-voucher.off .vp-voucher-desc {
-  opacity: 0.6;
-}
-.vp-voucher.off .vp-voucher-value,
-.vp-voucher.off .vp-voucher-save,
-.vp-voucher.off .vp-tag {
-  color: #9ca3af;
-  background: transparent;
-}
-.vp-voucher.current {
-  background: #ecf8f0;
-  border-color: #bfe5cc;
-}
-.vp-voucher-info {
-  flex: 1;
-  min-width: 0;
-}
-.vp-voucher-code {
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: #1f2937;
-}
-.vp-voucher-value {
-  margin-left: 0.4rem;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: #0d6efd;
-}
-.vp-voucher-desc {
-  font-size: 0.72rem;
-  color: #6b7280;
-}
-.vp-voucher-why {
-  font-size: 0.7rem;
-  color: #64748b;
-}
-.vp-voucher-save {
-  flex-shrink: 0;
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: #0d6efd;
-}
+
+/* Huy hiệu thẻ */
 .vp-tag {
-  margin-left: 0.3rem;
-  padding: 0.05rem 0.45rem;
-  font-size: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.64rem;
   font-weight: 700;
   color: #1e40af;
   background: #e0edff;

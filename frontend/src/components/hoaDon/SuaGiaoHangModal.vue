@@ -72,8 +72,17 @@ const phiMoi = computed(() =>
     : null,
 )
 
+// Đơn đã thanh toán: chỉ cho phép đổi địa chỉ trong phạm vi phí ship bằng nhau (Requirement 3)
+const daThanhToan = computed(() => Number(props.data?.daThanhToan ?? props.data?.hoaDon?.daThanhToan ?? 0))
+const phiShipKhongDoi = computed(() => phiMoi.value === null || Math.round(Number(phiMoi.value)) === Math.round(Number(phiCu.value)))
+const khongTheSuaDoLechPhi = computed(() => daThanhToan.value > 0 && phiMoi.value !== null && !phiShipKhongDoi.value)
+
 async function luu() {
   if (dangLuu.value) return
+  if (khongTheSuaDoLechPhi.value) {
+    loiChung.value = 'Đơn hàng đã thanh toán chỉ cho phép sửa thông tin người nhận và địa chỉ trong phạm vi phí ship bằng nhau.'
+    return
+  }
   loi.value = {}
   loiChung.value = ''
   if (!(await hoiXacNhan({ title: 'Lưu thông tin giao hàng', message: 'Thông tin giao hàng của mỗi đơn chỉ đổi được một lần. Bạn có chắc muốn lưu?', confirmText: 'Lưu thay đổi' }))) return
@@ -144,11 +153,16 @@ async function luu() {
           <strong>{{ phiMoi === 0 ? 'Miễn phí' : formatMoney(phiMoi) }}</strong>
         </span>
       </div>
+      <div v-if="khongTheSuaDoLechPhi" class="alert alert-warning small mt-3 mb-0" role="alert" data-testid="sgh-lech-phi-warning">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+        <strong>Đơn hàng đã thanh toán trước ({{ formatMoney(daThanhToan) }}):</strong>
+        Hệ thống chỉ cho phép đổi địa chỉ trong phạm vi phí vận chuyển bằng nhau. Phí hiện tại là <strong>{{ formatMoney(phiCu) }}</strong>, phí địa chỉ mới là <strong>{{ formatMoney(phiMoi) }}</strong>.
+      </div>
       <p v-if="loiChung" class="text-danger small mt-2 mb-0" data-testid="sgh-loi">{{ loiChung }}</p>
     </div>
     <template #footer>
       <button type="button" class="btn btn-outline-secondary" @click="emit('close')">Hủy</button>
-      <button type="button" class="btn btn-primary" :disabled="dangLuu" data-testid="sgh-luu" @click="luu">
+      <button type="button" class="btn btn-primary" :disabled="dangLuu || khongTheSuaDoLechPhi" data-testid="sgh-luu" @click="luu">
         <span v-if="dangLuu" class="spinner-border spinner-border-sm me-1"></span> Lưu thông tin giao hàng
       </button>
     </template>

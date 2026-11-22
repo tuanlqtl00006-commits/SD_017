@@ -88,6 +88,10 @@ public class MailService {
         this.logo = docLogo(new ClassPathResource(DUONG_DAN_LOGO));
     }
 
+    public String getLinkCuaHang() {
+        return linkCuaHang;
+    }
+
     /** Đọc ảnh logo; không có hoặc đọc lỗi thì trả null (thư vẫn gửi bình thường, chỉ không có logo). */
     static byte[] docLogo(Resource r) {
         try {
@@ -603,6 +607,142 @@ public class MailService {
                     .append("display:inline-block;background-color:#16a34a;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;\">")
                     .append("Tra cứu đơn hàng</a></td></tr>\n");
         }
+
+        dongKhungHtml(h);
+        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
+        luongGui.submit(() -> gui(den, thu, logoGan));
+    }
+
+    /**
+     * Gửi email thông báo đơn hàng CHƯA THANH TOÁN (chuyển khoản VietQR / online) kèm đường dẫn để khách quay lại màn hình thanh toán.
+     * Áp dụng cho cả khách đã đăng nhập và chưa đăng nhập (khi thanh toán chưa thành công hoặc tắt nhầm trình duyệt).
+     */
+    public void guiThongBaoChuaThanhToan(String hoTen, String email, String maHoaDon, java.util.List<String> monHang,
+                                         String thanhTienChu, String diaChi, String cachThanhToan, TienDon tien, String linkThanhToan) {
+        if (email == null || !email.contains("@")) return;
+        final String den = email.trim();
+        String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
+        String ma = String.valueOf(maHoaDon);
+        String tieuDe = "[" + tenCuaHang + "] Thông báo đơn hàng chưa thanh toán - Đơn " + ma;
+        String link = (linkThanhToan != null && !linkThanhToan.isBlank())
+                ? linkThanhToan.trim()
+                : ((linkCuaHang != null ? linkCuaHang : "http://localhost:5173") + "/shop/dat-hang-thanh-cong?ma=" + ma);
+
+        StringBuilder chu = new StringBuilder("Xin chào " + ten + ",\n\n"
+                + "Cảm ơn bạn đã đặt hàng tại " + tenCuaHang + ". Đơn hàng " + ma + " của bạn đã được ghi nhận nhưng CHƯA HOÀN TẤT THANH TOÁN.\n\n"
+                + "Nếu bạn đã lỡ tắt trình duyệt hoặc thanh toán chưa thành công, vui lòng bấm vào đường dẫn sau để quay lại màn hình thanh toán và quét mã QR:\n"
+                + link + "\n\n");
+        if (monHang != null) {
+            chu.append("Chi tiết sản phẩm:\n");
+            for (String m : monHang) {
+                chu.append("- ").append(m).append('\n');
+            }
+        }
+        chu.append("\nTổng thanh toán: ").append(thanhTienChu)
+                .append("\nGiao tới: ").append(diaChi)
+                .append("\nPhương thức: ").append(cachThanhToan)
+                .append("\n\nBạn cũng có thể tra cứu đơn hàng bằng mã ").append(ma).append(" trên website.\n");
+
+        final byte[] logoGan = logo;
+        String phong = "font-family:Arial,Helvetica,sans-serif;";
+        StringBuilder h = new StringBuilder(7000);
+        moKhungHtml(h, tieuDe,
+                "Đơn hàng " + ma + " chưa hoàn tất thanh toán — Tổng thanh toán: " + thanhTienChu,
+                "#d97706", logoGan != null, "ĐƠN HÀNG CHƯA THANH TOÁN", "Vui lòng hoàn tất thanh toán!");
+
+        // Lời chào + giới thiệu
+        h.append("<tr><td style=\"padding:16px 28px 8px 28px;").append(phong).append("font-size:15px;line-height:24px;color:#374151;\">")
+                .append("Xin chào <strong>").append(esc(ten)).append("</strong>,<br>")
+                .append("Đơn hàng của bạn tại <strong>").append(esc(tenCuaHang))
+                .append("</strong> đã được tiếp nhận nhưng <strong style=\"color:#d97706;\">CHƯA HOÀN TẤT THANH TOÁN</strong>.<br>")
+                .append("Nếu bạn đã lỡ tắt nhầm trình duyệt hoặc chuyển khoản chưa thành công, vui lòng bấm vào nút <strong>Quay lại màn hình thanh toán</strong> bên dưới để hoàn tất:</td></tr>\n");
+
+        // Thẻ mã đơn hàng nổi bật
+        h.append("<tr><td style=\"padding:8px 28px 8px 28px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#fffbeb;border:2px dashed #d97706;border-radius:12px;\">")
+                .append("<tr><td align=\"center\" style=\"padding:16px;\">")
+                .append("<div style=\"").append(phong).append("font-size:12px;color:#6b7280;letter-spacing:1px;font-weight:bold;\">MÃ ĐƠN HÀNG</div>")
+                .append("<div style=\"font-family:'Courier New',Courier,monospace;font-size:26px;line-height:34px;letter-spacing:3px;font-weight:bold;color:#b45309;margin-top:4px;\">")
+                .append(esc(ma)).append("</div>")
+                .append("</td></tr></table></td></tr>\n");
+
+        // Bảng chi tiết sản phẩm
+        boolean coCotGia = false;
+        java.util.List<String[]> dsMonTach = new java.util.ArrayList<>();
+        if (monHang != null) {
+            for (String m : monHang) {
+                String[] tach = tachMonHang(m);
+                if (!tach[3].isEmpty()) coCotGia = true;
+                dsMonTach.add(tach);
+            }
+        }
+
+        h.append("<tr><td style=\"padding:14px 28px 6px 28px;\">")
+                .append("<div style=\"").append(phong).append("font-size:13px;font-weight:bold;color:#111827;letter-spacing:0.5px;margin-bottom:8px;\">CHI TIẾT SẢN PHẨM</div>")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;\">")
+                .append("<tr style=\"background-color:#f9fafb;\">")
+                .append("<td style=\"padding:10px 14px;border-bottom:1px solid #e5e7eb;").append(phong).append("font-size:12px;font-weight:bold;color:#6b7280;\">SẢN PHẨM</td>")
+                .append("<td align=\"center\" style=\"padding:10px 10px;border-bottom:1px solid #e5e7eb;white-space:nowrap;").append(phong).append("font-size:12px;font-weight:bold;color:#6b7280;\">SL</td>");
+        if (coCotGia) {
+            h.append("<td align=\"right\" style=\"padding:10px 14px;border-bottom:1px solid #e5e7eb;white-space:nowrap;").append(phong).append("font-size:12px;font-weight:bold;color:#6b7280;\">THÀNH TIỀN</td>");
+        }
+        h.append("</tr>\n");
+
+        for (int i = 0; i < dsMonTach.size(); i++) {
+            String[] t = dsMonTach.get(i);
+            String borderBottom = (i == dsMonTach.size() - 1 && tien == null) ? "" : "border-bottom:1px solid #e5e7eb;";
+            h.append("<tr>")
+                    .append("<td style=\"padding:12px 14px;").append(borderBottom).append(phong).append("\">")
+                    .append("<div style=\"font-size:14px;font-weight:bold;color:#111827;line-height:20px;\">").append(esc(t[0])).append("</div>");
+            if (!t[1].isEmpty()) {
+                h.append("<div style=\"font-size:13px;color:#6b7280;margin-top:3px;\">").append(esc(t[1])).append("</div>");
+            }
+            h.append("</td>")
+                    .append("<td align=\"center\" style=\"padding:12px 10px;white-space:nowrap;").append(borderBottom).append(phong).append("\">")
+                    .append("<span style=\"display:inline-block;background-color:#eff6ff;color:#1d4ed8;font-size:13px;font-weight:bold;padding:3px 10px;border-radius:999px;\">")
+                    .append(esc(t[2].isEmpty() ? "x1" : t[2])).append("</span></td>");
+            if (coCotGia) {
+                h.append("<td align=\"right\" style=\"padding:12px 14px;white-space:nowrap;").append(borderBottom).append(phong).append("font-size:14px;font-weight:bold;color:#111827;\">")
+                        .append(esc(t[3])).append("</td>");
+            }
+            h.append("</tr>\n");
+        }
+
+        if (tien != null) {
+            String cot = coCotGia ? "2" : "1";
+            dongTien(h, cot, "Tạm tính", tien.tamTinh(), "#111827", true);
+            if (tien.giam() != null && !tien.giam().isBlank()) {
+                String nhan = tien.maPhieu() == null || tien.maPhieu().isBlank() ? "Giảm giá" : "Giảm giá (mã " + tien.maPhieu() + ")";
+                dongTien(h, cot, nhan, "-" + tien.giam(), "#16a34a", false);
+            }
+            dongTien(h, cot, "Phí vận chuyển", tien.phiVanChuyen() == null || tien.phiVanChuyen().startsWith("0 ") ? "Miễn phí" : tien.phiVanChuyen(),
+                    "#111827", false);
+        }
+
+        // Dòng tổng thanh toán
+        h.append("<tr style=\"background-color:#f8fafc;\">")
+                .append("<td colspan=\"").append(coCotGia ? "2" : "1").append("\" style=\"padding:14px;border-top:2px solid #e5e7eb;").append(phong).append("font-size:15px;font-weight:bold;color:#111827;\">Tổng thanh toán</td>")
+                .append("<td align=\"right\" style=\"padding:14px;border-top:2px solid #e5e7eb;white-space:nowrap;").append(phong).append("font-size:18px;font-weight:bold;color:#dc2626;\">")
+                .append(esc(thanhTienChu)).append("</td></tr>")
+                .append("</table></td></tr>\n");
+
+        // Thông tin nhận hàng & thanh toán
+        h.append("<tr><td style=\"padding:12px 28px 8px 28px;\">")
+                .append("<div style=\"").append(phong).append("font-size:13px;font-weight:bold;color:#111827;letter-spacing:0.5px;margin-bottom:8px;\">THÔNG TIN GIAO NHẬN</div>")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;\">")
+                .append("<tr><td style=\"padding:14px 18px;\">")
+                .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;\">");
+        dongThongTinDon(h, "Người nhận", ten, true);
+        if (tien != null && tien.sdt() != null && !tien.sdt().isBlank()) dongThongTinDon(h, "Số điện thoại", tien.sdt(), false);
+        dongThongTinDon(h, "Địa chỉ giao tới", diaChi, false);
+        dongThongTinDon(h, "Phương thức thanh toán", cachThanhToan, false);
+        h.append("</table></td></tr></table></td></tr>\n");
+
+        // Hướng dẫn thanh toán lại ở chân trang
+        h.append("<tr><td align=\"center\" style=\"padding:18px 28px 12px 28px;\">")
+                .append("<a href=\"").append(esc(link)).append("\" target=\"_blank\" style=\"").append(phong)
+                .append("display:inline-block;background-color:#d97706;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;\">")
+                .append("Quay lại màn hình thanh toán</a></td></tr>\n");
 
         dongKhungHtml(h);
         final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());

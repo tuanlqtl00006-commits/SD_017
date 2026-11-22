@@ -119,12 +119,33 @@ const GOI_Y_GHI_CHU = {
 }
 const THIEU_LY_DO = { [TT.DA_HUY]: 'Vui lòng nhập lý do hủy đơn.', [TT.GIAO_THAT_BAI]: 'Vui lòng nhập lý do giao hàng thất bại.' }
 
-function moXacNhan(trangThai) {
+async function moXacNhan(trangThai) {
   // Đơn online thiếu hàng: bấm Xác nhận thì mở popup hết hàng thay cho hộp xác nhận (góp ý 16/11 [05:20–06:47])
   if (trangThai === TT.DA_XAC_NHAN && data.value?.duocBaoHetHang) {
     moHetHang(data.value.dsThieuHang)
     return
   }
+
+  // Đơn COD: phải hiện thông báo xác nhận đã nhận tiền rồi mới xác nhận đã hoàn thành đơn
+  if (trangThai === TT.HOAN_THANH && (data.value?.duocXacNhanTienCod || (hd.value.loaiDon === 2 && daThanhToan.value < Number(hd.value.thanhTien || 0)))) {
+    const daNhanTien = await hoiXacNhan({
+      title: 'Xác nhận đã nhận tiền',
+      message: `Đơn hàng ${hd.value.maHoaDon} là đơn thanh toán khi nhận hàng (COD). Bạn xác nhận đã nhận đủ số tiền ${formatMoney(hd.value.thanhTien)} từ khách hàng / đơn vị giao hàng chưa?`,
+      confirmText: 'Xác nhận đã nhận tiền',
+      variant: 'primary',
+    })
+    if (!daNhanTien) return
+
+    try {
+      const res = await api.post(`/hoa-don/${idHoaDon}/xac-nhan-tien-cod`)
+      setData(res.data)
+      toast.success('Đã xác nhận nhận đủ tiền COD.')
+    } catch (e) {
+      toast.error(e.message || 'Không thể xác nhận tiền COD.')
+      return
+    }
+  }
+
   const c = (hd.value.chuyenDuoc ?? []).find((x) => x.trangThai === trangThai)
   action.open = true
   action.trangThai = trangThai
@@ -173,6 +194,26 @@ async function xacNhanDoiTrangThai() {
   if (ghiChu.length > 500) {
     action.error = 'Ghi chú tối đa 500 ký tự.'
     return
+  }
+
+  // Đơn COD: phải hiện thông báo xác nhận đã nhận tiền rồi mới xác nhận đã hoàn thành đơn
+  if (action.trangThai === TT.HOAN_THANH && (data.value?.duocXacNhanTienCod || (hd.value.loaiDon === 2 && daThanhToan.value < Number(hd.value.thanhTien || 0)))) {
+    const daNhanTien = await hoiXacNhan({
+      title: 'Xác nhận đã nhận tiền',
+      message: `Đơn hàng ${hd.value.maHoaDon} là đơn thanh toán khi nhận hàng (COD). Bạn xác nhận đã nhận đủ số tiền ${formatMoney(hd.value.thanhTien)} từ khách hàng / đơn vị giao hàng chưa?`,
+      confirmText: 'Xác nhận đã nhận tiền',
+      variant: 'primary',
+    })
+    if (!daNhanTien) return
+
+    try {
+      const resCod = await api.post(`/hoa-don/${idHoaDon}/xac-nhan-tien-cod`)
+      setData(resCod.data)
+      toast.success('Đã xác nhận nhận đủ tiền COD.')
+    } catch (e) {
+      action.error = e.message || 'Không thể xác nhận tiền COD.'
+      return
+    }
   }
   // Chuyển sang "Đã xác nhận" thì tự mở bản in / PDF hóa đơn.
   // Cửa sổ in phải mở ngay lúc người dùng bấm (trước khi chờ máy chủ) thì trình duyệt mới không chặn; có lỗi thì đóng lại.
@@ -242,8 +283,67 @@ function daSuaDon(d) {
   moSuaDon.value = false
   setData(d)
 }
-// Góp ý 14/11 (video 22:22 [04:52]): bỏ nút "Xác nhận đã nhận chuyển khoản". Tiền chuyển khoản do hệ thống tự ghi nhận (VietQR / giả lập);
-// quá 5 phút chưa nhận tiền thì đơn là "đơn treo", khách đổi được sang COD ở trang đặt hàng thành công.
+// Đơn chuyển khoản chưa thanh toán: Admin đổi sang COD khi khách liên hệ (Requirement 4)
+const dangDoiCod = ref(false)
+async function adminDoiSangCod() {
+  if (dangDoiCod.value) return
+  if (!(await hoiXacNhan({
+    title: 'Đổi sang thanh toán khi nhận hàng (COD)',
+    message: 'Khách hàng đã liên hệ yêu cầu đổi sang hình thức thanh toán khi nhận hàng (COD)? Thao tác này sẽ cập nhật phương thức thanh toán của đơn.',
+    confirmText: 'Đổi sang COD',
+  }))) return
+  dangDoiCod.value = true
+  try {
+    const res = await api.put(`/hoa-don/${idHoaDon}/doi-sang-cod`)
+    setData(res.data)
+    toast.success('Đã đổi đơn hàng sang thanh toán khi nhận hàng (COD).')
+  } catch (e) {
+    toast.error(e.message || 'Không đổi được sang COD.')
+  } finally {
+    dangDoiCod.value = false
+  }
+}
+
+// Đơn chuyển khoản chưa thanh toán: Admin xác nhận đã nhận chuyển khoản (Requirement 4)
+const moXacNhanChuyenKhoan = ref(false)
+const maGiaoDichCk = ref('')
+const dangXacNhanCk = ref(false)
+async function adminXacNhanChuyenKhoan() {
+  if (dangXacNhanCk.value) return
+  dangXacNhanCk.value = true
+  try {
+    const res = await api.post(`/hoa-don/${idHoaDon}/xac-nhan-thanh-toan`, { maGiaoDich: maGiaoDichCk.value.trim() })
+    setData(res.data)
+    moXacNhanChuyenKhoan.value = false
+    maGiaoDichCk.value = ''
+    toast.success('Đã xác nhận thanh toán chuyển khoản thành công.')
+  } catch (e) {
+    toast.error(e.message || 'Không xác nhận được thanh toán.')
+  } finally {
+    dangXacNhanCk.value = false
+  }
+}
+
+// Đơn COD: Xác nhận đã nhận tiền COD trước khi hoàn thành đơn (Requirement 6)
+const dangXacNhanCod = ref(false)
+async function adminXacNhanTienCod() {
+  if (dangXacNhanCod.value) return
+  if (!(await hoiXacNhan({
+    title: 'Xác nhận đã nhận tiền COD',
+    message: `Xác nhận đã nhận đủ tiền COD cho đơn hàng ${hd.value.maHoaDon}? Sau khi xác nhận tiền, bạn có thể chuyển đơn sang Hoàn thành.`,
+    confirmText: 'Xác nhận đã nhận tiền',
+  }))) return
+  dangXacNhanCod.value = true
+  try {
+    const res = await api.post(`/hoa-don/${idHoaDon}/xac-nhan-tien-cod`)
+    setData(res.data)
+    toast.success('Đã xác nhận đã nhận đủ tiền COD.')
+  } catch (e) {
+    toast.error(e.message || 'Không xác nhận được tiền COD.')
+  } finally {
+    dangXacNhanCod.value = false
+  }
+}
 
 const dangXacNhanHoan = ref(false)
 const moXacNhanHoan = ref(false)
@@ -372,6 +472,7 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
           <button v-if="hd.duocChinhSua" type="button" class="ad-btn" data-testid="hd-sua-don" @click="moSuaDon = true">
             <i class="bi bi-pencil-square" aria-hidden="true"></i> Chỉnh sửa đơn
           </button>
+
           <p v-if="data.donTreo" class="hd-khoa w-100 mb-0" role="note" data-testid="hd-don-treo">
             <i class="bi bi-hourglass-bottom" aria-hidden="true"></i> Đơn treo: quá 5 phút khách chưa chuyển khoản. Chờ tiền về hoặc khách đổi sang thanh toán khi nhận hàng.
           </p>
@@ -480,37 +581,25 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
     </BaseModal>
 
     <!-- Popup: xác nhận đơn online mà kho không đủ hàng -->
-    <BaseModal v-if="hetHang.open" title="Không đủ hàng để xác nhận đơn" size="md" @close="hetHang.open = false">
+    <BaseModal v-if="hetHang.open" title="Không đủ hàng trong kho để xác nhận" size="md" @close="hetHang.open = false">
       <div data-testid="hd-het-hang">
         <p class="mb-2">Đơn <strong>{{ hd.maHoaDon }}</strong> có sản phẩm không đủ hàng trong kho:</p>
         <ul class="hd-het-hang-ds">
           <li v-for="t in hetHang.thieu" :key="t">{{ t }}</li>
         </ul>
-        <p v-if="daThanhToan > 0" class="small mb-0">Khách đã thanh toán <strong>{{ formatMoney(daThanhToan) }}</strong>.</p>
-        <p v-else class="small text-muted mb-0">Khách chưa thanh toán (thanh toán khi nhận hàng).</p>
-        <div v-if="hetHang.buoc === 'huy'" class="alert alert-danger small mt-3 mb-0" role="alert" data-testid="hd-het-hang-hoi-huy">
-          Hủy đơn <strong>{{ hd.maHoaDon }}</strong>, gửi thư báo hết hàng và hoàn <strong>{{ formatMoney(daThanhToan) }}</strong> cho khách?
-          Thao tác này không hoàn tác được.
+        <div class="alert alert-warning small my-3" role="alert">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i>
+          Hệ thống không cho phép xác nhận khi không đủ hàng tồn kho. Vui lòng liên hệ với khách hàng để thông báo và thực hiện <strong>Hủy đơn</strong>.
         </div>
+        <p v-if="daThanhToan > 0" class="small mb-0">Khách đã thanh toán <strong>{{ formatMoney(daThanhToan) }}</strong> (hủy đơn để thực hiện hoàn tiền).</p>
+        <p v-else class="small text-muted mb-0">Khách chưa thanh toán.</p>
       </div>
       <template #footer>
-        <template v-if="hetHang.buoc === 'chon'">
-          <button type="button" class="ad-btn" data-testid="hd-het-hang-giu" :disabled="hetHang.dang" @click="giuHangCho">
-            <i class="bi bi-hourglass-split" aria-hidden="true"></i> Giữ hàng / chờ nhập thêm
-          </button>
-          <button type="button" class="ad-btn ad-btn-primary" data-testid="hd-het-hang-mail" :disabled="hetHang.dang" @click="guiMailHetHang">
-            <i class="bi bi-envelope-exclamation" aria-hidden="true"></i> Gửi mail báo hết hàng
-          </button>
-          <button v-if="daThanhToan > 0" type="button" class="ad-btn ad-btn-danger" data-testid="hd-het-hang-hoan" :disabled="hetHang.dang" @click="hetHang.buoc = 'huy'">
-            <i class="bi bi-cash-stack" aria-hidden="true"></i> Hoàn tiền cho khách
-          </button>
-        </template>
-        <template v-else>
-          <button type="button" class="ad-btn" :disabled="hetHang.dang" @click="hetHang.buoc = 'chon'">Quay lại</button>
-          <button type="button" class="ad-btn ad-btn-danger" data-testid="hd-het-hang-hoan-ok" :disabled="hetHang.dang" @click="huyVaHoanTien">
-            <span v-if="hetHang.dang" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Hủy đơn và hoàn tiền
-          </button>
-        </template>
+        <button type="button" class="ad-btn" :disabled="hetHang.dang" @click="hetHang.open = false">Đóng</button>
+        <button type="button" class="ad-btn ad-btn-danger" data-testid="hd-het-hang-hoan-ok" :disabled="hetHang.dang" @click="huyVaHoanTien">
+          <span v-if="hetHang.dang" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+          {{ daThanhToan > 0 ? 'Hủy đơn và hoàn tiền' : 'Hủy đơn' }}
+        </button>
       </template>
     </BaseModal>
 

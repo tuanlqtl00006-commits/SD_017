@@ -18,12 +18,45 @@ const linkXemDon = computed(() =>
     : { path: '/shop/tra-cuu', query: { ma: maHoaDon.value } },
 )
 
-// Đơn chọn chuyển khoản VietQR: hiện mã QR (tự điền số tiền + nội dung chuyển khoản = mã đơn)
+// Đơn chọn chuyển khoản VietQR, MoMo, VNPay: hiện mã QR (tự điền số tiền + nội dung chuyển khoản = mã đơn)
 const donLuu = computed(() => docDonHang().find((o) => o.maHoaDon === maHoaDon.value) || null)
 const donBackend = ref(null)
+
+function laPhuongThucQuetMa(pt, idPt) {
+  if (pt) {
+    const p = String(pt).toUpperCase()
+    if (p === 'COD') return false
+    if (['QR', 'VIETQR', 'MOMO', 'VNPAY'].includes(p)) return true
+  }
+  const id = Number(idPt)
+  return id === 2 || id === 4 || id === 6 || (id > 1 && id !== 3 && id !== 5)
+}
+
 const thanhToanQR = computed(() => {
-  if (donLuu.value) return donLuu.value.phuongThucThanhToan === 'QR'
-  return Number(donBackend.value?.idPhuongThucThanhToan) === 2
+  if (donLuu.value) return laPhuongThucQuetMa(donLuu.value.phuongThucThanhToan, donLuu.value.idPhuongThucThanhToan)
+  return laPhuongThucQuetMa(null, donBackend.value?.idPhuongThucThanhToan)
+})
+
+const loaiThanhToan = computed(() => {
+  const pt = String(donLuu.value?.phuongThucThanhToan || '').toUpperCase()
+  if (pt === 'MOMO') return 'MOMO'
+  if (pt === 'VNPAY') return 'VNPAY'
+  if (pt === 'VIETQR' || pt === 'QR') return 'VIETQR'
+  const id = Number(donBackend.value?.idPhuongThucThanhToan || donLuu.value?.idPhuongThucThanhToan)
+  if (id === 4) return 'VNPAY'
+  if (id === 6) return 'MOMO'
+  if (id === 2) return 'VIETQR'
+  return 'VIETQR'
+})
+
+const tenLoaiThanhToan = computed(() => {
+  switch (loaiThanhToan.value) {
+    case 'MOMO': return 'Ví điện tử MoMo'
+    case 'VNPAY': return 'Cổng thanh toán VNPay'
+    case 'VIETQR':
+    default:
+      return 'Chuyển khoản VietQR'
+  }
 })
 const soTien = computed(() => {
   if (donLuu.value?.tongThanhToan != null) return Math.round(Number(donLuu.value.tongThanhToan) || 0)
@@ -58,7 +91,7 @@ function capNhatTrangThaiDon(d) {
   if (!d) return
   if (d.hanChuyenKhoan) batDau.value = new Date(d.hanChuyenKhoan).getTime() - HAN_PHUT * 60000
 
-  if (d.idPhuongThucThanhToan === 1) {
+  if (d.idPhuongThucThanhToan === 1 || d.idPhuongThucThanhToan === 3) {
     daDoiCod.value = true
     clearInterval(timer)
     clearInterval(dongHo)
@@ -271,12 +304,20 @@ onMounted(async () => {
             </div>
             <div v-else-if="thanhToanQR" class="osv-qr mb-4">
               <div class="osv-dem" data-testid="osv-dem-nguoc"><i class="bi bi-clock me-1"></i>Mã QR còn hiệu lực <strong>{{ conLaiText }}</strong></div>
-              <div class="osv-qr-title"><i class="bi bi-qr-code-scan me-2"></i>Quét mã để thanh toán</div>
+              <div class="osv-qr-title"><i class="bi bi-qr-code-scan me-2"></i>Quét mã {{ tenLoaiThanhToan }} để thanh toán</div>
               <template v-if="giaLap">
                 <img :src="qrGiaLap" alt="Mã QR thanh toán giả lập" class="osv-qr-img" />
                 <div class="osv-qr-info">
                   <div class="osv-row"><span>Số tiền</span><strong class="text-danger">{{ formatMoney(soTien) }}</strong></div>
                   <div class="osv-row"><span>Nội dung</span><strong class="text-primary">{{ maHoaDon }}</strong></div>
+                </div>
+                <p class="osv-qr-note">
+                  {{ loaiThanhToan === 'MOMO' ? 'Mở ứng dụng Ví MoMo hoặc camera điện thoại quét mã QR. Sau khi xác nhận thanh toán, hệ thống sẽ tự động cập nhật đơn hàng.' : loaiThanhToan === 'VNPAY' ? 'Mở ứng dụng ngân hàng hoặc ví VNPAY quét mã VNPAY-QR để thanh toán. Hệ thống sẽ tự động xác nhận đơn ngay khi nhận được tiền.' : 'Mở app ngân hàng bất kỳ, quét mã QR; số tiền và nội dung sẽ tự điền. Hệ thống sẽ tự động xác nhận sau khi nhận được tiền.' }}
+                </p>
+                <div class="mt-2 text-center">
+                  <a :href="linkGiaLap" target="_blank" class="small text-decoration-none text-muted">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Mở giao diện thanh toán giả lập trên tab mới (dùng cho chạy thử nghiệm)
+                  </a>
                 </div>
               </template>
               <div v-else-if="qrLoi" class="small text-danger py-3">
@@ -314,7 +355,7 @@ onMounted(async () => {
                 <p class="osv-qr-note">Mở app ngân hàng, quét mã QR; số tiền và nội dung sẽ tự điền. Cửa hàng xác nhận đơn sau khi nhận được tiền.</p>
               </template>
               <div v-else class="small text-muted py-3">Đang tải mã QR...</div>
-              <div v-if="nganHang && !qrLoi" class="osv-wait"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Đang chờ hệ thống nhận tiền, trang sẽ tự cập nhật...</div>
+              <div class="osv-wait" data-testid="osv-dang-cho"><span class="spinner-border spinner-border-sm me-2 text-primary" aria-hidden="true"></span>Hệ thống đang tự động kiểm tra trạng thái thanh toán sau khi quét mã, trang sẽ tự cập nhật...</div>
             </div>
             <p class="small text-muted mb-4">
               Nhân viên tư vấn của FootStyle sẽ liên hệ qua số điện thoại của bạn để xác nhận đơn hàng trước khi gửi cho đơn vị vận chuyển.

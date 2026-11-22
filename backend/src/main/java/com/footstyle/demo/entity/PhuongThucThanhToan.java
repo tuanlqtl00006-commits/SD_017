@@ -9,7 +9,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
-/** Bảng phuong_thuc_thanh_toan (PT01 tiền mặt, PT02 chuyển khoản, PT03 COD, PT04 VNPay, PT05 tiền mặt + chuyển khoản). */
+/** Bảng phuong_thuc_thanh_toan (PT01 tiền mặt, PT02 chuyển khoản, PT03 COD, PT04 VNPay, PT05 tiền mặt + chuyển khoản, PT06 MoMo). */
 @Entity
 @Getter
 @Setter
@@ -21,6 +21,7 @@ public class PhuongThucThanhToan {
     public static final String COD = "PT03";
     public static final String VNPAY = "PT04";
     public static final String KET_HOP = "PT05";
+    public static final String MOMO = "PT06";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
