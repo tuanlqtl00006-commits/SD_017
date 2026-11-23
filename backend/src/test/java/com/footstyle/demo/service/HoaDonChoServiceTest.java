@@ -363,9 +363,13 @@ class HoaDonChoServiceTest {
         assertEquals(4_290_000L, items(hd).get(0).get("donGia"), "dòng cũ giữ giá cũ");
         assertEquals(true, items(hd).get(0).get("giaDoi"));
         assertEquals(3_861_000L, items(hd).get(1).get("donGia"));
+        // Góp ý 23/11: dòng giá mới nhớ giá trước khi đổi (chữ đỏ), dòng cũ thì không
+        assertNull(items(hd).get(0).get("giaTruocDoi"));
+        assertEquals(4_290_000L, items(hd).get(1).get("giaTruocDoi"));
 
         hd = service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1));
         assertEquals(2, items(hd).size(), "đã có dòng giá mới thì gộp vào, không hỏi lại");
+        assertEquals(4_290_000L, items(hd).get(1).get("giaTruocDoi"), "gộp thêm vẫn giữ giá trước");
         assertEquals(2, items(hd).get(1).get("soLuong"));
 
         ApiException tang = loi(() -> service.doiSoLuong(id, idDongCu, new HoaDonChoService.SoLuongRequest(2)));
@@ -392,6 +396,22 @@ class HoaDonChoServiceTest {
         assertEquals(3_003_000L, moi.get("donGia"));
         assertEquals(4_290_000L, moi.get("giaGoc"));
         assertEquals(30.0, moi.get("phanTramGiam"), "dòng thêm sau theo đợt mới");
+    }
+
+    /** Góp ý 23/11: xóa dòng giá cũ thì dòng giá mới vẫn giữ "giá trước khi đổi" (chữ đỏ), khởi động lại backend vẫn còn. */
+    @Test
+    void xoaDongGiaCu_dongGiaMoiVanGiuGiaTruoc(@org.junit.jupiter.api.io.TempDir java.nio.file.Path thuMuc) {
+        service.setGiaLucThemKho(new GiaLucThemKho(thuMuc.toString()));
+        Integer id = taoHoaDon();
+        Integer idCu = (Integer) items(service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1))).get(0).get("id");
+        phanTramDot.put(1L, 10.0);
+        service.themSanPham(id, new HoaDonChoService.ThemSanPhamRequest(vot.getId(), 1, true));
+        Map<String, Object> hd = service.xoaDong(id, idCu);
+        assertEquals(1, items(hd).size());
+        assertEquals(3_861_000L, items(hd).get(0).get("donGia"));
+        assertEquals(4_290_000L, items(hd).get(0).get("giaTruocDoi"), "xóa dòng giá cũ vẫn còn giá trước khi đổi");
+        service.setGiaLucThemKho(new GiaLucThemKho(thuMuc.toString())); // khởi động lại
+        assertEquals(4_290_000L, items(service.danhSach().get(0)).get(0).get("giaTruocDoi"));
     }
 
     /** 21/11: giá lúc thêm ghi ra tệp, khởi động lại backend (kho mới đọc lại tệp) dòng cũ vẫn đúng % + giá gốc của đợt cũ. */

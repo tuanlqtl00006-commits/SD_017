@@ -133,6 +133,9 @@ function handleSearch() {
               <RouterLink to="/shop/san-pham" class="vnb-nav-link">Sản phẩm</RouterLink>
             </li>
             <li class="vnb-nav-item">
+              <RouterLink to="/shop/goi-y" class="vnb-nav-link" data-testid="nav-goi-y">Gợi ý</RouterLink>
+            </li>
+            <li class="vnb-nav-item">
               <RouterLink to="/shop/uu-dai" class="vnb-nav-link">Ưu đãi</RouterLink>
             </li>
             <li class="vnb-nav-item">

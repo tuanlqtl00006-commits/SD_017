@@ -225,7 +225,71 @@ public class MailService {
 
     @PreDestroy
     void dong() {
+        // Tắt máy chủ khi còn thư trạng thái đang chờ gộp: gửi nốt ngay thay vì bỏ (khách vẫn nhận thư trạng thái cuối)
+        synchronized (thuTrangThaiCho) {
+            for (ThuCho c : thuTrangThaiCho.values()) {
+                if (c.hen().cancel(false)) luongGui.submit(c.gui());
+            }
+            thuTrangThaiCho.clear();
+        }
+        henGio.shutdownNow();
         luongGui.shutdown();
+    }
+
+    /*
+     * Góp ý 22/11 "mail gọn lại": nhân viên bấm nhiều bước liền nhau (xác nhận, chờ giao, đang giao...) thì chỉ gửi MỘT thư
+     * báo trạng thái cuối, không dồn mỗi bước một thư. Thư hẹn gửi sau msGopTrangThai; đổi tiếp trong lúc chờ thì thư cũ bị thay.
+     */
+    private final Map<String, ThuCho> thuTrangThaiCho = new ConcurrentHashMap<>();
+
+    /** Một thư trạng thái đang chờ: lịch hẹn và việc gửi (giữ việc gửi để lúc tắt máy chủ còn gửi nốt). */
+    private record ThuCho(java.util.concurrent.ScheduledFuture<?> hen, Runnable gui) {
+    }
+
+    private final java.util.concurrent.ScheduledExecutorService henGio = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "hen-gui-mail");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** Chờ bao lâu (ms) sau lần đổi trạng thái cuối mới gửi thư; 0 = gửi ngay. Máy chủ chạy thật: app.mail.gop-trang-thai-ms (mặc định 1 phút). */
+    long msGopTrangThai = 0;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void datMsGopTrangThai(@Value("${app.mail.gop-trang-thai-ms:60000}") long ms) {
+        this.msGopTrangThai = Math.max(0, ms);
+    }
+
+    /** Hẹn gửi thư trạng thái của đơn `ma`: có thư cũ đang chờ thì bỏ thư cũ, chỉ giữ thư mới nhất. */
+    private void henGuiTrangThai(String ma, Runnable gui) {
+        if (msGopTrangThai <= 0) {
+            luongGui.submit(gui);
+            return;
+        }
+        synchronized (thuTrangThaiCho) {
+            huyThuTrangThaiCho(ma);
+            java.util.concurrent.ScheduledFuture<?> hen = henGio.schedule(() -> {
+                synchronized (thuTrangThaiCho) {
+                    ThuCho c = thuTrangThaiCho.get(ma);
+                    if (c != null && c.gui() == gui) thuTrangThaiCho.remove(ma);
+                }
+                luongGui.submit(gui);
+            }, msGopTrangThai, java.util.concurrent.TimeUnit.MILLISECONDS);
+            thuTrangThaiCho.put(ma, new ThuCho(hen, gui));
+        }
+    }
+
+    /** Bỏ thư trạng thái đang chờ của đơn `ma` (vd đơn vừa bị hủy thì không gửi thư "đã xác nhận" sau thư hủy). */
+    private void huyThuTrangThaiCho(String ma) {
+        synchronized (thuTrangThaiCho) {
+            ThuCho cu = thuTrangThaiCho.remove(ma);
+            if (cu != null) cu.hen().cancel(false);
+        }
+    }
+
+    /** Số thư trạng thái đang chờ gộp (cho test). */
+    int soThuTrangThaiCho() {
+        return thuTrangThaiCho.size();
     }
 
     /** Khách có email hợp lệ thì mới gửi được. */
@@ -496,7 +560,7 @@ public class MailService {
         final String den = email.trim();
         String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
         String ma = String.valueOf(maHoaDon);
-        String tieuDe = "[" + tenCuaHang + "] Đặt hàng thành công - đơn " + ma;
+        String tieuDe = tieuDeDon(ma); // mọi thư cùng đơn chung 1 tiêu đề để gộp hội thoại
         StringBuilder chu = new StringBuilder("Xin chào " + ten + ",\n\n"
                 + "Cảm ơn bạn đã đặt hàng tại " + tenCuaHang + ". Đơn " + ma + " đã được ghi nhận và đang chờ cửa hàng xác nhận.\n\n");
         if (monHang != null) {
@@ -627,7 +691,7 @@ public class MailService {
                     .append("Mở trang thanh toán</a></td></tr>\n");
         }
         dongKhungHtml(h);
-        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
+        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString(), ma);
         luongGui.submit(() -> gui(den, thu, logoGan));
     }
 
@@ -641,7 +705,7 @@ public class MailService {
         final String den = email.trim();
         String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
         String ma = String.valueOf(maHoaDon);
-        String tieuDe = "[" + tenCuaHang + "] Thông báo đơn hàng chưa thanh toán - Đơn " + ma;
+        String tieuDe = tieuDeDon(ma); // mọi thư cùng đơn chung 1 tiêu đề để gộp hội thoại
         String link = (linkThanhToan != null && !linkThanhToan.isBlank())
                 ? linkThanhToan.trim()
                 : ((linkCuaHang != null ? linkCuaHang : "http://localhost:5173") + "/shop/dat-hang-thanh-cong?ma=" + ma);
@@ -765,7 +829,7 @@ public class MailService {
                 .append("Quay lại màn hình thanh toán</a></td></tr>\n");
 
         dongKhungHtml(h);
-        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
+        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString(), ma);
         luongGui.submit(() -> gui(den, thu, logoGan));
     }
 
@@ -779,7 +843,8 @@ public class MailService {
         String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
         String ly = lyDo == null || lyDo.isBlank() ? "Cửa hàng không thể đáp ứng đơn hàng vào lúc này" : lyDo.trim();
         String ma = String.valueOf(maHoaDon);
-        String tieuDe = "[" + tenCuaHang + "] Đơn hàng " + ma + " đã bị hủy";
+        huyThuTrangThaiCho(ma); // đơn đã hủy: bỏ thư trạng thái đang chờ gửi
+        String tieuDe = tieuDeDon(ma); // mọi thư cùng đơn chung 1 tiêu đề để gộp hội thoại
         String banChu = "Xin chào " + ten + ",\n\n"
                 + "Rất tiếc, đơn hàng " + ma + " của bạn tại " + tenCuaHang + " đã bị hủy.\n"
                 + "Lý do: " + ly + "\n\n"
@@ -803,7 +868,7 @@ public class MailService {
                 .append("Nếu bạn đã thanh toán trước, cửa hàng sẽ liên hệ để hoàn tiền lại cho bạn. Rất mong bạn thông cảm vì sự bất tiện này.</td></tr>\n");
         dongKhungHtml(h);
 
-        final ThuMail thu = new ThuMail(tieuDe, banChu, h.toString());
+        final ThuMail thu = new ThuMail(tieuDe, banChu, h.toString(), ma);
         luongGui.submit(() -> gui(den, thu, logoGan));
     }
 
@@ -818,7 +883,7 @@ public class MailService {
         String ten = hoTen == null || hoTen.isBlank() ? "quý khách" : hoTen.trim();
         String ma = String.valueOf(maHoaDon);
         java.util.List<String> ds = monThieu == null ? java.util.List.of() : monThieu;
-        String tieuDe = "[" + tenCuaHang + "] Đơn hàng " + ma + ": sản phẩm tạm hết hàng";
+        String tieuDe = tieuDeDon(ma); // mọi thư cùng đơn chung 1 tiêu đề để gộp hội thoại
         StringBuilder chu = new StringBuilder();
         chu.append("Xin chào ").append(ten).append(",\n\n")
                 .append("Một số sản phẩm trong đơn hàng ").append(ma).append(" hiện không còn đủ trong kho:\n");
@@ -847,7 +912,7 @@ public class MailService {
                 .append(" hay hủy đơn (nếu đã chuyển khoản, cửa hàng hoàn lại tiền).</td></tr>\n");
         dongKhungHtml(h);
 
-        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
+        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString(), ma);
         luongGui.submit(() -> gui(den, thu, logoGan));
     }
 
@@ -860,7 +925,7 @@ public class MailService {
         final String den = email.trim();
         String ten = hoTen == null || hoTen.isBlank() ? "quý khách" : hoTen.trim();
         String ma = String.valueOf(maHoaDon);
-        String tieuDe = "[" + tenCuaHang + "] Đã hoàn tiền đơn hàng " + ma;
+        String tieuDe = tieuDeDon(ma); // mọi thư cùng đơn chung 1 tiêu đề để gộp hội thoại
         String chu = "Xin chào " + ten + ",\n\n" + tenCuaHang + " đã chuyển trả " + soTien + " cho đơn hàng " + ma + "."
                 + (maGiaoDich == null || maGiaoDich.isBlank() ? "" : "\nMã giao dịch hoàn tiền: " + maGiaoDich.trim())
                 + "\nTùy ngân hàng, tiền có thể về tài khoản của bạn sau vài phút đến 1 ngày làm việc.\n"
@@ -884,7 +949,7 @@ public class MailService {
         h.append("<tr><td style=\"padding:8px 28px 12px 28px;").append(phong).append("font-size:14px;line-height:22px;color:#4b5563;\">")
                 .append("Tùy ngân hàng, tiền có thể về tài khoản của bạn sau vài phút đến 1 ngày làm việc. Nếu chưa nhận được, bạn vui lòng liên hệ cửa hàng.</td></tr>\n");
         dongKhungHtml(h);
-        final ThuMail thu = new ThuMail(tieuDe, chu, h.toString());
+        final ThuMail thu = new ThuMail(tieuDe, chu, h.toString(), ma);
         luongGui.submit(() -> gui(den, thu, logoGan));
     }
 
@@ -899,9 +964,10 @@ public class MailService {
         String ten = hoTen == null || hoTen.isBlank() ? "quý khách" : hoTen.trim();
         String ly = lyDo == null || lyDo.isBlank() ? "Sản phẩm trong đơn hàng đã hết hàng tồn kho" : lyDo.trim();
         String ma = String.valueOf(maHoaDon);
+        huyThuTrangThaiCho(ma); // đơn đã hủy: bỏ thư trạng thái đang chờ gửi
         String tienHoan = soTienHoan == null || soTienHoan.isBlank() ? "Toàn bộ số tiền đã thanh toán" : soTienHoan.trim();
         String hinhThuc = phuongThuc == null || phuongThuc.isBlank() ? "Chuyển khoản ngân hàng" : phuongThuc.trim();
-        String tieuDe = "[" + tenCuaHang + "] Thông báo hủy đơn và hoàn tiền - Đơn hàng " + ma;
+        String tieuDe = tieuDeDon(ma); // mọi thư cùng đơn chung 1 tiêu đề để gộp hội thoại
 
         String banChu = "Xin chào " + ten + ",\n\n"
                 + "Cửa hàng " + tenCuaHang + " xin thông báo đơn hàng " + ma + " của bạn đã được hủy do: " + ly + ".\n\n"
@@ -964,7 +1030,7 @@ public class MailService {
         }
 
         dongKhungHtml(h);
-        final ThuMail thu = new ThuMail(tieuDe, banChu, h.toString());
+        final ThuMail thu = new ThuMail(tieuDe, banChu, h.toString(), ma);
         luongGui.submit(() -> gui(den, thu, logoGan));
     }
 
@@ -1020,7 +1086,7 @@ public class MailService {
         NoiDungTrangThai nd = noiDungTrangThai(trangThai);
         boolean thatBai = trangThai == 8;
         String lyDo = thatBai && ghiChu != null && !ghiChu.isBlank() ? ghiChu.trim() : null;
-        String tieuDe = "[" + tenCuaHang + "] Đơn hàng " + ma + ": " + nd.tieuDe().toLowerCase(Locale.forLanguageTag("vi-VN"));
+        String tieuDe = tieuDeDon(ma); // mọi thư cùng đơn chung 1 tiêu đề để gộp hội thoại
         StringBuilder chu = new StringBuilder("Xin chào " + ten + ",\n\n" + nd.loiNhan() + "\n\nMã đơn hàng: " + ma);
         if (lyDo != null) chu.append("\nLý do: ").append(lyDo);
         if (thanhTienChu != null) chu.append("\nTổng thanh toán: ").append(thanhTienChu);
@@ -1046,8 +1112,8 @@ public class MailService {
         h.append("</table></td></tr></table></td></tr>\n");
         // Thanh tiến độ đã cho khách thấy đơn đang ở bước nào: bỏ nút "Tra cứu đơn hàng" (góp ý 22/11)
         dongKhungHtml(h);
-        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString());
-        luongGui.submit(() -> gui(den, thu, logoGan));
+        final ThuMail thu = new ThuMail(tieuDe, chu.toString(), h.toString(), ma);
+        henGuiTrangThai(ma, () -> gui(den, thu, logoGan));
     }
 
     /** Các bước của đơn online, cùng tên và thứ tự với thanh tiến độ ở màn tra cứu / chi tiết hóa đơn. */
@@ -1227,6 +1293,24 @@ public class MailService {
         if (logoGan != null) {
             helper.addInline(PhieuMailNoiDung.CID_LOGO, new ByteArrayResource(logoGan), "image/jpeg");
         }
+        if (thu.maDon() != null) {
+            // Cùng tiêu đề + cùng mã gốc ở References / In-Reply-To: Gmail, Outlook gộp mọi thư của đơn thành một cuộc hội thoại
+            String goc = maGocHoiThoai(thu.maDon());
+            m.setHeader("In-Reply-To", goc);
+            m.setHeader("References", goc);
+        }
         return m;
+    }
+
+    /** Mã gốc của cuộc hội thoại thư một đơn hàng, vd "<don-HD988@footstyle.vn>" (không trùng Message-ID thật của thư nào). */
+    String maGocHoiThoai(String maDon) {
+        String mien = "footstyle.local";
+        if (from != null && from.contains("@")) mien = from.substring(from.indexOf('@') + 1).trim();
+        return "<don-" + maDon.replaceAll("[^A-Za-z0-9]", "") + "@" + mien + ">";
+    }
+
+    /** Tiêu đề chung cho mọi thư của một đơn hàng (đặt hàng, đổi trạng thái, hủy, hoàn tiền...): trạng thái nằm ở dòng xem trước. */
+    String tieuDeDon(String maDon) {
+        return "[" + tenCuaHang + "] Đơn hàng " + maDon;
     }
 }

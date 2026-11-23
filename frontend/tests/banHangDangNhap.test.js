@@ -34,6 +34,7 @@ import { _datLaiAuth, useAuth } from '../src/composables/useAuth'
 import { _datLaiGiaoCa } from '../src/composables/useGiaoCa'
 import { useToast } from '../src/composables/useToast'
 import { layPhien, xoaPhien } from '../src/services/phien'
+import { xoaGiaDaHien } from '../src/components/banHang/giaDaHien'
 
 const body = () => new DOMWrapper(document.body)
 const loi = (message, code, extra = {}) => Object.assign(new Error(message), { code, ...extra })
@@ -45,6 +46,7 @@ const ganVao = (c) => {
 }
 
 beforeEach(() => {
+  xoaGiaDaHien()
   document.body.innerHTML = ''
   localStorage.clear()
   sessionStorage.clear()
@@ -187,7 +189,7 @@ function mayChuGia({ dangMo = CA, phieus = () => [], tonKho = 5 } = {}) {
   const dto = (h) => {
     const items = h.dong.map((d) => ({
       ...SP, id: d.id, idBienThe: SP.id, ten: SP.tenSanPham, donGia: d.donGia, giaHienTai: may.gia,
-      giaDoi: may.gia !== d.donGia, soLuong: d.soLuong, tonKho: may.ton, thanhTien: d.donGia * d.soLuong,
+      giaDoi: may.gia !== d.donGia, soLuong: d.soLuong, tonKho: may.ton, thanhTien: d.donGia * d.soLuong, giaTruocDoi: d.giaTruoc ?? null,
     }))
     return {
       id: h.id, maHoaDon: h.ma, khach: h.khach, items, tongTienHang: items.reduce((s, d) => s + d.thanhTien, 0),
@@ -201,7 +203,7 @@ function mayChuGia({ dangMo = CA, phieus = () => [], tonKho = 5 } = {}) {
     if (url === '/cua-hang/phi-van-chuyen') return { data: { phiVanChuyen: phiVanChuyenTheoTinh(cfg?.params?.tinhThanh, cfg?.params?.phuongXa), soKm: null, nguon: 'BANG_TINH' } }
     if (url === '/giao-ca/hien-tai') return { data: { dangMo, tongKet: dangMo ? { soHoaDon: 0, doanhThu: 0 } : null, lichHomNay: [] } }
     if (url === '/ban-hang/san-pham/loc') {
-      return { data: { items: may.ton > 0 ? [{ ...SP, tonKho: may.ton }] : [], tongSo: may.ton > 0 ? 1 : 0, trang: 0, boLoc: {} } }
+      return { data: { items: may.ton > 0 ? [{ ...SP, tonKho: may.ton, donGia: may.gia, phanTramGiam: may.gia < SP.giaGoc ? Math.round((1 - may.gia / SP.giaGoc) * 100) : 0 }] : [], tongSo: may.ton > 0 ? 1 : 0, trang: 0, boLoc: {} } }
     }
     if (url === '/ban-hang/hoa-don-cho') return { data: may.ds.map(dto) }
     if (url === '/ban-hang/phieu-giam-gia') return { data: phieus() }
@@ -241,7 +243,7 @@ function mayChuGia({ dangMo = CA, phieus = () => [], tonKho = 5 } = {}) {
       }
       may.ton -= body.soLuong
       if (d) d.soLuong += body.soLuong
-      else h.dong.push({ id: may.idCt++, donGia: may.gia, soLuong: body.soLuong })
+      else h.dong.push({ id: may.idCt++, donGia: may.gia, soLuong: body.soLuong, giaTruoc: khac ? h.dong.filter((x) => x.donGia !== may.gia).at(-1).donGia : null })
       return { data: dto(h) }
     }
     if (url.endsWith('/thanh-toan')) {
@@ -492,6 +494,50 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(w.find('.bh-gio').text()).not.toContain('Kho còn')
   })
 
+  // Góp ý 16/11 [00:00-00:44], 23/11: bảng "Chọn sản phẩm" chưa đổi giá ngay; bấm Thêm -> popup đổi giá -> OK rồi mới hiện giá mới
+  it('bảng Chọn sản phẩm: sản phẩm đã trong giỏ mà giá đổi thì vẫn hiện giá như giỏ, bấm Thêm + OK mới hiện giá mới', async () => {
+    const { w, may } = await moBanHang()
+    const giaTrongBang = () => body().find('[data-testid="bh-gia-chon"]').text()
+    expect(giaTrongBang()).toBe('3.861.000 ₫')
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    may.gia = 4290000 // quản lý đổi đợt giảm giá
+    nhanTin({ chuDe: ['san-pham'], nguon: 'may-khac' })
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    await flushPromises()
+    expect(giaTrongBang()).toBe('3.861.000 ₫') // chưa đổi ngay
+    await nutThem(w).trigger('click')
+    await flushPromises()
+    expect(body().find('[data-testid="bh-hoi-gia"]').exists()).toBe(true) // popup sản phẩm đã đổi giá
+    expect(giaTrongBang()).toBe('3.861.000 ₫')
+    await body().find('[data-testid="bh-hoi-gia-ok"]').trigger('click')
+    await flushPromises()
+    expect(may.ds[0].dong.map((d) => d.donGia)).toEqual([3861000, 4290000])
+    expect(giaTrongBang()).toBe('4.290.000 ₫') // OK xong mới hiện giá mới
+  })
+
+  it('bảng Chọn sản phẩm: sản phẩm CHƯA có trong giỏ cũng không nhảy giá; bấm Thêm thì hỏi, OK mới thêm và hiện giá mới', async () => {
+    const { may } = await moBanHang()
+    const giaTrongBang = () => body().find('[data-testid="bh-gia-chon"]').text()
+    expect(giaTrongBang()).toBe('3.861.000 ₫')
+    may.gia = 4290000 // đổi đợt khi giỏ còn trống
+    nhanTin({ chuDe: ['san-pham'], nguon: 'may-khac' })
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(giaTrongBang()).toBe('3.861.000 ₫') // chưa nhảy giá
+    await nutThem().trigger('click')
+    await flushPromises()
+    const hop = body().find('.modal-dialog, [role="dialog"]')
+    expect(body().text()).toContain('đã đổi giá: 3.861.000 ₫ → 4.290.000 ₫')
+    expect(may.ds.length ? may.ds[0].dong.length : 0).toBe(0) // chưa thêm khi chưa bấm OK
+    await body().findAll('button').filter((b) => b.text().trim() === 'OK').at(-1).trigger('click')
+    await flushPromises()
+    expect(may.ds[0].dong.map((d) => d.donGia)).toEqual([4290000])
+    expect(giaTrongBang()).toBe('4.290.000 ₫')
+    expect(hop).toBeTruthy()
+  })
+
   it('giá đổi khi đang lên đơn: dòng cũ ẩn nút +, chữ đỏ giá cũ → giá mới (góp ý 21/11); gõ tăng số lượng thì popup, OK thì phần thêm thành dòng mới giá mới', async () => {
     const { w, may } = await moBanHang()
     await nutThem(w).trigger('click')
@@ -531,9 +577,49 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await body().find('[data-testid="bh-hoi-gia-ok"]').trigger('click')
     await flushPromises()
     expect(may.ds[0].dong.map((d) => [d.donGia, d.soLuong])).toEqual([[3861000, 1], [4290000, 1], [4000000, 1]])
+    // Góp ý 23/11 (Task 1.2): mỗi dòng giữ lịch sử giá của riêng nó, thêm dòng giá lần 3 không xóa chữ đỏ của dòng 2
     const dong3 = w.findAll('.bh-gio tbody tr')
-    expect(dong3.map((r) => r.find('[data-testid="bh-gia-doi"]').exists())).toEqual([false, false, true])
-    expect(dong3[2].find('[data-testid="bh-gia-doi"]').text()).toBe('3.861.000 ₫, 4.290.000 ₫ → 4.000.000 ₫')
+    expect(dong3.map((r) => r.find('[data-testid="bh-gia-doi"]').exists())).toEqual([false, true, true])
+    expect(dong3[1].find('[data-testid="bh-gia-doi"]').text()).toBe('3.861.000 ₫ → 4.290.000 ₫')
+    expect(dong3[2].find('[data-testid="bh-gia-doi"]').text()).toBe('4.290.000 ₫ → 4.000.000 ₫')
+    // Góp ý 23/11 (video): xóa dòng giá cũ thì dòng còn lại vẫn giữ chữ đỏ của mình (giá trước khi đổi lưu theo từng dòng)
+    const xoa = async (i) => {
+      await w.findAll('.bh-gio tbody tr')[i].find('button[title="Bỏ khỏi hóa đơn"]').trigger('click')
+      await flushPromises()
+      await body().findAll('button').find((b) => b.text().trim() === 'Bỏ').trigger('click')
+      await flushPromises()
+    }
+    await xoa(0)
+    await xoa(0)
+    const conLai = w.findAll('.bh-gio tbody tr')
+    expect(conLai).toHaveLength(1)
+    expect(conLai[0].find('[data-testid="bh-gia-doi"]').text()).toBe('4.290.000 ₫ → 4.000.000 ₫')
+  })
+
+  // Góp ý 23/11 (Task 1.1): một biến thể tách nhiều dòng thì nút + khóa / mở đồng loạt theo tổng số lượng so với tồn kho
+  it('biến thể nhiều dòng: hết kho thì khóa + ở mọi dòng của biến thể, giảm bớt thì mở lại', async () => {
+    const { w, may } = await moBanHang({ tonKho: 3 })
+    await nutThem(w).trigger('click') // dòng 1 giá cũ, SL 1 (kho còn 2)
+    await flushPromises()
+    may.gia = 4290000
+    nhanTin({ chuDe: ['san-pham'], nguon: 'may-khac' })
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    await w.find('.bh-gio input[type="number"]').setValue('2')
+    await flushPromises()
+    await body().find('[data-testid="bh-hoi-gia-ok"]').trigger('click') // dòng 2 giá mới, SL 1 (kho còn 1)
+    await flushPromises()
+    const nutCong = () => w.findAll('.bh-gio button[aria-label^="Tăng số lượng"]')
+    expect(nutCong()).toHaveLength(1)
+    expect(nutCong()[0].attributes('disabled')).toBeUndefined()
+    await nutCong()[0].trigger('click') // dòng 2 lên 2: tổng 3 = tồn kho khả dụng
+    await flushPromises()
+    expect(may.ds[0].dong.map((d) => d.soLuong)).toEqual([1, 2])
+    expect(nutCong()[0].attributes('disabled')).toBeDefined()
+    expect(w.findAll('.bh-gio input[type="number"]').map((i) => i.attributes('max'))).toEqual(['1', '2'])
+    await w.findAll('.bh-gio button[aria-label^="Giảm số lượng"]')[1].trigger('click') // giảm dòng 2 -> mở lại
+    await flushPromises()
+    expect(nutCong()[0].attributes('disabled')).toBeUndefined()
   })
 
   it('dòng giữ giá cũ vẫn thanh toán được ngay, không bị chặn vì giá đổi', async () => {
@@ -965,7 +1051,15 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
     expect(hopPhieu().text()).toContain('Phiếu GIAM50K vừa đổi mức giảm')
     expect(may.thanhToan).toBeFalsy()
-    await nutTrongHopPhieu('Tiếp tục thanh toán').trigger('click')
+    // Góp ý 23/11: chỉ 2 nút Áp dụng / Hủy, không còn "giữ nguyên"
+    expect(hopPhieu().findAll('button').map((b) => b.text())).toEqual(['Áp dụng', 'Hủy'])
+    await nutTrongHopPhieu('Hủy').trigger('click') // Hủy: về màn bán hàng, chưa thanh toán
+    await flushPromises()
+    expect(hopPhieu().exists()).toBe(false)
+    expect(may.thanhToan).toBeFalsy()
+    await w.find('.bh-nut-tt').trigger('click') // bấm lại vẫn hỏi
+    await flushPromises()
+    await nutTrongHopPhieu('Áp dụng').trigger('click')
     await flushPromises()
     await nutXacNhan().trigger('click')
     await flushPromises()
@@ -1014,7 +1108,7 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     expect(may.thanhToan).toEqual(expect.objectContaining({ maPhieu: 'GIAM90K', soTienGiam: 90000 }))
   })
 
-  it('góp ý 21/11: phiếu đang áp bị hủy / không còn đủ điều kiện thì không tự thay, báo đỏ; bấm Thanh toán hỏi áp phiếu khác hoặc không dùng phiếu', async () => {
+  it('góp ý 23/11: phiếu đang áp ngừng hoạt động: bấm Thanh toán hỏi Áp dụng / Hủy; Hủy thì gỡ phiếu, về màn bán, bấm icon ★ áp phiếu tốt nhất', async () => {
     vi.spyOn(window, 'open').mockReturnValue(null)
     let ds = [{ ma: 'GIAM50K', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 }]
     const { w, may } = await moBanHang({ phieus: () => ds })
@@ -1034,14 +1128,44 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await flushPromises()
     expect(hopPhieu().text()).toContain('Phiếu GIAM50K không còn dùng được')
     expect(hopPhieu().text()).toContain('GIAM30K')
-    await nutTrongHopPhieu('Thanh toán không dùng phiếu').trigger('click')
+    expect(hopPhieu().findAll('button').map((b) => b.text())).toEqual(['Áp dụng', 'Hủy'])
+    await nutTrongHopPhieu('Hủy').trigger('click')
     await flushPromises()
-    await new Promise((r) => setTimeout(r, 350))
+    // Về màn bán hàng, chưa thanh toán; phiếu ngừng hoạt động đã gỡ khỏi đơn, tiền tính như chưa áp mã, không tự áp phiếu khác
+    expect(hopPhieu().exists()).toBe(false)
+    expect(may.thanhToan).toBeFalsy()
+    expect(w.find('[data-testid="bh-phieu-ap-dung"]').text()).not.toContain('GIAM50K')
+    expect(w.find('[data-testid="bh-phieu-ap-dung"]').text()).toContain('Đơn chưa áp phiếu giảm giá')
+    expect(w.find('.bh-nut-tt').text()).toContain('7.722.000') // 2 sản phẩm, không trừ phiếu
+    // Nhân viên bấm icon ★ cạnh ô phiếu: tự chọn phiếu tốt nhất còn hiệu lực
+    await w.find('[data-testid="bh-doi-phieu-tot"]').trigger('click')
     await flushPromises()
-    expect(w.text()).not.toContain('GIAM30K') // đã chọn không dùng phiếu: không tự áp lại
+    expect(w.find('[data-testid="bh-phieu-ap-dung"]').text()).toContain('Đang áp dụng phiếu GIAM30K')
+    await w.find('.bh-nut-tt').trigger('click')
+    await flushPromises()
     await nutXacNhan().trigger('click')
     await flushPromises()
-    expect(may.thanhToan.maPhieu || '').toBe('')
+    expect(may.thanhToan).toEqual(expect.objectContaining({ maPhieu: 'GIAM30K', soTienGiam: 30000 }))
+  })
+
+  it('góp ý 23/11: phiếu đang áp ngừng hoạt động, bấm Áp dụng thì lấy phiếu thay thế và thanh toán tiếp', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    let ds = [{ ma: 'GIAM50K', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: true, soTienGiam: 50000 }]
+    const { w, may } = await moBanHang({ phieus: () => ds })
+    await nutThem(w).trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    ds = [
+      { ma: 'GIAM30K', loaiGiam: 'SO_TIEN', giaTri: 30000, apDungDuoc: true, soTienGiam: 30000 },
+      { ma: 'GIAM50K', loaiGiam: 'SO_TIEN', giaTri: 50000, apDungDuoc: false, soTienGiam: 0, lyDo: 'Phiếu đang ngừng hoạt động.' },
+    ]
+    await w.find('.bh-nut-tt').trigger('click')
+    await flushPromises()
+    await nutTrongHopPhieu('Áp dụng').trigger('click')
+    await flushPromises()
+    await nutXacNhan().trigger('click')
+    await flushPromises()
+    expect(may.thanhToan).toEqual(expect.objectContaining({ maPhieu: 'GIAM30K', soTienGiam: 30000 }))
   })
 })
 

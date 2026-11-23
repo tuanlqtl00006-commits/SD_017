@@ -217,8 +217,9 @@ async function kiemTraTruocKhiDat() {
     const dsMoi = await taiPhieuChoKhach(Math.round(cartStore.subTotal))
     const conDung = dsMoi.find((x) => x.ma === dangDung.ma)
     const tot = phieuTotNhat(dsMoi)
-    // Phiếu đang chọn bị tắt / hết hạn / bị sửa: chỉ 2 nút (góp ý 18/11: bớt chữ, bớt nút trùng nghĩa).
-    // "Áp dụng" = lấy phiếu mới rồi đặt hàng; "Hủy" = không áp dụng, đặt hàng không dùng phiếu (lời góp ý 17/11 [19:31]).
+    // Phiếu đang chọn bị tắt / hết hạn / bị sửa: chỉ 2 nút "Áp dụng" / "Hủy", cùng cách với bán tại quầy (góp ý 23/11 Task 2.1-2.3).
+    // "Áp dụng" = lấy thông tin mới nhất của phiếu (mức mới / phiếu thay thế / không dùng phiếu) rồi đặt hàng;
+    // "Hủy" = dừng đặt hàng, ở lại trang; phiếu đã ngừng thì gỡ khỏi giỏ và tính lại tiền, khách tự bấm "Áp phiếu tốt nhất".
     const boPhieu = async () => {
       cartStore.removeVoucher()
       await cartStore.taiBaoGia()
@@ -237,32 +238,27 @@ async function kiemTraTruocKhiDat() {
       const lyDo = String(conDung?.lyDo || cartStore.loiPhieu || 'Phiếu đã hết hạn hoặc ngừng hoạt động.')
         .replace(/^Không áp dụng được mã [^:]*:\s*/, '')
       dong.push(`Phiếu ${dangDung.ma} không còn dùng được: ${lyDo}`)
-      if (tot && tot.ma !== dangDung.ma) {
-        dong.push(`Áp dụng phiếu ${tot.ma} (giảm ${formatMoney(tot.soTienGiam)}) thay thế?`)
-        return { dong, nut: [{ nhan: 'Áp dụng', chinh: true, lam: apDungRoiDat(tot) }, { nhan: 'Hủy', lam: datKhongPhieu }] }
-      }
-      // Không có phiếu thay: "Đặt hàng" đặt không dùng phiếu, "Quay lại" bỏ phiếu và ở lại trang để khách chọn phiếu khác
-      dong.push('Đặt hàng không dùng phiếu?')
+      const coThay = tot && tot.ma !== dangDung.ma
+      dong.push(coThay ? `Áp dụng phiếu ${tot.ma} (giảm ${formatMoney(tot.soTienGiam)}) để đặt hàng?` : 'Áp dụng để đặt hàng không dùng phiếu?')
       return {
         dong,
         nut: [
-          { nhan: 'Đặt hàng', chinh: true, lam: datKhongPhieu },
-          { nhan: 'Quay lại', lam: boPhieu, oLaiTrang: true },
+          { nhan: 'Áp dụng', chinh: true, lam: coThay ? apDungRoiDat(tot) : datKhongPhieu },
+          { nhan: 'Hủy', lam: boPhieu, oLaiTrang: true },
         ],
       }
     }
-    // 2. Phiếu bị sửa mức giảm khi khách đang thanh toán (góp ý 19/11, như bên quầy): trang giữ số đã thấy, hỏi lại.
-    //    "Áp dụng" = lấy mức mới rồi đặt; "Hủy" = giữ nguyên mức đã thấy rồi đặt (máy chủ kiểm chữ ký của mức đó).
+    // 2. Phiếu bị sửa mức giảm khi khách đang thanh toán: "Áp dụng" = lấy mức mới rồi đặt; "Hủy" = ở lại trang, chưa đặt
+    //    (bỏ "giữ nguyên mức cũ", góp ý 23/11 - như bên quầy).
     const giamCu = Number(cartStore.discountAmount) || 0
     const doi = cartStore.phieuDoiMuc
     if (doi) {
-      dong.push(`Phiếu ${doi.ma} vừa đổi mức giảm: ${formatMoney(doi.cu)} → ${formatMoney(doi.moi)}. Áp dụng mức mới?`)
-      dong.push(`Bấm Hủy để giữ nguyên mức giảm ${formatMoney(doi.cu)}.`)
+      dong.push(`Phiếu ${doi.ma} vừa đổi mức giảm: ${formatMoney(doi.cu)} → ${formatMoney(doi.moi)}. Áp dụng mức mới để đặt hàng?`)
       return {
         dong,
         nut: [
           { nhan: 'Áp dụng', chinh: true, lam: async () => { cartStore.nhanMucPhieuMoi(); await guiDon() } },
-          { nhan: 'Hủy', lam: () => guiDon({ giuNguyenGiamCu: true }) },
+          { nhan: 'Hủy', lam: () => {}, oLaiTrang: true },
         ],
       }
     }

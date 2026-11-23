@@ -29,8 +29,15 @@ public class GiaLucThemKho {
 
     private static final Logger log = LoggerFactory.getLogger(GiaLucThemKho.class);
 
-    /** donGia: đơn giá dòng lúc nhớ; giaGoc: giá niêm yết lúc thêm; phanTram: % đợt giảm giá lúc thêm. */
-    public record GiaLucThem(long donGia, long giaGoc, double phanTram) {
+    /**
+     * donGia: đơn giá dòng lúc nhớ; giaGoc: giá niêm yết lúc thêm; phanTram: % đợt giảm giá lúc thêm.
+     * giaTruoc (có thể null): giá của dòng cùng biến thể ngay trước khi giá đổi - dòng này được tạo / chuyển sang giá mới
+     * từ mức đó. Chữ đỏ "giá cũ → giá mới" dựa vào số này nên xóa dòng giá cũ vẫn còn (góp ý 23/11).
+     */
+    public record GiaLucThem(long donGia, long giaGoc, double phanTram, Long giaTruoc) {
+        public GiaLucThem(long donGia, long giaGoc, double phanTram) {
+            this(donGia, giaGoc, phanTram, null);
+        }
     }
 
     private final Path tep;

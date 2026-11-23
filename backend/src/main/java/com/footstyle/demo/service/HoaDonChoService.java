@@ -68,11 +68,17 @@ public class HoaDonChoService {
     }
 
     private void nhoGiaLucThem(HoaDonChiTiet ct, GiaKhiXem gia) {
+        nhoGiaLucThem(ct, gia, null);
+    }
+
+    /** giaTruoc: giá cũ của biến thể ngay trước khi dòng này theo giá mới (null = dòng không phải do giá đổi). */
+    private void nhoGiaLucThem(HoaDonChiTiet ct, GiaKhiXem gia, Long giaTruoc) {
         if (ct == null || ct.getId() == null) return;
         SanPhamChiTiet c = ct.getSanPhamChiTiet();
         long donGia = long0(ct.getDonGia());
         long giaGoc = c.getGiaBan() == null ? donGia : c.getGiaBan();
-        giaLucThem.luu(ct.getId(), new GiaLucThemKho.GiaLucThem(donGia, giaGoc, gia.phanTram().getOrDefault(c.getId().longValue(), 0.0)));
+        Long truoc = giaTruoc != null && giaTruoc != donGia ? giaTruoc : null;
+        giaLucThem.luu(ct.getId(), new GiaLucThemKho.GiaLucThem(donGia, giaGoc, gia.phanTram().getOrDefault(c.getId().longValue(), 0.0), truoc));
     }
 
     void datDongHo(Clock dongHo) {
@@ -221,7 +227,8 @@ public class HoaDonChoService {
             ct.setDonGia(BigDecimal.valueOf(donGia));
             ct.setThanhTien(BigDecimal.valueOf(donGia * sl));
             ct.setTrangThai(1);
-            nhoGiaLucThem(chiTietRepo.save(ct), gia);
+            // Dòng mới do giá đổi: nhớ giá của dòng cùng biến thể thêm gần nhất (giá trước khi đổi) cho chữ đỏ
+            nhoGiaLucThem(chiTietRepo.save(ct), gia, dongGiaKhac == null ? null : long0(dongGiaKhac.getDonGia()));
         }
         return capNhatTong(h, gia);
     }
@@ -246,6 +253,7 @@ public class HoaDonChoService {
         int moi = req == null || req.soLuong() == null ? 0 : req.soLuong();
         if (moi < 1 || moi > BanHangService.SO_LUONG_TOI_DA) throw ApiException.badRequest("Số lượng từ 1 đến " + BanHangService.SO_LUONG_TOI_DA + ".");
         int cu = ct.getSoLuong() == null ? 0 : ct.getSoLuong();
+        long donGiaTruoc = long0(ct.getDonGia());
         SanPhamChiTiet c = ct.getSanPhamChiTiet();
         // Tăng số lượng khi đợt giảm giá đã đổi: hỏi nhân viên trước
         if (moi > cu) {
@@ -264,7 +272,7 @@ public class HoaDonChoService {
         ct.setThanhTien(BigDecimal.valueOf(long0(ct.getDonGia()) * moi));
         chiTietRepo.save(ct);
         GiaKhiXem gia = giaHienTai();
-        if (moi > cu && Boolean.TRUE.equals(req.xacNhanGiaMoi())) nhoGiaLucThem(ct, gia); // OK: cả dòng sang đợt mới
+        if (moi > cu && Boolean.TRUE.equals(req.xacNhanGiaMoi())) nhoGiaLucThem(ct, gia, donGiaTruoc); // OK: cả dòng sang đợt mới
         return capNhatTong(h, gia);
     }
 
@@ -297,10 +305,13 @@ public class HoaDonChoService {
                 giaLucThem.xoa(ct.getId());
                 continue;
             }
+            long cuDong = long0(ct.getDonGia());
+            GiaLucThemKho.GiaLucThem daNho = giaLucThem.lay(ct.getId());
             ct.setDonGia(BigDecimal.valueOf(moi));
             ct.setThanhTien(BigDecimal.valueOf(moi * ct.getSoLuong()));
             chiTietRepo.save(ct);
-            nhoGiaLucThem(ct, gia);
+            // Giá đổi thì nhớ giá cũ của dòng; giá không đổi thì giữ "giá trước" đã nhớ (nếu có)
+            nhoGiaLucThem(ct, gia, cuDong != moi ? Long.valueOf(cuDong) : daNho == null ? null : daNho.giaTruoc());
             theoBienTheGia.put(khoa, ct);
         }
         return capNhatTong(h, gia);
@@ -445,6 +456,8 @@ public class HoaDonChoService {
             d.put("giaGoc", giaGoc);
             d.put("phanTramGiam", phanTramGiam);
             d.put("giaDoi", giaMoi != donGia);
+            // Giá của biến thể ngay trước khi dòng này theo giá mới (chữ đỏ "giá cũ → giá mới", còn nguyên khi xóa dòng giá cũ)
+            d.put("giaTruocDoi", nho != null && nho.donGia() == donGia ? nho.giaTruoc() : null);
             // Tồn kho đọc lại từ CSDL: lệnh trừ kho có điều kiện chạy bằng câu UPDATE nên bản ghi đang giữ có thể là số cũ
             d.put("tonKho", spctRepo.findById(c.getId()).map(x -> x.getSoLuongTon() == null ? 0 : x.getSoLuongTon()).orElse(0));
             d.put("soLuong", ct.getSoLuong());

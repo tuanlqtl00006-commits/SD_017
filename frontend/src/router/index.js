@@ -292,6 +292,13 @@ const routes = [
         meta: { congKhai: true, title: 'Đăng nhập khách hàng - FootStyle' },
       },
       {
+        // Gợi ý sản phẩm dạng trắc nghiệm từng bước (góp ý 23/11 Task 3.1), có trên thanh điều hướng
+        path: 'goi-y',
+        name: 'shop-goi-y',
+        component: () => import('../views/client/GoiYSanPhamView.vue'),
+        meta: { congKhai: true, title: 'Gợi ý vợt cho bạn - FootStyle' },
+      },
+      {
         path: 'goi-y-ai',
         name: 'shop-goi-y-ai',
         component: () => import('../views/client/GoiYAiView.vue'),

@@ -38,6 +38,15 @@ class GiaLucThemKhoTest {
     }
 
     @Test
+    void tepCuChuaCoGiaTruoc_vanDocDuoc_giaTruocLuuVaDocLai() throws Exception {
+        Files.writeString(thuMuc.resolve("gia-luc-them.json"), "{\"5\":{\"donGia\":100,\"giaGoc\":200,\"phanTram\":50.0}}");
+        GiaLucThemKho kho = new GiaLucThemKho(thuMuc.toString());
+        assertEquals(new GiaLucThemKho.GiaLucThem(100L, 200L, 50.0), kho.lay(5), "tệp ghi trước 23/11 không có giaTruoc");
+        kho.luu(6, new GiaLucThemKho.GiaLucThem(90L, 200L, 55.0, 100L));
+        assertEquals(100L, new GiaLucThemKho(thuMuc.toString()).lay(6).giaTruoc());
+    }
+
+    @Test
     void trongGiaoDich_chiGhiSauCommit_rollbackThiKhongGhi() {
         GiaLucThemKho kho = new GiaLucThemKho(thuMuc.toString());
         kho.luu(1, new GiaLucThemKho.GiaLucThem(100L, 200L, 50.0));

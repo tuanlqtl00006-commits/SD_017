@@ -10,10 +10,34 @@ import QuetMaModal from './QuetMaModal.vue'
 import { formatMoney } from '../../utils/format'
 import { formatPhanTram } from '../../utils/giamGia'
 import { useSuKien } from '../../composables/useSuKien'
+import { hoiXacNhan } from '../../composables/useXacNhan'
+import { giaDaHien, phanGia } from './giaDaHien'
 
 // trongHop: hiện trong hộp thoại 'Chọn sản phẩm' của màn bán hàng (không có khung thẻ / tiêu đề / ô quét mã riêng)
 // khoaThem: nhân viên chưa vào ca thì khóa nút Thêm / ô quét mã (góp ý 21/11)
-const props = defineProps({ trongHop: { type: Boolean, default: false }, khoaThem: { type: Boolean, default: false } })
+// giaTheoGio: { idBiếnThể: { cacGia: [đơn giá các dòng trong giỏ], moiNhat: { donGia, giaGoc, phanTramGiam } } }.
+//   Biến thể đã có trong giỏ mà giá hiện tại (bảng vừa tải) chưa có dòng nào trong giỏ = giá / đợt vừa đổi: bảng vẫn hiện giá như dòng
+//   thêm gần nhất; nhân viên bấm Thêm -> popup đổi giá -> OK thì giỏ có dòng giá mới và bảng mới hiện giá mới (góp ý 16/11, 23/11)
+const props = defineProps({
+  trongHop: { type: Boolean, default: false },
+  khoaThem: { type: Boolean, default: false },
+  giaTheoGio: { type: Object, default: () => ({}) },
+})
+const trongGio = (sp) => {
+  const g = props.giaTheoGio?.[sp.id]
+  return g && Array.isArray(g.cacGia) && g.moiNhat && g.moiNhat.donGia != null ? g : null
+}
+/**
+ * Giá hiện trong bảng (góp ý 23/11 "2 cái giống nhau sao 1 cái đã nhảy"): mọi dòng đều KHÔNG nhảy giá ngay khi đợt / giá đổi.
+ *  - Biến thể có trong giỏ: giá như dòng thêm gần nhất, đến khi giỏ có dòng theo giá hiện tại (bấm Thêm -> popup -> OK).
+ *  - Biến thể chưa có trong giỏ: giá bảng đã hiện trước đó (giaDaHien), đến khi bấm Thêm -> hỏi -> OK.
+ */
+const gia = (sp) => {
+  const g = trongGio(sp)
+  if (g) return g.cacGia.includes(Number(sp.donGia)) ? sp : g.moiNhat
+  const daHien = giaDaHien[sp.id]
+  return daHien && daHien.donGia !== Number(sp.donGia) ? daHien : sp
+}
 const emit = defineEmits(['chon'])
 const KICH_THUOC = 10
 
@@ -53,6 +77,7 @@ async function tai(ngam = false) {
     const res = (await api.get('/ban-hang/san-pham/loc', { params })).data
     if (lan !== lanTai) return
     ds.value = res.items || []
+    for (const it of ds.value) if (!giaDaHien[it.id]) giaDaHien[it.id] = phanGia(it) // lần đầu thấy: nhớ giá đang hiện
     tongSo.value = res.tongSo || 0
     if (res.boLoc) boLoc.value = res.boLoc
     if (res.trang !== undefined && res.trang + 1 !== trang.value) trang.value = res.trang + 1
@@ -82,6 +107,18 @@ watch(trang, (v, cu) => {
   if (v !== cu) tai()
 })
 
+// Giỏ đã có dòng theo giá hiện tại (nhân viên bấm OK ở popup đổi giá): bảng nhận giá mới cho biến thể đó
+watch(
+  () => [ds.value, props.giaTheoGio],
+  () => {
+    for (const sp of ds.value) {
+      const g = trongGio(sp)
+      if (g && g.cacGia.includes(Number(sp.donGia))) giaDaHien[sp.id] = phanGia(sp)
+    }
+  },
+  { deep: true },
+)
+
 function xoaLoc() {
   Object.assign(loc, { q: '', idDanhMuc: '', idThuongHieu: '', idMauSac: '', idTrongLuong: '', idChuVi: '', giaTu: '', giaDen: '' })
 }
@@ -107,11 +144,23 @@ function kepSl(sp, el) {
     : 'Số lượng tối thiểu là 1, đã đưa về 1.'
   return true
 }
-function them(sp) {
+async function them(sp) {
   if (props.khoaThem) return // chưa vào ca (Enter trong ô số lượng cũng không thêm được)
   // Số vừa được đưa về tối đa / tối thiểu: chưa thêm, để nhân viên thấy số mới rồi bấm Thêm lần nữa
   if (kepSl(sp)) return
   delete loiDong[sp.id]
+  // Chưa có trong giỏ mà giá đã đổi so với giá bảng đang hiện: hỏi trước, OK mới thêm theo giá mới
+  // (có trong giỏ thì máy chủ báo "sản phẩm đã đổi giá" và màn quầy hiện popup như cũ)
+  const dangHien = gia(sp)
+  if (!trongGio(sp) && Number(dangHien.donGia) !== Number(sp.donGia)) {
+    const ok = await hoiXacNhan({
+      title: 'Sản phẩm đã đổi giá',
+      message: `${sp.tenSanPham}${sp.phanLoai ? ` (${sp.phanLoai})` : ''} đã đổi giá: ${formatMoney(dangHien.donGia)} → ${formatMoney(sp.donGia)}. Thêm vào hóa đơn theo giá mới?`,
+      confirmText: 'OK',
+    })
+    if (!ok) return
+    giaDaHien[sp.id] = phanGia(sp)
+  }
   emit('chon', sp, null, Number(slCua(sp)))
   soLuong[sp.id] = 1
 }
@@ -201,7 +250,7 @@ defineExpose({ taiLai: () => tai(), focusTim: () => oTim.value?.focus() })
                   <img v-if="sp.anh" :src="sp.anh" :alt="sp.tenSanPham" />
                   <i v-else class="bi bi-image" aria-hidden="true"></i>
                   <!-- % giảm theo đợt hiện đè lên góc ảnh (giống trang Biến thể sản phẩm) -->
-                  <span v-if="sp.donGia < sp.giaGoc" class="bh-giam-anh" data-testid="bh-giam-anh">-{{ formatPhanTram(sp.phanTramGiam) }}</span>
+                  <span v-if="gia(sp).donGia < gia(sp).giaGoc" class="bh-giam-anh" data-testid="bh-giam-anh">-{{ formatPhanTram(gia(sp).phanTramGiam) }}</span>
                 </span>
               </td>
               <td>
@@ -216,8 +265,8 @@ defineExpose({ taiLai: () => tai(), focusTim: () => oTim.value?.focus() })
                 <template v-else>—</template>
               </td>
               <td class="text-end ad-nowrap">
-                <b class="d-block">{{ formatMoney(sp.donGia) }}</b>
-                <small v-if="sp.donGia < sp.giaGoc" class="text-muted"><s>{{ formatMoney(sp.giaGoc) }}</s></small>
+                <b class="d-block" data-testid="bh-gia-chon">{{ formatMoney(gia(sp).donGia) }}</b>
+                <small v-if="gia(sp).donGia < gia(sp).giaGoc" class="text-muted"><s>{{ formatMoney(gia(sp).giaGoc) }}</s></small>
               </td>
               <td class="text-center">
                 <span class="ad-pill" :class="sp.tonKho <= 5 ? 'ad-pill-orange' : 'ad-pill-green'">{{ sp.tonKho }}</span>

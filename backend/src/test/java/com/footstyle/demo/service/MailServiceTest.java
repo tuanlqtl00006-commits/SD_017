@@ -479,7 +479,7 @@ class MailServiceTest {
                 "3.400.000 ₫", "Đà Nẵng", "Chuyển khoản VietQR", null, "http://localhost:5173/shop/dat-hang-thanh-cong?ma=HD971");
         doiDuThu(sender, 1);
         MimeMessage m = docLai(sender.daGui.get(0));
-        assertTrue(m.getSubject().contains("Đặt hàng thành công"), m.getSubject());
+        assertEquals("[Cửa Hàng Cầu Lông] Đơn hàng HD971", m.getSubject(), "mọi thư của đơn chung 1 tiêu đề (gộp hội thoại)");
         String html = (String) phanLoai(cacPhanLa(m), "text/html").getContent();
         assertTrue(html.contains("TIẾN ĐỘ ĐƠN HÀNG") && html.contains("Chờ xác nhận") && html.contains("Đã hoàn thành"), html);
         assertFalse(html.contains("Theo dõi đơn hàng") || html.contains("/shop/tra-cuu"), "bỏ nút theo dõi");
@@ -493,6 +493,62 @@ class MailServiceTest {
         String htmlCod = (String) phanLoai(cacPhanLa(docLai(cod.daGui.get(0))), "text/html").getContent();
         assertTrue(htmlCod.contains("TIẾN ĐỘ ĐƠN HÀNG"));
         assertFalse(htmlCod.contains("Mở trang thanh toán"), "đơn COD không có nút thanh toán");
+    }
+
+    // Góp ý 22/11 "mail gọn lại": mọi thư của một đơn chung tiêu đề + cùng mã gốc References / In-Reply-To -> Gmail gộp 1 hội thoại
+    @Test
+    void thuCungDon_chungTieuDeVaMaHoiThoai_thuKhacDonThiKhac() throws Exception {
+        GhiThu sender = new GhiThu();
+        MailService s = dich(new NoiCap(sender));
+        s.guiXacNhanDatHang("Tuấn", "tuan@gmail.com", "HD988", List.of("Vợt (Đen) x1"), "1 ₫", "HN", "COD", null);
+        s.guiCapNhatTrangThai("Tuấn", "tuan@gmail.com", "HD988", HoaDon.DA_XAC_NHAN, null, "1 ₫", "HN");
+        s.guiThongBaoHuyDon("Tuấn", "tuan@gmail.com", "HD988", "Khách đổi ý");
+        s.guiCapNhatTrangThai("Tuấn", "tuan@gmail.com", "HD989", HoaDon.DA_XAC_NHAN, null, "1 ₫", "HN");
+        doiDuThu(sender, 4);
+        List<String> tieuDe988 = new java.util.ArrayList<>();
+        java.util.Set<String> ref988 = new java.util.HashSet<>();
+        String ref989 = null;
+        for (MimeMessage g : sender.daGui) {
+            MimeMessage d = docLai(g);
+            if (d.getSubject().endsWith("HD989")) {
+                ref989 = d.getHeader("References", null);
+                continue;
+            }
+            tieuDe988.add(d.getSubject());
+            ref988.add(d.getHeader("References", null));
+            assertEquals(d.getHeader("References", null), d.getHeader("In-Reply-To", null));
+        }
+        assertEquals(3, tieuDe988.size());
+        assertTrue(tieuDe988.stream().allMatch("[Cửa Hàng Cầu Lông] Đơn hàng HD988"::equals), tieuDe988.toString());
+        assertEquals(java.util.Set.of("<don-HD988@gmail.com>"), ref988);
+        assertEquals("<don-HD989@gmail.com>", ref989, "đơn khác: hội thoại khác");
+    }
+
+    @Test
+    void doiTrangThaiLienNhau_chiGuiThuTrangThaiCuoi_huyDonThiBoThuDangCho() throws Exception {
+        GhiThu sender = new GhiThu();
+        MailService s = dich(new NoiCap(sender));
+        s.msGopTrangThai = 300;
+        s.guiCapNhatTrangThai("Tuấn", "tuan@gmail.com", "HD988", HoaDon.DA_XAC_NHAN, null, "1 ₫", "HN");
+        s.guiCapNhatTrangThai("Tuấn", "tuan@gmail.com", "HD988", HoaDon.CHO_LAY_HANG, null, "1 ₫", "HN");
+        s.guiCapNhatTrangThai("Tuấn", "tuan@gmail.com", "HD988", HoaDon.DANG_GIAO, null, "1 ₫", "HN");
+        assertEquals(1, s.soThuTrangThaiCho(), "3 lần đổi liền nhau chỉ còn 1 thư chờ");
+        doiDuThu(sender, 1);
+        Thread.sleep(500);
+        assertEquals(1, sender.daGui.size());
+        String html = (String) phanLoai(cacPhanLa(docLai(sender.daGui.get(0))), "text/html").getContent();
+        assertTrue(html.contains("ĐANG GIAO HÀNG"), "thư gửi là trạng thái cuối");
+        assertEquals(0, s.soThuTrangThaiCho());
+
+        GhiThu sender2 = new GhiThu();
+        MailService s2 = dich(new NoiCap(sender2));
+        s2.msGopTrangThai = 300;
+        s2.guiCapNhatTrangThai("Tuấn", "tuan@gmail.com", "HD990", HoaDon.DA_XAC_NHAN, null, "1 ₫", "HN");
+        s2.guiThongBaoHuyDon("Tuấn", "tuan@gmail.com", "HD990", "Hết hàng");
+        doiDuThu(sender2, 1);
+        Thread.sleep(500);
+        assertEquals(1, sender2.daGui.size(), "chỉ còn thư hủy, không gửi thư 'đã xác nhận' sau thư hủy");
+        assertTrue(((String) phanLoai(cacPhanLa(docLai(sender2.daGui.get(0))), "text/html").getContent()).contains("hủy"));
     }
 
     @Test
@@ -554,7 +610,7 @@ class MailServiceTest {
             tieuDe.add(d.getSubject());
             html.add((String) phanLoai(cacPhanLa(d), "text/html").getContent());
         }
-        int giao = tieuDe.get(0).contains("đang được giao") ? 0 : 1;
+        int giao = html.get(0).contains("ĐANG GIAO HÀNG") ? 0 : 1;
         assertTrue(tieuDe.get(giao).contains("HD971"));
         assertTrue(html.get(giao).contains("ĐANG GIAO HÀNG"));
         // Góp ý 22/11: thay nút tra cứu bằng thanh tiến độ ngay trong thư
@@ -583,7 +639,7 @@ class MailServiceTest {
                 link);
         doiDuThu(sender, 1);
         MimeMessage d = docLai(sender.daGui.get(0));
-        assertTrue(d.getSubject().contains("chưa thanh toán"));
+        assertTrue(((String) phanLoai(cacPhanLa(d), "text/html").getContent()).contains("CHƯA THANH TOÁN"));
         assertTrue(d.getSubject().contains("HD88"));
         String html = (String) phanLoai(cacPhanLa(d), "text/html").getContent();
         assertTrue(html.contains("CHƯA HOÀN TẤT THANH TOÁN"));

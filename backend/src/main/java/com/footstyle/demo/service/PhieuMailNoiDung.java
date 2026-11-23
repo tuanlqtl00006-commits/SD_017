@@ -22,8 +22,14 @@ public final class PhieuMailNoiDung {
 
     public enum Loai { MOI, CAP_NHAT, HUY }
 
-    /** Một lá thư đã dựng xong: tiêu đề + bản chữ (dự phòng) + bản HTML. */
-    public record ThuMail(String tieuDe, String banChu, String html) {
+    /**
+     * Một lá thư đã dựng xong: tiêu đề + bản chữ (dự phòng) + bản HTML.
+     * maDon (có thể null): thư về một đơn hàng - mọi thư cùng đơn được nối vào một cuộc hội thoại (góp ý 22/11, xem MailService.soanThu).
+     */
+    public record ThuMail(String tieuDe, String banChu, String html, String maDon) {
+        public ThuMail(String tieuDe, String banChu, String html) {
+            this(tieuDe, banChu, html, null);
+        }
     }
 
     /** Mã định danh của logo gắn kèm trong thư; HTML dùng src="cid:logo". */

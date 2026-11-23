@@ -284,13 +284,13 @@ async function doiSl(d, giaTri, opt = false) {
   const xacNhanGiaMoi = typeof opt === 'boolean' ? opt : Boolean(opt?.xacNhanGiaMoi)
   const giuGiaCu = typeof opt === 'object' ? Boolean(opt?.giuGiaCu) : false
   const sl = Math.floor(Number(giaTri))
-  const toiDa = Math.min(SO_LUONG_TOI_DA, d.soLuong + Number(d.tonKho || 0))
+  const toiDa = toiDaDong(d) // theo tổng cả biến thể (mọi dòng cùng biến thể)
   if (!Number.isFinite(sl) || sl < 1) {
     toast.error('Số lượng tối thiểu là 1. Muốn bỏ sản phẩm thì bấm nút xóa.')
     return
   }
   if (sl > toiDa) {
-    toast.error(`${d.ten} chỉ còn ${d.tonKho} sản phẩm trong kho (tối đa ${toiDa} cho dòng này).`)
+    toast.error(`${d.ten} chỉ còn ${khoBienThe(d).conLai} sản phẩm trong kho (giỏ đã có ${khoBienThe(d).daLay}, tối đa ${toiDa} cho dòng này).`)
     return
   }
   if (sl === d.soLuong || dangLam.value) return
@@ -312,12 +312,12 @@ async function doiSl(d, giaTri, opt = false) {
  * (ô hiện ngay số mới), không giữ số sai để nhân viên tự sửa. */
 function nhapSlDong(d, el) {
   const n = Math.floor(Number(el.value))
-  const toiDa = Math.min(SO_LUONG_TOI_DA, d.soLuong + Number(d.tonKho || 0))
+  const toiDa = toiDaDong(d)
   const v = !Number.isFinite(n) || n < 1 ? 1 : Math.min(n, toiDa)
   if (String(v) !== String(el.value)) {
     el.value = v
     toast.error(Number.isFinite(n) && n > toiDa
-      ? `${d.ten} chỉ còn ${d.tonKho} sản phẩm trong kho, đã đưa số lượng về tối đa ${v}.`
+      ? `${d.ten} chỉ còn ${khoBienThe(d).conLai} sản phẩm trong kho, đã đưa số lượng về tối đa ${v}.`
       : 'Số lượng tối thiểu là 1, đã đưa về 1. Muốn bỏ sản phẩm thì bấm nút xóa.')
   }
   doiSl(d, v)
@@ -343,17 +343,61 @@ const giamDot = computed(() => tienGiamDot(hd.value.gio))
 /** Dòng có biến thể trùng với dòng khác trong giỏ (cùng sản phẩm, khác giá / khác đợt giảm giá). */
 const trungBienThe = (d) => hd.value.gio.filter((x) => x.idBienThe === d.idBienThe).length > 1
 
-/* Chữ đỏ khi giá đổi lúc đang lên đơn (góp ý 21/11): chỉ ghi "giá cũ → giá mới", đặt ở DÒNG GIÁ MỚI (dòng thêm sau theo giá
- * hiện tại). Giỏ chưa có dòng giá mới thì tạm hiện ở dòng giá cũ để nhân viên vẫn biết giá đã đổi. */
-function chuGiaDoi(d) {
-  if (d.giaDoi) {
-    const coDongMoi = hd.value.gio.some((x) => x.idBienThe === d.idBienThe && !x.giaDoi)
-    return coDongMoi ? '' : `${formatMoney(d.donGia)} → ${formatMoney(d.giaHienTai)}`
-  }
-  // Dòng giá mới: liệt kê đủ các mức giá cũ khác nhau của cùng biến thể (vd 700.000 ₫, 800.000 ₫ → 440.000 ₫)
-  const giaCu = [...new Set(hd.value.gio.filter((x) => x.idBienThe === d.idBienThe && x.giaDoi && x.id !== d.id).map((x) => Number(x.donGia)))]
-  return giaCu.length ? `${giaCu.map(formatMoney).join(', ')} → ${formatMoney(d.donGia)}` : ''
+/* Góp ý 23/11 (Task 1.1): một biến thể có thể tách thành nhiều dòng (giá đổi). Kho còn (tonKho) là số còn lại của CẢ biến thể
+ * sau khi đã giữ cho mọi dòng, nên khóa / mở nút + đồng loạt theo tổng: tổng số lượng các dòng >= tồn kho khả dụng
+ * (= còn lại + đã giữ cho các dòng) thì khóa + ở mọi dòng của biến thể; giảm bớt ở dòng nào thì mở lại cho cả biến thể. */
+const dongCungBienThe = (d) => hd.value.gio.filter((x) => x.idBienThe === d.idBienThe)
+function khoBienThe(d) {
+  const ds = dongCungBienThe(d)
+  const conLai = Math.min(...ds.map((x) => Number(x.tonKho ?? 0)))
+  const daLay = ds.reduce((t, x) => t + Number(x.soLuong || 0), 0)
+  return { conLai: Math.max(0, conLai), daLay, khaDung: daLay + Math.max(0, conLai) }
 }
+const hetKhoBienThe = (d) => {
+  const k = khoBienThe(d)
+  return k.daLay >= k.khaDung
+}
+/** Số lượng tối đa cho một dòng: số đang có + phần kho còn lại của cả biến thể (không vượt giới hạn mỗi dòng). */
+const toiDaDong = (d) => Math.min(SO_LUONG_TOI_DA, Number(d.soLuong || 0) + khoBienThe(d).conLai)
+
+/* Chữ đỏ khi giá đổi lúc đang lên đơn (góp ý 21/11, 23/11 Task 1.2): mỗi dòng giữ lịch sử giá CỦA RIÊNG NÓ
+ * "giá của dòng thêm trước → giá dòng này" (dòng thêm trước gần nhất có giá khác, cùng biến thể). Thêm dòng giá mới lần 3, 4...
+ * không xóa chữ đỏ của các dòng đã có. Dòng mới nhất mà giá vừa đổi (chưa có dòng theo giá hiện tại) thì nối thêm "→ giá hiện tại". */
+function chuGiaDoi(d) {
+  const ds = dongCungBienThe(d).slice().sort((a, b) => Number(a.id) - Number(b.id))
+  const truoc = ds.filter((x) => Number(x.id) < Number(d.id) && Number(x.donGia) !== Number(d.donGia))
+  // Ưu tiên giá trước khi đổi máy chủ đã lưu cho dòng (còn nguyên khi xóa dòng giá cũ - góp ý 23/11);
+  // dòng thêm trước khi có tính năng này thì so với dòng thêm trước trong giỏ
+  const giaTruoc = d.giaTruocDoi != null && Number(d.giaTruocDoi) !== Number(d.donGia)
+    ? d.giaTruocDoi
+    : truoc.length ? truoc[truoc.length - 1].donGia : null
+  const moiNhat = ds[ds.length - 1]?.id === d.id
+  const choGiaMoi = d.giaDoi && moiNhat && !ds.some((x) => Number(x.donGia) === Number(d.giaHienTai))
+  const chuoi = []
+  if (giaTruoc !== null) chuoi.push(giaTruoc)
+  if (giaTruoc !== null || choGiaMoi) chuoi.push(d.donGia)
+  if (choGiaMoi) chuoi.push(d.giaHienTai)
+  return chuoi.length >= 2 ? chuoi.map(formatMoney).join(' → ') : ''
+}
+
+/* Bảng "Chọn sản phẩm" (góp ý 16/11 [00:00-00:44], 23/11): biến thể đang có trong giỏ mà giá / đợt vừa đổi và chưa có dòng theo giá
+ * hiện tại thì bảng hiện giá như dòng thêm gần nhất trong giỏ; bấm Thêm -> popup "sản phẩm đã đổi giá" -> OK mới có dòng giá mới
+ * và bảng hiện giá mới. Biến thể chưa có trong giỏ thì hiện giá hiện tại như thường. */
+// Mỗi biến thể trong giỏ: các đơn giá đang có + giá của dòng thêm gần nhất. Bảng tự so với giá hiện tại nó vừa tải
+// (không chờ giỏ tải lại - giỏ hoãn tải khi con trỏ đang ở ô số lượng).
+const giaTheoGio = computed(() => {
+  const m = {}
+  for (const d of hd.value.gio) {
+    if (m[d.idBienThe]) continue
+    const ds = dongCungBienThe(d)
+    const moiNhat = ds.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a))
+    m[d.idBienThe] = {
+      cacGia: ds.map((x) => Number(x.donGia)),
+      moiNhat: { donGia: Number(moiNhat.donGia), giaGoc: Number(moiNhat.giaGoc) || Number(moiNhat.donGia), phanTramGiam: phanTramGiamDong(moiNhat) },
+    }
+  }
+  return m
+})
 
 const phanTramGiamDong = (d) => {
   if (d.phanTramGiam && Number(d.phanTramGiam) > 0) return Number(d.phanTramGiam)
@@ -847,26 +891,36 @@ async function kiemTraPhieuTruocKhiThanhToan() {
     h.p.giuNguyenGiamCu = false
     h.p.khongDungPhieu = !ma // chọn "không dùng phiếu" thì không tự áp lại phiếu nào cho đơn này
   }
+  /* Góp ý 23/11 (Task 2.1, 2.2): phiếu đang áp bị sửa / ngừng hoạt động thì popup chỉ 2 nút "Áp dụng" và "Hủy" (bỏ "Giữ phiếu cũ").
+   * Áp dụng: lấy thông tin mới nhất của phiếu (mức giảm mới, hoặc phiếu thay thế / không dùng phiếu khi phiếu đã ngừng) rồi thanh toán tiếp.
+   * Hủy: dừng thanh toán, về màn bán hàng; phiếu đã ngừng thì gỡ khỏi đơn, tính lại tiền như chưa áp mã - nhân viên bấm icon ★
+   * cạnh ô phiếu để tự chọn phiếu tốt nhất còn hiệu lực. Cùng cách với trang thanh toán online (CheckoutView.kiemTraTruocKhiDat). */
+  const goPhieu = () => {
+    phieus.value = moi
+    h.p.maPhieu = ''
+    h.p.soTienGiam = null
+    h.p.giuNguyenGiamCu = false
+    h.p.khongDungPhieu = true // không tự áp lại: nhân viên tự bấm icon chọn phiếu tốt nhất
+  }
   if (dangDungMa && !conDung) {
     const lyDo = moi.find((x) => x.ma === dangDungMa)?.lyDo || 'phiếu đã hết hạn, hết lượt hoặc bị ngừng hoạt động'
-    if (tot) {
-      return {
-        dong: [`Phiếu ${dangDungMa} không còn dùng được (${lyDo}).`, `Có phiếu ${tot.ma} giảm ${formatMoney(tot.soTienGiam)} cho đơn này. Có muốn áp dụng không?`],
-        nut: [{ nhan: `Áp dụng ${tot.ma}`, chinh: true, lam: apDung(tot.ma) }, { nhan: 'Thanh toán không dùng phiếu', lam: apDung('') }],
-      }
-    }
     return {
-      dong: [`Phiếu ${dangDungMa} không còn dùng được (${lyDo}). Đơn sẽ thanh toán không dùng phiếu.`],
-      nut: [{ nhan: 'Thanh toán không dùng phiếu', chinh: true, lam: apDung('') }],
+      dong: tot
+        ? [`Phiếu ${dangDungMa} không còn dùng được (${lyDo}).`, `Áp dụng phiếu ${tot.ma} (giảm ${formatMoney(tot.soTienGiam)}) để thanh toán tiếp?`]
+        : [`Phiếu ${dangDungMa} không còn dùng được (${lyDo}).`, 'Áp dụng để thanh toán không dùng phiếu?'],
+      nut: [
+        { nhan: 'Áp dụng', chinh: true, lam: apDung(tot ? tot.ma : '') },
+        { nhan: 'Hủy', quayLai: true, lam: goPhieu },
+      ],
     }
   }
   // Phiếu đang dùng bị sửa giá trị: ưu tiên hỏi trước khi so với phiếu khác
   if (dangDungMa && conDung && giamNay !== giamCu && !h.p.giuNguyenGiamCu) {
     return {
-      dong: [`Phiếu ${dangDungMa} vừa đổi mức giảm: ${formatMoney(giamCu)} → ${formatMoney(giamNay)}. Có muốn áp dụng phiếu giảm giá mới không?`],
+      dong: [`Phiếu ${dangDungMa} vừa đổi mức giảm: ${formatMoney(giamCu)} → ${formatMoney(giamNay)}. Áp dụng mức giảm mới để thanh toán tiếp?`],
       nut: [
         {
-          nhan: 'OK (Tiếp tục thanh toán)',
+          nhan: 'Áp dụng',
           chinh: true,
           lam: () => {
             phieus.value = moi
@@ -875,14 +929,7 @@ async function kiemTraPhieuTruocKhiThanhToan() {
             h.p.giuNguyenGiamCu = false
           },
         },
-        {
-          nhan: 'Hủy (Giữ nguyên)',
-          chinh: false,
-          lam: () => {
-            h.p.soTienGiam = giamCu
-            h.p.giuNguyenGiamCu = true
-          },
-        },
+        { nhan: 'Hủy', quayLai: true, lam: () => {} },
       ],
     }
   }
@@ -915,6 +962,13 @@ async function chonTrongHoiPhieu(n) {
   xacNhan.value = true // mở hộp xác nhận để nhân viên thấy số tiền theo phiếu vừa chọn
 }
 
+function goPhieuDangAp() {
+  hd.value.p.maPhieu = ''
+  hd.value.p.soTienGiam = null
+  hd.value.p.giuNguyenGiamCu = false
+  hd.value.p.khongDungPhieu = true
+}
+
 async function moXacNhan() {
   if (hd.value.p.giaoHang) daChamGiao.value = true
   // Phiếu đang áp không còn dùng được (bị hủy / sửa / hết lượt / đơn không đủ điều kiện): không chặn ở đây mà xuống bước kiểm tra
@@ -940,19 +994,11 @@ async function moXacNhan() {
   if (loiPhieu.value) {
     // Không tải lại được danh sách phiếu mà phiếu đang áp vẫn báo không dùng được: hỏi bỏ phiếu để thanh toán tiếp
     hoiPhieu.value = {
-      dong: [loiPhieu.value, 'Bạn có muốn bỏ áp dụng phiếu giảm giá để tiếp tục thanh toán không?'],
+      dong: [loiPhieu.value, 'Áp dụng để thanh toán không dùng phiếu?'],
       nut: [
-        {
-          nhan: 'Bỏ phiếu và tiếp tục',
-          chinh: true,
-          lam: () => {
-            hd.value.p.maPhieu = ''
-            hd.value.p.soTienGiam = null
-            hd.value.p.giuNguyenGiamCu = false
-            hd.value.p.khongDungPhieu = true
-          },
-        },
-        { nhan: 'Quay lại', quayLai: true, lam: () => {} },
+        { nhan: 'Áp dụng', chinh: true, lam: () => goPhieuDangAp() },
+        // Hủy: về màn bán hàng; phiếu không còn dùng được nên gỡ khỏi đơn (như Task 2.2)
+        { nhan: 'Hủy', quayLai: true, lam: () => goPhieuDangAp() },
       ],
     }
     return
@@ -1049,10 +1095,11 @@ async function thanhToan({ tuDong = false } = {}) {
     } else if (e.code === 'PHIEU_THAY_DOI') {
       const ct = e.chiTiet || {}
       hoiPhieu.value = {
-        dong: [`Phiếu ${ct.maPhieu || p.maPhieu} vừa đổi mức giảm: ${formatMoney(ct.soTienGiamCu || giamPhieu.value)} → ${formatMoney(ct.soTienGiamMoi)}. Có muốn áp dụng phiếu giảm giá mới không?`],
+        dong: [`Phiếu ${ct.maPhieu || p.maPhieu} vừa đổi mức giảm: ${formatMoney(ct.soTienGiamCu || giamPhieu.value)} → ${formatMoney(ct.soTienGiamMoi)}. Áp dụng mức giảm mới để thanh toán tiếp?`],
+        // Góp ý 23/11: chỉ 2 nút Áp dụng / Hủy (bỏ "giữ nguyên mức cũ"); Hủy = về màn bán hàng
         nut: [
           {
-            nhan: 'OK (Tiếp tục thanh toán)',
+            nhan: 'Áp dụng',
             chinh: true,
             lam: () => {
               p.soTienGiam = ct.soTienGiamMoi
@@ -1060,15 +1107,7 @@ async function thanhToan({ tuDong = false } = {}) {
               xacNhan.value = true
             },
           },
-          {
-            nhan: 'Hủy (Giữ nguyên)',
-            chinh: false,
-            lam: () => {
-              p.soTienGiam = ct.soTienGiamCu || giamPhieu.value
-              p.giuNguyenGiamCu = true
-              xacNhan.value = true
-            },
-          },
+          { nhan: 'Hủy', quayLai: true, lam: () => {} },
         ],
       }
     } else {
@@ -1204,9 +1243,9 @@ const soLuongTab = (h) => tongSoLuong(h.items)
                       <div class="bh-cot-sl">
                         <div class="bh-sl">
                           <button type="button" :aria-label="`Giảm số lượng ${d.ten}`" :disabled="d.soLuong <= 1" @click="doiSl(d, d.soLuong - 1)"><i class="bi bi-dash"></i></button>
-                          <input :value="d.soLuong" type="number" min="1" :max="d.soLuong + d.tonKho" :disabled="dangLam" :aria-label="`Số lượng ${d.ten}`" @change="nhapSlDong(d, $event.target)" />
+                          <input :value="d.soLuong" type="number" min="1" :max="toiDaDong(d)" :disabled="dangLam" :aria-label="`Số lượng ${d.ten}`" @change="nhapSlDong(d, $event.target)" />
                           <!-- Dòng giữ giá cũ (giá đã đổi): ẩn nút +, muốn thêm thì chọn lại sản phẩm để thêm dòng theo giá mới -->
-                          <button v-if="!d.giaDoi" type="button" :aria-label="`Tăng số lượng ${d.ten}`" :disabled="dangLam || d.tonKho <= 0" @click="doiSl(d, d.soLuong + 1)"><i class="bi bi-plus"></i></button>
+                          <button v-if="!d.giaDoi" type="button" :aria-label="`Tăng số lượng ${d.ten}`" :disabled="dangLam || hetKhoBienThe(d)" @click="doiSl(d, d.soLuong + 1)"><i class="bi bi-plus"></i></button>
                         </div>
                         <!-- Nhiều dòng cùng biến thể (khác giá / khác đợt) dùng chung một tồn kho: bỏ chữ để không dòng nào cũng lặp cùng một số -->
                         <small v-if="!trungBienThe(d)" class="text-muted">Kho còn {{ d.tonKho }}</small>
@@ -1579,7 +1618,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 
     <!-- Chọn sản phẩm: hộp thoại có lọc + bảng + phân trang -->
     <BaseModal v-if="moChonSp" title="Chọn sản phẩm" size="xl" @close="moChonSp = false">
-      <TimSanPham ref="timSp" trong-hop :khoa-them="canVaoCa" @chon="themSanPham" />
+      <TimSanPham ref="timSp" trong-hop :khoa-them="canVaoCa" :gia-theo-gio="giaTheoGio" @chon="themSanPham" />
       <template #footer>
         <span class="me-auto small text-muted">Đang thêm vào <b>{{ hd.maHoaDon || 'hóa đơn mới' }}</b> · {{ tongSoLuong(hd.gio) }} sản phẩm trong giỏ</span>
         <button type="button" class="ad-btn" data-testid="bh-dong-chon-sp" @click="moChonSp = false">Đóng</button>
