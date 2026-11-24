@@ -140,7 +140,7 @@ describe('Thanh toán online', () => {
     expect(w.find('[data-testid="co-doi-gia"]').exists()).toBe(true)
     const dong = (k) => w.find(`[data-dong="${k}"]`).text().replace(/\s+/g, ' ')
     expect(dong('tong-tien-hang')).toContain('1.200.000')
-    expect(dong('giam-dot')).toContain('Giảm theo đợt')
+    expect(dong('giam-dot')).toContain('Giảm giá')
     expect(dong('giam-dot')).toContain('-240.000')
     expect(dong('phieu')).toContain('Không dùng phiếu')
     // phí giao tính theo tỉnh (commit của Phương Minh): chưa chọn tỉnh thì chưa tính

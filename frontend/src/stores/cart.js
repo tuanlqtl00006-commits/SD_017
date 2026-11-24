@@ -6,6 +6,7 @@ import { conThieuDeMienPhi, duocMienPhiVanChuyen, phiVanChuyenTheoTinh } from '.
 import { phiVanChuyenDon } from '../utils/phiVanChuyen'
 import { caiDatVanChuyen } from '../services/caiDatVanChuyen'
 import { tienGiamTheoDotCuaDong } from '../utils/tienDon'
+import { tinhGiamPhieu } from '../utils/tinhPhieu'
 import api from '../services/api'
 
 const KHOA_KHACH_VANG_LAI = 'footstyle_cart_khach'
@@ -196,20 +197,14 @@ export const useCartStore = defineStore('cart', () => {
     if (chotHopLe.value) return chotHopLe.value.soTienGiam
     if (baoGiaHopLe.value) return Number(baoGiaHopLe.value.soTienGiam) || 0
     const v = appliedVoucher.value
-    if (v.donToiThieu && subTotal.value < Number(v.donToiThieu)) {
-      return 0
-    }
-    // loaiGiam: 1 = % (phan tram), 2 = so tien mat
-    let giam = 0
-    if (v.loaiGiam === 1 || v.hinhThucGiam === 1 || v.loai === 'PHAN_TRAM') {
-      giam = (subTotal.value * Number(v.giaTriGiam || 0)) / 100
-      if (v.giamToiDa && giam > Number(v.giamToiDa)) {
-        giam = Number(v.giamToiDa)
-      }
-    } else {
-      giam = Number(v.giaTriGiam || 0)
-    }
-    return Math.min(giam, subTotal.value)
+    // Chưa có báo giá máy chủ: tính tạm theo cùng công thức với quầy / backend (24/11, Task 2.2). loaiGiam: 1 = %, 2 = số tiền
+    const laPhanTram = v.loaiGiam === 1 || v.hinhThucGiam === 1 || v.loai === 'PHAN_TRAM'
+    return tinhGiamPhieu({
+      loaiGiam: laPhanTram ? 'PHAN_TRAM' : 'TIEN_MAT',
+      giaTri: v.giaTriGiam,
+      giamToiDa: v.giamToiDa,
+      donToiThieu: v.donToiThieu,
+    }, subTotal.value).giam
   })
 
   // Đơn đạt ngưỡng miễn phí vận chuyển (quản lý cài đặt): phí 0. Ưu tiên câu trả lời của máy chủ.

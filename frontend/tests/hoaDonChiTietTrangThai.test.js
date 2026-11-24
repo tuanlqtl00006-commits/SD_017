@@ -761,3 +761,40 @@ describe('Sửa thông tin giao hàng', () => {
   })
 })
 
+
+/* ===== 24/11 (Task 3): đơn online chuyển khoản chưa thanh toán ===== */
+
+describe('Đơn chuyển khoản chưa thanh toán: phương thức, ẩn Xác nhận đơn, gửi mail nhắc', () => {
+  const ckChuaTra = (ghiDe = {}) => {
+    const d = donGiaoHang(1, [TAO], { idPhuongThucThanhToan: 2, phuongThucThanhToan: 'Chuyển khoản ngân hàng', hinhThucThanhToan: 'Chuyển khoản' })
+    return { ...d, choThanhToanOnline: true, duocGuiMailNhacThanhToan: true, hanThanhToan: new Date(Date.now() + 3 * 60_000 - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 19), ...ghiDe }
+  }
+
+  it('hiện phương thức ở Tổng kết và Lịch sử thanh toán dù chưa có giao dịch; ẩn "Xác nhận đơn", còn "Hủy đơn"', async () => {
+    const w = await montar(ckChuaTra())
+    expect(w.get('[data-testid="hd-hinh-thuc-tt"]').text()).toBe('Chuyển khoản')
+    expect(w.get('[data-testid="hd-tt-chua-co-giao-dich"]').text()).toContain('Chuyển khoản')
+    expect(w.get('[data-testid="hd-tt-chua-co-giao-dich"]').text()).toContain('Chưa thanh toán')
+    expect(nutDoiTrangThai(w)).toEqual(['Hủy đơn'])
+    expect(w.get('[data-testid="hd-cho-thanh-toan"]').text()).toContain('chưa xác nhận đơn được')
+  })
+
+  it('bấm "Gửi mail nhắc thanh toán": gọi API mới, nút có trạng thái đang gửi, báo thành công', async () => {
+    let xong
+    const post = vi.fn(() => new Promise((r) => { xong = r }))
+    const w = await montar(ckChuaTra(), undefined, post)
+    const nut = w.get('[data-testid="hd-gui-mail-nhac"]')
+    await nut.trigger('click')
+    expect(post).toHaveBeenCalledWith('/hoa-don/1/gui-mail-nhac-thanh-toan')
+    expect(w.get('[data-testid="hd-gui-mail-nhac"]').attributes('disabled')).toBeDefined()
+    xong({ data: { ...ckChuaTra(), thongBao: 'Đã gửi mail nhắc thanh toán đơn HD03 tới la***@mail.vn.' } })
+    await flushPromises()
+    expect(toast.toasts.some((t) => t.message.includes('Đã gửi mail nhắc thanh toán'))).toBe(true)
+  })
+
+  it('không có nút gửi mail nhắc với đơn COD / đã thanh toán / đã hủy (backend trả duocGuiMailNhacThanhToan = false)', async () => {
+    const w = await montar(donGiaoHang(1))
+    expect(w.find('[data-testid="hd-gui-mail-nhac"]').exists()).toBe(false)
+    expect(nutDoiTrangThai(w)).toEqual(['Hủy đơn', 'Xác nhận đơn'])
+  })
+})

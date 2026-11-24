@@ -11,10 +11,13 @@ import { formatMoney } from './format'
 import { tinhGiaSauGiam } from './giamGia'
 
 /**
- * Tiền phiếu giảm cho đơn có tổng tiền hàng `tong` (đã trừ giảm giá của đợt).
+ * Tiền phiếu giảm cho đơn có tổng tiền hàng `tong` (đã trừ giảm giá của đợt, KHÔNG gồm phí ship) - kiểu Shopee (24/11, Task 2.2).
+ * Đây là công thức DUY NHẤT ở frontend (bán quầy, giỏ hàng, thanh toán online dùng chung); backend: PhieuApDung.soTienGiam.
  *  - chưa đạt đơn tối thiểu -> { duDieuKien: false, giam: 0 }
- *  - giảm %: làm tròn xuống tới đồng, không vượt "giảm tối đa" (nếu có)
- *  - giảm tiền: không vượt quá tổng đơn
+ *  - giảm %: t x % làm tròn xuống tới đồng, không vượt "giảm tối đa" (nếu > 0)
+ *  - giảm tiền: đúng giá trị giảm
+ *  - luôn kẹp: không vượt tổng tiền hàng, không âm
+ * Ví dụ 20%, tối đa 50.000, đơn từ 100.000: 80.000 -> 0; 100.000 -> 20.000; 250.000 -> 50.000; 300.000 -> 50.000.
  * @param {{loaiGiam: 'PHAN_TRAM'|'TIEN_MAT', giaTri: number, giamToiDa?: number|null, donToiThieu?: number|null}} phieu
  */
 export function tinhGiamPhieu(phieu, tong) {
@@ -31,9 +34,9 @@ export function tinhGiamPhieu(phieu, tong) {
     const toiDa = Number(phieu.giamToiDa) || 0
     if (toiDa > 0) giam = Math.min(giam, toiDa)
   } else {
-    giam = Math.min(giaTri, t)
+    giam = giaTri
   }
-  return { duDieuKien: true, giam, lyDo: '' }
+  return { duDieuKien: true, giam: Math.max(0, Math.min(giam, t)), lyDo: '' }
 }
 
 /**

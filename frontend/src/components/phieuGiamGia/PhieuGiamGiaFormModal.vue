@@ -234,7 +234,8 @@ function validate() {
     const toiDa = Number(form.giamToiDa)
     if (!(toiDa > 0)) e.giamToiDa = 'Giảm tối đa phải lớn hơn 0, hoặc để trống nếu không giới hạn.'
     else if (toiDa > TIEN_GIAM_TOI_DA) e.giamToiDa = 'Giảm tối đa không quá 100.000.000 ₫.'
-    // Góp ý 21/11: giảm tối đa được lớn hơn đơn tối thiểu (vd đơn từ 20 triệu, giảm tối đa 50 triệu cho đơn lớn hơn)
+    // 24/11 (Task 2.1, thay góp ý 21/11): có đơn tối thiểu thì giảm tối đa không được lớn hơn đơn tối thiểu (backend cũng chặn, lỗi 400)
+    else if (!e.donToiThieu && donToiThieu > 0 && toiDa > donToiThieu) e.giamToiDa = 'Giảm tối đa không được lớn hơn Đơn hàng tối thiểu'
   }
 
   if (isCaNhan.value) {

@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../src/composables/useXacNhan', () => ({ hoiXacNhan: vi.fn(async () => true) }))
 import { flushPromises, mount } from '@vue/test-utils'
 
-// Góp ý 14/11 (video 22:22 [04:52–08:06]): mã QR chuyển khoản có hạn 5 phút, đếm ngược ngay dưới;
-// quá hạn chưa nhận tiền thì đơn tạm treo, ẩn QR, khách bấm đổi sang thanh toán khi nhận hàng (COD).
+// Góp ý 14/11 (video 22:22 [04:52–08:06]): mã QR chuyển khoản có hạn 5 phút, đếm ngược ngay dưới.
+// 24/11 (Task 4): hết hạn chưa nhận tiền thì đơn TỰ HỦY - không gia hạn, không mã QR mới, không gửi lại link.
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../src/services/api', () => ({ default: api }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ query: { ma: 'HD777' } }) }))
@@ -46,19 +46,23 @@ describe('Mã QR chuyển khoản có hạn 5 phút', () => {
     w.unmount()
   })
 
-  it('hết 5 phút chưa có tiền: ẩn QR, báo đơn treo; chỉ còn nút "Chuyển khoản lại" (22/11: bỏ đổi sang COD, ô SĐT, hủy đơn)', async () => {
+  it('đồng hồ về 00:00 chưa có tiền: dừng hỏi máy chủ, ẩn QR, badge "Đã hủy" và báo tự hủy; không có nút chuyển khoản lại / gửi link', async () => {
     const w = gan()
     await flushPromises()
     vi.advanceTimersByTime(5 * 60_000)
     await flushPromises()
-    expect(w.find('[data-testid="osv-het-han"]').exists()).toBe(true)
     expect(w.find('img[alt="Mã VietQR thanh toán"]').exists()).toBe(false)
-    expect(w.text()).toContain('Đơn treo - chưa thanh toán')
-    expect(w.find('[data-testid="osv-chuyen-khoan-lai"]').exists()).toBe(true)
-    expect(w.find('[data-testid="osv-huy-don"]').exists()).toBe(false)
-    expect(w.find('[data-testid="osv-sdt"]').exists()).toBe(false)
-    expect(w.find('[data-testid="osv-doi-cod"]').exists()).toBe(false)
-    expect(w.text()).not.toContain('Đổi sang thanh toán khi nhận hàng')
+    expect(w.find('[data-testid="osv-dem-nguoc"]').exists()).toBe(false)
+    expect(w.find('.badge').text()).toBe('Đã hủy')
+    expect(w.get('[data-testid="osv-da-huy"]').text()).toContain('đã tự động hủy do quá thời hạn thanh toán 5 phút')
+    expect(w.find('[data-testid="osv-chuyen-khoan-lai"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('gửi link')
+    expect(api.post).not.toHaveBeenCalled()
+    // Đã dừng hỏi máy chủ
+    const soLanHoi = api.get.mock.calls.filter(([u]) => u === '/cua-hang/tra-cuu').length
+    vi.advanceTimersByTime(20_000)
+    await flushPromises()
+    expect(api.get.mock.calls.filter(([u]) => u === '/cua-hang/tra-cuu').length).toBe(soLanHoi)
     w.unmount()
   })
 
@@ -76,36 +80,31 @@ describe('Mã QR chuyển khoản có hạn 5 phút', () => {
     w.unmount()
   })
 
-  // Góp ý 22/11: quá hạn mà khách muốn chuyển khoản lại -> gửi link qua email, mã QR đếm lại 5 phút
-  it('quá hạn, bấm "Chuyển khoản lại": gửi link qua email, hiện lại QR và đếm lại 5 phút', async () => {
-    api.post.mockResolvedValue({ data: { ok: true, message: 'Đã gửi link thanh toán của đơn HD777 tới tu***@gmail.com.', hanChuyenKhoan: '2026-11-15T10:11:00' } })
-    const w = gan()
-    await flushPromises()
-    vi.advanceTimersByTime(6 * 60_000)
-    await flushPromises()
-    await w.find('[data-testid="osv-chuyen-khoan-lai"]').trigger('click')
-    await flushPromises()
-    expect(api.post).toHaveBeenCalledWith('/cua-hang/don-hang/HD777/gui-mail-thanh-toan', { sdt: '0901000001' })
-    expect(w.find('[data-testid="osv-het-han"]').exists()).toBe(false)
-    expect(w.find('[data-testid="osv-da-gui-mail"]').text()).toContain('tu***@gmail.com')
-    expect(w.find('[data-testid="osv-dem-nguoc"]').text()).toContain('05:00')
-    w.unmount()
-  })
-
-  it('máy chủ đã tự gửi link khi QR hết hạn (daGuiLaiLink): trang hiện mã mới, đếm theo hạn mới và báo đã gửi email', async () => {
+  it('F5 trang: đếm ngược theo hạn máy chủ trả về (lúc đặt + 5 phút), không đếm lại từ đầu', async () => {
+    vi.setSystemTime(new Date('2026-11-15T10:02:00')) // mở lại trang sau 2 phút
     api.get.mockImplementation(async (url) => {
       if (url.startsWith('/cua-hang/thanh-toan-gia-lap/')) throw new Error('tắt giả lập')
       if (url === '/cua-hang/thong-tin-thanh-toan') return { data: { nganHang: 'MB', soTaiKhoan: '0123456789', tenChuTaiKhoan: 'X' } }
-      if (url === '/cua-hang/tra-cuu') return { data: { trangThai: 1, daThanhToanDu: false, idPhuongThucThanhToan: 2, daGuiLaiLink: true, hanChuyenKhoan: '2026-11-15T10:10:00' } }
+      if (url === '/cua-hang/tra-cuu') return { data: { trangThai: 1, daThanhToanDu: false, idPhuongThucThanhToan: 2, hanChuyenKhoan: '2026-11-15T10:05:00' } }
       return { data: {} }
     })
     const w = gan()
     await flushPromises()
-    vi.advanceTimersByTime(6 * 60_000)
+    expect(w.find('[data-testid="osv-dem-nguoc"]').text()).toContain('03:00')
+    w.unmount()
+  })
+
+  it('máy chủ đã tự hủy đơn quá hạn (tuHuyQuaHan): trang báo đã tự động hủy, ẩn QR', async () => {
+    api.get.mockImplementation(async (url) => {
+      if (url.startsWith('/cua-hang/thanh-toan-gia-lap/')) throw new Error('tắt giả lập')
+      if (url === '/cua-hang/tra-cuu') return { data: { trangThai: 0, daThanhToanDu: false, idPhuongThucThanhToan: 2, tuHuyQuaHan: true } }
+      return { data: {} }
+    })
+    const w = gan()
     await flushPromises()
-    expect(w.find('[data-testid="osv-het-han"]').exists()).toBe(false)
-    expect(w.find('[data-testid="osv-da-gui-mail"]').text()).toContain('đã tự gửi link thanh toán mới vào email')
-    expect(w.find('[data-testid="osv-dem-nguoc"]').text()).toContain('04:00')
+    expect(w.find('img[alt="Mã VietQR thanh toán"]').exists()).toBe(false)
+    expect(w.find('.badge').text()).toBe('Đã hủy')
+    expect(w.text()).toContain('Đơn hàng đã tự động hủy do quá thời hạn thanh toán 5 phút.')
     w.unmount()
   })
 

@@ -238,8 +238,9 @@ public class PhieuGiamGiaService {
         loi(donToiThieu < 0, "Đơn tối thiểu không được âm.");
         loi(donToiThieu > DON_TOI_THIEU_TOI_DA, "Đơn tối thiểu không quá 1.000.000.000 ₫.");
         loi(!phanTram && donToiThieu < giaTri, "Đơn tối thiểu phải lớn hơn hoặc bằng số tiền giảm.");
-        // Phiếu %: giảm tối đa ĐƯỢC lớn hơn đơn tối thiểu (góp ý 21/11, vd đơn từ 20 triệu, giảm 10% tối đa 50 triệu cho đơn lớn hơn);
-        // số tiền giảm là % của tiền hàng nên không bao giờ vượt quá đơn.
+        // 24/11 (đặc tả Task 2.1, thay góp ý 21/11): phiếu % có giảm tối đa và có đơn tối thiểu thì giảm tối đa KHÔNG được lớn hơn
+        // đơn tối thiểu (vd 20%, tối đa 50.000, đơn từ 100.000). Đơn tối thiểu 0 (không yêu cầu) thì không ràng buộc.
+        loi(giamToiDa != null && donToiThieu > 0 && giamToiDa > donToiThieu, "Giảm tối đa không được lớn hơn Đơn hàng tối thiểu");
 
         // Ngày GIỜ bắt đầu / kết thúc (tính theo phút: kết thúc 17:00 là dùng được tới hết phút 17:00) - quy ước chung ở ThoiGianPhut
         loi(req.ngayBatDau() == null, "Chọn ngày giờ bắt đầu.");

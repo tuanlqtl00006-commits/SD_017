@@ -4,55 +4,56 @@
 
 const boDau = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim()
 
+// Mỗi lựa chọn ghi đúng thông số mà trang dùng để lọc (độ cứng, điểm cân bằng, giá, trọng lượng) - không ghi điều không kiểm chứng được.
 export const CAU_HOI = [
   {
     khoa: 'trinhDo',
-    hoi: 'Bạn chơi cầu lông ở mức nào?',
-    moTa: 'Giúp chọn độ cứng thân vợt phù hợp với lực tay.',
+    hoi: 'Trình độ chơi cầu lông của bạn?',
+    moTa: 'Dùng để chọn độ cứng thân vợt.',
     luaChon: [
-      { gt: 'moi', nhan: 'Mới chơi', phu: 'Mới tập, lực tay còn yếu', icon: 'bi-emoji-smile' },
-      { gt: 'phongTrao', nhan: 'Chơi phong trào', phu: 'Chơi đều đặn vài buổi mỗi tuần', icon: 'bi-people' },
-      { gt: 'nangCao', nhan: 'Nâng cao / thi đấu', phu: 'Kỹ thuật tốt, lực tay khỏe', icon: 'bi-trophy' },
+      { gt: 'moi', nhan: 'Mới chơi', phu: 'Ưu tiên vợt thân mềm hoặc trung bình' },
+      { gt: 'phongTrao', nhan: 'Chơi phong trào', phu: 'Ưu tiên vợt thân trung bình hoặc cứng' },
+      { gt: 'nangCao', nhan: 'Nâng cao / thi đấu', phu: 'Ưu tiên vợt thân cứng hoặc rất cứng' },
     ],
   },
   {
     khoa: 'loiChoi',
-    hoi: 'Bạn thích lối chơi nào?',
-    moTa: 'Điểm cân bằng của vợt quyết định cảm giác đánh.',
+    hoi: 'Lối chơi của bạn?',
+    moTa: 'Dùng để chọn điểm cân bằng của vợt.',
     luaChon: [
-      { gt: 'tanCong', nhan: 'Tấn công', phu: 'Thích đập cầu mạnh', icon: 'bi-lightning-charge' },
-      { gt: 'phongThu', nhan: 'Phòng thủ, phản tạt', phu: 'Đỡ cầu, đánh nhanh trên lưới', icon: 'bi-shield' },
-      { gt: 'toanDien', nhan: 'Toàn diện', phu: 'Công thủ cân bằng', icon: 'bi-yin-yang' },
-      { gt: 'chuaRo', nhan: 'Chưa rõ', phu: 'Để cửa hàng gợi ý', icon: 'bi-question-circle' },
+      { gt: 'tanCong', nhan: 'Tấn công', phu: 'Ưu tiên vợt nặng đầu' },
+      { gt: 'phongThu', nhan: 'Phòng thủ', phu: 'Ưu tiên vợt nhẹ đầu' },
+      { gt: 'toanDien', nhan: 'Công thủ toàn diện', phu: 'Ưu tiên vợt cân bằng' },
+      { gt: 'chuaRo', nhan: 'Chưa xác định', phu: 'Không xét điểm cân bằng' },
     ],
   },
   {
     khoa: 'nganSach',
-    hoi: 'Ngân sách của bạn khoảng bao nhiêu?',
-    moTa: 'Tính theo giá đang bán (đã trừ giảm giá theo đợt).',
+    hoi: 'Ngân sách của bạn?',
+    moTa: 'Tính theo giá đang bán, đã trừ giảm giá theo đợt.',
     luaChon: [
-      { gt: 'duoi1', nhan: 'Dưới 1 triệu', tu: 0, den: 1_000_000, icon: 'bi-wallet' },
-      { gt: '1den2', nhan: '1 - 2 triệu', tu: 1_000_000, den: 2_000_000, icon: 'bi-wallet2' },
-      { gt: '2den4', nhan: '2 - 4 triệu', tu: 2_000_000, den: 4_000_000, icon: 'bi-cash-stack' },
-      { gt: 'tren4', nhan: 'Trên 4 triệu', tu: 4_000_000, den: Infinity, icon: 'bi-gem' },
-      { gt: 'tuyY', nhan: 'Không giới hạn', tu: 0, den: Infinity, icon: 'bi-infinity' },
+      { gt: 'duoi1', nhan: 'Dưới 1.000.000 ₫', tu: 0, den: 1_000_000 },
+      { gt: '1den2', nhan: '1.000.000 - 2.000.000 ₫', tu: 1_000_000, den: 2_000_000 },
+      { gt: '2den4', nhan: '2.000.000 - 4.000.000 ₫', tu: 2_000_000, den: 4_000_000 },
+      { gt: 'tren4', nhan: 'Trên 4.000.000 ₫', tu: 4_000_000, den: Infinity },
+      { gt: 'tuyY', nhan: 'Không giới hạn', tu: 0, den: Infinity },
     ],
   },
   {
     khoa: 'trongLuong',
-    hoi: 'Bạn muốn vợt nặng bao nhiêu?',
-    moTa: 'Vợt càng nhẹ càng dễ xoay trở; nặng hơn thì đầm tay, đập mạnh hơn.',
+    hoi: 'Trọng lượng vợt bạn muốn?',
+    moTa: 'Số U càng lớn thì vợt càng nhẹ.',
     luaChon: [
-      { gt: '5U', nhan: 'Nhẹ - 5U (75-79g)', phu: 'Dễ đánh, hợp người mới, nữ', icon: 'bi-feather' },
-      { gt: '4U', nhan: 'Vừa - 4U (80-84g)', phu: 'Phổ biến nhất', icon: 'bi-circle-half' },
-      { gt: '3U', nhan: 'Nặng - 3U (85-89g)', phu: 'Đầm tay, đập mạnh', icon: 'bi-circle-fill' },
-      { gt: 'khongRo', nhan: 'Không rõ', phu: 'Gợi ý theo trình độ', icon: 'bi-question-circle' },
+      { gt: '5U', nhan: '5U (75 - 79 g)', phu: 'Nhẹ' },
+      { gt: '4U', nhan: '4U (80 - 84 g)', phu: 'Trung bình' },
+      { gt: '3U', nhan: '3U (85 - 89 g)', phu: 'Nặng' },
+      { gt: 'khongRo', nhan: 'Chưa xác định', phu: 'Chọn theo trình độ: mới chơi 5U / 4U, phong trào 4U, nâng cao 4U / 3U' },
     ],
   },
   {
     khoa: 'thuongHieu',
-    hoi: 'Bạn thích thương hiệu nào?',
-    moTa: 'Chọn một hoặc nhiều hãng, hoặc bỏ qua nếu không quan trọng.',
+    hoi: 'Thương hiệu bạn quan tâm?',
+    moTa: 'Chọn một hoặc nhiều thương hiệu, có thể bỏ qua.',
     nhieu: true, // chọn nhiều, được bỏ trống
     luaChon: [], // lấy từ dữ liệu sản phẩm đang bán
   },

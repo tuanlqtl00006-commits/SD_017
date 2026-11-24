@@ -68,6 +68,7 @@ public class KhachTaiKhoanController {
     /** Tra cứu đơn hàng của chính khách đang đăng nhập (đơn của người khác báo không tìm thấy). */
     @GetMapping("/don-hang/{maHoaDon}")
     public Map<String, Object> traCuuDon(@PathVariable String maHoaDon) {
+        cuaHangService.tuHuyNeuQuaHan(maHoaDon); // 24/11: đơn quá hạn thanh toán online thì hủy ngay khi khách xem
         return cuaHangService.traCuuDonHangCuaKhach(maHoaDon, idKhachHienTai());
     }
 

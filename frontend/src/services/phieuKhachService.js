@@ -5,19 +5,23 @@
 import api from './api'
 import { layPhien } from './phien'
 import { formatMoney } from '../utils/format'
+import { tinhGiamPhieu } from '../utils/tinhPhieu'
 
 export function laKhachDangNhap() {
   return layPhien()?.nguoiDung?.vaiTro === 'KHACH_HANG'
 }
 
-/** Số tiền phiếu giảm cho đơn `tong` (phiếu công khai, tính tạm trên máy; máy chủ vẫn tính lại khi đặt hàng). */
+/**
+ * Số tiền phiếu giảm cho đơn `tong` (phiếu công khai, tính tạm trên máy; máy chủ vẫn tính lại khi đặt hàng).
+ * Dùng chung công thức tinhGiamPhieu (24/11, Task 2.2): chưa đủ đơn tối thiểu -> 0; % có trần giảm tối đa; kẹp trong [0, tong].
+ */
 export function tinhGiamTam(p, tong) {
-  const gt = Number(p.giaTriGiam) || 0
-  if (p.hinhThucGiam === 1) {
-    const giam = Math.floor((tong * Math.min(100, gt)) / 100)
-    return p.giamToiDa ? Math.min(giam, Number(p.giamToiDa)) : giam
-  }
-  return Math.min(gt, tong)
+  return tinhGiamPhieu({
+    loaiGiam: p.hinhThucGiam === 1 ? 'PHAN_TRAM' : 'TIEN_MAT',
+    giaTri: p.giaTriGiam,
+    giamToiDa: p.giamToiDa,
+    donToiThieu: p.donToiThieu,
+  }, tong).giam
 }
 
 /** Danh sách phiếu cho đơn có tiền hàng `tong`; ẩn các phiếu đã hết hạn hoặc ngừng hoạt động; lỗi mạng thì trả []. */

@@ -16,7 +16,7 @@ const traLoi = reactive({ trinhDo: '', loiChoi: '', nganSach: '', trongLuong: ''
 const cauHoi = computed(() => {
   const c = CAU_HOI[buoc.value]
   if (!c || c.khoa !== 'thuongHieu') return c
-  return { ...c, luaChon: dsThuongHieu(sanPhams.value).map((t) => ({ gt: t, nhan: t, icon: 'bi-award' })) }
+  return { ...c, luaChon: dsThuongHieu(sanPhams.value).map((t) => ({ gt: t, nhan: t })) }
 })
 const xongCauHoi = computed(() => buoc.value >= CAU_HOI.length)
 const tienTrinh = computed(() => Math.round((Math.min(buoc.value, CAU_HOI.length) / CAU_HOI.length) * 100))
@@ -78,10 +78,10 @@ onMounted(async () => {
 
 <template>
   <div class="gy py-4" data-testid="goi-y">
-    <div class="container">
+    <div class="gy-khung">
       <div class="gy-dau">
-        <h1 class="gy-tieu-de"><i class="bi bi-stars" aria-hidden="true"></i> Gợi ý vợt cho bạn</h1>
-        <p class="gy-mo-ta">Trả lời vài câu hỏi ngắn, cửa hàng gợi ý những mẫu đang bán phù hợp nhất.</p>
+        <h1 class="gy-tieu-de">Gợi ý vợt cho bạn</h1>
+        <p class="gy-mo-ta">Trả lời 5 câu hỏi về trình độ, lối chơi, ngân sách, trọng lượng và thương hiệu, cửa hàng gợi ý các mẫu vợt còn hàng phù hợp.</p>
       </div>
 
       <div class="gy-the">
@@ -120,20 +120,18 @@ onMounted(async () => {
               data-testid="gy-lua-chon"
               @click="chon(l.gt)"
             >
-              <i class="bi" :class="l.icon" aria-hidden="true"></i>
               <span class="gy-chon-chu">
                 <strong>{{ l.nhan }}</strong>
                 <small v-if="l.phu">{{ l.phu }}</small>
               </span>
-              <i v-if="daChon(l.gt)" class="bi bi-check-circle-fill gy-chon-dau" aria-hidden="true"></i>
             </button>
           </div>
           <div class="gy-nut">
             <button type="button" class="btn btn-outline-secondary rounded-pill px-4" :disabled="buoc === 0" data-testid="gy-quay-lai" @click="lui">
-              <i class="bi bi-arrow-left me-1"></i> Quay lại
+              Quay lại
             </button>
             <button type="button" class="btn btn-primary rounded-pill px-4" :disabled="!choTiep" data-testid="gy-tiep" @click="tiep">
-              {{ buoc === CAU_HOI.length - 1 ? 'Xem gợi ý' : 'Tiếp tục' }} <i class="bi bi-arrow-right ms-1"></i>
+              {{ buoc === CAU_HOI.length - 1 ? 'Xem gợi ý' : 'Tiếp tục' }}
             </button>
           </div>
         </template>
@@ -151,16 +149,16 @@ onMounted(async () => {
             <div v-for="k in ketQua.ds" :key="k.sp.id" class="gy-mau">
               <TheSanPham :sp="theSp(k)" />
               <ul v-if="k.lyDo.length" class="gy-ly-do">
-                <li v-for="l in k.lyDo" :key="l"><i class="bi bi-check2" aria-hidden="true"></i> {{ l }}</li>
+                <li v-for="l in k.lyDo" :key="l">{{ l }}</li>
               </ul>
             </div>
           </div>
           <div class="gy-nut">
             <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-testid="gy-sua" @click="lui">
-              <i class="bi bi-arrow-left me-1"></i> Sửa lựa chọn
+              Sửa lựa chọn
             </button>
             <button type="button" class="btn btn-primary rounded-pill px-4" data-testid="gy-lam-lai" @click="lamLai">
-              <i class="bi bi-arrow-counterclockwise me-1"></i> Làm lại
+              Làm lại
             </button>
           </div>
         </template>
@@ -170,6 +168,11 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.gy-khung {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
 .gy-dau {
   margin-bottom: 18px;
   text-align: center;
@@ -179,17 +182,15 @@ onMounted(async () => {
   font-weight: 800;
   color: #0f172a;
 }
-.gy-tieu-de .bi {
-  color: #2563eb;
-}
 .gy-mo-ta {
   margin: 4px 0 0;
+  font-size: 0.92rem;
   color: #64748b;
 }
 .gy-the {
-  max-width: 920px;
+  max-width: none;
   margin: 0 auto;
-  padding: 24px;
+  padding: 28px 32px;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 18px;
@@ -207,7 +208,7 @@ onMounted(async () => {
   color: #475569;
 }
 .gy-thanh {
-  height: 8px;
+  height: 10px;
   overflow: hidden;
   background: #e2e8f0;
   border-radius: 999px;
@@ -229,9 +230,9 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  font-size: 0.78rem;
+  width: 28px;
+  height: 28px;
+  font-size: 0.8rem;
   font-weight: 700;
   color: #94a3b8;
   background: #fff;
@@ -249,35 +250,34 @@ onMounted(async () => {
   border-color: #2563eb;
 }
 .gy-hoi {
-  margin: 0;
+  margin: 6px 0 0;
   font-size: 1.25rem;
   font-weight: 800;
   color: #0f172a;
 }
 .gy-hoi-phu {
-  margin: 4px 0 16px;
+  margin: 4px 0 18px;
+  font-size: 0.9rem;
   color: #64748b;
 }
 .gy-lua-chon {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
 }
 .gy-chon {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 16px;
+  min-height: 84px;
+  padding: 18px 20px;
+  font-size: 0.95rem;
   text-align: left;
   background: #f8fafc;
   border: 2px solid #e2e8f0;
   border-radius: 14px;
   transition: border-color 0.15s ease, background 0.15s ease;
-}
-.gy-chon > .bi:first-child {
-  font-size: 1.4rem;
-  color: #2563eb;
 }
 .gy-chon:hover {
   border-color: #93c5fd;
@@ -292,19 +292,19 @@ onMounted(async () => {
   min-width: 0;
 }
 .gy-chon-chu small {
+  margin-top: 2px;
+  font-size: 0.8rem;
   color: #64748b;
-}
-.gy-chon-dau {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  color: #2563eb;
 }
 .gy-nut {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
-  margin-top: 22px;
+  gap: 12px;
+  margin-top: 28px;
+}
+.gy-nut .btn {
+  padding: 8px 24px;
+  font-size: 0.92rem;
 }
 .gy-cho {
   padding: 30px 0;
@@ -327,17 +327,54 @@ onMounted(async () => {
 }
 .gy-ket-qua {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+/* Mỗi mẫu gợi ý: thẻ sản phẩm + lý do hợp nằm chung một khung (thẻ dùng chung cao 100% ô nên để lý do bên ngoài sẽ bị hàng sau đè) */
+.gy-mau {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #eef0f4;
+  border-radius: 18px;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.gy-mau:hover {
+  border-color: #bfdbfe;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+.gy-mau :deep(.tsp) {
+  flex: 0 0 auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
 }
 .gy-ly-do {
-  margin: 8px 0 0;
-  padding: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 14px 14px;
   font-size: 0.8rem;
+  line-height: 1.35;
   color: #15803d;
   list-style: none;
+  background: #f0fdf4;
+  border-top: 1px dashed #bbf7d0;
+}
+.gy-ly-do li {
+  display: flex;
+  gap: 4px;
 }
 @media (max-width: 576px) {
+  .gy-khung {
+    padding: 0 12px;
+  }
   .gy-the {
     padding: 16px;
   }

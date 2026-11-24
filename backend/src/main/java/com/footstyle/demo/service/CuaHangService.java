@@ -966,22 +966,31 @@ public class CuaHangService {
         return chiTietDon(hd);
     }
 
-    /* ===== Chuyển khoản online: hạn 5 phút, quá hạn chưa trả là "đơn treo", khách được đổi sang COD (góp ý 14/11, video 22:22 [04:52–08:06]) ===== */
+    /* ===== Chuyển khoản online: hạn 5 phút kể từ lúc đặt; quá hạn chưa trả thì đơn tự hủy (24/11, Task 4 - thay "đơn treo" cũ) ===== */
 
     /** Số phút khách có để chuyển khoản sau khi đặt (mã QR đếm ngược). */
     public static final long HAN_CHUYEN_KHOAN_PHUT = 5;
     /** id phương thức "Thanh toán khi nhận hàng (COD)". */
     public static final Integer COD = 1;
 
-    /** Đơn online chuyển khoản, còn Chờ xác nhận, chưa nhận đồng nào và đã quá hạn chuyển khoản. */
+    /**
+     * Đơn online chuyển khoản, còn Chờ xác nhận, chưa nhận đồng nào và đã quá hạn chuyển khoản (lúc đặt + 5 phút).
+     * 24/11 (Task 4): đơn như vậy bị TỰ HỦY ({@link #tuHuyDonQuaHanThanhToan}); không còn gửi lại link / tạo mã QR mới / gia hạn.
+     */
     public static boolean laDonTreo(HoaDon hd, long daTra, LocalDateTime luc) {
-        return laDonTreo(hd, daTra, luc, hd.getNgayTao());
+        LocalDateTime han = hanThanhToan(hd);
+        return laChoChuyenKhoan(hd, daTra) && han != null && !luc.isBefore(han);
     }
 
-    /** Như trên, mã QR bắt đầu đếm từ {@code batDauQr} (lúc đặt, hoặc lần gửi lại link thanh toán gần nhất - xem {@link #batDauQr}). */
-    public static boolean laDonTreo(HoaDon hd, long daTra, LocalDateTime luc, LocalDateTime batDauQr) {
-        return laChoChuyenKhoan(hd, daTra) && batDauQr != null && !luc.isBefore(batDauQr.plusMinutes(HAN_CHUYEN_KHOAN_PHUT));
+    /** Hạn thanh toán online của đơn: lúc đặt + 5 phút (cố định, không gia hạn; F5 trang vẫn đếm đúng). */
+    public static LocalDateTime hanThanhToan(HoaDon hd) {
+        return hd == null || hd.getNgayTao() == null ? null : hd.getNgayTao().plusMinutes(HAN_CHUYEN_KHOAN_PHUT);
     }
+
+    /** Lý do ghi vào lịch sử khi hệ thống tự hủy đơn quá hạn thanh toán online. */
+    public static final String LY_DO_TU_HUY_QUA_HAN = "Tự động hủy đơn do quá thời gian thanh toán online (" + HAN_CHUYEN_KHOAN_PHUT + " phút)";
+    /** Hành động ghi vào lịch sử khi nhân viên gửi thư nhắc thanh toán (không ảnh hưởng hạn 5 phút). */
+    public static final String GUI_MAIL_NHAC_THANH_TOAN = "Gửi mail nhắc thanh toán";
 
     /** Đơn online chuyển khoản, còn Chờ xác nhận, chưa nhận đồng nào (còn đang chờ khách chuyển khoản). */
     static boolean laChoChuyenKhoan(HoaDon hd, long daTra) {
@@ -989,23 +998,6 @@ public class CuaHangService {
                 && HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())
                 && Integer.valueOf(HoaDon.CHO_XAC_NHAN).equals(hd.getTrangThai())
                 && daTra <= 0;
-    }
-
-    /** Hành động ghi vào lịch sử hóa đơn khi khách yêu cầu gửi lại link thanh toán: mã QR đếm lại 5 phút từ lúc này. */
-    public static final String GUI_LAI_LINK_THANH_TOAN = "Gửi lại link thanh toán";
-
-    /**
-     * Mốc bắt đầu đếm 5 phút của mã QR: lần "Gửi lại link thanh toán" gần nhất, chưa gửi lại thì lúc đặt hàng.
-     * Ghi trong lịch sử hóa đơn nên không cần thêm cột CSDL (góp ý 22/11: khách muốn chuyển khoản lại sau khi quá hạn).
-     */
-    public static LocalDateTime batDauQr(HoaDon hd, List<LichSuHoaDon> lichSu) {
-        LocalDateTime moc = hd.getNgayTao();
-        for (LichSuHoaDon l : lichSu == null ? List.<LichSuHoaDon>of() : lichSu) {
-            if (GUI_LAI_LINK_THANH_TOAN.equals(l.getHanhDong()) && l.getThoiGian() != null && (moc == null || l.getThoiGian().isAfter(moc))) {
-                moc = l.getThoiGian();
-            }
-        }
-        return moc;
     }
 
     private long daTraCuaDon(HoaDon hd) {
@@ -1036,7 +1028,7 @@ public class CuaHangService {
         }
         if (daTra > 0) throw ApiException.conflict("Cửa hàng đã nhận tiền chuyển khoản của đơn này, không cần đổi sang COD.");
         LocalDateTime luc = bayGio();
-        boolean treo = laDonTreo(hd, daTra, luc, batDauQr(hd, lichSuHoaDonRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())));
+        boolean treo = laDonTreo(hd, daTra, luc);
         hd.setIdPhuongThucThanhToan(COD);
         hd.setNgayCapNhat(luc);
         hoaDonRepo.save(hd);
@@ -1054,8 +1046,7 @@ public class CuaHangService {
     /**
      * Gửi email thông báo đơn chưa thanh toán kèm đường dẫn để khách quay lại màn hình thanh toán.
      * Áp dụng khi khách thanh toán chưa thành công hoặc tắt nhầm trình duyệt (cả khách đăng nhập và chưa đăng nhập).
-     * Góp ý 22/11: QR quá 5 phút mà khách muốn chuyển khoản lại thì gửi thư này; mã QR đếm lại 5 phút từ lúc gửi
-     * (ghi "Gửi lại link thanh toán" vào lịch sử hóa đơn, xem {@link #batDauQr}).
+     * 24/11 (Task 4): chỉ gửi lại link tới trang thanh toán, KHÔNG tạo mã QR mới, KHÔNG gia hạn - hạn vẫn là lúc đặt + 5 phút.
      */
     @Transactional
     public Map<String, Object> guiMailThanhToan(String maHoaDon, String sdt) {
@@ -1064,43 +1055,77 @@ public class CuaHangService {
         if (hd == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng " + ma, null, null, null);
         }
+        kiemTraConChoThanhToan(hd);
+        return guiLinkThanhToan(hd, "Khách hàng", "Gửi link thanh toán tới ");
+    }
+
+    /**
+     * 24/11 (Task 3.3): nhân viên bấm "Gửi mail nhắc thanh toán" ở chi tiết hóa đơn - chỉ đơn online chuyển khoản, chưa thanh toán,
+     * còn Chờ xác nhận và chưa quá hạn 5 phút. Thư ghi mã đơn, số tiền, nội dung chuyển khoản, link trang thanh toán.
+     * KHÔNG tạo mã QR mới, KHÔNG gia hạn: đơn vẫn tự hủy đúng lúc đặt + 5 phút.
+     */
+    @Transactional
+    public Map<String, Object> guiMailNhacThanhToan(Integer idHoaDon, String nguoiThaoTac) {
+        HoaDon hd = idHoaDon == null ? null : hoaDonRepo.findById(idHoaDon).orElse(null);
+        if (hd == null) throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn.", null, null, null);
+        kiemTraConChoThanhToan(hd);
+        String nguoi = nguoiThaoTac == null || nguoiThaoTac.isBlank() ? "Nhân viên" : nguoiThaoTac.trim();
+        return guiLinkThanhToan(hd, nguoi, "Gửi mail nhắc thanh toán tới ");
+    }
+
+    /** Đơn phải còn chờ khách chuyển khoản và chưa quá hạn, nếu không thì báo 409 kèm lý do. */
+    private void kiemTraConChoThanhToan(HoaDon hd) {
+        String ma = hd.getMaHoaDon();
         if (Integer.valueOf(HoaDon.DA_HUY).equals(hd.getTrangThai())) {
             throw ApiException.conflict("Đơn hàng " + ma + " đã bị hủy.");
         }
-        if (!laChoChuyenKhoan(hd, daTraCuaDon(hd))) {
+        long daTra = daTraCuaDon(hd);
+        if (!laChoChuyenKhoan(hd, daTra)) {
             throw ApiException.conflict("Đơn hàng " + ma + " không còn chờ chuyển khoản (đã thanh toán, đã đổi sang COD hoặc đã được cửa hàng xử lý).");
         }
-        return guiLinkThanhToan(hd, "Khách hàng");
-    }
-
-    /** Chỉ quét đơn đặt trong khoảng này để tự gửi thư (đơn cũ hơn - vd có từ trước khi bật tính năng - không bị gửi bất ngờ). */
-    static final long TU_GUI_LINK_QUET_PHUT = 30;
-
-    /**
-     * Góp ý 22/11: mã QR hết 5 phút mà khách chưa chuyển khoản thì hệ thống TỰ gửi 1 thư có link thanh toán (mã QR đếm lại 5 phút).
-     * Mỗi đơn tự gửi tối đa 1 lần (đơn đã có "Gửi lại link thanh toán" thì bỏ qua); lần sau khách tự bấm "Chuyển khoản lại".
-     */
-    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 30_000L, initialDelay = 30_000L)
-    @Transactional
-    public void tuGuiLinkKhiQrHetHan() {
-        LocalDateTime luc = bayGio();
-        for (HoaDon hd : hoaDonRepo.findByTrangThaiAndNgayTaoBetween(HoaDon.CHO_XAC_NHAN,
-                luc.minusMinutes(TU_GUI_LINK_QUET_PHUT), luc.minusMinutes(HAN_CHUYEN_KHOAN_PHUT))) {
-            try {
-                if (!laChoChuyenKhoan(hd, daTraCuaDon(hd))) continue;
-                boolean daGui = lichSuHoaDonRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId()).stream()
-                        .anyMatch(l -> GUI_LAI_LINK_THANH_TOAN.equals(l.getHanhDong()));
-                if (!daGui) guiLinkThanhToan(hd, "Hệ thống");
-            } catch (ApiException e) {
-                // Đơn không có email nhận thông báo: không gửi được, bỏ qua (đơn ra khỏi khoảng quét sau 30 phút)
-            } catch (RuntimeException e) {
-                org.slf4j.LoggerFactory.getLogger(CuaHangService.class).warn("Không tự gửi được link thanh toán đơn {}: {}", hd.getMaHoaDon(), e.getMessage());
-            }
+        if (laDonTreo(hd, daTra, bayGio())) {
+            throw ApiException.conflict("Đơn hàng " + ma + " đã quá " + HAN_CHUYEN_KHOAN_PHUT + " phút chưa thanh toán nên hệ thống tự hủy, không gửi thư nhắc được.");
         }
     }
 
-    /** Gửi thư có link trang thanh toán và ghi "Gửi lại link thanh toán" (mã QR đếm lại 5 phút từ lúc này). */
-    private Map<String, Object> guiLinkThanhToan(HoaDon hd, String nguoiThaoTac) {
+    /**
+     * 24/11 (Task 4.2): quét mỗi 20 giây, hủy các đơn online chuyển khoản còn Chờ xác nhận mà quá lúc đặt + 5 phút chưa nhận tiền.
+     * Hủy qua HoaDonService.doiTrangThai (mỗi đơn một giao dịch riêng): trạng thái Đã hủy, trả lượt phiếu, ghi lịch sử
+     * "Tự động hủy đơn do quá thời gian thanh toán online (5 phút)", gửi thư báo hủy như mọi lần hủy. Không gửi link mới, không tạo QR mới.
+     * (Đơn online Chờ xác nhận chưa trừ kho nên không phải cộng lại kho.)
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 20_000L, initialDelay = 15_000L)
+    public void tuHuyDonQuaHanThanhToan() {
+        LocalDateTime luc = bayGio();
+        for (HoaDon hd : hoaDonRepo.findByTrangThaiAndNgayTaoBetween(HoaDon.CHO_XAC_NHAN,
+                LocalDateTime.of(2000, 1, 1, 0, 0), luc.minusMinutes(HAN_CHUYEN_KHOAN_PHUT))) {
+            tuHuyNeuQuaHan(hd);
+        }
+    }
+
+    /** Kiểm tra lười khi khách / trang thanh toán hỏi trạng thái đơn: quá hạn thì hủy ngay, không chờ lượt quét. */
+    public void tuHuyNeuQuaHan(String maHoaDon) {
+        String ma = maHoaDon == null ? "" : maHoaDon.trim();
+        if (ma.isEmpty()) return;
+        hoaDonRepo.findFirstByMaHoaDonIgnoreCase(ma).ifPresent(this::tuHuyNeuQuaHan);
+    }
+
+    /** Hủy đơn nếu đã quá hạn thanh toán online; true = vừa hủy. Lỗi (vd đơn vừa được xử lý) thì bỏ qua, lượt sau thử lại. */
+    boolean tuHuyNeuQuaHan(HoaDon hd) {
+        if (hoaDonService == null || hd == null || hd.getId() == null) return false;
+        try {
+            if (!laDonTreo(hd, daTraCuaDon(hd), bayGio())) return false;
+            hoaDonService.doiTrangThai(hd.getId(),
+                    new com.footstyle.demo.dto.HoaDonTrangThaiRequest(HoaDon.DA_HUY, LY_DO_TU_HUY_QUA_HAN, "Hệ thống"));
+            return true;
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(CuaHangService.class).warn("Không tự hủy được đơn quá hạn {}: {}", hd.getMaHoaDon(), e.getMessage());
+            return false;
+        }
+    }
+
+    /** Gửi thư có link trang thanh toán (không đổi hạn 5 phút) và ghi lịch sử "Gửi mail nhắc thanh toán". */
+    private Map<String, Object> guiLinkThanhToan(HoaDon hd, String nguoiThaoTac, String moTaDau) {
         String ma = hd.getMaHoaDon();
 
         // Tìm email nhận thông báo: ưu tiên lịch sử lúc đặt, sau đó đến tài khoản khách
@@ -1151,27 +1176,31 @@ public class CuaHangService {
 
             mailService.guiThongBaoChuaThanhToan(hd.getHoTenNguoiNhan(), email, hd.getMaHoaDon(), mon,
                     String.format(Locale.forLanguageTag("vi-VN"), "%,d ₫", thanhTien),
-                    hd.getDiaChiGiaoHang(), "Chuyển khoản VietQR", tien, linkThanhToan);
+                    hd.getDiaChiGiaoHang(), "Chuyển khoản VietQR", tien, linkThanhToan, hanChu(hd));
         }
 
-        // Mã QR đếm lại 5 phút từ lúc gửi thư
-        LocalDateTime luc = bayGio();
-        LichSuHoaDon guiLai = new LichSuHoaDon();
-        guiLai.setHoaDon(hd);
-        guiLai.setHanhDong(GUI_LAI_LINK_THANH_TOAN);
-        guiLai.setNguoiThaoTac(nguoiThaoTac);
-        guiLai.setThoiGian(luc);
-        guiLai.setMoTa(("Hệ thống".equals(nguoiThaoTac) ? "Mã QR hết hạn, tự gửi link thanh toán tới " : "Gửi lại link thanh toán tới ")
-                + anEmail(email) + ", mã QR có hiệu lực " + HAN_CHUYEN_KHOAN_PHUT + " phút");
-        lichSuHoaDonRepo.save(guiLai);
+        // Chỉ ghi lịch sử; hạn thanh toán KHÔNG đổi (vẫn lúc đặt + 5 phút)
+        LichSuHoaDon nhac = new LichSuHoaDon();
+        nhac.setHoaDon(hd);
+        nhac.setHanhDong(GUI_MAIL_NHAC_THANH_TOAN);
+        nhac.setNguoiThaoTac(nguoiThaoTac);
+        nhac.setThoiGian(bayGio());
+        nhac.setMoTa(moTaDau + anEmail(email) + " (hạn thanh toán " + hanChu(hd) + ", không gia hạn)");
+        lichSuHoaDonRepo.save(nhac);
 
         Map<String, Object> kq = new LinkedHashMap<>();
         kq.put("ok", true);
         // Che email: người gửi yêu cầu có thể chỉ biết mã đơn
-        kq.put("message", "Đã gửi link thanh toán của đơn " + hd.getMaHoaDon() + " tới " + anEmail(email) + ". Mã QR có hiệu lực "
-                + HAN_CHUYEN_KHOAN_PHUT + " phút.");
-        kq.put("hanChuyenKhoan", luc.plusMinutes(HAN_CHUYEN_KHOAN_PHUT));
+        kq.put("message", "Đã gửi mail nhắc thanh toán đơn " + hd.getMaHoaDon() + " tới " + anEmail(email)
+                + ". Hạn thanh toán vẫn là " + hanChu(hd) + ".");
+        kq.put("hanChuyenKhoan", hanThanhToan(hd));
         return kq;
+    }
+
+    /** Hạn thanh toán dạng "HH:mm dd/MM/yyyy" để ghi vào thư / lịch sử. */
+    static String hanChu(HoaDon hd) {
+        LocalDateTime han = hanThanhToan(hd);
+        return han == null ? "" : han.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy"));
     }
 
     /** tuan.nguyen@gmail.com -> tu***@gmail.com */
@@ -1324,13 +1353,14 @@ public class CuaHangService {
         res.put("daTra", daTra);
         res.put("daThanhToanDu", hd.getThanhTien() != null && daTra.compareTo(hd.getThanhTien()) >= 0);
         res.put("idPhuongThucThanhToan", hd.getIdPhuongThucThanhToan());
-        // Hạn chuyển khoản (mã QR đếm ngược tới mốc này) và đơn đã thành "đơn treo" chưa
-        LocalDateTime batDau = batDauQr(hd, lichSuHoaDonRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId()));
-        res.put("hanChuyenKhoan", batDau == null ? null : batDau.plusMinutes(HAN_CHUYEN_KHOAN_PHUT));
-        res.put("donTreo", laDonTreo(hd, daTra.longValue(), bayGio(), batDau));
+        // Hạn thanh toán online = lúc đặt + 5 phút (expiredAt, cố định, không gia hạn): trang thanh toán đếm ngược theo mốc này
+        // nên F5 vẫn đúng; quá hạn chưa nhận tiền thì đơn tự hủy (24/11, Task 4)
+        res.put("hanChuyenKhoan", hanThanhToan(hd));
+        res.put("donTreo", laDonTreo(hd, daTra.longValue(), bayGio()));
         res.put("choChuyenKhoan", laChoChuyenKhoan(hd, daTra.longValue()));
-        // Đã gửi (tự động hoặc khách bấm) link thanh toán mới: trang thanh toán báo "đã gửi link vào email"
-        res.put("daGuiLaiLink", batDau != null && hd.getNgayTao() != null && batDau.isAfter(hd.getNgayTao()));
+        res.put("tuHuyQuaHan", Integer.valueOf(HoaDon.DA_HUY).equals(hd.getTrangThai())
+                && lichSuHoaDonRepo.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId()).stream()
+                        .anyMatch(l -> l.getMoTa() != null && l.getMoTa().startsWith(LY_DO_TU_HUY_QUA_HAN)));
 
         boolean hetHang = false;
         String lyDoHetHang = null;

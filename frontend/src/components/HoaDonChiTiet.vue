@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { useRoute } from 'vue-router'
 import api from '../services/api'
@@ -98,8 +98,10 @@ const trangThaiHienTai = computed(() => trangThaiOf(hd.value.trangThai))
 // Nút nào được hiện do BACKEND quyết định (hoaDon.chuyenDuoc); đơn đã hoàn thành / đã hủy thì không còn nút nào.
 
 const THU_TU_NUT = { nguyhiem: 0, canhbao: 1, chinh: 2 }
+// 24/11 (Task 3.2): đơn online chuyển khoản chưa thanh toán thì ẩn "Xác nhận đơn" (backend cũng chặn)
 const dsNut = computed(() =>
   (hd.value.chuyenDuoc ?? [])
+    .filter((c) => !(data.value?.choThanhToanOnline && c.trangThai === TT.DA_XAC_NHAN))
     .map((c) => ({ ...c, ...nutChuyen(hd.value.loaiDon, hd.value.trangThai, c.trangThai) }))
     .sort((a, b) => THU_TU_NUT[a.kieu] - THU_TU_NUT[b.kieu]),
 )
@@ -283,6 +285,48 @@ function daSuaDon(d) {
   moSuaDon.value = false
   setData(d)
 }
+// 24/11 (Task 3.3): gửi mail nhắc thanh toán - chỉ đơn online chuyển khoản, chưa thanh toán, còn Chờ xác nhận (backend quyết định
+// qua duocGuiMailNhacThanhToan). Không tạo QR mới, không gia hạn: tới lúc đặt + 5 phút đơn vẫn tự hủy.
+const dangGuiNhac = ref(false)
+const hanThanhToanText = computed(() => (data.value?.hanThanhToan ? formatGio(data.value.hanThanhToan) : ''))
+// Tới hạn (lúc đặt + 5 phút) thì ẩn nút ngay trên máy, rồi tải lại để thấy đơn đã tự hủy (máy chủ quét mỗi 20 giây)
+const quaHanTaiMay = ref(false)
+let henQuaHan = null
+watch(
+  () => data.value?.hanThanhToan,
+  (han) => {
+    clearTimeout(henQuaHan)
+    quaHanTaiMay.value = false
+    if (!han) return
+    const conLai = new Date(han).getTime() - Date.now()
+    if (!(conLai > 0)) {
+      quaHanTaiMay.value = true
+      return
+    }
+    if (conLai > 2_000_000_000) return // setTimeout quá ~24 ngày bị tràn số và chạy ngay
+
+    henQuaHan = setTimeout(() => {
+      quaHanTaiMay.value = true
+      setTimeout(taiNgam, 25000)
+    }, conLai)
+  },
+)
+onBeforeUnmount(() => clearTimeout(henQuaHan))
+async function guiMailNhacThanhToan() {
+  if (dangGuiNhac.value) return
+  dangGuiNhac.value = true
+  try {
+    const res = await api.post(`/hoa-don/${idHoaDon}/gui-mail-nhac-thanh-toan`)
+    setData(res.data)
+    toast.success(res.data?.thongBao || 'Đã gửi mail nhắc thanh toán cho khách.')
+  } catch (e) {
+    toast.error(e.message || 'Không gửi được mail nhắc thanh toán.')
+    taiNgam()
+  } finally {
+    dangGuiNhac.value = false
+  }
+}
+
 // Đơn chuyển khoản chưa thanh toán: Admin đổi sang COD khi khách liên hệ (Requirement 4)
 const dangDoiCod = ref(false)
 async function adminDoiSangCod() {
@@ -473,8 +517,22 @@ const daThanhToan = computed(() => Number(data.value?.daThanhToan ?? 0))
             <i class="bi bi-pencil-square" aria-hidden="true"></i> Chỉnh sửa đơn
           </button>
 
-          <p v-if="data.donTreo" class="hd-khoa w-100 mb-0" role="note" data-testid="hd-don-treo">
-            <i class="bi bi-hourglass-bottom" aria-hidden="true"></i> Đơn treo: quá 5 phút khách chưa chuyển khoản. Chờ tiền về hoặc khách đổi sang thanh toán khi nhận hàng.
+          <button
+            v-if="data.duocGuiMailNhacThanhToan && !quaHanTaiMay"
+            type="button"
+            class="ad-btn hd-btn-outline-warning"
+            data-testid="hd-gui-mail-nhac"
+            :disabled="dangGuiNhac"
+            @click="guiMailNhacThanhToan"
+          >
+            <span v-if="dangGuiNhac" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <i v-else class="bi bi-envelope" aria-hidden="true"></i> Gửi mail nhắc thanh toán
+          </button>
+          <p v-if="data.choThanhToanOnline && !data.donTreo && !quaHanTaiMay" class="hd-khoa w-100 mb-0" role="note" data-testid="hd-cho-thanh-toan">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i> Chờ khách thanh toán online: chưa xác nhận đơn được.<template v-if="hanThanhToanText"> Hạn {{ hanThanhToanText }}, quá hạn đơn tự hủy.</template>
+          </p>
+          <p v-if="data.donTreo || (data.choThanhToanOnline && quaHanTaiMay)" class="hd-khoa w-100 mb-0" role="note" data-testid="hd-don-treo">
+            <i class="bi bi-hourglass-bottom" aria-hidden="true"></i> Đã quá 5 phút khách chưa thanh toán online: hệ thống đang tự hủy đơn.
           </p>
 
           <button v-if="data.duocXacNhanHoanTien" type="button" class="ad-btn btn-warning text-dark fw-medium" data-testid="hd-xac-nhan-hoan-tien" :disabled="dangXacNhanHoan" @click="moXacNhanHoan = true">

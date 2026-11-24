@@ -59,15 +59,15 @@ describe('Trang Gợi ý từng bước', () => {
     expect(nutTiep().attributes('disabled')).toBeDefined() // chưa chọn
     await chon('Mới chơi')
     await nutTiep().trigger('click')
-    expect(w.get('[data-testid="gy-cau-hoi"]').text()).toBe('Bạn thích lối chơi nào?')
+    expect(w.get('[data-testid="gy-cau-hoi"]').text()).toBe('Lối chơi của bạn?')
     await w.get('[data-testid="gy-quay-lai"]').trigger('click')
     expect(w.findAll('[data-testid="gy-lua-chon"]').find((b) => b.text().includes('Mới chơi')).classes()).toContain('is-chon')
     await nutTiep().trigger('click')
     await chon('Phòng thủ')
     await nutTiep().trigger('click')
-    await chon('Dưới 1 triệu')
+    await chon('Dưới 1.000.000')
     await nutTiep().trigger('click')
-    await chon('Không rõ')
+    await chon('Chưa xác định')
     await nutTiep().trigger('click')
     // Câu thương hiệu: được bỏ trống
     expect(w.findAll('[data-testid="gy-lua-chon"]').map((b) => b.text())).toEqual(['Kumpoo', 'Lining', 'Yonex'])

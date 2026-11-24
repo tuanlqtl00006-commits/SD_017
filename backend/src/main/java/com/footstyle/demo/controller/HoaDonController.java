@@ -22,6 +22,7 @@ public class HoaDonController {
 
     private final HoaDonService hoaDonService;
     private final HoaDonSuaService hoaDonSuaService;
+    private final com.footstyle.demo.service.CuaHangService cuaHangService;
 
     @GetMapping
     public Map<String, Object> getListHoaDon(
@@ -98,6 +99,22 @@ public class HoaDonController {
     @PutMapping("/{id}/doi-sang-cod")
     public Map<String, Object> doiSangCod(@PathVariable Integer id) {
         return hoaDonSuaService.adminDoiSangCod(id);
+    }
+
+    /**
+     * 24/11 (Task 3.3): đơn online chuyển khoản chưa thanh toán, còn Chờ xác nhận - gửi thư nhắc thanh toán (mã đơn, số tiền,
+     * nội dung chuyển khoản, link trang thanh toán). KHÔNG tạo mã QR mới, KHÔNG gia hạn 5 phút. Trả về chi tiết hóa đơn mới + câu báo.
+     */
+    @PostMapping("/{id}/gui-mail-nhac-thanh-toan")
+    public Map<String, Object> guiMailNhacThanhToan(@PathVariable Integer id) {
+        String nguoi = com.footstyle.demo.security.XacThuc.hienTai()
+                .filter(com.footstyle.demo.security.NguoiDung::laNhanVien)
+                .map(com.footstyle.demo.security.NguoiDung::hoTen)
+                .orElse(null);
+        Map<String, Object> kq = cuaHangService.guiMailNhacThanhToan(id, nguoi);
+        Map<String, Object> res = new HashMap<>(hoaDonService.getChiTietHoaDon(id));
+        res.put("thongBao", kq.get("message"));
+        return res;
     }
 
     /** Đơn COD: Xác nhận đã nhận tiền COD từ đơn vị vận chuyển / khách hàng trước khi hoàn thành đơn. */

@@ -257,7 +257,7 @@ describe('Màn đơn hàng của khách đồng bộ với Chi tiết hóa đơn
   })
 
   // Review 05/11: đồng bộ phần tiền - chi tiết đơn có dòng giảm theo đợt, tên dòng giống mọi màn
-  it('phần tiền: Tổng tiền hàng theo giá gốc, có Giảm theo đợt, Phiếu giảm giá, Phí vận chuyển, Tổng thanh toán', async () => {
+  it('phần tiền: Tổng tiền hàng theo giá gốc, có Giảm giá (đợt), Phiếu giảm giá, Phí vận chuyển, Tổng thanh toán', async () => {
     auth.trangThai = reactive({ nguoiDung: { vaiTro: 'KHACH_HANG' } })
     const ct = { ...CHI_TIET, hoaDon: { ...CHI_TIET.hoaDon, tienGiamTheoDot: 600000 } }
     api.get.mockResolvedValue({ data: { ...DON, chiTietDon: ct } })
@@ -267,7 +267,7 @@ describe('Màn đơn hàng của khách đồng bộ với Chi tiết hóa đơn
     const dong = (k) => w.get(`[data-dong="${k}"]`).text()
     expect(dong('tong-tien-hang')).toContain('Tổng tiền hàng')
     expect(dong('tong-tien-hang')).toContain('4.234.000') // 3.634.000 sau đợt + 600.000 giảm theo đợt
-    expect(dong('giam-dot')).toContain('Giảm theo đợt')
+    expect(dong('giam-dot')).toContain('Giảm giá')
     expect(dong('giam-dot')).toContain('600.000')
     expect(dong('giam-gia')).toContain('Phiếu giảm giá')
     expect(dong('phi-van-chuyen')).toContain('Miễn phí')

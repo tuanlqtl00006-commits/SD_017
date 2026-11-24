@@ -4,13 +4,13 @@
 // QUY ƯỚC (đừng đổi riêng ở một màn):
 //  - Số lưu trong hóa đơn `tongTien` là tiền hàng ĐÃ trừ giảm theo đợt (Thống kê tính doanh thu theo số này).
 //  - Trên màn hình, "Tổng tiền hàng" là tổng theo GIÁ GỐC = tiền hàng sau đợt + tiền giảm theo đợt, rồi trừ từng khoản:
-//      Tổng tiền hàng - Giảm theo đợt - Phiếu giảm giá + Phí vận chuyển = Tổng thanh toán
+//      Tổng tiền hàng - Giảm giá (đợt) - Phiếu giảm giá + Phí vận chuyển = Tổng thanh toán
 //    nên người xem cộng trừ các dòng là ra đúng tổng (không có dòng nào "chỉ để xem").
 //  - Tiền giảm theo đợt không bao giờ âm (giá tăng sau khi bán không thành "giảm" âm).
 
 export const NHAN_TIEN = {
   tongTienHang: 'Tổng tiền hàng',
-  giamDot: 'Giảm theo đợt',
+  giamDot: 'Giảm giá', // 24/11: đổi từ "Giảm theo đợt" - tiền giảm theo đợt giảm giá của các dòng hàng (phiếu có dòng riêng)
   phieu: 'Phiếu giảm giá',
   phiVanChuyen: 'Phí vận chuyển',
   tongThanhToan: 'Tổng thanh toán',

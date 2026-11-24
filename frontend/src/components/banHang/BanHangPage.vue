@@ -362,7 +362,9 @@ const toiDaDong = (d) => Math.min(SO_LUONG_TOI_DA, Number(d.soLuong || 0) + khoB
 
 /* Chữ đỏ khi giá đổi lúc đang lên đơn (góp ý 21/11, 23/11 Task 1.2): mỗi dòng giữ lịch sử giá CỦA RIÊNG NÓ
  * "giá của dòng thêm trước → giá dòng này" (dòng thêm trước gần nhất có giá khác, cùng biến thể). Thêm dòng giá mới lần 3, 4...
- * không xóa chữ đỏ của các dòng đã có. Dòng mới nhất mà giá vừa đổi (chưa có dòng theo giá hiện tại) thì nối thêm "→ giá hiện tại". */
+ * không xóa chữ đỏ của các dòng đã có.
+ * 24/11: luôn chỉ HAI giá "cũ → mới" (không nối 2.120.000 → 2.200.000 → 1.650.000). Giá đổi khi đang lên đơn thì dòng đang có để im;
+ * chỉ khi thêm sản phẩm và bấm OK ở hộp "đã đổi giá" thì dòng giá mới mới hiện "giá cũ → giá mới". */
 function chuGiaDoi(d) {
   const ds = dongCungBienThe(d).slice().sort((a, b) => Number(a.id) - Number(b.id))
   const truoc = ds.filter((x) => Number(x.id) < Number(d.id) && Number(x.donGia) !== Number(d.donGia))
@@ -371,13 +373,7 @@ function chuGiaDoi(d) {
   const giaTruoc = d.giaTruocDoi != null && Number(d.giaTruocDoi) !== Number(d.donGia)
     ? d.giaTruocDoi
     : truoc.length ? truoc[truoc.length - 1].donGia : null
-  const moiNhat = ds[ds.length - 1]?.id === d.id
-  const choGiaMoi = d.giaDoi && moiNhat && !ds.some((x) => Number(x.donGia) === Number(d.giaHienTai))
-  const chuoi = []
-  if (giaTruoc !== null) chuoi.push(giaTruoc)
-  if (giaTruoc !== null || choGiaMoi) chuoi.push(d.donGia)
-  if (choGiaMoi) chuoi.push(d.giaHienTai)
-  return chuoi.length >= 2 ? chuoi.map(formatMoney).join(' → ') : ''
+  return giaTruoc !== null ? `${formatMoney(giaTruoc)} → ${formatMoney(d.donGia)}` : ''
 }
 
 /* Bảng "Chọn sản phẩm" (góp ý 16/11 [00:00-00:44], 23/11): biến thể đang có trong giỏ mà giá / đợt vừa đổi và chưa có dòng theo giá

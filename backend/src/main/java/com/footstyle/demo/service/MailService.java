@@ -575,7 +575,8 @@ public class MailService {
                 .append("\nCửa hàng sẽ gửi thư cho bạn mỗi khi đơn chuyển sang bước tiếp theo.\n");
         if (linkThanhToan != null) {
             chu.append("\nĐơn chọn chuyển khoản: vui lòng quét mã QR trong ").append(CuaHangService.HAN_CHUYEN_KHOAN_PHUT)
-                    .append(" phút tại trang thanh toán: ").append(linkThanhToan).append('\n');
+                    .append(" phút kể từ lúc đặt tại trang thanh toán: ").append(linkThanhToan)
+                    .append("\nQuá hạn chưa thanh toán thì đơn tự động hủy.\n");
         }
 
         final byte[] logoGan = logo;
@@ -684,7 +685,7 @@ public class MailService {
         if (linkThanhToan != null) {
             h.append("<tr><td style=\"padding:8px 28px 4px 28px;").append(phong).append("font-size:14px;line-height:22px;color:#92400e;\">")
                     .append("Đơn chọn <strong>chuyển khoản</strong>: vui lòng quét mã QR trong <strong>").append(CuaHangService.HAN_CHUYEN_KHOAN_PHUT)
-                    .append(" phút</strong>. Quá hạn chưa thanh toán thì cửa hàng tự gửi link thanh toán mới vào email này.</td></tr>\n")
+                    .append(" phút</strong> kể từ lúc đặt. Quá hạn chưa thanh toán thì đơn <strong>tự động hủy</strong>.</td></tr>\n")
                     .append("<tr><td align=\"center\" style=\"padding:10px 28px 4px 28px;\">")
                     .append("<a href=\"").append(esc(linkThanhToan)).append("\" target=\"_blank\" style=\"").append(phong)
                     .append("display:inline-block;background-color:#d97706;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;\">")
@@ -701,6 +702,16 @@ public class MailService {
      */
     public void guiThongBaoChuaThanhToan(String hoTen, String email, String maHoaDon, java.util.List<String> monHang,
                                          String thanhTienChu, String diaChi, String cachThanhToan, TienDon tien, String linkThanhToan) {
+        guiThongBaoChuaThanhToan(hoTen, email, maHoaDon, monHang, thanhTienChu, diaChi, cachThanhToan, tien, linkThanhToan, null);
+    }
+
+    /**
+     * Như trên, kèm hạn thanh toán (vd "20:03 24/11/2026" = lúc đặt + 5 phút). 24/11 (Task 3.3 / 4): thư nhắc KHÔNG tạo mã QR mới,
+     * KHÔNG gia hạn - quá hạn chưa thanh toán thì đơn tự hủy. Thư ghi mã đơn, số tiền, nội dung chuyển khoản và link trang thanh toán.
+     */
+    public void guiThongBaoChuaThanhToan(String hoTen, String email, String maHoaDon, java.util.List<String> monHang,
+                                         String thanhTienChu, String diaChi, String cachThanhToan, TienDon tien, String linkThanhToan,
+                                         String hanThanhToan) {
         if (email == null || !email.contains("@")) return;
         final String den = email.trim();
         String ten = hoTen == null || hoTen.isBlank() ? "bạn" : hoTen.trim();
@@ -712,9 +723,11 @@ public class MailService {
 
         StringBuilder chu = new StringBuilder("Xin chào " + ten + ",\n\n"
                 + "Cảm ơn bạn đã đặt hàng tại " + tenCuaHang + ". Đơn hàng " + ma + " của bạn đã được ghi nhận nhưng CHƯA HOÀN TẤT THANH TOÁN.\n\n"
-                + "Nếu bạn đã lỡ tắt trình duyệt hoặc thanh toán chưa thành công, vui lòng bấm vào đường dẫn sau để quay lại màn hình thanh toán và quét mã QR"
-                + " (mã có hiệu lực " + CuaHangService.HAN_CHUYEN_KHOAN_PHUT + " phút kể từ lúc gửi thư này):\n"
-                + link + "\n\n");
+                + "Nếu bạn đã lỡ tắt trình duyệt hoặc thanh toán chưa thành công, vui lòng bấm vào đường dẫn sau để quay lại màn hình thanh toán và quét mã QR:\n"
+                + link + "\n"
+                + "Số tiền: " + thanhTienChu + "\nNội dung chuyển khoản: " + ma + "\n"
+                + "Đơn tự động hủy nếu chưa thanh toán sau " + CuaHangService.HAN_CHUYEN_KHOAN_PHUT + " phút kể từ lúc đặt"
+                + (hanThanhToan == null || hanThanhToan.isBlank() ? "" : " (hạn: " + hanThanhToan + ")") + ".\n\n");
         if (monHang != null) {
             chu.append("Chi tiết sản phẩm:\n");
             for (String m : monHang) {
@@ -739,7 +752,10 @@ public class MailService {
                 .append("Đơn hàng của bạn tại <strong>").append(esc(tenCuaHang))
                 .append("</strong> đã được tiếp nhận nhưng <strong style=\"color:#d97706;\">CHƯA HOÀN TẤT THANH TOÁN</strong>.<br>")
                 .append("Nếu bạn đã lỡ tắt nhầm trình duyệt hoặc chuyển khoản chưa thành công, vui lòng bấm vào nút <strong>Quay lại màn hình thanh toán</strong> bên dưới để hoàn tất.<br>")
-                .append("Mã QR mới có hiệu lực <strong>").append(CuaHangService.HAN_CHUYEN_KHOAN_PHUT).append(" phút</strong> kể từ lúc gửi thư này.</td></tr>\n");
+                .append("Đơn <strong style=\"color:#b91c1c;\">tự động hủy</strong> nếu chưa thanh toán sau <strong>").append(CuaHangService.HAN_CHUYEN_KHOAN_PHUT)
+                .append(" phút</strong> kể từ lúc đặt")
+                .append(hanThanhToan == null || hanThanhToan.isBlank() ? "" : " (hạn: <strong>" + esc(hanThanhToan) + "</strong>)")
+                .append(".</td></tr>\n");
 
         // Thẻ mã đơn hàng nổi bật
         h.append("<tr><td style=\"padding:8px 28px 8px 28px;\">")
@@ -820,6 +836,7 @@ public class MailService {
         if (tien != null && tien.sdt() != null && !tien.sdt().isBlank()) dongThongTinDon(h, "Số điện thoại", tien.sdt(), false);
         dongThongTinDon(h, "Địa chỉ giao tới", diaChi, false);
         dongThongTinDon(h, "Phương thức thanh toán", cachThanhToan, false);
+        dongThongTinDon(h, "Nội dung chuyển khoản", ma, false);
         h.append("</table></td></tr></table></td></tr>\n");
 
         // Hướng dẫn thanh toán lại ở chân trang

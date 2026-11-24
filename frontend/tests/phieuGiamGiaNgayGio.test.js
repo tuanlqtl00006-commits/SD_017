@@ -197,6 +197,13 @@ describe('Tính phiếu giảm giá trên đơn (đợt giảm trước, phiếu
     expect(tinhGiamPhieu({ loaiGiam: 'PHAN_TRAM', giaTri: 10 }, 1234567).giam).toBe(123456)
     expect(tinhGiamPhieu({ loaiGiam: 'PHAN_TRAM', giaTri: 0 }, 100000).giam).toBe(0)
   })
+  it('24/11 (Task 2.2) kiểu Shopee: 20%, tối đa 50.000, đơn từ 100.000', () => {
+    const p = { loaiGiam: 'PHAN_TRAM', giaTri: 20, giamToiDa: 50000, donToiThieu: 100000 }
+    expect(tinhGiamPhieu(p, 80000)).toMatchObject({ duDieuKien: false, giam: 0 })
+    expect(tinhGiamPhieu(p, 100000).giam).toBe(20000)
+    expect(tinhGiamPhieu(p, 250000).giam).toBe(50000)
+    expect(tinhGiamPhieu(p, 300000).giam).toBe(50000)
+  })
 })
 
 /* ======================= Danh sách: hiện ngày giờ + trạng thái theo giờ ======================= */
@@ -350,15 +357,20 @@ describe('Form phiếu: bố cục + ngày giờ + trạng thái dự kiến', (
     w.unmount()
   })
 
-  it('góp ý 21/11: phiếu % được để giảm tối đa lớn hơn đơn tối thiểu (đơn từ 20 triệu, giảm tối đa 50 triệu)', async () => {
+  it('24/11 (Task 2.1): giảm tối đa lớn hơn đơn tối thiểu thì báo lỗi dưới ô Giảm tối đa; bằng hoặc nhỏ hơn thì hết lỗi', async () => {
     const w = await montarForm()
     await w.get('#pgg-gia-tri').setValue('10')
     await w.get('#pgg-giam-toi-da').setValue('50000000')
     await w.get('#pgg-don-toi-thieu').setValue('20000000')
-    expect(khungCua(w, '#pgg-giam-toi-da')).not.toContain('Giảm tối đa không được lớn hơn')
-    expect(khungCua(w, '#pgg-don-toi-thieu')).not.toContain('lớn hơn hoặc bằng giảm tối đa')
+    expect(w.get('#pgg-giam-toi-da-msg').text()).toBe('Giảm tối đa không được lớn hơn Đơn hàng tối thiểu')
+    expect(w.find('#pgg-don-toi-thieu-msg').exists()).toBe(false)
+    await w.get('#pgg-giam-toi-da').setValue('20000000')
     expect(w.find('#pgg-giam-toi-da-msg').exists()).toBe(false)
     expect(w.find('#pgg-don-toi-thieu-msg').exists()).toBe(false)
+    // Không yêu cầu đơn tối thiểu: không ràng buộc
+    await w.get('#pgg-giam-toi-da').setValue('50000000')
+    await w.get('#pgg-don-toi-thieu').setValue('')
+    expect(w.find('#pgg-giam-toi-da-msg').exists()).toBe(false)
     w.unmount()
   })
 

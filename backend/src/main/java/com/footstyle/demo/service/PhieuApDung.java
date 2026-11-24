@@ -44,17 +44,28 @@ public final class PhieuApDung {
         return null;
     }
 
-    /** Số tiền phiếu giảm cho đơn có tổng tiền hàng `tongTien` (đã đủ điều kiện). */
+    /**
+     * Số tiền phiếu giảm cho đơn có tổng tiền hàng `tongTien` (tiền hàng sau đợt giảm, KHÔNG gồm phí ship) - kiểu Shopee (24/11, Task 2.2):
+     *  - chưa đạt đơn tối thiểu: 0 (lyDoKhongDung cũng báo lý do);
+     *  - giảm %: t x % (làm tròn xuống), có giảm tối đa > 0 thì không vượt mức đó;
+     *  - giảm tiền: đúng giá trị giảm;
+     *  - luôn kẹp: không vượt t, không âm.
+     * Ví dụ 20%, tối đa 50.000, đơn từ 100.000: 80.000 -> 0; 100.000 -> 20.000; 250.000 -> 50.000; 300.000 -> 50.000.
+     */
     public static long soTienGiam(PhieuGiamGia p, long tongTien) {
         long t = Math.max(0, tongTien);
         long giaTri = p.getGiaTriGiam() == null ? 0 : p.getGiaTriGiam();
         if (giaTri <= 0) return 0;
+        long toiThieu = p.getGiaTriDonHangToiThieu() == null ? 0 : p.getGiaTriDonHangToiThieu();
+        if (t < toiThieu) return 0;
+        long giam;
         if (Integer.valueOf(PhieuGiamGia.LOAI_PHAN_TRAM).equals(p.getLoaiGiam())) {
-            long giam = t * Math.min(100, giaTri) / 100; // chia nguyên = làm tròn xuống
+            giam = t * Math.min(100, giaTri) / 100; // chia nguyên = làm tròn xuống
             if (p.getGiamToiDa() != null && p.getGiamToiDa() > 0) giam = Math.min(giam, p.getGiamToiDa());
-            return giam;
+        } else {
+            giam = giaTri;
         }
-        return Math.min(giaTri, t);
+        return Math.max(0, Math.min(giam, t));
     }
 
     /** Giá sau đợt giảm giá của một biến thể (làm tròn tới đồng, giống tinhGiaSauGiam ở frontend). */

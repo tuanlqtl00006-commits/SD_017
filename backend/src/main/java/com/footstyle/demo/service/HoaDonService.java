@@ -330,6 +330,16 @@ public class HoaDonService {
         }
         response.put("thanhToan", thanhToan);
         response.put("daThanhToan", daThanhToan);
+        // 24/11 (Task 3.1): tên hình thức thanh toán để hiện ở "Tổng kết thanh toán" / "Lịch sử thanh toán" kể cả khi chưa có giao dịch
+        info.put("hinhThucThanhToan", tenHinhThucThanhToan(hd, phuongThuc));
+        // 24/11 (Task 3.2 / 3.3): đơn online chuyển khoản còn Chờ xác nhận và chưa nhận đủ tiền -> chưa được "Xác nhận đơn";
+        // nhân viên được gửi mail nhắc thanh toán (không tạo QR mới, không gia hạn), tới hạn (lúc đặt + 5 phút) thì đơn tự hủy
+        boolean choThanhToanOnline = !laTaiQuay(hd) && HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())
+                && trangThai == HoaDon.CHO_XAC_NHAN && daThanhToan.compareTo(thanhTien(hd)) < 0;
+        response.put("choThanhToanOnline", choThanhToanOnline);
+        response.put("duocGuiMailNhacThanhToan", choThanhToanOnline && daThanhToan.signum() <= 0
+                && !CuaHangService.laDonTreo(hd, daThanhToan.longValue(), LocalDateTime.now()));
+        response.put("hanThanhToan", choThanhToanOnline ? CuaHangService.hanThanhToan(hd) : null);
         // Đơn online khách chọn chuyển khoản: nhân viên kiểm tra sao kê rồi bấm "Xác nhận đã nhận chuyển khoản"
         response.put("duocXacNhanThanhToan", !laTaiQuay(hd) && HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())
                 && !HoaDonLuongTrangThai.laTrangThaiCuoi(trangThai) && daThanhToan.compareTo(thanhTien(hd)) < 0);
@@ -348,7 +358,7 @@ public class HoaDonService {
         response.put("duocBaoHetHang", !dsThieuHang.isEmpty());
         response.put("dsThieuHang", dsThieuHang);
         // Đơn chuyển khoản quá 5 phút chưa nhận tiền: "đơn treo" (chờ khách chuyển hoặc đổi sang COD)
-        response.put("donTreo", CuaHangService.laDonTreo(hd, daThanhToan.longValue(), LocalDateTime.now(), CuaHangService.batDauQr(hd, dsLichSu)));
+        response.put("donTreo", CuaHangService.laDonTreo(hd, daThanhToan.longValue(), LocalDateTime.now()));
         response.put("canHoanTien", canHoanTien);
         response.put("soTienCanHoan", canHoanTien ? daThanhToan : BigDecimal.ZERO);
 
@@ -498,8 +508,9 @@ public class HoaDonService {
 
         // Luồng bán hàng: đơn online khách chọn chuyển khoản phải được xác nhận ĐÃ NHẬN TIỀN trước khi xác nhận đơn và trừ kho.
         // (Đơn COD thì xác nhận đơn với khách rồi thu tiền khi giao.)
+        // 24/11 (Task 3.2): áp cho mọi cách trả online (chuyển khoản, VNPay, MoMo), không chỉ chuyển khoản ngân hàng
         if (moi == HoaDon.DA_XAC_NHAN && !laTaiQuay(hd)
-                && HoaDonSuaService.CHUYEN_KHOAN_ONLINE.equals(hd.getIdPhuongThucThanhToan())) {
+                && HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())) {
             BigDecimal daTra = BigDecimal.ZERO;
             for (LichSuThanhToan tt : lichSuThanhToanRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
                 if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN) {
@@ -636,6 +647,23 @@ public class HoaDonService {
     }
 
     /* ===================== Hàm phụ ===================== */
+
+    /**
+     * Tên hình thức thanh toán ngắn gọn cho màn chi tiết hóa đơn: Tiền mặt / Chuyển khoản / COD / Kết hợp (tiền mặt + chuyển khoản),
+     * ví điện tử giữ tên (VNPay, MoMo). Đơn giao hàng dùng id 1 (bản ghi COD cũ) thì vẫn là COD.
+     */
+    static String tenHinhThucThanhToan(HoaDon hd, String tenTrongCsdl) {
+        Integer id = hd.getIdPhuongThucThanhToan();
+        if (id == null) return tenTrongCsdl;
+        boolean online = !laTaiQuay(hd);
+        return switch (id) {
+            case 1 -> online ? "COD (thanh toán khi nhận hàng)" : "Tiền mặt";
+            case 2 -> "Chuyển khoản";
+            case 3 -> "COD (thanh toán khi nhận hàng)";
+            case 5 -> "Kết hợp (tiền mặt + chuyển khoản)";
+            default -> tenTrongCsdl != null ? tenTrongCsdl : "Chuyển khoản";
+        };
+    }
 
     /**
      * Email nhận thông báo của đơn online: email ghi lúc đặt hàng (dòng lịch sử "Đặt hàng trực tuyến"), không có thì email

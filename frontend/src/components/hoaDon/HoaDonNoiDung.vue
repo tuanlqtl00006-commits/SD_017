@@ -185,6 +185,8 @@ const buocTiepTheo = computed(() => timeline.value.find((s) => s.state === 'next
 /* ===================== Thanh toán ===================== */
 
 const daThanhToan = computed(() => Number(props.data?.daThanhToan ?? 0))
+// Tên ngắn do máy chủ đặt (Tiền mặt / Chuyển khoản / COD / Kết hợp...), bản cũ chưa có thì lấy tên trong CSDL
+const tenHinhThucThanhToan = computed(() => hd.value.hinhThucThanhToan || hd.value.phuongThucThanhToan || '')
 const conPhaiTra = computed(() => Math.max(0, Number(hd.value.thanhTien ?? 0) - daThanhToan.value))
 const laHetHang = computed(() => Boolean(props.data?.hetHang || hd.value?.hetHang || props.data?.daBaoHetHang || hd.value?.daBaoHetHang))
 const lyDoHetHangHienThi = computed(() => props.data?.lyDoHetHang || hd.value?.lyDoHetHang || '')
@@ -351,7 +353,7 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
           </div>
         </div>
         <div class="hd-summary">
-          <!-- Tổng tiền hàng (giá gốc) - Giảm theo đợt - Phiếu giảm giá + Phí vận chuyển = Tổng thanh toán -->
+          <!-- Tổng tiền hàng (giá gốc) - Giảm giá (đợt) - Phiếu giảm giá + Phí vận chuyển = Tổng thanh toán -->
           <div class="hd-summary-row" data-dong="tong-tien-hang">
             <span class="hd-summary-label">{{ dongTien('tong-tien-hang').nhan }}</span>
             <span class="hd-summary-value">{{ money(dongTien('tong-tien-hang').so) }}</span>
@@ -394,6 +396,11 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
           <div class="hd-summary-total" data-dong="tong-thanh-toan">
             <span class="hd-total-label">{{ dongTien('tong-thanh-toan').nhan }}</span>
             <span class="hd-total-amount">{{ money(hd.thanhTien) }}</span>
+          </div>
+          <!-- 24/11 (Task 3.1): hình thức thanh toán của đơn, hiện cả khi chưa có giao dịch nào -->
+          <div v-if="tenHinhThucThanhToan" class="hd-summary-row mt-2" data-dong="hinh-thuc-thanh-toan">
+            <span class="hd-summary-label">Phương thức thanh toán</span>
+            <span class="hd-summary-value" data-testid="hd-hinh-thuc-tt">{{ tenHinhThucThanhToan }}</span>
           </div>
           <!-- Còn phải trả (hỗ trợ kiểm tra tự động) -->
           <div v-if="hd.trangThai !== 0" class="visually-hidden">
@@ -535,6 +542,19 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
             <div class="d-flex justify-content-between align-items-end gap-2">
               <span class="hd-pay-time">{{ fmtDateTime(p.thoiGian) }}<template v-if="p.maGiaoDich"> · {{ p.maGiaoDich }}</template></span>
               <span class="hd-pay-money">{{ money(p.soTien) }}</span>
+            </div>
+          </li>
+        </ul>
+        <!-- Chưa có giao dịch: vẫn ghi phương thức khách đã chọn (24/11, Task 3.1) -->
+        <ul v-else-if="tenHinhThucThanhToan" class="hd-pay-list" data-testid="hd-tt-chua-co-giao-dich">
+          <li class="hd-pay-item">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <strong>{{ tenHinhThucThanhToan }}</strong>
+              <span class="ad-pill" :class="hd.trangThai === 0 ? 'ad-pill-gray' : 'ad-pill-amber'">{{ hd.trangThai === 0 ? 'Không thanh toán' : 'Chưa thanh toán' }}</span>
+            </div>
+            <p class="hd-pay-desc">Chưa có lần thanh toán nào</p>
+            <div class="d-flex justify-content-end">
+              <span class="hd-pay-money">{{ money(hd.thanhTien) }}</span>
             </div>
           </li>
         </ul>

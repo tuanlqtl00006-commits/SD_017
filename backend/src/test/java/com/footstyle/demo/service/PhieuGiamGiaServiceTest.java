@@ -563,14 +563,24 @@ class PhieuGiamGiaServiceTest {
         assertTrue(assertThrows(ApiException.class, () -> service.them(r2)).getMessage().contains("Đơn tối thiểu"));
     }
 
-    /** Góp ý 21/11: phiếu % được để giảm tối đa lớn hơn đơn tối thiểu (đơn từ 20 triệu, giảm tối đa 50 triệu cho đơn lớn hơn). */
+    /** 24/11 (Task 2.1, thay góp ý 21/11): phiếu % có đơn tối thiểu thì giảm tối đa không được lớn hơn đơn tối thiểu - lỗi 400. */
     @Test
-    void phieuPhanTram_giamToiDaLonHonDonToiThieu_vanTaoDuoc() {
+    void phieuPhanTram_giamToiDaLonHonDonToiThieu_baoLoi() {
         PhieuGiamGiaRequest r = new PhieuGiamGiaRequest("VCHPT01", "Giảm 10% đơn từ 20 triệu", "CONG_KHAI", "PHAN_TRAM", 10L, 50_000_000L,
                 20_000_000L, 10, null, BAY_GIO, BAY_GIO.plusDays(3), null);
-        var kq = service.them(r);
-        assertEquals(50_000_000L, kq.giamToiDa());
-        assertEquals(20_000_000L, kq.donToiThieu());
+        ApiException e = assertThrows(ApiException.class, () -> service.them(r));
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, e.getStatus());
+        assertEquals("Giảm tối đa không được lớn hơn Đơn hàng tối thiểu", e.getMessage());
+    }
+
+    @Test
+    void phieuPhanTram_giamToiDaBangDonToiThieu_hoacKhongCoDonToiThieu_vanTaoDuoc() {
+        var bang = service.them(new PhieuGiamGiaRequest("VCHPT02", "Giảm 20% tối đa 100k", "CONG_KHAI", "PHAN_TRAM", 20L, 100_000L,
+                100_000L, 10, null, BAY_GIO, BAY_GIO.plusDays(3), null));
+        assertEquals(100_000L, bang.giamToiDa());
+        var khongDon = service.them(new PhieuGiamGiaRequest("VCHPT03", "Giảm 20% tối đa 500k", "CONG_KHAI", "PHAN_TRAM", 20L, 500_000L,
+                0L, 10, null, BAY_GIO, BAY_GIO.plusDays(3), null));
+        assertEquals(500_000L, khongDon.giamToiDa());
     }
 
     @Test

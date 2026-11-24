@@ -79,6 +79,8 @@ public class CuaHangController {
             @RequestParam String maHoaDon,
             @RequestParam(required = false) String sdt
     ) {
+        // 24/11 (Task 4.2): trang thanh toán hỏi trạng thái mỗi 4 giây - quá hạn 5 phút chưa trả thì hủy ngay (không chờ lượt quét)
+        service.tuHuyNeuQuaHan(maHoaDon);
         return service.traCuuDonHang(maHoaDon, sdt);
     }
 
