@@ -218,6 +218,7 @@ async function exportFile() {
         { header: 'SĐT KH', key: 'sdt', width: 14 },
         { header: 'Tổng tiền TT (₫)', key: 'tien', width: 18, money: true },
         { header: 'Hình thức mua', key: 'loai', width: 16 },
+        { header: 'Phương thức thanh toán', key: 'pttt', width: 26 },
         { header: 'Ngày tạo', key: 'ngay', width: 12 },
         { header: 'Trạng thái', key: 'trangThai', width: 16 },
       ],
@@ -229,6 +230,7 @@ async function exportFile() {
         sdt: hd.sdtKhachHang || '',
         tien: Number(hd.tongTien) || 0, // để dạng SỐ để Excel cộng / lọc được
         loai: hd.hinhThucMua || (hd.loaiDon === 'Trực tuyến' ? 'Trực tuyến' : 'Mua tại quầy'),
+        pttt: hd.hinhThucThanhToan || '', // góp ý 25/11: ghi giống chi tiết hóa đơn (Chuyển khoản VietQR / Chuyển khoản ngân hàng...)
         ngay: formatNgay(hd.ngayTao),
         trangThai: trangThaiOf(hd.trangThai).label,
       })),

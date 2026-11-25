@@ -218,6 +218,13 @@ const routes = [
     component: () => import('../components/chat/HoTroKhachPage.vue'),
     meta: { congKhai: true, title: 'Hỗ trợ trực tuyến - FootStyle' },
   },
+  // Màn hình khách hàng ở quầy (góp ý 25/11): cửa sổ riêng do màn bán hàng mở, chỉ hiển thị (không gọi API)
+  {
+    path: '/man-hinh-khach',
+    name: 'man-hinh-khach',
+    component: () => import('../views/ManHinhKhachView.vue'),
+    meta: { congKhai: true, title: 'Màn hình khách hàng - FootStyle' },
+  },
   // Trang "ngân hàng giả" mở bằng cách quét QR thanh toán giả lập (demo đồ án), không cần đăng nhập
   {
     path: '/thanh-toan-gia-lap',

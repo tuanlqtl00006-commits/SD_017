@@ -766,14 +766,14 @@ describe('Sửa thông tin giao hàng', () => {
 
 describe('Đơn chuyển khoản chưa thanh toán: phương thức, ẩn Xác nhận đơn, gửi mail nhắc', () => {
   const ckChuaTra = (ghiDe = {}) => {
-    const d = donGiaoHang(1, [TAO], { idPhuongThucThanhToan: 2, phuongThucThanhToan: 'Chuyển khoản ngân hàng', hinhThucThanhToan: 'Chuyển khoản' })
+    const d = donGiaoHang(1, [TAO], { idPhuongThucThanhToan: 2, phuongThucThanhToan: 'Chuyển khoản ngân hàng', hinhThucThanhToan: 'Chuyển khoản VietQR' })
     return { ...d, choThanhToanOnline: true, duocGuiMailNhacThanhToan: true, hanThanhToan: new Date(Date.now() + 3 * 60_000 - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 19), ...ghiDe }
   }
 
   it('hiện phương thức ở Tổng kết và Lịch sử thanh toán dù chưa có giao dịch; ẩn "Xác nhận đơn", còn "Hủy đơn"', async () => {
     const w = await montar(ckChuaTra())
-    expect(w.get('[data-testid="hd-hinh-thuc-tt"]').text()).toBe('Chuyển khoản')
-    expect(w.get('[data-testid="hd-tt-chua-co-giao-dich"]').text()).toContain('Chuyển khoản')
+    expect(w.get('[data-testid="hd-hinh-thuc-tt"]').text()).toBe('Chuyển khoản VietQR')
+    expect(w.get('[data-testid="hd-tt-chua-co-giao-dich"]').text()).toContain('Chuyển khoản VietQR')
     expect(w.get('[data-testid="hd-tt-chua-co-giao-dich"]').text()).toContain('Chưa thanh toán')
     expect(nutDoiTrangThai(w)).toEqual(['Hủy đơn'])
     expect(w.get('[data-testid="hd-cho-thanh-toan"]').text()).toContain('chưa xác nhận đơn được')
@@ -796,5 +796,20 @@ describe('Đơn chuyển khoản chưa thanh toán: phương thức, ẩn Xác n
     const w = await montar(donGiaoHang(1))
     expect(w.find('[data-testid="hd-gui-mail-nhac"]').exists()).toBe(false)
     expect(nutDoiTrangThai(w)).toEqual(['Hủy đơn', 'Xác nhận đơn'])
+  })
+})
+
+/* ===== 25/11: chữ ở Lịch sử thanh toán của đơn tự hủy ===== */
+
+describe('Đơn tự hủy vì quá 5 phút chưa thanh toán', () => {
+  it('ghi "Chưa thanh toán" + "Đơn đã tự hủy sau 5 phút", không hiện số tiền như đã có giao dịch, không còn chữ "Không thanh toán"', async () => {
+    const d = donGiaoHang(0, [TAO], { idPhuongThucThanhToan: 2, hinhThucThanhToan: 'Chuyển khoản VietQR', tuHuyQuaHan: true, thanhTien: 8726000 })
+    const w = await montar(d)
+    const o = w.get('[data-testid="hd-tt-chua-co-giao-dich"]')
+    expect(o.text()).toContain('Chuyển khoản VietQR')
+    expect(o.text()).toContain('Chưa thanh toán')
+    expect(o.get('[data-testid="hd-tt-ghi-chu"]').text()).toBe('Đơn đã tự hủy sau 5 phút chưa thanh toán')
+    expect(o.text()).not.toContain('8.726.000')
+    expect(o.text()).not.toContain('Không thanh toán')
   })
 })

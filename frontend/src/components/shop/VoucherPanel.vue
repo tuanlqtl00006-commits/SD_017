@@ -6,6 +6,7 @@ import api from '../../services/api'
 import { laKhachDangNhap, phieuChoGio, phieuTotNhat, taiPhieuChoKhach } from '../../services/phieuKhachService'
 import { useCartStore } from '../../stores/cart'
 import { formatMoney } from '../../utils/format'
+import { thongTinPhieu } from '../../utils/tinhPhieu'
 
 const cartStore = useCartStore()
 
@@ -143,8 +144,13 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
     <div v-if="cartStore.appliedVoucher" class="vp-applied" data-testid="vp-dang-ap">
       <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
       <span class="vp-applied-text">
-        Đang áp dụng mã <strong>{{ cartStore.appliedVoucher.ma }}</strong>
-        <template v-if="cartStore.discountAmount > 0"> · giảm {{ formatMoney(cartStore.discountAmount) }}</template>
+        <!-- Góp ý 25/11: phiếu hết điều kiện thì không trừ tiền, chữ phải khớp (như bên quầy) -->
+        <template v-if="cartStore.loiPhieu">Đang giữ mã <strong>{{ cartStore.appliedVoucher.ma }}</strong> - chưa đủ điều kiện, chưa trừ tiền</template>
+        <template v-else>
+          Đang áp dụng mã <strong>{{ cartStore.appliedVoucher.ma }}</strong>
+          <template v-if="cartStore.discountAmount > 0"> · giảm {{ formatMoney(cartStore.discountAmount) }}</template>
+        </template>
+        <small class="vp-applied-info" data-testid="vp-thong-tin-phieu">{{ thongTinPhieu(cartStore.appliedVoucher) }}</small>
       </span>
       <button type="button" class="vp-x" title="Bỏ mã này" aria-label="Bỏ mã giảm giá đang áp" @click="boMa"><i class="bi bi-x-lg"></i></button>
     </div>
@@ -286,6 +292,12 @@ watch(() => cartStore.subTotal, taiDanhSachMa)
 .vp-applied-text {
   flex: 1;
   min-width: 0;
+}
+.vp-applied-info {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #475569;
 }
 .vp-x {
   flex-shrink: 0;

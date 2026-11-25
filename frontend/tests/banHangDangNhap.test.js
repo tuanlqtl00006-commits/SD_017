@@ -1124,8 +1124,10 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await nutThem(w).trigger('click')
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
-    expect(w.text()).toContain('Phiếu đang ngừng hoạt động.')
-    expect(w.text()).not.toContain('GIAM30K') // không tự thay sang phiếu khác
+    expect(w.text()).toContain('Phiếu đang ngừng hoạt động')
+    // Không tự thay sang phiếu khác (vẫn giữ GIAM50K) nhưng KHÔNG trừ tiền (góp ý 25/11)
+    expect(w.get('[data-testid="bh-phieu-ap-dung"]').text()).toContain('Đang giữ phiếu GIAM50K')
+    expect(w.get('.bh-tong [data-dong="phieu"] dd').text()).toBe('Không dùng phiếu')
     await w.find('.bh-nut-tt').trigger('click')
     await flushPromises()
     expect(hopPhieu().text()).toContain('Phiếu GIAM50K không còn dùng được')
@@ -1148,6 +1150,26 @@ describe('Bán tại quầy (hóa đơn chờ lưu ở CSDL)', () => {
     await nutXacNhan().trigger('click')
     await flushPromises()
     expect(may.thanhToan).toEqual(expect.objectContaining({ maPhieu: 'GIAM30K', soTienGiam: 30000 }))
+  })
+
+  it('góp ý 25/11: hiện đủ thông tin phiếu; đơn còn thiếu tiền so với đơn tối thiểu thì giữ phiếu nhưng KHÔNG trừ, tổng không về 0 đ', async () => {
+    const PT = { ma: 'VCHDYJ3K7', loaiGiam: 'PHAN_TRAM', giaTri: 20, giamToiDa: 1500000, donToiThieu: 2000000 }
+    let ds = [{ ...PT, apDungDuoc: true, soTienGiam: 772200 }]
+    const { w } = await moBanHang({ phieus: () => ds })
+    await nutThem(w).trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(w.get('[data-testid="bh-phieu-ap-dung"] [data-testid="bh-phieu-thong-tin"]').text()).toBe('Giảm 20% · Tối đa 1.500.000 ₫ · Đơn từ 2.000.000 ₫')
+    expect(w.get('.bh-tong [data-dong="phieu"] dd').text()).toBe('-772.200 ₫')
+    // Đơn không còn đủ điều kiện (máy chủ báo lý do)
+    ds = [{ ...PT, apDungDuoc: false, soTienGiam: 0, lyDo: 'Phiếu giảm giá yêu cầu đơn tối thiểu 2.000.000 ₫ (còn thiếu 634.190 ₫ để áp dụng phiếu).' }]
+    await nutThem(w).trigger('click')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+    expect(w.get('[data-testid="bh-phieu-ap-dung"]').text()).toContain('Đang giữ phiếu VCHDYJ3K7 - chưa đủ điều kiện, chưa trừ tiền')
+    expect(w.get('.bh-tong [data-dong="phieu"] dd').text()).toBe('Không dùng phiếu')
+    expect(w.text()).toContain('Phiếu VCHDYJ3K7 chưa trừ tiền: Phiếu giảm giá yêu cầu đơn tối thiểu 2.000.000 ₫ (còn thiếu 634.190 ₫ để áp dụng phiếu)')
+    expect(w.find('.bh-nut-tt').text()).not.toContain('Thanh toán 0 ₫')
   })
 
   it('góp ý 23/11: phiếu đang áp ngừng hoạt động, bấm Áp dụng thì lấy phiếu thay thế và thanh toán tiếp', async () => {

@@ -40,6 +40,23 @@ export function tinhGiamPhieu(phieu, tong) {
 }
 
 /**
+ * Thông tin đủ của một phiếu để hiện cạnh khung "Đang áp dụng" (góp ý 25/11, quầy và online giống nhau):
+ * "Giảm 20% · Tối đa 50.000 ₫ · Đơn từ 100.000 ₫" hoặc "Giảm 50.000 ₫ · Đơn từ 100.000 ₫" (đơn tối thiểu 0: "Mọi đơn hàng").
+ * Nhận cả dạng của quầy ({loaiGiam: 'PHAN_TRAM'|'TIEN_MAT', giaTri}) lẫn online ({loaiGiam: 1|2, giaTriGiam}).
+ */
+export function thongTinPhieu(p) {
+  if (!p) return ''
+  const phanTram = p.loaiGiam === 'PHAN_TRAM' || p.loaiGiam === 1 || p.hinhThucGiam === 1
+  const giaTri = Number(p.giaTri ?? p.giaTriGiam) || 0
+  const toiDa = Number(p.giamToiDa) || 0
+  const toiThieu = Number(p.donToiThieu) || 0
+  const phan = [phanTram ? `Giảm ${giaTri}%` : `Giảm ${formatMoney(giaTri)}`]
+  if (phanTram) phan.push(toiDa > 0 ? `Tối đa ${formatMoney(toiDa)}` : 'Không giới hạn mức giảm')
+  phan.push(toiThieu > 0 ? `Đơn từ ${formatMoney(toiThieu)}` : 'Mọi đơn hàng')
+  return phan.join(' · ')
+}
+
+/**
  * Ví dụ đủ các bước cho một đơn: tiền hàng -> giảm theo đợt (phanTramDot %) -> giảm theo phiếu -> khách phải trả.
  * Coi như mọi sản phẩm trong đơn cùng giảm phanTramDot % (đơn 1 sản phẩm thì khớp từng đồng với giá sau giảm của biến thể):
  * tiền sau đợt làm tròn tới đồng giống tinhGiaSauGiam (backend: LichGiamGiaService.giaSauGiam).

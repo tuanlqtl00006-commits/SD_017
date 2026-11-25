@@ -186,6 +186,7 @@ public class HoaDonService {
             request.setTrangThai(hd.getTrangThai());
             request.setLoaiDon(tenKenh(hd.getLoaiDon(), giaoHangTaiQuay.contains(hd.getId())));
             request.setHinhThucMua(hinhThucMua(hd.getLoaiDon(), giaoHangTaiQuay.contains(hd.getId())));
+            request.setHinhThucThanhToan(tenHinhThucThanhToan(hd.getIdPhuongThucThanhToan(), laTaiQuay(hd) || giaoHangTaiQuay.contains(hd.getId())));
             return request;
         });
     }
@@ -311,7 +312,9 @@ public class HoaDonService {
         }
         info.put("tienGiamTheoDot", BigDecimal.valueOf(giamDot));
 
-        // Thanh toán
+        // Thanh toán. Góp ý 25/11: tên phương thức ghi rõ kênh (Chuyển khoản VietQR / Chuyển khoản ngân hàng...), giống Tổng kết, bản in, Excel
+        boolean banTaiQuay = laTaiQuay(hd) || taoTaiQuay(dsLichSu);
+        String hinhThucTt = tenHinhThucThanhToan(hd.getIdPhuongThucThanhToan(), banTaiQuay);
         List<Map<String, Object>> thanhToan = new ArrayList<>();
         BigDecimal daThanhToan = BigDecimal.ZERO;
         for (LichSuThanhToan tt : lichSuThanhToanRepository.findByHoaDon_IdOrderByThoiGianAscIdAsc(hd.getId())) {
@@ -322,7 +325,8 @@ public class HoaDonService {
             m.put("thoiGian", tt.getThoiGian());
             m.put("trangThai", tt.getTrangThai());
             m.put("moTa", tt.getMoTa());
-            m.put("phuongThuc", phuongThuc);
+            String tenDong = tt.getIdPhuongThucThanhToan() != null ? tenHinhThucThanhToan(tt.getIdPhuongThucThanhToan(), banTaiQuay) : null;
+            m.put("phuongThuc", tenDong != null ? tenDong : hinhThucTt != null ? hinhThucTt : phuongThuc);
             thanhToan.add(m);
             if (tt.getTrangThai() != null && tt.getTrangThai() == LichSuThanhToan.DA_THANH_TOAN) {
                 daThanhToan = daThanhToan.add(soTien(tt.getSoTien()));
@@ -331,7 +335,10 @@ public class HoaDonService {
         response.put("thanhToan", thanhToan);
         response.put("daThanhToan", daThanhToan);
         // 24/11 (Task 3.1): tên hình thức thanh toán để hiện ở "Tổng kết thanh toán" / "Lịch sử thanh toán" kể cả khi chưa có giao dịch
-        info.put("hinhThucThanhToan", tenHinhThucThanhToan(hd, phuongThuc));
+        info.put("hinhThucThanhToan", hinhThucTt != null ? hinhThucTt : phuongThuc);
+        // Góp ý 25/11: đơn hệ thống tự hủy vì quá 5 phút chưa thanh toán online - Lịch sử thanh toán ghi rõ, không ghi "Không thanh toán"
+        info.put("tuHuyQuaHan", trangThai == HoaDon.DA_HUY && dsLichSu.stream()
+                .anyMatch(l -> l.getMoTa() != null && l.getMoTa().startsWith(CuaHangService.LY_DO_TU_HUY_QUA_HAN)));
         // 24/11 (Task 3.2 / 3.3): đơn online chuyển khoản còn Chờ xác nhận và chưa nhận đủ tiền -> chưa được "Xác nhận đơn";
         // nhân viên được gửi mail nhắc thanh toán (không tạo QR mới, không gia hạn), tới hạn (lúc đặt + 5 phút) thì đơn tự hủy
         boolean choThanhToanOnline = !laTaiQuay(hd) && HoaDonSuaService.laChuyenKhoanOnline(hd.getIdPhuongThucThanhToan())
@@ -649,19 +656,21 @@ public class HoaDonService {
     /* ===================== Hàm phụ ===================== */
 
     /**
-     * Tên hình thức thanh toán ngắn gọn cho màn chi tiết hóa đơn: Tiền mặt / Chuyển khoản / COD / Kết hợp (tiền mặt + chuyển khoản),
-     * ví điện tử giữ tên (VNPay, MoMo). Đơn giao hàng dùng id 1 (bản ghi COD cũ) thì vẫn là COD.
+     * Tên hình thức thanh toán ghi giống nhau ở mọi nơi (chi tiết: Tổng kết + Lịch sử thanh toán, bản in, danh sách / Excel) - góp ý 25/11
+     * "chuyển bằng gì thì ghi tên cái đó": đơn online chuyển khoản là "Chuyển khoản VietQR" (khách quét mã VietQR), bán tại quầy
+     * (kể cả bán quầy có giao hàng) chuyển khoản là "Chuyển khoản ngân hàng". Đơn đặt online dùng id 1 (bản ghi COD cũ) vẫn là COD.
+     * @param banTaiQuay đơn bán ở quầy (đơn tại quầy, hoặc đơn giao hàng tạo ở quầy)
      */
-    static String tenHinhThucThanhToan(HoaDon hd, String tenTrongCsdl) {
-        Integer id = hd.getIdPhuongThucThanhToan();
-        if (id == null) return tenTrongCsdl;
-        boolean online = !laTaiQuay(hd);
+    public static String tenHinhThucThanhToan(Integer id, boolean banTaiQuay) {
+        if (id == null) return null;
         return switch (id) {
-            case 1 -> online ? "COD (thanh toán khi nhận hàng)" : "Tiền mặt";
-            case 2 -> "Chuyển khoản";
-            case 3 -> "COD (thanh toán khi nhận hàng)";
-            case 5 -> "Kết hợp (tiền mặt + chuyển khoản)";
-            default -> tenTrongCsdl != null ? tenTrongCsdl : "Chuyển khoản";
+            case 1 -> banTaiQuay ? "Tiền mặt" : "Thanh toán khi nhận hàng (COD)";
+            case 2 -> banTaiQuay ? "Chuyển khoản ngân hàng" : "Chuyển khoản VietQR";
+            case 3 -> "Thanh toán khi nhận hàng (COD)";
+            case 4 -> "Cổng thanh toán VNPay";
+            case 5 -> "Tiền mặt + chuyển khoản ngân hàng";
+            case 6 -> "Ví điện tử MoMo";
+            default -> null;
         };
     }
 

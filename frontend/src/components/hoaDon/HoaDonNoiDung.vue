@@ -550,12 +550,14 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
           <li class="hd-pay-item">
             <div class="d-flex justify-content-between align-items-start gap-2">
               <strong>{{ tenHinhThucThanhToan }}</strong>
-              <span class="ad-pill" :class="hd.trangThai === 0 ? 'ad-pill-gray' : 'ad-pill-amber'">{{ hd.trangThai === 0 ? 'Không thanh toán' : 'Chưa thanh toán' }}</span>
+              <span class="ad-pill" :class="hd.trangThai === 0 ? 'ad-pill-gray' : 'ad-pill-amber'">Chưa thanh toán</span>
             </div>
-            <p class="hd-pay-desc">Chưa có lần thanh toán nào</p>
-            <div class="d-flex justify-content-end">
-              <span class="hd-pay-money">{{ money(hd.thanhTien) }}</span>
-            </div>
+            <!-- Góp ý 25/11: đơn đã hủy chưa trả tiền thì ghi lý do, KHÔNG hiện số tiền như đã có giao dịch -->
+            <p class="hd-pay-desc" data-testid="hd-tt-ghi-chu">
+              <template v-if="hd.trangThai === 0 && hd.tuHuyQuaHan">Đơn đã tự hủy sau 5 phút chưa thanh toán</template>
+              <template v-else-if="hd.trangThai === 0">Đơn đã hủy, khách chưa thanh toán</template>
+              <template v-else>Chưa có lần thanh toán nào · cần thu {{ money(hd.thanhTien) }}</template>
+            </p>
           </li>
         </ul>
         <div v-else class="ad-empty py-4">

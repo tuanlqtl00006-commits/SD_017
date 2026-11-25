@@ -21,6 +21,8 @@ import { useToast } from '../../composables/useToast'
 import { NGAN_HANG, PHUONG_THUC, daCauHinhNganHang } from '../../constants/thanhToan'
 import { formatMoney } from '../../utils/format'
 import { dongTienDon } from '../../utils/tienDon'
+import { thongTinPhieu } from '../../utils/tinhPhieu'
+import { guiManHinhKhach } from '../../utils/manHinhKhach'
 import { formatPhanTram } from '../../utils/giamGia'
 import { loiSdt } from '../../utils/kiemTra'
 import { taoHtmlHoaDon } from '../../utils/hoaDonIn'
@@ -450,15 +452,21 @@ watch(
   { immediate: true },
 )
 const phieuChon = computed(() => phieus.value.find((p) => p.ma === hd.value.p.maPhieu) ?? null)
+// Phiếu đang giữ mà KHÔNG còn dùng được (hết điều kiện / bị hủy / hết lượt): vẫn giữ trên đơn tới lúc bấm Thanh toán (luật 21/11),
+// nhưng KHÔNG trừ tiền (góp ý 25/11: đơn chưa đủ 2 triệu mà vẫn trừ 1,5 triệu, tổng về 0 đ).
+const phieuHetDieuKien = computed(() => !!hd.value.p.maPhieu && !dangTaiPhieu.value && phieus.value.length > 0 && !phieuChon.value?.apDungDuoc)
 const giamPhieu = computed(() => {
-  if (!hd.value.p.maPhieu) return 0
-  if (hd.value.p.soTienGiam != null) return hd.value.p.soTienGiam
-  return phieuChon.value?.apDungDuoc ? Number(phieuChon.value.soTienGiam) : 0
+  if (!hd.value.p.maPhieu || phieuHetDieuKien.value) return 0
+  // Phiếu còn dùng được: giữ mức đã chốt lúc áp (phiếu bị sửa mức thì bấm Thanh toán mới hỏi), không vượt tiền hàng
+  const giam = hd.value.p.soTienGiam != null ? Number(hd.value.p.soTienGiam) : phieuChon.value?.apDungDuoc ? Number(phieuChon.value.soTienGiam) : 0
+  return Math.max(0, Math.min(giam, tienHang.value))
 })
 const loiPhieu = computed(() => {
-  if (!hd.value.p.maPhieu || dangTaiPhieu.value) return ''
-  if (!phieuChon.value) return `Phiếu ${hd.value.p.maPhieu} không còn dùng được cho đơn này.`
-  return phieuChon.value.apDungDuoc ? '' : phieuChon.value.lyDo
+  if (!phieuHetDieuKien.value) return ''
+  const lyDo = phieuChon.value ? phieuChon.value.lyDo : 'phiếu đã bị hủy, hết lượt hoặc không dành cho khách này'
+  const tot = phieuTotHon.value
+  const goiY = tot ? ` Bấm nút ngôi sao để đổi sang phiếu ${tot.ma} (giảm ${formatMoney(tot.soTienGiam)}), hoặc bấm Thanh toán để chọn lại.` : ' Bấm Thanh toán để chọn lại phiếu.'
+  return `Phiếu ${hd.value.p.maPhieu} chưa trừ tiền: ${String(lyDo || '').replace(/\.$/, '')}.${goiY}`
 })
 // Phiếu giảm nhiều nhất đang dùng được (máy chủ trả danh sách đã xếp giảm nhiều nhất lên đầu).
 // Đơn đang áp phiếu khác giảm ít hơn (hoặc chưa áp / phiếu đang áp hết hiệu lực) thì hiện nút nhỏ "Đổi phiếu tốt nhất";
@@ -704,6 +712,34 @@ const tienDon = computed(() =>
     tongThanhToan: tt.value.phaiTra,
   }),
 )
+/* Màn hình khách hàng (góp ý 25/11): cửa sổ riêng quay về phía khách, hiện hóa đơn ĐANG CHỌN và cập nhật ngay khi nhân viên
+ * thêm / xóa / đổi số lượng / đổi phiếu; chuyển sang hóa đơn chờ khác thì màn khách theo hóa đơn đó (utils/manHinhKhach.js). */
+const banChupManKhach = computed(() => ({
+  tenCuaHang: 'FootStyle',
+  maHoaDon: hd.value.id ? hd.value.maHoaDon : '',
+  tenKhach: hd.value.khach?.hoTen || '',
+  dong: hd.value.gio.map((d) => ({
+    id: d.id,
+    ten: d.ten,
+    phanLoai: d.phanLoai || '',
+    anh: d.anh || '',
+    soLuong: Number(d.soLuong) || 0,
+    donGia: Number(d.donGia) || 0,
+    giaGoc: Number(d.giaGoc) || Number(d.donGia) || 0,
+    phanTramGiam: phanTramGiamDong(d),
+  })),
+  phieu: phieuChon.value && giamPhieu.value ? { ma: phieuChon.value.ma, thongTin: thongTinPhieu(phieuChon.value), giam: giamPhieu.value } : null,
+  phuongThuc: { TIEN_MAT: 'Tiền mặt', CHUYEN_KHOAN: 'Chuyển khoản ngân hàng', KET_HOP: 'Tiền mặt + chuyển khoản ngân hàng' }[hd.value.p.phuongThuc] || '',
+  tienDon: tienDon.value.dong.map((d) => ({ khoa: d.khoa, nhan: d.nhan, so: d.so, dau: d.dau })),
+  tongThanhToan: tt.value.phaiTra,
+}))
+watch(banChupManKhach, (b) => guiManHinhKhach(b), { immediate: true, deep: true })
+function moManHinhKhach() {
+  const cuaSo = window.open('/man-hinh-khach', 'footstyle-man-hinh-khach', 'width=1200,height=800')
+  if (!cuaSo) toast.error('Trình duyệt đã chặn cửa sổ bật lên. Hãy cho phép cửa sổ bật lên rồi bấm lại.')
+  else guiManHinhKhach(banChupManKhach.value)
+}
+
 // Số tiền từng dòng trong hộp xác nhận: cùng cách ghi với khối "Thông tin đơn hàng"
 function chuDongTien(d) {
   if (d.khoa === 'phi-van-chuyen') return d.so === null ? 'Chưa tính phí' : d.so ? formatMoney(d.so) : 'Miễn phí'
@@ -1185,6 +1221,7 @@ const soLuongTab = (h) => tongSoLuong(h.items)
             <div class="bh-gio-cong-cu">
               <!-- Góp ý 21/11: chưa vào ca thì khóa hẳn nút quét / chọn sản phẩm (trước đây vẫn bấm được, thêm mới báo lỗi) -->
               <button type="button" class="ad-btn" :title="canVaoCa ? 'Bạn chưa vào ca' : 'Quét bằng camera'" :disabled="canVaoCa" @click="moCamera = true"><i class="bi bi-camera" aria-hidden="true"></i></button>
+              <button type="button" class="ad-btn" title="Màn hình khách hàng" aria-label="Mở màn hình khách hàng" data-testid="bh-man-hinh-khach" @click="moManHinhKhach"><i class="bi bi-display" aria-hidden="true"></i></button>
               <button type="button" class="ad-btn ad-btn-primary" data-testid="bh-chon-sp" :title="canVaoCa ? 'Bạn chưa vào ca' : 'Chọn sản phẩm (F2)'" :disabled="canVaoCa" @click="moChonSp = true">
                 <i class="bi bi-plus-circle" aria-hidden="true"></i> Chọn sản phẩm
               </button>
@@ -1330,8 +1367,14 @@ const soLuongTab = (h) => tongSoLuong(h.items)
             <i class="bi bi-ticket-perforated" aria-hidden="true"></i>
             <span class="bh-phieu-ap-chu" :title="phieuChon && giamPhieu ? phieuChon.ten : ''">
               <template v-if="phieuChon && giamPhieu">
-                Đang áp dụng phiếu <b>{{ phieuChon.ma }}</b> (giảm <b>{{ formatMoney(giamPhieu) }}</b>)
+                Đang áp dụng phiếu <b>{{ phieuChon.ma }}</b> <span class="bh-lien">(giảm <b>{{ formatMoney(giamPhieu) }}</b>)</span>
                 <span v-if="!phieuTotHon" class="bh-phieu-tot">Tốt nhất</span>
+                <!-- Góp ý 25/11: đủ thông tin phiếu, ghi ngay trong khung (không để dòng riêng bên dưới) -->
+                <small class="bh-phieu-thong-tin" data-testid="bh-phieu-thong-tin"><template v-for="(t, i) in thongTinPhieu(phieuChon).split(' · ')" :key="i">{{ i ? ' · ' : '' }}<span class="bh-lien">{{ t }}</span></template></small>
+              </template>
+              <template v-else-if="phieuHetDieuKien">
+                Đang giữ phiếu <b>{{ hd.p.maPhieu }}</b> - chưa đủ điều kiện, chưa trừ tiền
+                <small v-if="phieuChon" class="bh-phieu-thong-tin" data-testid="bh-phieu-thong-tin"><template v-for="(t, i) in thongTinPhieu(phieuChon).split(' · ')" :key="i">{{ i ? ' · ' : '' }}<span class="bh-lien">{{ t }}</span></template></small>
               </template>
               <template v-else-if="!hd.gio.length">Phiếu giảm giá: chưa có sản phẩm</template>
               <template v-else-if="dangTaiPhieu && !phieus.length">Đang tìm phiếu giảm giá…</template>
@@ -1850,18 +1893,24 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 .bh-phieu-ap {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0.5rem 0.65rem;
   border-radius: 8px;
   background: #ecfdf5;
   color: #1e293b;
   font-size: 0.85rem;
+  line-height: 1.45;
 }
 .bh-phieu-ap > .bi {
   flex: none;
   color: #16a34a;
   font-size: 1rem;
+  line-height: 1.3;
+}
+/* Cụm "(giảm 159.000 ₫)" không bị ngắt giữa chừng */
+.bh-lien {
+  white-space: nowrap;
 }
 .bh-phieu-ap.is-trong {
   background: #f8fafc;
@@ -1919,6 +1968,15 @@ const soLuongTab = (h) => tongSoLuong(h.items)
 /* Ghi chú mua thêm để được phiếu mới: nền xanh nhạt, chữ đậm cho dễ đọc */
 .bh-goi-y-ngan b {
   color: var(--fs-primary-dark, #075fc0);
+}
+.bh-phieu-thong-tin {
+  display: block;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #bbf7d0;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: #475569;
 }
 .bh-goi-y-ngan .bi-lightbulb {
   color: #f59e0b;
