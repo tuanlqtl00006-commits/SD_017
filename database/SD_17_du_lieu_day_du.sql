@@ -1,5 +1,5 @@
 ﻿-- =====================================================================================================
--- TOÀN BỘ CSDL shop_cau_long_footstyle (cấu trúc + dữ liệu) xuất ngày 20:42:42 26/11/2026
+-- TOÀN BỘ CSDL shop_cau_long_footstyle (cấu trúc + dữ liệu) xuất ngày 20:55:32 26/11/2026
 -- 35 bảng. Mật khẩu mọi nhân viên: 123456 (NV01 quản lý; NV03, NV04, NV05 nhân viên).
 -- CẢNH BÁO: file XÓA HẾT các bảng đang có trong database shop_cau_long_footstyle rồi tạo lại đúng như máy xuất. Sao lưu trước nếu cần giữ dữ liệu cũ.
 -- Chạy:  sqlcmd -S localhost -U sa -P <mật khẩu> -C -I -f 65001 -i database\SD_17_du_lieu_day_du.sql
@@ -918,7 +918,7 @@ INSERT INTO [hinh_thuc_thanh_toan] ([id], [ma_hinh_thuc], [ten_hinh_thuc], [tran
 (2, N'HT02', N'Chuyển khoản', 1);
 SET IDENTITY_INSERT [hinh_thuc_thanh_toan] OFF;
 GO
--- hoa_don: 420 dòng
+-- hoa_don: 417 dòng
 SET IDENTITY_INSERT [hoa_don] ON;
 INSERT INTO [hoa_don] ([id], [id_nhan_vien], [id_khach_hang], [id_phieu_giam_gia], [id_phuong_thuc_thanh_toan], [ma_hoa_don], [loai_hoa_don], [tong_tien], [so_tien_giam], [phi_van_chuyen], [thanh_tien], [don_vi_van_chuyen], [ho_ten_nguoi_nhan], [sdt_nguoi_nhan], [dia_chi_giao_hang], [ghi_chu], [ngay_giao_du_kien], [ngay_giao_thuc_te], [ngay_tao], [ngay_cap_nhat], [trang_thai], [id_giao_ca]) VALUES
 (1, 3, NULL, NULL, 1, N'HD01', 1, 1250000, 0, 0, 1250000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-10-29T19:34:01.987', '2026-10-29T19:37:01.987', 6, NULL),
@@ -1337,13 +1337,10 @@ INSERT INTO [hoa_don] ([id], [id_nhan_vien], [id_khach_hang], [id_phieu_giam_gia
 (969, NULL, NULL, NULL, 2, N'HD951', 2, 4002650, 0, 0, 4002650, N'Giao Hàng Nhanh', N'Lý Quang Sơn', N'0937461195', N'34 Hùng Vương, Phường Hải Châu, Thành phố Đà Nẵng', NULL, '2026-11-04T17:31:00', NULL, '2026-11-01T17:31:00', '2026-11-01T20:14:00', 1, NULL),
 (970, NULL, 22, NULL, 3, N'HD952', 2, 2392000, 0, 0, 2392000, N'Viettel Post', N'Trần Gia Tài', N'0948418622', N'66 Thái Hà, Phường Đống Đa, Thành phố Hà Nội', NULL, '2026-11-04T18:49:00', NULL, '2026-11-01T18:49:00', '2026-11-01T20:14:00', 1, NULL),
 (971, 1, NULL, NULL, 1, N'HD953', 1, 690000, 0, 0, 690000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-11-01T19:10:00', '2026-11-01T19:15:00', 6, 140),
-(974, NULL, 20, NULL, 3, N'HD956', 2, 690000, 0, 30000, 720000, N'Viettel Post', N'Đặng Minh Khoa', N'0979601197', N'55 Lê Lợi, Phường Sài Gòn, Thành phố Hồ Chí Minh', NULL, '2026-11-04T19:52:00', NULL, '2026-11-01T19:52:00', '2026-11-01T20:14:00', 1, NULL),
-(1025, NULL, 43, 14, 1, N'HD971', 2, 3400000, 250000, 0, 3150000, N'Giao Hàng Nhanh', N'lê quốc tuấn', N'0379992712', N'so,ngo, Phường An Hải, Thành phố Đà Nẵng', N'', NULL, NULL, '2026-11-04T20:52:51', '2026-11-04T20:53:43.583', 2, NULL),
-(1063, NULL, 43, 5, 2, N'HD975', 2, 2392000, 300000, 25000, 2117000, N'Giao Hàng Nhanh', N'lê quốc tuấn', N'0379992712', N'số 18, đường đầm vạc, Phường Vĩnh Phúc, Tỉnh Phú Thọ', N'', NULL, NULL, '2026-11-05T08:36:07', '2026-11-08T19:22:50.803', 0, NULL),
-(1228, 1, NULL, 14, 2, N'HD976', 2, 1390400, 250000, 50000, 1190400, N'Giao Hàng Nhanh', N'Lê Quốc Tuấn', N'0379992712', N'ss, Phường Bình Phước, Thành phố Đồng Nai', NULL, NULL, NULL, '2026-11-10T21:48:32', '2026-11-10T21:50:11', 3, NULL);
+(974, NULL, 20, NULL, 3, N'HD956', 2, 690000, 0, 30000, 720000, N'Viettel Post', N'Đặng Minh Khoa', N'0979601197', N'55 Lê Lợi, Phường Sài Gòn, Thành phố Hồ Chí Minh', NULL, '2026-11-04T19:52:00', NULL, '2026-11-01T19:52:00', '2026-11-01T20:14:00', 1, NULL);
 SET IDENTITY_INSERT [hoa_don] OFF;
 GO
--- hoa_don_chi_tiet: 479 dòng
+-- hoa_don_chi_tiet: 475 dòng
 SET IDENTITY_INSERT [hoa_don_chi_tiet] ON;
 INSERT INTO [hoa_don_chi_tiet] ([id], [id_hoa_don], [id_san_pham_chi_tiet], [so_luong], [don_gia], [thanh_tien], [trang_thai]) VALUES
 (1, 1, 8, 1, 1250000, 1250000, 1),
@@ -1820,11 +1817,7 @@ INSERT INTO [hoa_don_chi_tiet] ([id], [id_hoa_don], [id_san_pham_chi_tiet], [so_
 (1413, 969, 27, 1, 4002650, 4002650, 1),
 (1415, 970, 44, 1, 2392000, 2392000, 1),
 (1418, 971, 66, 1, 690000, 690000, 1),
-(1421, 974, 65, 1, 690000, 690000, 1),
-(1503, 1025, 37, 1, 3400000, 3400000, 1),
-(1542, 1063, 44, 1, 2392000, 2392000, 1),
-(1757, 1228, 68, 1, 695200, 695200, 1),
-(1758, 1228, 67, 1, 695200, 695200, 1);
+(1421, 974, 65, 1, 690000, 690000, 1);
 SET IDENTITY_INSERT [hoa_don_chi_tiet] OFF;
 GO
 -- hoi_thoai: 3 dòng
@@ -2178,7 +2171,7 @@ INSERT INTO [lich_lam_viec] ([id], [id_nhan_vien], [id_ca_lam_viec], [ngay_lam],
 (330, 3, 3, '2026-12-31', NULL, 1, '2026-11-24T19:39:28.860');
 SET IDENTITY_INSERT [lich_lam_viec] OFF;
 GO
--- lich_su_hoa_don: 1370 dòng
+-- lich_su_hoa_don: 1363 dòng
 SET IDENTITY_INSERT [lich_su_hoa_don] ON;
 INSERT INTO [lich_su_hoa_don] ([id], [id_hoa_don], [nguoi_thao_tac], [hanh_dong], [thoi_gian], [mo_ta]) VALUES
 (1, 18, N'Khách hàng', N'Tạo đơn hàng', '2026-10-29T20:34:01.987', N'Khách đặt hàng online'),
@@ -3545,17 +3538,10 @@ INSERT INTO [lich_su_hoa_don] ([id], [id_hoa_don], [nguoi_thao_tac], [hanh_dong]
 (3196, 970, N'Khách hàng', N'Tạo đơn hàng', '2026-11-01T18:49:00', N'Khách đặt hàng online'),
 (3197, 971, N'Nguyễn Hoàng Long', N'Tạo đơn hàng', '2026-11-01T19:10:00', N'Tạo hóa đơn chờ tại quầy'),
 (3198, 971, N'Nguyễn Hoàng Long', N'Đã hoàn thành', '2026-11-01T19:15:00', N'Khách đã thanh toán, nhận hàng tại cửa hàng'),
-(3202, 974, N'Khách hàng', N'Tạo đơn hàng', '2026-11-01T19:52:00', N'Khách đặt hàng online'),
-(3287, 1025, N'lê quốc tuấn', N'Đặt hàng trực tuyến', '2026-11-04T20:52:51', N'Khách đặt online đơn HD971 - Giao tới: so,ngo, Phường An Hải, Thành phố Đà Nẵng (SĐT: 0379992712)'),
-(3288, 1025, N'Nguyễn Hoàng Long', N'Đã xác nhận', '2026-11-04T20:53:43.583', N'Chuyển sang "Đã xác nhận"'),
-(3328, 1063, N'lê quốc tuấn', N'Đặt hàng trực tuyến', '2026-11-05T08:36:07', N'Khách đặt online đơn HD975 - Giao tới: số 18, đường đầm vạc, Phường Vĩnh Phúc, Tỉnh Phú Thọ (SĐT: 0379992712)'),
-(3406, 1063, N'Khách hàng', N'Đã hủy', '2026-11-08T19:22:50.803', N'Khách hủy đơn - Lý do: Thủ tục thanh toán quá rắc rối - Trả lại lượt phiếu VCHSN26FS'),
-(3569, 1228, N'Nguyễn Hoàng Long', N'Tạo đơn hàng', '2026-11-10T21:48:32', N'Tạo hóa đơn chờ tại quầy'),
-(3570, 1228, N'Nguyễn Hoàng Long', N'Đã xác nhận', '2026-11-10T21:50:11', N'Khách đặt giao hàng và đã thanh toán tại quầy'),
-(3571, 1228, N'Nguyễn Hoàng Long', N'Chờ giao hàng', '2026-11-10T21:50:11', N'Đóng gói, chờ giao cho đơn vị vận chuyển (phí giao hàng 50.000 ₫)');
+(3202, 974, N'Khách hàng', N'Tạo đơn hàng', '2026-11-01T19:52:00', N'Khách đặt hàng online');
 SET IDENTITY_INSERT [lich_su_hoa_don] OFF;
 GO
--- lich_su_thanh_toan: 421 dòng
+-- lich_su_thanh_toan: 420 dòng
 SET IDENTITY_INSERT [lich_su_thanh_toan] ON;
 INSERT INTO [lich_su_thanh_toan] ([id], [id_hoa_don], [so_tien], [ma_giao_dich], [thoi_gian], [trang_thai], [mo_ta], [nguoi_nhan], [id_phuong_thuc_thanh_toan]) VALUES
 (1, 1, 1250000, NULL, '2026-10-29T19:37:01.987', 1, N'Thanh toán đơn tại cửa hàng', NULL, NULL),
@@ -3977,8 +3963,7 @@ INSERT INTO [lich_su_thanh_toan] ([id], [id_hoa_don], [so_tien], [ma_giao_dich],
 (951, 964, 13932000, NULL, '2026-11-01T12:45:00', 1, N'Thanh toán tiền mặt tại quầy', NULL, 1),
 (953, 967, 2849000, N'FT2653958845', '2026-11-01T14:26:00', 1, N'Chuyển khoản tại quầy', NULL, 2),
 (954, 969, 4002650, N'FT2613412159', '2026-11-01T17:36:00', 1, N'Khách thanh toán trước khi giao hàng', NULL, 2),
-(955, 971, 690000, NULL, '2026-11-01T19:15:00', 1, N'Thanh toán tiền mặt tại quầy', NULL, 1),
-(1027, 1228, 1190400, N'GIALAP-HD976-1794322208913', '2026-11-10T21:50:11', 1, N'Chuyển khoản tại quầy', NULL, 2);
+(955, 971, 690000, NULL, '2026-11-01T19:15:00', 1, N'Thanh toán tiền mặt tại quầy', NULL, 1);
 SET IDENTITY_INSERT [lich_su_thanh_toan] OFF;
 GO
 -- mau_sac: 8 dòng
@@ -4003,7 +3988,7 @@ INSERT INTO [nhan_vien] ([id], [id_vai_tro], [ma_nhan_vien], [ho_ten], [gioi_tin
 (5, 2, N'NV05', N'Vũ Hoàng Nam', 1, '1998-09-30', N'0912000005', N'nam.vh@footstyle.vn', N'$2a$10$UR3It/fPX686MOqwRpleUu7WKaOFOHyfdyGTATi9fbem.uWNrYVVi', N'Thị trấn Quốc Oai, huyện Quốc Oai, Hà Nội', NULL, '2023-08-01', '2026-11-21T18:37:26.303', 1, NULL);
 SET IDENTITY_INSERT [nhan_vien] OFF;
 GO
--- phieu_giam_gia: 12 dòng
+-- phieu_giam_gia: 10 dòng
 SET IDENTITY_INSERT [phieu_giam_gia] ON;
 INSERT INTO [phieu_giam_gia] ([id], [ma_phieu], [ten_phieu], [doi_tuong_ap_dung], [loai_giam], [gia_tri_giam], [giam_toi_da], [gia_tri_don_hang_toi_thieu], [so_luong], [so_luong_da_dung], [gioi_han_moi_khach], [ngay_bat_dau], [ngay_ket_thuc], [ngay_tao], [trang_thai]) VALUES
 (1, N'VCH7QX2YN', N'Giảm 10% vợt Yonex', 1, 1, 15, 300000, 1500000, 100, 11, 2, '2026-10-19T00:00:00', '2026-11-18T23:59:59', '2026-10-29T21:34:01.703', 1),
@@ -4014,13 +3999,11 @@ INSERT INTO [phieu_giam_gia] ([id], [ma_phieu], [ten_phieu], [doi_tuong_ap_dung]
 (7, N'VCHDOI100', N'Tặng khách mua vợt đôi', 2, 2, 100000, NULL, 3000000, 2, 0, 1, '2026-10-14T00:00:00', '2026-12-13T23:59:59', '2026-10-29T21:34:01.703', 0),
 (8, N'VCHNEWMB1', N'Chào thành viên mới', 2, 2, 40000, NULL, 250000, 1, 0, 1, '2026-09-29T00:00:00', '2027-01-27T23:59:59', '2026-10-29T21:34:01.703', 1),
 (9, N'VCHHE12XN', N'Hè xanh - giảm 12%', 1, 1, 12, 150000, 800000, 120, 1, NULL, '2026-07-31T00:00:00', '2026-08-29T23:59:59', '2026-10-29T21:34:01.703', 1),
-(10, N'VCHG30K01', N'Giảm 30K cho đơn từ 600K', 1, 1, 70, 250000, 500000, 80, 1, 5, '2026-11-01T00:00:00', '2026-11-28T23:59:59', '2026-10-29T21:34:01.703', 1),
-(11, N'VCHBF25SM', N'Black Friday sớm', 1, 1, 25, 400000, 2500000, 60, 0, 1, '2026-12-08T00:00:00', '2026-12-13T23:59:59', '2026-10-29T21:34:01.703', 0),
-(14, N'VCHE7KL4B', N'test', 1, 1, 25, 250000, 300000, 25, 2, NULL, '2026-11-02T14:34:00', '2026-11-11T23:59:59', '2026-11-02T14:34:36.883', 1),
-(15, N'VCHNGT78D', N'testt', 2, 1, 25, 335000, 0, 1, 0, 1, '2026-11-05T08:38:00', '2026-11-07T23:59:59', '2026-11-05T08:38:22.147', 1);
+(10, N'VCHG30K01', N'Giảm 30% cho đơn từ 500K', 1, 1, 30, 250000, 500000, 80, 1, 5, '2026-11-01T00:00:00', '2026-11-28T23:59:59', '2026-10-29T21:34:01.703', 1),
+(11, N'VCHBF25SM', N'Black Friday sớm', 1, 1, 25, 400000, 2500000, 60, 0, 1, '2026-12-08T00:00:00', '2026-12-13T23:59:59', '2026-10-29T21:34:01.703', 0);
 SET IDENTITY_INSERT [phieu_giam_gia] OFF;
 GO
--- phieu_giam_gia_khach_hang: 7 dòng
+-- phieu_giam_gia_khach_hang: 6 dòng
 SET IDENTITY_INSERT [phieu_giam_gia_khach_hang] ON;
 INSERT INTO [phieu_giam_gia_khach_hang] ([id], [id_khach_hang], [id_phieu_giam_gia], [ngay_su_dung], [trang_thai]) VALUES
 (1, 1, 4, '2026-10-29T20:34:01.987', 1),
@@ -4028,8 +4011,7 @@ INSERT INTO [phieu_giam_gia_khach_hang] ([id], [id_khach_hang], [id_phieu_giam_g
 (3, 3, 4, NULL, 1),
 (4, 4, 7, NULL, 1),
 (5, 5, 7, NULL, 1),
-(6, 6, 8, NULL, 1),
-(9, 43, 15, NULL, 1);
+(6, 6, 8, NULL, 1);
 SET IDENTITY_INSERT [phieu_giam_gia_khach_hang] OFF;
 GO
 -- phuong_thuc_thanh_toan: 6 dòng
@@ -4133,7 +4115,7 @@ INSERT INTO [san_pham_chi_tiet] ([id], [id_mau_sac], [id_trong_luong], [id_chu_v
 (34, 1, 3, 2, 15, N'SP15-DEN-4U-G5', 5650000, 19, '2025-09-27T10:00:00', '2025-09-27T10:00:00', 1),
 (35, 12, 2, 2, 16, N'SP16-HONG-3U-G5', 3990000, 6, '2025-09-27T10:00:00', '2025-09-27T10:00:00', 1),
 (36, 12, 3, 2, 16, N'SP16-HONG-4U-G5', 3990000, 26, '2025-09-27T10:00:00', '2025-09-27T10:00:00', 1),
-(37, 2, 2, 2, 17, N'SP17-TRG-3U-G5', 4000000, 27, '2025-09-27T10:00:00', '2025-09-27T10:00:00', 1),
+(37, 2, 2, 2, 17, N'SP17-TRG-3U-G5', 4000000, 28, '2025-09-27T10:00:00', '2026-11-26T20:55:19.297', 1),
 (38, 2, 3, 2, 17, N'SP17-TRG-4U-G5', 4000000, 7, '2025-09-27T10:00:00', '2025-09-27T10:00:00', 1),
 (39, 2, 2, 2, 18, N'SP18-TRG-3U-G5', 4400000, 27, '2025-09-27T10:00:00', '2025-09-27T10:00:00', 1),
 (40, 2, 3, 2, 18, N'SP18-TRG-4U-G5', 4400000, 4, '2025-09-27T10:00:00', '2025-09-27T10:00:00', 1),
@@ -4163,8 +4145,8 @@ INSERT INTO [san_pham_chi_tiet] ([id], [id_mau_sac], [id_trong_luong], [id_chu_v
 (64, 5, 3, 2, 31, N'SP31-VANG-4U-G5', 950000, 14, '2025-09-27T10:00:00', '2025-09-27T10:00:00', 1),
 (65, 2, 3, 2, 32, N'SP32-TRG-4U-G5', 690000, 8, '2025-09-27T10:00:00', '2026-11-20T22:43:56.663', 1),
 (66, 2, 4, 2, 32, N'SP32-TRG-5U-G5', 690000, 124, '2025-09-27T10:00:00', '2026-11-20T22:43:56.663', 1),
-(67, 2, 3, 2, 33, N'SP33-TRG-4U-G5', 790000, 106, '2025-09-27T10:00:00', '2026-11-20T22:43:56.663', 1),
-(68, 2, 4, 2, 33, N'SP33-TRG-5U-G5', 790000, 107, '2025-09-27T10:00:00', '2026-11-20T22:43:56.663', 1),
+(67, 2, 3, 2, 33, N'SP33-TRG-4U-G5', 790000, 107, '2025-09-27T10:00:00', '2026-11-26T20:55:19.297', 1),
+(68, 2, 4, 2, 33, N'SP33-TRG-5U-G5', 790000, 108, '2025-09-27T10:00:00', '2026-11-26T20:55:19.297', 1),
 (110, 7, 2, 2, 57, N'SP34-XLA-3U-G5', 4349000, 6, '2026-11-20T21:00:00', '2026-11-20T21:00:00', 1),
 (111, 7, 3, 2, 57, N'SP34-XLA-4U-G5', 4349000, 9, '2026-11-20T21:00:00', '2026-11-20T21:00:00', 1),
 (112, 6, 2, 2, 58, N'SP35-XAM-3U-G5', 4279000, 12, '2026-11-20T21:00:00', '2026-11-20T21:00:00', 1),
@@ -4332,5 +4314,5 @@ ALTER TABLE [tin_nhan] ADD CONSTRAINT [FK__tin_nhan__id_hoi__719CDDE7] FOREIGN K
 ALTER TABLE [tin_nhan] ADD CONSTRAINT [FK__tin_nhan__id_nha__72910220] FOREIGN KEY ([id_nhan_vien]) REFERENCES [nhan_vien] ([id]);
 ALTER TABLE [hinh_anh_san_pham] ADD CONSTRAINT [fk_hasp_mau_sac] FOREIGN KEY ([id_mau_sac]) REFERENCES [mau_sac] ([id]);
 GO
-PRINT N'Đã tạo lại 35 bảng, 3664 dòng dữ liệu.';
+PRINT N'Đã tạo lại 35 bảng, 3646 dòng dữ liệu.';
 GO
