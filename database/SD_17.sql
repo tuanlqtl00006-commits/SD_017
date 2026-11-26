@@ -30,6 +30,9 @@ CREATE TABLE khach_hang (
     ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP,
     trang_thai TINYINT DEFAULT 1
 );
+-- Email và số điện thoại khách hàng không được trùng (bỏ qua NULL / rỗng). KhachHangService đã kiểm tra; đây là lớp bảo vệ cuối ở CSDL.
+CREATE UNIQUE INDEX ux_khach_hang_email ON khach_hang (email) WHERE email IS NOT NULL AND email <> '';
+CREATE UNIQUE INDEX ux_khach_hang_sdt ON khach_hang (sdt) WHERE sdt IS NOT NULL AND sdt <> '';
 
 CREATE TABLE vai_tro (
     id INT IDENTITY(1,1) PRIMARY KEY,
@@ -92,7 +95,8 @@ CREATE TABLE chat_lieu (
     id INT IDENTITY(1,1) PRIMARY KEY,
     ma_chat_lieu VARCHAR(50) UNIQUE NOT NULL,
     ten_chat_lieu NVARCHAR(255) NOT NULL,
-    trang_thai TINYINT DEFAULT 1
+    trang_thai TINYINT DEFAULT 1,
+    nhom_ap_dung VARCHAR(100) -- các nhóm danh mục dùng chất liệu này (vd 'VOT'), NULL = mọi danh mục
 );
 
 CREATE TABLE do_cung (
@@ -182,6 +186,7 @@ CREATE TABLE nhan_vien (
     ngay_vao_lam DATE,
     ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP,
     trang_thai TINYINT DEFAULT 1,
+    anh NVARCHAR(500), -- ảnh nhân viên (đường dẫn /api/uploads/... hoặc link http), có thể để trống
     FOREIGN KEY (id_vai_tro) REFERENCES vai_tro(id)
 );
 
@@ -261,8 +266,11 @@ CREATE TABLE hinh_anh_san_pham (
     duong_dan_hinh_anh VARCHAR(500) NOT NULL,
     la_anh_chinh BIT DEFAULT 0,
     trang_thai TINYINT DEFAULT 1,
-    FOREIGN KEY (id_san_pham) REFERENCES san_pham(id)
+    id_mau_sac INT NULL, -- NULL = ảnh chung của sản phẩm; có giá trị = ảnh của màu đó (dùng cho mọi biến thể cùng màu)
+    FOREIGN KEY (id_san_pham) REFERENCES san_pham(id),
+    CONSTRAINT fk_hasp_mau_sac FOREIGN KEY (id_mau_sac) REFERENCES mau_sac(id)
 );
+CREATE INDEX ix_hasp_san_pham_mau ON hinh_anh_san_pham (id_san_pham, id_mau_sac);
 
 CREATE TABLE san_pham_chi_tiet (
     id INT IDENTITY(1,1) PRIMARY KEY,
