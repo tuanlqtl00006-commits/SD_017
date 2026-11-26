@@ -1,7 +1,7 @@
 <script setup>
 // Màn hình khách hàng ở quầy (góp ý 25/11): cửa sổ riêng quay về phía khách, chỉ hiển thị hóa đơn nhân viên đang bán.
-// Bố cục theo mẫu người xem chiếu trong video 25/11 [03:15]: đầu trang tên cửa hàng + mã hóa đơn; trái "Sản phẩm đã chọn";
-// phải khung tối "Tổng kết hóa đơn" (phiếu đang áp, các dòng tiền, khách cần thanh toán, phương thức dự kiến).
+// Giao diện theo phong cách FootStyle (cùng màu, thẻ, ô icon với màn quản trị; khối phiếu giống màn bán hàng) - 26/11 người dùng dặn
+// "giống nhóm tôi, đừng làm quá sang nhóm kia".
 // Dữ liệu do màn bán hàng gửi sang (utils/manHinhKhach.js), cập nhật ngay khi thêm / xóa / đổi số lượng / đổi phiếu / chuyển hóa đơn chờ.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { docManHinhKhach, ngheManHinhKhach } from '../utils/manHinhKhach'
@@ -20,65 +20,70 @@ onBeforeUnmount(() => huyNghe?.())
 const dong = computed(() => du.value?.dong ?? [])
 const coDon = computed(() => !!du.value?.maHoaDon && dong.value.length > 0)
 const tongSoLuong = computed(() => dong.value.reduce((t, d) => t + d.soLuong, 0))
-// Các dòng tiền như khối "Thông tin đơn hàng" ở quầy (bỏ dòng tổng, dòng tổng hiện to riêng)
+// Các dòng tiền cùng tên, cùng thứ tự với khối "Thông tin đơn hàng" ở quầy (dòng tổng hiện to riêng)
 const dongTien = computed(() => (du.value?.tienDon ?? []).filter((d) => d.khoa !== 'tong-thanh-toan'))
 function chuTien(d) {
   if (d.khoa === 'phi-van-chuyen') return d.so === null ? 'Chưa tính' : d.so ? `+${formatMoney(d.so)}` : 'Miễn phí'
   if (d.khoa === 'phieu') return d.so ? `-${formatMoney(d.so)}` : 'Không dùng phiếu'
   return `${d.dau === '-' ? '-' : ''}${formatMoney(d.so)}`
 }
+const cumThongTin = (s) => String(s || '').split(' · ')
 </script>
 
 <template>
   <div class="mk">
     <header class="mk-dau">
-      <div class="mk-hieu">
-        <img src="/logo.png" :alt="du?.tenCuaHang || 'FootStyle'" class="mk-logo" />
-        <div class="mk-khau-hieu">Cửa hàng cầu lông</div>
-      </div>
+      <img src="/logo.png" :alt="du?.tenCuaHang || 'FootStyle'" class="mk-logo" />
       <div v-if="du?.maHoaDon" class="mk-ma" data-testid="mk-ma">
-        <span>HÓA ĐƠN</span>
-        <b>{{ du.maHoaDon }}</b>
+        <i class="bi bi-receipt" aria-hidden="true"></i> Hóa đơn <b>{{ du.maHoaDon }}</b>
+        <template v-if="du.tenKhach"><span class="mk-ma-cham">·</span>{{ du.tenKhach }}</template>
       </div>
     </header>
 
     <main v-if="coDon" class="mk-than">
-      <section class="mk-ds" aria-label="Sản phẩm trong hóa đơn">
-        <div class="mk-nhan">SẢN PHẨM ĐÃ CHỌN<template v-if="du.tenKhach"> · {{ du.tenKhach }}</template></div>
-        <h2 class="mk-tieu-de">{{ dong.length }} sản phẩm · {{ tongSoLuong }} món</h2>
-        <ul class="mk-ds-list">
+      <!-- Trái: giỏ hàng -->
+      <section class="mk-the" aria-labelledby="mk-gio">
+        <div class="mk-the-dau">
+          <span class="mk-icon"><i class="bi bi-cart3" aria-hidden="true"></i></span>
+          <div>
+            <h2 id="mk-gio" class="mk-tieu-de">Giỏ hàng</h2>
+            <div class="mk-phu">{{ dong.length }} sản phẩm · {{ tongSoLuong }} món</div>
+          </div>
+        </div>
+        <ul class="mk-ds">
           <li v-for="d in dong" :key="d.id" class="mk-sp" data-testid="mk-dong">
             <div class="mk-anh">
               <img v-if="d.anh" :src="d.anh" :alt="d.ten" />
-              <span v-else class="mk-anh-trong">{{ (d.ten || '?').charAt(0) }}</span>
+              <i v-else class="bi bi-image" aria-hidden="true"></i>
             </div>
             <div class="mk-sp-ten">
               <div class="mk-sp-chinh">{{ d.ten }}</div>
-              <div class="mk-sp-phu">
-                <template v-if="d.phanLoai">{{ d.phanLoai }} · </template>{{ d.soLuong }} × {{ formatMoney(d.donGia) }}
+              <div v-if="d.phanLoai" class="mk-sp-phu">{{ d.phanLoai }}</div>
+              <div class="mk-sp-gia">
+                {{ d.soLuong }} × {{ formatMoney(d.donGia) }}
+                <s v-if="d.giaGoc > d.donGia">{{ formatMoney(d.giaGoc) }}</s>
+                <span v-if="d.phanTramGiam > 0" class="mk-giam-nhan">-{{ d.phanTramGiam }}%</span>
               </div>
-              <span v-if="d.phanTramGiam > 0" class="mk-sp-giam">-{{ d.phanTramGiam }}%</span>
             </div>
-            <div class="mk-sp-tien">
-              <b>{{ formatMoney(d.donGia * d.soLuong) }}</b>
-              <s v-if="d.giaGoc > d.donGia">{{ formatMoney(d.giaGoc * d.soLuong) }}</s>
-            </div>
+            <div class="mk-sp-tien">{{ formatMoney(d.donGia * d.soLuong) }}</div>
           </li>
         </ul>
       </section>
 
-      <aside class="mk-tong" aria-label="Tổng kết hóa đơn">
-        <div class="mk-nhan mk-nhan-vang">THÔNG TIN THANH TOÁN</div>
-        <h2 class="mk-tieu-de mk-trang">Tổng kết hóa đơn</h2>
+      <!-- Phải: thông tin đơn hàng (cùng tên với màn quầy) -->
+      <aside class="mk-the mk-tong" aria-labelledby="mk-tt">
+        <div class="mk-the-dau">
+          <span class="mk-icon"><i class="bi bi-credit-card" aria-hidden="true"></i></span>
+          <h2 id="mk-tt" class="mk-tieu-de">Thông tin đơn hàng</h2>
+        </div>
 
+        <!-- Khối phiếu giống màn bán hàng: "Đang áp dụng phiếu X (giảm Y)" + dòng thông tin phiếu -->
         <div v-if="du.phieu" class="mk-phieu" data-testid="mk-phieu">
-          <span class="mk-phieu-icon">%</span>
-          <div class="mk-phieu-chu">
-            <div class="mk-phieu-nhan">Phiếu giảm giá đang áp dụng</div>
-            <b>{{ du.phieu.ma }}</b>
-            <div class="mk-phieu-tt"><template v-for="(t, i) in String(du.phieu.thongTin || '').split(' · ')" :key="i">{{ i ? ' · ' : '' }}<span class="mk-lien">{{ t }}</span></template></div>
-          </div>
-          <div class="mk-phieu-giam">-{{ formatMoney(du.phieu.giam) }}</div>
+          <i class="bi bi-ticket-perforated" aria-hidden="true"></i>
+          <span>
+            Đang áp dụng phiếu <b>{{ du.phieu.ma }}</b> <span class="mk-lien">(giảm <b>{{ formatMoney(du.phieu.giam) }}</b>)</span>
+            <small class="mk-phieu-tt"><template v-for="(t, i) in cumThongTin(du.phieu.thongTin)" :key="i">{{ i ? ' · ' : '' }}<span class="mk-lien">{{ t }}</span></template></small>
+          </span>
         </div>
 
         <dl class="mk-dong-tien">
@@ -89,18 +94,17 @@ function chuTien(d) {
         </dl>
 
         <div class="mk-phai-tra">
-          <div class="mk-nhan mk-nhan-vang">KHÁCH CẦN THANH TOÁN</div>
+          <span>Tổng thanh toán</span>
           <strong data-testid="mk-tong">{{ formatMoney(du.tongThanhToan) }}</strong>
         </div>
         <div v-if="du.phuongThuc" class="mk-pt" data-testid="mk-phuong-thuc">
-          <span>Phương thức dự kiến</span>
+          <span>Hình thức thanh toán</span>
           <b>{{ du.phuongThuc }}</b>
         </div>
       </aside>
     </main>
 
     <main v-else class="mk-trong">
-      <div class="mk-trong-icon"><i class="bi bi-bag-heart" aria-hidden="true"></i></div>
       <div class="mk-chao">Xin chào quý khách!</div>
       <div class="mk-chao-phu">{{ du?.maHoaDon ? 'Nhân viên đang thêm sản phẩm vào hóa đơn ' + du.maHoaDon + '…' : 'Sản phẩm và tổng tiền sẽ hiện ở đây khi nhân viên lên đơn.' }}</div>
     </main>
@@ -108,14 +112,15 @@ function chuTien(d) {
 </template>
 
 <style scoped>
+/* Màu, thẻ, ô icon theo màn quản trị FootStyle (assets/admin.css: --fs-*, .ad-card, .ad-icon-box) */
 .mk {
   position: fixed;
   inset: 0;
   overflow: auto;
   display: flex;
   flex-direction: column;
-  background: #eef2f7;
-  color: #0f172a;
+  background: var(--fs-surface, #f7f9fc);
+  color: var(--fs-text, #18242f);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 .mk-dau {
@@ -123,239 +128,208 @@ function chuTien(d) {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.9rem 2rem;
+  padding: 0.8rem 2rem;
   background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-}
-.mk-hieu {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  border-bottom: 1px solid var(--fs-line, #e6eaf0);
 }
 .mk-logo {
   height: 44px;
   width: auto;
 }
-.mk-ten {
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-.mk-khau-hieu {
-  font-size: 0.8rem;
-  color: #64748b;
-}
 .mk-ma {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: var(--fs-primary-soft, #e7f1fd);
+  color: var(--fs-primary-dark, #075fc0);
+  font-size: 1rem;
 }
-.mk-ma span {
-  font-size: 0.72rem;
-  letter-spacing: 1px;
-  color: #64748b;
-}
-.mk-ma b {
-  font-size: 1.3rem;
+.mk-ma-cham {
+  margin: 0 0.1rem;
 }
 .mk-than {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(340px, 1fr);
+  grid-template-columns: minmax(0, 1.6fr) minmax(340px, 1fr);
   gap: 1.25rem;
   padding: 1.25rem 2rem 2rem;
   align-items: start;
 }
-.mk-nhan {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: #d97706;
+.mk-the {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.04);
+  box-shadow: 0 8px 30px rgba(31, 45, 61, 0.06);
+  padding: 1.25rem 1.5rem;
 }
-.mk-nhan-vang {
-  color: #fbbf24;
+.mk-the-dau {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.mk-icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--fs-primary-soft, #e7f1fd);
+  color: var(--fs-primary, #0977ec);
+  font-size: 1.2rem;
 }
 .mk-tieu-de {
-  margin: 0.2rem 0 0.75rem;
-  font-size: 1.4rem;
-  font-weight: 800;
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
 }
-.mk-trang {
-  color: #fff;
+.mk-phu {
+  color: var(--fs-muted, #7b8794);
+  font-size: 0.9rem;
 }
 .mk-ds {
-  background: #fff;
-  border-radius: 16px;
-  padding: 1.25rem 1.5rem;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
-}
-.mk-ds-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 .mk-sp {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) auto;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
   align-items: center;
   gap: 1rem;
-  padding: 0.85rem 0;
-  border-top: 1px solid #eef2f7;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--fs-line-soft, #eef1f5);
 }
-/* Ảnh vợt dài và hẹp: đặt trong ô vuông có viền, giữ trọn ảnh (không cắt) */
 .mk-anh {
-  width: 76px;
-  height: 76px;
-  border-radius: 12px;
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
   overflow: hidden;
   background: #fff;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border: 1px solid var(--fs-line, #e6eaf0);
+  display: grid;
+  place-items: center;
   padding: 4px;
+  color: var(--fs-muted, #7b8794);
+  font-size: 1.4rem;
 }
 .mk-anh img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
-.mk-anh-trong {
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #94a3b8;
-}
 .mk-sp-chinh {
   font-weight: 700;
   font-size: 1.05rem;
 }
 .mk-sp-phu {
-  color: #64748b;
-  font-size: 0.9rem;
-  margin-top: 2px;
+  color: var(--fs-muted, #7b8794);
+  font-size: 0.88rem;
 }
-.mk-sp-giam {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 1px 8px;
+.mk-sp-gia {
+  margin-top: 2px;
+  font-size: 0.92rem;
+  color: #475569;
+}
+.mk-sp-gia s {
+  margin-left: 0.35rem;
+  color: #94a3b8;
+}
+.mk-giam-nhan {
+  margin-left: 0.35rem;
+  padding: 0 0.45rem;
   border-radius: 999px;
-  background: #fef3c7;
-  color: #b45309;
+  background: #fdecee;
+  color: var(--fs-danger, #dc3545);
   font-size: 0.75rem;
   font-weight: 700;
 }
 .mk-sp-tien {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  font-weight: 700;
+  font-size: 1.1rem;
   min-width: 130px;
+  text-align: right;
 }
-.mk-sp-tien b {
-  font-size: 1.1rem;
-}
-.mk-sp-tien s {
-  color: #94a3b8;
-  font-size: 0.85rem;
-}
-.mk-tong {
-  background: linear-gradient(160deg, #1e3a5f, #0f2440);
-  color: #e2e8f0;
-  border-radius: 16px;
-  padding: 1.25rem 1.4rem 1.4rem;
-  box-shadow: 0 8px 24px rgba(15, 36, 64, 0.35);
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
+/* Khối phiếu giống .bh-phieu-ap ở màn bán hàng */
 .mk-phieu {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 0.9rem;
-  margin-bottom: 0.75rem;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-.mk-phieu-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #fbbf24;
-  color: #78350f;
-  font-weight: 800;
-  font-size: 1.1rem;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 10px;
+  background: #ecfdf5;
+  font-size: 0.95rem;
+  line-height: 1.45;
 }
-.mk-phieu-nhan {
-  font-size: 0.75rem;
-  color: #cbd5e1;
+.mk-phieu > .bi {
+  color: #16a34a;
+  font-size: 1.1rem;
+  line-height: 1.3;
 }
-.mk-phieu-chu b {
-  color: #fff;
+.mk-phieu b {
+  color: #15803d;
 }
 .mk-phieu-tt {
-  font-size: 0.78rem;
-  color: #cbd5e1;
-}
-.mk-phieu-giam {
-  font-weight: 800;
-  color: #4ade80;
-  white-space: nowrap;
+  display: block;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #bbf7d0;
+  font-size: 0.85rem;
+  color: #475569;
 }
 .mk-lien {
   white-space: nowrap;
 }
 .mk-dong-tien {
   margin: 0;
-  padding: 0.5rem 0 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 .mk-dong-tien div {
   display: flex;
   justify-content: space-between;
-  padding: 0.35rem 0;
-  font-size: 1rem;
+  padding: 0.4rem 0;
+  font-size: 1.02rem;
 }
 .mk-dong-tien dt {
   font-weight: 500;
-  color: #cbd5e1;
+  color: #475569;
 }
 .mk-dong-tien dd {
   margin: 0;
-  font-weight: 700;
-  color: #fff;
+  font-weight: 600;
 }
 .mk-dong-tien dd.mk-giam {
-  color: #4ade80;
+  color: var(--fs-success, #198754);
 }
 .mk-phai-tra {
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 0.4rem;
   padding-top: 0.9rem;
+  border-top: 1px dashed var(--fs-line, #e6eaf0);
+  font-size: 1.1rem;
+  font-weight: 700;
 }
 .mk-phai-tra strong {
-  display: block;
-  margin-top: 0.2rem;
-  font-size: 2.4rem;
-  font-weight: 800;
-  color: #fbbf24;
+  font-size: 2.1rem;
+  color: var(--fs-danger, #dc3545);
 }
 .mk-pt {
   display: flex;
   justify-content: space-between;
   margin-top: 0.75rem;
-  padding: 0.6rem 0.9rem;
+  padding: 0.55rem 0.85rem;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 0.9rem;
+  background: var(--fs-surface, #f7f9fc);
+  font-size: 0.92rem;
+  color: #475569;
 }
 .mk-pt b {
-  color: #fff;
+  color: var(--fs-text, #18242f);
 }
 .mk-trong {
   flex: 1;
@@ -367,26 +341,14 @@ function chuTien(d) {
   text-align: center;
   padding: 2rem;
 }
-.mk-trong-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
-  background: #fef3c7;
-  color: #b45309;
-  font-size: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 0.5rem;
-}
 .mk-chao {
-  font-size: 2.2rem;
+  font-size: 2.1rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--fs-primary-dark, #075fc0);
 }
 .mk-chao-phu {
   font-size: 1.05rem;
-  color: #64748b;
+  color: var(--fs-muted, #7b8794);
 }
 @media (max-width: 900px) {
   .mk-than {
