@@ -886,7 +886,7 @@ async function guiLaiMailThanhToan(ma) {
                       data-testid="ac-thanh-toan-lai"
                       title="Quay lại màn hình thanh toán"
                     >
-                      <i class="bi bi-arrow-repeat me-1"></i>Thanh toán lại
+                      <i class="bi bi-qr-code me-1"></i>Thanh toán
                     </RouterLink>
                     <button
                       v-if="order.trangThai === 0"

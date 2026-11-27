@@ -376,7 +376,7 @@ async function guiLaiMail() {
                     class="btn btn-warning btn-sm rounded-pill me-1 fw-bold text-dark shadow-sm"
                     data-testid="ol-ds-thanh-toan-lai"
                   >
-                    <i class="bi bi-arrow-repeat me-1"></i>Thanh toán lại
+                    <i class="bi bi-qr-code me-1"></i>Thanh toán
                   </RouterLink>
                   <button type="button" class="btn btn-outline-primary btn-sm" :disabled="loading" data-testid="ol-xem-don" @click="xemDon(d)">Xem chi tiết</button>
                 </td>

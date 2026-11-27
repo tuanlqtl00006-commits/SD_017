@@ -275,7 +275,7 @@ describe('Màn đơn hàng của khách đồng bộ với Chi tiết hóa đơn
     expect(dong('tong-thanh-toan')).toContain('3.384.000')
   })
 
-  it('đơn thanh toán QR chưa trả tiền thì hiển thị nút tiếp tục thanh toán', async () => {
+  it('27/11: đơn thanh toán QR chưa trả tiền KHÔNG còn nút "Thanh toán lại / Tiếp tục thanh toán"', async () => {
     auth.trangThai = reactive({ nguoiDung: { vaiTro: 'KHACH_HANG' } })
     const ct = {
       ...CHI_TIET,
@@ -287,7 +287,7 @@ describe('Màn đơn hàng của khách đồng bộ với Chi tiết hóa đơn
     await flushPromises()
     await tra(w, 'HD971')
     const nut = w.find('[data-testid="hd-tiep-tuc-thanh-toan"]')
-    expect(nut.exists()).toBe(true)
-    expect(nut.text()).toContain('Tiếp tục thanh toán')
+    expect(nut.exists()).toBe(false)
+    expect(w.text()).not.toContain('Tiếp tục thanh toán')
   })
 })

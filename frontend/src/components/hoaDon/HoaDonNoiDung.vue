@@ -190,13 +190,6 @@ const tenHinhThucThanhToan = computed(() => hd.value.hinhThucThanhToan || hd.val
 const conPhaiTra = computed(() => Math.max(0, Number(hd.value.thanhTien ?? 0) - daThanhToan.value))
 const laHetHang = computed(() => Boolean(props.data?.hetHang || hd.value?.hetHang || props.data?.daBaoHetHang || hd.value?.daBaoHetHang))
 const lyDoHetHangHienThi = computed(() => props.data?.lyDoHetHang || hd.value?.lyDoHetHang || '')
-const coNutThanhToanQr = computed(() => {
-  if (!props.cheDoKhach) return false
-  const pttt = Number(hd.value?.idPhuongThucThanhToan) === 2 ||
-    String(hd.value?.phuongThucThanhToan || '').toUpperCase().includes('QR') ||
-    String(hd.value?.phuongThucThanhToan || '').includes('Chuyển khoản')
-  return pttt && daThanhToan.value === 0 && (hd.value?.trangThai === 0 || hd.value?.trangThai === 1) && !laHetHang.value
-})
 
 /* ===================== Danh sách sản phẩm: lọc / sắp xếp ===================== */
 
@@ -325,16 +318,6 @@ const coGiam = (x) => Number(x.giaGoc) > 0 && Number(x.donGia) < Number(x.giaGoc
           </li>
         </ol>
 
-        <div v-if="coNutThanhToanQr" class="hd-actions mt-3">
-          <a
-            :href="`/shop/dat-hang-thanh-cong?ma=${encodeURIComponent(hd.maHoaDon || '')}`"
-            class="btn btn-warning rounded-pill px-4 fw-bold text-dark text-decoration-none shadow-sm"
-            data-testid="hd-tiep-tuc-thanh-toan"
-            @click.prevent="$router?.push?.({ path: '/shop/dat-hang-thanh-cong', query: { ma: hd.maHoaDon } })"
-          >
-            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Thanh toán lại / Tiếp tục thanh toán
-          </a>
-        </div>
         <div v-if="slots['hanh-dong']" class="hd-actions">
           <slot name="hanh-dong" />
         </div>
